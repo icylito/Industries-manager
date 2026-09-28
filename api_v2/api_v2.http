@@ -1,0 +1,35 @@
+@api_v2_HostAddress = http://localhost:5005
+
+Get http://localhost:5005/industries
+
+###
+
+Get http://localhost:5005/industries/1
+
+###
+
+POST http://localhost:5005/industries
+Content-Type: application/json
+
+{
+    "name": "Muscat Mall",
+    "sector": "Private Sector",
+    "price": 1.23,
+    "release": "2026-02-10" 
+}
+
+### 
+
+PUT http://localhost:5005/industries/update/1
+Content-Type: application/json
+
+{
+    "name": "Muscat Mall",
+    "sector": "Public Sector",
+    "price": 0.200,
+    "release": "2026-09-10"
+}
+
+###
+
+DELETE http://localhost:5005/industries/4
