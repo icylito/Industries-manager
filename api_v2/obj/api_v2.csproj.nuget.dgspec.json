@@ -1,31 +1,25 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\YahyaAl-Bahanta\\Desktop\\testing\\api_v2\\api_v2.csproj": {}
+    "C:\\Users\\yfais\\Desktop\\workspace\\minimal-api\\api_v2\\api_v2.csproj": {}
   },
   "projects": {
-    "C:\\Users\\YahyaAl-Bahanta\\Desktop\\testing\\api_v2\\api_v2.csproj": {
+    "C:\\Users\\yfais\\Desktop\\workspace\\minimal-api\\api_v2\\api_v2.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\YahyaAl-Bahanta\\Desktop\\testing\\api_v2\\api_v2.csproj",
+        "projectUniqueName": "C:\\Users\\yfais\\Desktop\\workspace\\minimal-api\\api_v2\\api_v2.csproj",
         "projectName": "api_v2",
-        "projectPath": "C:\\Users\\YahyaAl-Bahanta\\Desktop\\testing\\api_v2\\api_v2.csproj",
-        "packagesPath": "C:\\Users\\YahyaAl-Bahanta\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\YahyaAl-Bahanta\\Desktop\\testing\\api_v2\\obj\\",
+        "projectPath": "C:\\Users\\yfais\\Desktop\\workspace\\minimal-api\\api_v2\\api_v2.csproj",
+        "packagesPath": "C:\\Users\\yfais\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\yfais\\Desktop\\workspace\\minimal-api\\api_v2\\obj\\",
         "projectStyle": "PackageReference",
-        "fallbackFolders": [
-          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-        ],
         "configFilePaths": [
-          "C:\\Users\\YahyaAl-Bahanta\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+          "C:\\Users\\yfais\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net10.0"
         ],
         "sources": {
-          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
