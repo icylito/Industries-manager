@@ -1,1 +1,33 @@
-<p>my-components works!</p>
+<input #name placeholder="Name">
+<input #sector placeholder="Sector">
+<input #price placeholder="Price" type="number">
+<button (click)="add(name.value, sector.value,price.value)">Add</button>
+
+@if (industries().length > 0){
+    <table>
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Sector</th>
+            <th>Price</th>
+            <th>Release</th>
+            <th>Actions</th>
+        </tr>
+        </thead>
+    <tbody>
+        @for (item of industries(); track item.id) {
+            <tr>
+                <td>{{ item.id }}</td>
+                <td>{{ item.name }}</td>
+                <td>{{ item.sector ?? '-' }}</td>
+                <td>{{ item.price ?? '-' }}</td>
+                <td>{{ item.release }}</td>
+                <td><button (click)="remove(item.id)">Delete</button></td>
+            </tr>
+        }
+    </tbody>
+    </table>
+} @else {
+    <p>No industries yet.</p>
+}

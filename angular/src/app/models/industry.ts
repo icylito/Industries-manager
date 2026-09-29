@@ -2,7 +2,7 @@ export interface Industry {
     id: number;
     name: string;
     sector: string | null;
-    price: number;
+    price: number | null; 
     release: string;
 }
 
