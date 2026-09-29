@@ -1,5 +1,7 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, computed, inject, OnInit } from '@angular/core';
 import { Industry } from '../../models/industry';
+import { IndustryApi } from '../../services/industry-api';
+
 
 @Component({
   imports: [],
@@ -7,20 +9,21 @@ import { Industry } from '../../models/industry';
   styleUrl: './my-components.css',
   templateUrl: './my-components.html',
 })
-export class MyComponents {
-  industries = signal<Industry[]>([
-    {id: 1, name: 'Omantel', sector: 'Public Sector', price: 0.210, release: '2021-09-17'},
-    {id: 2, name: 'Ooredoo', sector: 'Private Sector', price: null , release: '2026-01-20'},
-    {id: 3, name: 'Totally Tech', sector: null , price: 0.781, release: '2026-10-10'}
-  ]);
+
+export class MyComponents implements OnInit {
+  private api = inject(IndustryApi);
+  industries = signal<Industry[]>([]);
+
+  ngOnInit(): void {
+    this.api.getAll().subscribe(data => this.industries.set(data));
+  }
   remove(id: number){
     this.industries.update(list => list.filter(i => i.id !== id));
   }
-  nextId= 4;
-  
+
   add(name: string, sector: string, price: string){
     const newItem: Industry = {
-      id: this.nextId++,
+      id: Math.max(0, ...this.industries().map(i => i.id)) +1,
       name,
       sector: sector || null,
       price: price ? Number(price) : null,
@@ -28,4 +31,9 @@ export class MyComponents {
     };
     this.industries.update(list => [...list, newItem]);
   }
+  search = signal ('');
+
+  filtered = computed(() => 
+  this.industries().filter(i => i.name.toLowerCase()
+  .includes(this.search().toLowerCase()))) 
 }

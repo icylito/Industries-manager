@@ -1,9 +1,14 @@
 <input #name placeholder="Name">
 <input #sector placeholder="Sector">
 <input #price placeholder="Price" type="number">
-<button (click)="add(name.value, sector.value,price.value)">Add</button>
+<button class= "add-btn" (click)="add(name.value, sector.value,price.value)">Add</button>
+<p>Try searching by name</p>
+<div class="search">
+<input placeholder="type a name to search"
+(input)="search.set($any($event.target).value)">
+</div>
 
-@if (industries().length > 0){
+@if (filtered().length > 0){
     <table>
         <thead>
         <tr>
@@ -16,7 +21,7 @@
         </tr>
         </thead>
     <tbody>
-        @for (item of industries(); track item.id) {
+        @for (item of filtered(); track item.id) {
             <tr>
                 <td>{{ item.id }}</td>
                 <td>{{ item.name }}</td>
@@ -29,5 +34,9 @@
     </tbody>
     </table>
 } @else {
-    <p>No industries yet.</p>
+    @if (industries().length === 0) {
+        <p>No industries yet.</p>
+    }@else {
+        <p>No industries match your search. Try a different search</p>
+    }
 }
