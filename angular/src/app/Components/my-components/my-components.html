@@ -1,14 +1,35 @@
-<input #name placeholder="Name">
-<input #sector placeholder="Sector">
-<input #price placeholder="Price" type="number">
-<button class= "add-btn" (click)="add(name.value, sector.value,price.value)">Add</button>
+<form [formGroup]="form" (ngSubmit)="submit()" (input)="formError.set('')">
+    <input formControlName="name" placeholder="Name">
+    <input formControlName="sector" placeholder="Sector">
+    <input formControlName="price" placeholder="Price" type="number">
+    <input formControlName="release" placeholder="Release" type="date">
+    <button type="submit" class="add-btn" [disabled]="form.invalid || saving()">
+        {{ editingId() === null ? 'Add' : 'Save'}}
+    </button>
+    @if (editingId() !== null){
+        <button type="button" (click)="cancelEdit()">Cancel</button>
+    }
+</form>
+
+@if (formError()){
+    <p class="field-error">{{ formError() }}</p>
+}
+
+@for (msg of fieldErrors(); track msg) {
+    <p class="field-error">{{ msg }}</p>
+}
+
 <p>Try searching by name</p>
 <div class="search">
 <input placeholder="type a name to search"
 (input)="search.set($any($event.target).value)">
 </div>
 
-@if (filtered().length > 0){
+@if (loading()){
+    <p>Loading...</p>
+}   @else if (error()) {
+    <p>{{ error() }}</p>
+}   @else if (filtered().length > 0){
     <table>
         <thead>
         <tr>
@@ -28,7 +49,10 @@
                 <td>{{ item.sector ?? '-' }}</td>
                 <td>{{ item.price ?? '-' }}</td>
                 <td>{{ item.release }}</td>
-                <td><button (click)="remove(item.id)">Delete</button></td>
+                <td>
+                    <button (click)="edit(item)">Edit</button>
+                    <button (click)="remove(item.id)">Delete</button>
+                </td>
             </tr>
         }
     </tbody>

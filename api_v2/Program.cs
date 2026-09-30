@@ -9,8 +9,7 @@ using api_v2.Data;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddCors(options => options.AddPolicy("Angular", policy => 
 policy.WithOrigins("http://localhost:4200").AllowAnyHeader().AllowAnyMethod()));
-builder.Services.AddValidation();
-builder.Services.AddValidation(); //Validating all the required, range, and length in Dtos folder
+builder.Services.AddValidation(); // Validating all the required, range, and length in Dtos folder
 builder.Services.AddOpenApi(options => 
 options.OpenApiVersion = Microsoft.OpenApi.OpenApiSpecVersion.OpenApi3_0);
 var connectionString = builder.Configuration.GetConnectionString("ApiV2");

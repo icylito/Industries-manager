@@ -99,7 +99,7 @@ public static class IndustryEndpoints
                 var checker3 = db.Industries.Find(id);
                 if (checker3 is null)
                     {
-                        return Results.NotFound("The row doesn't exit");
+                        return Results.NotFound("The row doesn't exist");
                     }
                 db.Industries.Remove(checker3);
                 db.SaveChanges();

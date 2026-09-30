@@ -9,3 +9,8 @@ td button {
 .add-btn {
     margin-left: 10px;
 }
+
+.field-error {
+    color: red;
+    margin: 0.25rem 0;
+}
