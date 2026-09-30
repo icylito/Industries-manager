@@ -7,5 +7,5 @@ public record IndustryDto(
     string Name,
     string? Sector,
     decimal? Price,
-    DateOnly Release
+    DateOnly? Release
 );

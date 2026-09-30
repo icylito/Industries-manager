@@ -6,5 +6,5 @@ public record UpdateIndustry(
     [Required][StringLength(50)] string Name,
     [StringLength(25)] string? Sector,
     [Range(0, 10)] decimal? Price,
-    DateOnly Release
+    DateOnly? Release
 );

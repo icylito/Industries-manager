@@ -4,7 +4,7 @@ So this project is a minimal web app API that shows a list of industries kept in
 
 ## Where things are
 
-- Done: the list shows the real data from the database, and the search works.
+- Done: the list shows the data from the database, and the search works.
 - In progress: adding and deleting only change the screen for now, they don't save yet.
 - Next: saving new rows, editing, deleting, and edge cases.
 

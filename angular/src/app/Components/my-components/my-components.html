@@ -46,9 +46,9 @@
             <tr>
                 <td>{{ item.id }}</td>
                 <td>{{ item.name }}</td>
-                <td>{{ item.sector ?? '-' }}</td>
-                <td>{{ item.price ?? '-' }}</td>
-                <td>{{ item.release }}</td>
+                <td>{{ item.sector ?? '--' }}</td>
+                <td>{{ item.price ?? '--' }}</td>
+                <td>{{ item.release ?? '--' }}</td>
                 <td>
                     <button (click)="edit(item)">Edit</button>
                     <button (click)="remove(item.id)">Delete</button>

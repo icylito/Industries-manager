@@ -18,7 +18,7 @@ export class MyComponents implements OnInit {
     name: ['', [Validators.required, Validators.maxLength(50)]],
     sector: ['', [Validators.maxLength(25)]],
     price: [null as number | null, [Validators.min(0), Validators.max(10)]],
-    release: ['', [Validators.required]],
+    release: [''],
   })
   industries = signal<Industry[]>([]);
   loading = signal(true);
@@ -35,7 +35,7 @@ export class MyComponents implements OnInit {
       name: verify.name ?? '',
       sector: verify.sector || null,
       price: verify.price,
-      release: verify.release ?? '',
+      release: verify.release || null,
     };
 
     this.saving.set(true);

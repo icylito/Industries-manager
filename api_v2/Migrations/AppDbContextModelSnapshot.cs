@@ -37,7 +37,7 @@ namespace api_v2.Migrations
                     b.Property<decimal?>("Price")
                         .HasColumnType("numeric");
 
-                    b.Property<DateOnly>("Release")
+                    b.Property<DateOnly?>("Release")
                         .HasColumnType("date");
 
                     b.Property<string>("Sector")

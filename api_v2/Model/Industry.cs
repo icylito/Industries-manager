@@ -6,5 +6,5 @@ public class Industry
     public required string Name { get; set; }
     public string? Sector { get; set;}
     public decimal? Price { get; set; } 
-    public DateOnly Release { get; set; }
+    public DateOnly? Release { get; set; }
 }
