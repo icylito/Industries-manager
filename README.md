@@ -1,11 +1,13 @@
 # About
 
-So this project is a minimal web app API that shows a list of industries kept in a database. You can search the list, and adding, editing, and deleting rows is being built step by step.
+So this project is a small web app that shows a list of industries kept in a database. You can search the list, add new rows, edit them, and delete them, and everything you do on the page is saved to the database.
+
+I have been working on this for 9 days so far, and the sections below show where things are and what comes next.
 
 ## Where things are
 
 - Done: the list shows the data from the database, and the search works.
-- In progress: Styling using css and refining the logic more.
+- In progress: adding and deleting only change the screen for now, they don't save yet.
 - Next: saving new rows, editing, deleting, and edge cases.
 
 # Starting
@@ -16,10 +18,10 @@ So this project is a minimal web app API that shows a list of industries kept in
 Anyway, that's all for Angular, as it's barebone. Pro tip: use `ssr=false`, as this project uses a barebone app, and preferably skip git by using this flag:
 `--skip-git`.
 
-- For `api_v2`, it's a dotnet project, so you'd need to run `dotnet build`. It's a bit more non-linear, as you'd need to get some packages. Make sure NuGet
+- For `api_v2`, it's a dotnet project, so you'd need to run `dotnet build`. It's a bit more non linear, as you'd need to get some packages. Make sure NuGet
 as an extension is downloaded in VS Code. Also make sure `.NET Install Tool`, `C# Dev Kit`, and `C#` are all installed. Use this URL for the .NET installation,
 no need for Visual Studio Community: https://dotnet.microsoft.com/en-us/download/dotnet/thank-you/sdk-10.0.401-windows-x64-installer.
-For the packages, this project only uses don't change the versions as if you picked a wrong version something may break or not depends on the version and your luck:
+For the packages, this project only uses the ones below. Don't change the versions, because a wrong version may break things, and whether it does depends on the version and your luck:
 
 ```
 - https://www.nuget.org/packages/Swashbuckle.AspNetCore/10.0.0
@@ -30,11 +32,21 @@ For the packages, this project only uses don't change the versions as if you pic
 
 And that should be all to get started.
 
+## Running it
+
+Open two terminals, one for each folder.
+
+- In `api_v2`, run `dotnet run --launch-profile http`. The API starts at http://localhost:5005, and the Swagger page is at http://localhost:5005/swagger.
+- In `angular`, run `ng serve`. The page opens at http://localhost:4200.
+
+Start the API first. If the page says it could not load the industries, the API is most likely not running.
+
+Soon I'm planning to make a build to combine them both so no need to open 2 terminals or making a script in .bat (as I'm using windows for the build) to automate the runs.
 
 ## Angular
 
-So this folder uses Angular mainly to replace the Swagger UI from `api_v2/`. The 2 folders should not be merged, as they both handle different things: Angular handles project state, displaying the data safely, and a nice UI to handle everything more easily. It's not the prettiest yet, but it does the job!.
+So this folder uses Angular mainly to replace the Swagger UI from `api_v2/`. The 2 folders should not be merged, as they both handle different things: Angular handles project state, displaying the data safely, and a nice UI to handle everything more easily. It's not the prettiest yet, but it does the job!
 
 ## Api_v2
 
-So this folder is a minimal web app API that has a direct line of communication using **ConnectionString**, which is in `appsettings.Development.json`. Don't waste your time looking for it, I intentionally git ignored it since it holds private details. Well, I thought of giving dummy `.json` files so the setup would be easier and faster, but I left it out on purpose, so ask me and I'll share it.
+So this folder is a minimal web app API that has a direct line of communication with the database using **ConnectionString**, which is in `appsettings.Development.json`. Don't waste your time looking for it, I intentionally git ignored it since it holds private details. Well, I thought of giving dummy `.json` files so the setup would be easier and faster, but I left it out on purpose, so ask me and I'll share it.

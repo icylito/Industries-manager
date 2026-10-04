@@ -10,7 +10,161 @@ td button {
     margin-left: 10px;
 }
 
+.cancel-btn{
+    background-color: transparent;
+    color: #4a4a10;
+    border: 1px solid #8a8a26;
+}
+
+.cancel-btn:hover{
+    background-color: rgba(138, 138, 46, 0.2);
+}
+
+.edit-btn{
+    background-color: #B6B64B;
+}
+
+.edit-btn:hover{
+    background-color: #3f5219;
+}
+
+.delete-btn{
+    background-color: #B9B99A;
+}
+
+.delete-btn:hover{
+    background-color: #7a0016;
+}
+
 .field-error {
     color: red;
     margin: 0.25rem 0;
+}
+
+form{
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    background-color: #f5f5dc;
+    border: 1px solid #8a8a2e;
+    border-radius: 12px;
+
+}
+
+form input, .search input{
+    padding: 0.5rem 0.7rem;
+    border: 1px solid #8a8a2e;
+    border-radius: 6px;
+    background-color: white;
+    font-size: 1rem;
+}
+
+form input:focus, .search input:focus{
+    outline: none;
+    border-color: #4a4a10;
+    box-shadow: 0 0 0 3px rgba(138, 138, 46, 0.35);
+}
+
+form input::placeholder, .search input::placeholder{
+    color:#4a4a10;
+    opacity: 40%;
+}
+
+form input[type="date"] {
+    color: #4a4a10;
+    font-family: inherit;
+}
+
+form input[type="date"]::-webkit-datetime-edit {
+    opacity: 70%;
+}
+
+form input[type="date"]:focus::-webkit-datetime-edit{
+    opacity: 1;
+}
+
+button {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 6px;
+    background-color: #8a8a26;
+    color: white;
+    font-family: inherit;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+button:hover{
+    background-color: #4a4a10;
+    opacity: 50%;
+}
+
+button:disabled{
+    opacity: 50%;
+    cursor: not-allowed;
+}
+
+.search-label{
+    margin: 0 0 0.5rem;
+    text-align: center;
+    color: #4a4a10;
+}
+
+.search input{
+    width: 18rem;
+    padding: 0.6rem 1rem;
+    border: 1px solid #4a4a10;
+    border-radius: 999px;
+    background-color: #f5f5dc;
+}
+
+.search input:focus{
+    background-color: white;
+}
+
+.state{
+    padding: 1rem;
+    text-align:center;
+    font-family: inherit;
+    font-style: italic;
+    color: #4a4a10;
+    font-size: 150%;
+}
+
+.state-error{
+    color: red;
+    font-style: normal;
+    font-weight: bold;
+}
+
+table{
+    border-collapse: separate;
+    border-spacing: 1rem;
+    background-color: #f5f5dc;
+    border: 1px solid #8a8a26;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+th {
+    padding: 0.75rem 1rem;
+    background-color: #8a8a26;
+    color: white;
+    text-align: left;
+}
+
+td {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid rgba(138, 138, 46, 0.3);
+}
+
+tbody tr:last-child td{
+    border-bottom: none;
+}
+
+tbody tr:hover{
+    background: rgba(138, 138, 46, 0.3);
 }

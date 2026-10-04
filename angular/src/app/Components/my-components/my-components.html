@@ -1,3 +1,4 @@
+<div class="overall">
 <form [formGroup]="form" (ngSubmit)="submit()" (input)="formError.set('')">
     <input formControlName="name" placeholder="Name">
     <input formControlName="sector" placeholder="Sector">
@@ -7,7 +8,7 @@
         {{ editingId() === null ? 'Add' : 'Save'}}
     </button>
     @if (editingId() !== null){
-        <button type="button" (click)="cancelEdit()">Cancel</button>
+        <button type="button" class="cancel-btn" (click)="cancelEdit()">Cancel</button>
     }
 </form>
 
@@ -18,17 +19,17 @@
 @for (msg of fieldErrors(); track msg) {
     <p class="field-error">{{ msg }}</p>
 }
-
-<p>Try searching by name</p>
-<div class="search">
+<br><br>
+<p class="search-label" style="font-size: 200%;">Try searching by name</p>
+<div class="search"> <br>
 <input placeholder="type a name to search"
 (input)="search.set($any($event.target).value)">
 </div>
 
 @if (loading()){
-    <p>Loading...</p>
+    <p class="state">Loading...</p>
 }   @else if (error()) {
-    <p>{{ error() }}</p>
+    <p class="state-error">{{ error() }}</p>
 }   @else if (filtered().length > 0){
     <table>
         <thead>
@@ -50,8 +51,8 @@
                 <td>{{ item.price ?? '--' }}</td>
                 <td>{{ item.release ?? '--' }}</td>
                 <td>
-                    <button (click)="edit(item)">Edit</button>
-                    <button (click)="remove(item.id)">Delete</button>
+                    <button class="edit-btn" (click)="edit(item)">Edit</button>
+                    <button class="remove-btn" (click)="remove(item.id)">Delete</button>
                 </td>
             </tr>
         }
@@ -59,8 +60,9 @@
     </table>
 } @else {
     @if (industries().length === 0) {
-        <p>No industries yet.</p>
+        <p class="state">No industries yet.</p>
     }@else {
-        <p>No industries match your search. Try a different search</p>
+        <p class="state">No industries match your search. Try a different search</p>
     }
 }
+</div>
