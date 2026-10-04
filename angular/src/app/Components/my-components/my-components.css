@@ -16,7 +16,9 @@ td button {
     border: 1px solid #8a8a26;
 }
 
-.cancel-btn:hover{
+.cancel-btn:hover{ /* for hover basically when a user puts their mouse on a section we
+    want it to be hover only this effect will be played if the user
+    hovered on it (for example cancel button)*/
     background-color: rgba(138, 138, 46, 0.2);
 }
 
@@ -54,7 +56,9 @@ form{
 
 }
 
-form input, .search input{
+form input, .search input{ /* To make multiple classes inhert the same css logic without
+    typing it again just add ( , ) and css would understand we want to add more classes
+    for this logic */ 
     padding: 0.5rem 0.7rem;
     border: 1px solid #8a8a2e;
     border-radius: 6px;
@@ -68,7 +72,9 @@ form input:focus, .search input:focus{
     box-shadow: 0 0 0 3px rgba(138, 138, 46, 0.35);
 }
 
-form input::placeholder, .search input::placeholder{
+form input::placeholder, .search input::placeholder{ /* in order to change the placeholder 
+    design just do ( :: ) with no space between the class and the thing you want to be affected 
+    usually they are pre determined and placeholder isn't a variable */
     color:#4a4a10;
     opacity: 40%;
 }

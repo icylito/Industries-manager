@@ -105,5 +105,6 @@ public static class IndustryEndpoints
                 db.SaveChanges();
                 return Results.Content("The row has been deleted");
             });
+            
     }
 }

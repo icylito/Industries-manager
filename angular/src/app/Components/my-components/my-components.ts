@@ -14,12 +14,15 @@ export class MyComponents implements OnInit {
   private api = inject(IndustryApi);
   private fb = inject(FormBuilder);
 
+  // General Table logic 
+
   form = this.fb.group({
     name: ['', [Validators.required, Validators.maxLength(50)]],
     sector: ['', [Validators.maxLength(25)]],
     price: [null as number | null, [Validators.min(0), Validators.max(10)]],
     release: [''],
   })
+// signals for error, saving, editingId, formError
   industries = signal<Industry[]>([]);
   loading = signal(true);
   error = signal('');
@@ -30,6 +33,7 @@ export class MyComponents implements OnInit {
    submit() {
     if (this.form.invalid) return;
 
+    // Table logic and enforcements
     const verify = this.form.getRawValue();
     const body: CreateIndustry = {
       name: verify.name ?? '',
@@ -43,6 +47,7 @@ export class MyComponents implements OnInit {
 
     const id = this.editingId();
 
+    // Create/ POST logic
     if (id === null) {
       this.api.create(body).subscribe({
         next: created => {
@@ -56,6 +61,7 @@ export class MyComponents implements OnInit {
         },
       });
     } else {
+      // update/PUT logic 
       this.api.update(id, body).subscribe({
         next: () => {
           this.industries.update(list =>
@@ -71,7 +77,7 @@ export class MyComponents implements OnInit {
       });
     }
   }
-
+// State erorr if it couldn't be saved
   private errorMessage (err: any): string {
     const body = err.error;
     if (typeof body === 'string') return body;
@@ -79,6 +85,8 @@ export class MyComponents implements OnInit {
     return 'Could not save. Try again later';
   }
 
+  /* Field errors to enforce the table requirements its following api_v2/Dtos folder 
+  logic if you ever change the logic for this change the logic in Dtos/ too */
   fieldErrors(): string[] {
     const c = this.form.controls;
     const list: string[] = [];
@@ -88,6 +96,7 @@ export class MyComponents implements OnInit {
     return list;
   }
 
+  // GET all basically the same function that shows the db content also does the GET
   ngOnInit(): void {
     this.api.getAll().subscribe({
       next: data => {
@@ -95,21 +104,26 @@ export class MyComponents implements OnInit {
         this.loading.set(false);
     },
     error: () => {
+      // Before deleting take place this pop up will confirm if you really want it off
       this.error.set('Could not load the industries. Check if the API is running');
       this.loading.set(false);
     },
   });
   }
+  // Delete by id 
   remove(id: number){
+    // Delete logic if id don't exist
     if (!confirm('Are you sure you want to delete this industry?'))return;
     this.api.delete(id).subscribe({
       next: () => {
         this.industries.update(list => list.filter(i => i.id !== id));
         if (this.editingId() === id) this.cancelEdit();
       },
+      // Delete logic if id found
       error: err => this.formError.set(this.errorMessage(err)),   
     });
   }
+  // Edit button logic
     edit(item: Industry) {
       this.editingId.set(item.id);
       this.formError.set('');
@@ -120,7 +134,7 @@ export class MyComponents implements OnInit {
         release: item.release,
       });
     }
-
+// Cancel button logic
     cancelEdit() {
       this.editingId.set(null);
       this.form.reset();

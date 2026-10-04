@@ -1,4 +1,5 @@
 <div class="overall">
+    <!-- All buttons and the tables logic -->
 <form [formGroup]="form" (ngSubmit)="submit()" (input)="formError.set('')">
     <input formControlName="name" placeholder="Name">
     <input formControlName="sector" placeholder="Sector">
@@ -20,6 +21,7 @@
     <p class="field-error">{{ msg }}</p>
 }
 <br><br>
+<!-- Search bar -->
 <p class="search-label" style="font-size: 200%;">Try searching by name</p>
 <div class="search"> <br>
 <input placeholder="type a name to search"
@@ -60,6 +62,8 @@
     </table>
 } @else {
     @if (industries().length === 0) {
+        <!-- State management to distingush if the search wasn't able to pull the result
+         due to bad search vs if the actual query don't exist in the database -->
         <p class="state">No industries yet.</p>
     }@else {
         <p class="state">No industries match your search. Try a different search</p>
