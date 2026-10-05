@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using api_v2.Rules;
 using Npgsql;
 
 namespace api_v2.Data;
@@ -9,6 +10,8 @@ public class MigrationService(
     IServiceScopeFactory scopes,
     DatabaseStatus status,
     DatabaseConnections connections,
+    CollectorStore collector,
+    RulesService rules,
     ILogger<MigrationService> log) : BackgroundService
 {
     private const int MaxAttempts = 5;
@@ -26,15 +29,35 @@ public class MigrationService(
             {
                 status.Set(DatabaseState.Migrating, "Checking the collector database", attempt);
                 await EnsureDatabaseAsync(connections.Collector, ct);
+                await collector.EnsureSchemaAsync(ct);
 
                 using var scope = scopes.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
                 var pending = (await db.Database.GetPendingMigrationsAsync(ct)).ToList();
+
+                // An existing database gets a full copy in the collector before its structure changes
+                if (pending.Count > 0 && (await db.Database.GetAppliedMigrationsAsync(ct)).Any())
+                {
+                    status.Set(DatabaseState.Migrating, "Saving a copy before updating the database", attempt);
+                    try
+                    {
+                        await collector.SaveVersionAsync($"Before database update {string.Join(", ", pending)}", "system", ct);
+                    }
+                    catch (Exception ex) when (!IsTransient(ex) && ex is not OperationCanceledException)
+                    {
+                        status.Set(DatabaseState.Failed,
+                            $"Couldn't save a copy before updating the database, so nothing was changed: {ex.GetBaseException().Message}", attempt);
+                        log.LogError(ex, "Copy before migration failed, not migrating");
+                        return;
+                    }
+                }
+
                 status.Set(DatabaseState.Migrating,
                     pending.Count == 0 ? "Checking the database" : $"Applying {pending.Count} migration(s)", attempt);
 
                 await db.Database.MigrateAsync(ct);
+                await rules.LoadAsync(db, ct);
 
                 var applied = (await db.Database.GetAppliedMigrationsAsync(ct)).ToList();
                 var message = pending.Count == 0

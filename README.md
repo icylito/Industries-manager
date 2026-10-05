@@ -12,6 +12,8 @@ I started this on September 26, 2026, and the sections below show where things a
 - Done: a Python script fills the table with fake data for testing, see [Seeding synthetic data](#seeding-synthetic-data).
 - Done: a name can only be used once, no matter the capitals or extra spaces, so `Atlas Steel` and `atlas steel ` count as the same company. The API checks it and the database has a rule for it too.
 - Done: `start.bat` runs both folders at once.
+- Done: the rules (name length, price range, what's required) live in the database with versions, and the page and the seed script read them from the API, see [Rules and the collector](#rules-and-the-collector).
+- Done: before the table's structure or the rules change, a full copy goes to the `collector` database, and every add, edit, and delete gets logged there.
 - Done: an optional Docker database for testing that starts empty, see [docker_setup.md](docker_setup.md). The API creates its databases by itself on the first run.
 - Next: the edge cases listed at the bottom.
 
@@ -76,11 +78,27 @@ You don't need it though. With no settings file, the API connects to the Docker 
 
 To wipe the Docker database and start empty again, run `docker compose down -v`.
 
+### Rules and the collector
+
+The limits for each field aren't in the code anymore, they're in the `RuleVersions` table. Every change makes a new version, so you can always see what the rules were before.
+
+- `GET /schema` gives the rules in use. The page builds its rule chips and form checks from it.
+- `PUT /schema` saves new rules as the next version. For now it changes limits and labels, adding or removing fields comes later. You can try it from Swagger.
+- `GET /schema/versions` lists every rules version.
+
+The `collector` database keeps old data so nothing gets lost:
+
+- Before a migration runs on a database that already has data, the whole table gets copied there first. Same before new rules get saved. If that copy fails, the migration or the rules change doesn't happen.
+- Every add, edit, and delete gets logged with the row before and after. An edit or delete only goes through once its copy is saved, otherwise the API says so and nothing changes.
+- Nothing in the collector gets deleted. `GET /history/versions` lists the saved copies.
+
+There's no login yet, so everyone can change the rules. The check is already in one place (`Auth/CurrentUser.cs`), so adding auth later is a small change.
+
 ### Changing the table
 
 If you change what a row holds, like adding a column, you change it in 3 places and the API handles the database part:
 
-1. Update the C# model in `Model/Industry.cs` and the Dtos in `Dtos/` so they match.
+1. Update the C# model in `Model/Industry.cs` and the Dtos in `Dtos/` so they match. If the new column needs limits, add it to the rules in `Rules/FieldRule.cs` too.
 2. In `api_v2`, run `.\migrate.ps1 -Name AddSomeColumn`. That creates the migration file from your model change.
 3. Restart the API with `dotnet run --launch-profile http`. It applies the new migration on startup, so you don't run `dotnet ef database update` anymore.
 
@@ -88,7 +106,7 @@ Then update `angular/src/app/models/industry.ts` so the page knows about the new
 
 # Seeding synthetic data
 
-So `scripts/seed_industries.py` fills the table with fake companies so there's something to test with. Every row goes through the API like it would from the page, which means the rules in `api_v2/Dtos` decide what gets in. It also sends some broken rows on purpose (empty names, names that are too long, prices outside 0 to 10, names that already exist) to check that the API blocks them.
+So `scripts/seed_industries.py` fills the table with fake companies so there's something to test with. Every row goes through the API like it would from the page, which means the API's rules decide what gets in. It also sends some broken rows on purpose (empty names, names that are too long, prices outside 0 to 10, names that already exist) to check that the API blocks them.
 
 Start the API first, then from the project folder run:
 
@@ -103,7 +121,7 @@ When it's done it prints how many rows got in, how many had no price or release,
 Well, everything the script does is controlled from `scripts/config.toml`, so you don't touch the Python file. Open it, change a number, save, and run the script again. Each part is split by a comment that says what it's for:
 
 - `[generation]` is the main one. `count` is how many rows you want in the database, so set it to `50` if you want 50. `bad_row_rate` is how many broken rows get mixed in, `0.10` means 10 for every 100, and `0` turns them off. `seed` gives you the same data every run if you set it to any number, `0` means random every time. `null_rate_min` and `null_rate_max` are how often price and release are left empty, right now that's somewhere between 5% and 7%.
-- `[fields]` is what each value can be. The sectors list, the price range, how many decimals, the date range for release, and the longest name. Keep these inside the API rules, otherwise the API rejects the good rows too and the script will tell you.
+- `[fields]` is what each value can be. The sectors list, the price range, how many decimals, the date range for release, and the longest name. The longest name and the price range get replaced by the API's rules from `/schema` when the script runs, so they always match.
 - `[broken_rows]` is which rules to test. Remove one from the list and it stops sending that kind.
 - `[names]` is the word lists the company names are built from. A name is one word from each list, like `Nizwa Retail Group`. Add your own words if you want different names.
 - `[api]` is where the API is and how hard to push it. `workers` is how many rows get sent at the same time, and `max_retries` is how many times it tries again when the connection drops.

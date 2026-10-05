@@ -37,13 +37,14 @@
         }
     </header>
 
-    <!-- Rules mirror the api_v2/Dtos validation, change both together -->
-    <ul class="rules">
-        <li><i class="fa-solid fa-font" aria-hidden="true"></i>Name, up to 50 characters</li>
-        <li><i class="fa-solid fa-industry" aria-hidden="true"></i>Sector, up to 25 characters</li>
-        <li><i class="fa-solid fa-dollar-sign" aria-hidden="true"></i>Price between 0 and 10</li>
-        <li><i class="fa-regular fa-calendar" aria-hidden="true"></i>Release date is optional</li>
-    </ul>
+    <!-- Rule chips come from the API's rules (GET /schema), nothing is hardcoded here -->
+    @if (ruleChips().length) {
+        <ul class="rules">
+            @for (chip of ruleChips(); track chip.key) {
+                <li><i [class]="chip.icon" aria-hidden="true"></i>{{ chip.text }}</li>
+            }
+        </ul>
+    }
 
     <form [formGroup]="form" (ngSubmit)="submit()" (input)="formError.set('')">
         <label class="field">

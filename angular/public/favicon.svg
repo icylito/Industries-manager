@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Same three bars as the nav brand icon, flips to white on dark browser tabs -->
+  <style>
+    .tile { fill: #0a0a0a; }
+    .bar { fill: #ffffff; }
+    @media (prefers-color-scheme: dark) {
+      .tile { fill: #ffffff; }
+      .bar { fill: #0a0a0a; }
+    }
+  </style>
+  <rect class="tile" width="32" height="32" rx="8"/>
+  <rect class="bar" x="7.5" y="16" width="4" height="9" rx="1.5"/>
+  <rect class="bar" x="14" y="7" width="4" height="18" rx="1.5"/>
+  <rect class="bar" x="20.5" y="11.5" width="4" height="13.5" rx="1.5"/>
+</svg>

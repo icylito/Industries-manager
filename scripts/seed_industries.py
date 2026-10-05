@@ -6,11 +6,11 @@ decides what gets in. Some rows are broken on purpose to prove the rules hold.
 All settings live in config.toml next to this script: row count, broken row rate,
 empty value rate, field ranges, name parts, and API connection.
 
-Usage, with the API running:
-    python3.13 scripts/seed_industries.py                     # uses config.toml
-    python3.13 scripts/seed_industries.py --count 50          # override the row count
-    python3.13 scripts/seed_industries.py --dry-run           # print samples, send nothing
-    python3.13 scripts/seed_industries.py --config other.toml
+Usage, with the API running (use py or python3.13 if that is how Python runs on your PC):
+    python scripts/seed_industries.py                     # uses config.toml
+    python scripts/seed_industries.py --count 50          # override the row count
+    python scripts/seed_industries.py --dry-run           # print samples, send nothing
+    python scripts/seed_industries.py --config other.toml
 """
 
 import argparse
@@ -208,6 +208,24 @@ class Seeder:
                     self.stats["bad_other"] += 1
                     print(f"  broken row got {status} ({kind}): {body[:200]}")
 
+    def load_rules(self) -> None:
+        # The API's rules win over config.toml, so the broken rows stay broken after a rules change
+        status, body = self.request("GET", "/schema")
+        if status != 200:
+            print("Couldn't read /schema, using the limits in config.toml")
+            return
+        rules = {f["key"]: f for f in json.loads(body)["fields"]}
+        f = self.fields
+        if rules.get("name", {}).get("maxLength"):
+            f["name_max_length"] = rules["name"]["maxLength"]
+        price = rules.get("price", {})
+        if price.get("min") is not None:
+            f["price_min"] = float(price["min"])
+        if price.get("max") is not None:
+            f["price_max"] = float(price["max"])
+        print(f"Rules version {json.loads(body)['version']}: name up to {f['name_max_length']}, "
+              f"price {f['price_min']:g} to {f['price_max']:g}")
+
     def load_existing_names(self) -> None:
         # Real rows are off limits for new names, and give the duplicate test something to hit
         status, body = self.request("GET", "/industries")
@@ -224,6 +242,7 @@ class Seeder:
 
     def run(self, count: int) -> int:
         self.wait_until_ready()
+        self.load_rules()
         self.load_existing_names()
         started = time.time()
         with ThreadPoolExecutor(max_workers=self.api["workers"]) as pool:

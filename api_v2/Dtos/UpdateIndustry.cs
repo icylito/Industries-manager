@@ -1,10 +1,9 @@
-using System.ComponentModel.DataAnnotations;
-
 namespace api_v2.Dtos;
 
+// Limits come from the rules in the database (GET /schema), checked in Endpoints/IndustryEndpoints.cs
 public record UpdateIndustry(
-    [Required][StringLength(50)] string Name,
-    [Required][StringLength(25)] string Sector,
-    [Range(0, 10)] decimal? Price,
+    string Name,
+    string? Sector,
+    decimal? Price,
     DateOnly? Release
 );

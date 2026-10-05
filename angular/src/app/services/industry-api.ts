@@ -1,7 +1,7 @@
 import { Service, inject, Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { MonoTypeOperatorFunction, Observable, retry, throwError, timer } from 'rxjs';
-import { Industry, CreateIndustry, UpdateIndustry, DbHealth } from '../models/industry';
+import { Industry, CreateIndustry, UpdateIndustry, DbHealth, RuleSet } from '../models/industry';
 
 @Service()
 export class IndustryApi {
@@ -21,6 +21,9 @@ export class IndustryApi {
 
     health(): Observable<DbHealth> {
             return this.http.get<DbHealth>(`${this.apiUrl}/health`).pipe(this.retryTransient());
+        }
+    schema(): Observable<RuleSet> {
+            return this.http.get<RuleSet>(`${this.apiUrl}/schema`).pipe(this.retryTransient());
         }
     getAll(): Observable<Industry[]> {
             return this.http.get<Industry[]>(this.baseUrl).pipe(this.retryTransient());

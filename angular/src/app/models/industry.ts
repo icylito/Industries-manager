@@ -28,3 +28,22 @@ export interface DbHealth {
     appliedMigrations: string[];
     updatedAt: string;
 }
+
+// What GET /schema returns, the rules in use, see api_v2/Rules/FieldRule.cs
+export interface FieldRule {
+    key: string;
+    label: string;
+    type: 'text' | 'number' | 'date';
+    required: boolean;
+    maxLength: number | null;
+    min: number | null;
+    max: number | null;
+}
+
+export interface RuleSet {
+    version: number;
+    createdAt: string;
+    changedBy: string;
+    note: string | null;
+    fields: FieldRule[];
+}

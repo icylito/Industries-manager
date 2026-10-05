@@ -1,7 +1,7 @@
 import { Component, signal, computed, inject, OnInit, HostListener } from '@angular/core';
-import { Industry, CreateIndustry, DbHealth } from '../../models/industry';
+import { Industry, CreateIndustry, DbHealth, FieldRule, RuleSet } from '../../models/industry';
 import { IndustryApi } from '../../services/industry-api';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
 
 @Component({
   imports: [ReactiveFormsModule],
@@ -16,10 +16,11 @@ export class MyComponents implements OnInit {
 
   // General Table logic 
 
+  // Validators come from the API's rules (GET /schema), see applyRules
   form = this.fb.group({
-    name: ['', [Validators.required, Validators.maxLength(50)]],
-    sector: ['', [Validators.required, Validators.maxLength(25)]],
-    price: [null as number | null, [Validators.min(0), Validators.max(10)]],
+    name: [''],
+    sector: [''],
+    price: [null as number | null],
     release: [''],
   })
 // signals for error, saving, editingId, formError
@@ -87,15 +88,73 @@ export class MyComponents implements OnInit {
     return 'Could not save. Try again later';
   }
 
-  /* Field validation to enforce the table requirements its following api_v2/Dtos folder 
-  logic if you ever change the logic for this change the logic in Dtos/ too */
+  // Rules in use, from GET /schema. Changing a limit in the database changes the form, nothing here
+  rules = signal<RuleSet | null>(null);
+
+  private loadRules() {
+    this.api.schema().subscribe({
+      next: rules => {
+        this.rules.set(rules);
+        this.applyRules(rules.fields);
+      },
+      // Without the rules the form still works, the API checks every save anyway
+      error: () => this.rules.set(null),
+    });
+  }
+
+  private applyRules(fields: FieldRule[]) {
+    for (const rule of fields) {
+      const control = this.form.get(rule.key);
+      if (!control) continue;
+      const validators: ValidatorFn[] = [];
+      if (rule.required) validators.push(Validators.required);
+      if (rule.maxLength !== null) validators.push(Validators.maxLength(rule.maxLength));
+      if (rule.min !== null) validators.push(Validators.min(rule.min));
+      if (rule.max !== null) validators.push(Validators.max(rule.max));
+      control.setValidators(validators);
+      control.updateValueAndValidity({ emitEvent: false });
+    }
+  }
+
+  // Same wording as the API's messages in api_v2/Rules/RulesService.cs
   fieldErrors(): string[] {
-    const c = this.form.controls;
     const list: string[] = [];
-    if (c.name.errors?. ['maxlength']) list.push('Name can be at most 50 characters');
-    if (c.sector.errors?.['maxlength']) list.push('Sector can be at most 25 characters');
-    if (c.price.errors?. ['min'] || c.price.errors?. ['max']) list.push('price can be only 0 to 10');
+    for (const rule of this.rules()?.fields ?? []) {
+      const errors = this.form.get(rule.key)?.errors;
+      if (errors?.['maxlength']) list.push(`${rule.label} can be at most ${rule.maxLength} characters`);
+      if (errors?.['min'] || errors?.['max']) list.push(this.rangeText(rule, true));
+    }
     return list;
+  }
+
+  private rangeText(rule: FieldRule, asError: boolean): string {
+    const { label, min, max } = rule;
+    if (min !== null && max !== null) return asError ? `${label} has to be between ${min} and ${max}` : `${label} between ${min} and ${max}`;
+    if (min !== null) return asError ? `${label} has to be at least ${min}` : `${label}, at least ${min}`;
+    return asError ? `${label} has to be at most ${max}` : `${label}, at most ${max}`;
+  }
+
+  private readonly ruleIcons: Record<string, string> = {
+    name: 'fa-solid fa-font',
+    sector: 'fa-solid fa-industry',
+    price: 'fa-solid fa-dollar-sign',
+    release: 'fa-regular fa-calendar',
+  };
+
+  // The rule chips above the form, one per field
+  ruleChips = computed(() =>
+    (this.rules()?.fields ?? []).map(rule => ({
+      key: rule.key,
+      icon: this.ruleIcons[rule.key] ?? 'fa-solid fa-circle-info',
+      text: this.ruleText(rule),
+    }))
+  );
+
+  private ruleText(rule: FieldRule): string {
+    if (rule.type === 'text' && rule.maxLength !== null) return `${rule.label}, up to ${rule.maxLength} characters`;
+    if (rule.type === 'number' && (rule.min !== null || rule.max !== null)) return this.rangeText(rule, false);
+    const what = rule.type === 'date' ? `${rule.label} date` : rule.label;
+    return `${what} is ${rule.required ? 'required' : 'optional'}`;
   }
 
   // Database state from GET /health, drives the status pill and the loading/error states
@@ -112,7 +171,10 @@ export class MyComponents implements OnInit {
       next: health => {
         this.dbState.set(health.state);
         this.dbMessage.set(health.message);
-        if (health.state === 'ready') this.loadIndustries();
+        if (health.state === 'ready') {
+          this.loadRules();
+          this.loadIndustries();
+        }
         else if (health.state === 'failed') {
           this.error.set(health.message);
           this.loading.set(false);
