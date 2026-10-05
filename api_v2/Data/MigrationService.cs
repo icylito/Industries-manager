@@ -8,16 +8,25 @@ namespace api_v2.Data;
 public class MigrationService(
     IServiceScopeFactory scopes,
     DatabaseStatus status,
+    DatabaseConnections connections,
     ILogger<MigrationService> log) : BackgroundService
 {
     private const int MaxAttempts = 5;
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
+        if (connections.UsingDockerDefault)
+        {
+            log.LogInformation("No connection string set, using the Docker database from docker-compose.yml on port 5433");
+        }
+
         for (var attempt = 1; attempt <= MaxAttempts; attempt++)
         {
             try
             {
+                status.Set(DatabaseState.Migrating, "Checking the collector database", attempt);
+                await EnsureDatabaseAsync(connections.Collector, ct);
+
                 using var scope = scopes.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -54,6 +63,35 @@ public class MigrationService(
                 log.LogError(ex, "Migration failed on attempt {Attempt}, not retrying", attempt);
                 return;
             }
+        }
+    }
+
+    // EF creates the main database by itself, the collector one gets created here
+    private async Task EnsureDatabaseAsync(string connectionString, CancellationToken ct)
+    {
+        var target = new NpgsqlConnectionStringBuilder(connectionString);
+        var name = target.Database!;
+        var server = new NpgsqlConnectionStringBuilder(connectionString) { Database = "postgres" };
+
+        await using var conn = new NpgsqlConnection(server.ConnectionString);
+        await conn.OpenAsync(ct);
+
+        await using var exists = new NpgsqlCommand("SELECT 1 FROM pg_database WHERE datname = @name", conn);
+        exists.Parameters.AddWithValue("name", name);
+        if (await exists.ExecuteScalarAsync(ct) is not null)
+        {
+            return;
+        }
+
+        try
+        {
+            await using var create = new NpgsqlCommand($"CREATE DATABASE \"{name.Replace("\"", "\"\"")}\"", conn);
+            await create.ExecuteNonQueryAsync(ct);
+            log.LogInformation("Created the {Database} database", name);
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.DuplicateDatabase)
+        {
+            // Another API instance made it at the same moment, that's fine
         }
     }
 

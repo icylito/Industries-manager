@@ -2,7 +2,6 @@ import { Component, signal, computed, inject, OnInit, HostListener } from '@angu
 import { Industry, CreateIndustry, DbHealth } from '../../models/industry';
 import { IndustryApi } from '../../services/industry-api';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { validate } from '@angular/forms/signals';
 
 @Component({
   imports: [ReactiveFormsModule],

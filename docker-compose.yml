@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:17
+    container_name: stock-listing-db
+    restart: unless-stopped   # Comes back by itself when Docker starts
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres   # Local only, never use this password on a real server
+    ports:
+      - "5433:5432"   # 5433 so it doesn't clash with a Postgres already installed on 5432
+    volumes:
+      - stock-listing-data:/var/lib/postgresql/data   # Data survives restarts, `docker compose down -v` wipes it
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  stock-listing-data:

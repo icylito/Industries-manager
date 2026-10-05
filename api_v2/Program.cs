@@ -12,9 +12,10 @@ policy.WithOrigins("http://localhost:4200").AllowAnyHeader().AllowAnyMethod()));
 builder.Services.AddValidation(); // Validating all the required, range, and length in Dtos folder
 builder.Services.AddOpenApi(options => 
 options.OpenApiVersion = Microsoft.OpenApi.OpenApiSpecVersion.OpenApi3_0);
-var connectionString = builder.Configuration.GetConnectionString("ApiV2");
+var connections = DatabaseConnections.From(builder.Configuration);
+builder.Services.AddSingleton(connections);
 // EnableRetryOnFailure retries a query up to 3 times on transient errors like a dropped connection
-builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString,
+builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connections.Main,
     npgsql => npgsql.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null)));
 
 // Auto migration, applies pending migrations on startup and tracks the result for /health

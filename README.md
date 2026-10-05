@@ -2,7 +2,7 @@
 
 So this project is a small web app that shows a list of industries kept in a database. You can search the list, add new rows, edit them, and delete them, and everything you do on the page is saved to the database.
 
-I have been working on this for 9 days so far, and the sections below show where things are and what comes next.
+I started this on September 26, 2026, and the sections below show where things are and what comes next.
 
 ## Where things are
 
@@ -11,7 +11,9 @@ I have been working on this for 9 days so far, and the sections below show where
 - Done: the API applies database migrations by itself when it starts, retries when the database is slow to answer, and the page shows if the database is ready or broken.
 - Done: a Python script fills the table with fake data for testing, see [Seeding synthetic data](#seeding-synthetic-data).
 - Done: a name can only be used once, no matter the capitals or extra spaces, so `Atlas Steel` and `atlas steel ` count as the same company. The API checks it and the database has a rule for it too.
-- Next: one script or build that runs both folders, and the edge cases listed at the bottom.
+- Done: `start.bat` runs both folders at once.
+- Done: an optional Docker database for testing that starts empty, see [docker_setup.md](docker_setup.md). The API creates its databases by itself on the first run.
+- Next: the edge cases listed at the bottom.
 
 # Starting
 
@@ -33,13 +35,19 @@ For the packages, this project only uses the ones below. Don't change the versio
 - https://www.nuget.org/packages/dotnet-ef/10.0.12
 ```
 
-- For the seed script in `scripts/`, you need Python 3.13. I installed it from the Microsoft Store, so the command is `python3.13`. It only uses what comes with Python, so there's nothing to `pip install`.
+- For the database, you need Postgres. Docker is optional, if you want a test database that starts empty without touching your own Postgres, see [docker_setup.md](docker_setup.md).
+
+- For the seed script in `scripts/`, you need Python 3.13 or newer. The command depends on how it's installed on your PC, it could be `python`, `py`, or `python3.13`. Run `python --version` or `py --version` to find yours, and use that one wherever the commands below say `python`. It only uses what comes with Python, so there's nothing to `pip install`.
 
 And that should be all to get started.
 
 ## Running it
 
-Open two terminals, one for each folder.
+The easy way is to double click `start.bat` in the project folder, or run `.\start.bat`. It starts the Docker database if the API uses it, then opens 2 windows, one for the API and one for the page, and closing a window stops that one.
+
+On a fresh clone the tables start empty, nobody's data comes with the repo. The API creates 2 databases on its first run: `main` with the `Industries` table and `collector`, which will keep old versions of the data later on. If you want fake rows to test with, see [Seeding synthetic data](#seeding-synthetic-data).
+
+If you want to do it by hand, open two terminals, one for each folder. If you use Docker, run `docker compose up -d` in the project folder first.
 
 - In `api_v2`, run `dotnet run --launch-profile http`. The API starts at http://localhost:5005, and the Swagger page is at http://localhost:5005/swagger.
 - In `angular`, run `ng serve`. The page opens at http://localhost:4200.
@@ -53,15 +61,20 @@ When the API starts, it checks the database and applies any migration that hasn'
 - `Database error`: something failed that a retry won't fix, like a wrong password in the connection string or a broken migration. The error shows in the table so you know what to fix.
 - `API offline`: the page can't reach the API at all.
 
-Soon I'm planning to make a build to combine them both so no need to open 2 terminals or making a script in .bat (as I'm using windows for the build) to automate the runs.
-
 ## Angular
 
 So this folder uses Angular mainly to replace the Swagger UI from `api_v2/`. The 2 folders should not be merged, as they both handle different things: Angular handles project state, displaying the data safely, and a nice UI to handle everything more easily. The design is black and white and switches to dark mode with your system setting. Icons come from Font Awesome, loaded by the kit script in `src/index.html`.
 
 ## Api_v2
 
-So this folder is a minimal web app API that has a direct line of communication with the database using **ConnectionString**, which is in `appsettings.Development.json`. Don't waste your time looking for it, I intentionally git ignored it since it holds private details. Well, I thought of giving dummy `.json` files so the setup would be easier and faster, but I left it out on purpose, so ask me and I'll share it.
+So this folder is a minimal web app API that has a direct line of communication with the database using **ConnectionString**, which is in `appsettings.Development.json`. That file is git ignored since it holds private details, so you won't find it in the repo.
+
+You don't need it though. With no settings file, the API connects to the Docker database by itself. If you want your own Postgres instead, copy `appsettings.Development.example.json` to `appsettings.Development.json` and change the connection strings in it:
+
+- `ApiV2` is the main database with the `Industries` table.
+- `Collector` is where old versions go. Leave it out and the API uses the same server and login with a database called `collector`.
+
+To wipe the Docker database and start empty again, run `docker compose down -v`.
 
 ### Changing the table
 
@@ -80,8 +93,7 @@ So `scripts/seed_industries.py` fills the table with fake companies so there's s
 Start the API first, then from the project folder run:
 
 ```
-Install python3.13 or a compatiable version
-scripts/seed_industries.py
+python scripts/seed_industries.py
 ```
 
 When it's done it prints how many rows got in, how many had no price or release, and how many broken rows got blocked. If a broken row ever gets in, it says so and exits with an error, because that means a rule has a hole.
@@ -121,6 +133,5 @@ python scripts/seed_industries.py --count 50 --dry-run
 
 # Not done yet
 
-- One script or build that starts the API and the page together, right now it's still 2 terminals.
 - The API address `http://localhost:5005` is written straight into `angular/src/app/services/industry-api.ts` and the CORS setup in `Program.cs`, so it only works on this machine until it moves to a config.
 - Delete still uses the browser's own "are you sure" popup instead of one that matches the design.
