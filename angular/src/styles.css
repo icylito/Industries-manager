@@ -1,4 +1,87 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+/* Color tokens, every component reads these so light/dark only lives here */
+:root {
+    color-scheme: light;
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f5f5f5;
+    --text: #0a0a0a;
+    --muted: #6b6b6b;
+    --faint: #a1a1a1;
+    --border: #e8e8e8;
+    --border-strong: #d0d0d0;
+    --accent: #0a0a0a;
+    --accent-text: #ffffff;
+    --danger: #b42318;
+    --danger-bg: #991b1b;
+    --hover: rgba(0, 0, 0, 0.035);
+    --focus: rgba(0, 0, 0, 0.12);
+    --glow: rgba(0, 0, 0, 0.05);
+    --nav-bg: rgba(255, 255, 255, 0.75);
+}
+
+/* Dark mode follows the OS setting, no toggle needed */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        color-scheme: dark;
+        --bg: #050505;
+        --surface: #0e0e0e;
+        --surface-2: #161616;
+        --text: #f5f5f5;
+        --muted: #9a9a9a;
+        --faint: #5c5c5c;
+        --border: #1f1f1f;
+        --border-strong: #333333;
+        --accent: #f5f5f5;
+        --accent-text: #050505;
+        --danger: #f97066;
+        --danger-bg: #991b1b;
+        --hover: rgba(255, 255, 255, 0.04);
+        --focus: rgba(255, 255, 255, 0.2);
+        --glow: rgba(255, 255, 255, 0.07);
+        --nav-bg: rgba(14, 14, 14, 0.75);
+    }
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #050505;
+    --surface: #0e0e0e;
+    --surface-2: #161616;
+    --text: #f5f5f5;
+    --muted: #9a9a9a;
+    --faint: #5c5c5c;
+    --border: #1f1f1f;
+    --border-strong: #333333;
+    --accent: #f5f5f5;
+    --accent-text: #050505;
+    --danger: #f97066;
+    --danger-bg: #991b1b;
+    --hover: rgba(255, 255, 255, 0.04);
+    --focus: rgba(255, 255, 255, 0.2);
+    --glow: rgba(255, 255, 255, 0.07);
+    --nav-bg: rgba(14, 14, 14, 0.75);
+}
+
+html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 6rem;
+}
+
 body {
-    background-color: #D7D760;
-    font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif;
+    margin: 0;
+    min-height: 100vh;
+    background:
+        radial-gradient(60rem 30rem at 50% -10rem, var(--glow), transparent 70%),
+        var(--bg);
+    color: var(--text);
+    font-family: 'Inter', 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+*, *::before, *::after {
+    box-sizing: border-box;
 }

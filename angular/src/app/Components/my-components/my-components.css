@@ -1,176 +1,891 @@
-td button {
-    margin-left: 10px;
+:host{
+    display: block;
 }
 
-.search{
-    margin-bottom: 1rem; /* 1rem basically means 16px */
-}
-
-.add-btn {
-    margin-left: 10px;
-}
-
-.cancel-btn{
-    background-color: transparent;
-    color: #4a4a10;
-    border: 1px solid #8a8a26;
-}
-
-.cancel-btn:hover{ /* for hover basically when a user puts their mouse on a section we
-    want it to be hover only this effect will be played if the user
-    hovered on it (for example cancel button)*/
-    background-color: rgba(138, 138, 46, 0.2);
-}
-
-.edit-btn{
-    background-color: #B6B64B;
-}
-
-.edit-btn:hover{
-    background-color: #3f5219;
-}
-
-.delete-btn{
-    background-color: #B9B99A;
-}
-
-.delete-btn:hover{
-    background-color: #7a0016;
-}
-
-.field-error {
-    color: red;
-    margin: 0.25rem 0;
-}
-
-form{
-    display: flex;
-    flex-wrap: wrap;
+/* Icons, Font Awesome nests an svg inside each <i>, sized 1em */
+i{
+    display: inline-flex;
+    align-items: center;
     justify-content: center;
+    line-height: 1;
+}
+
+/* Stats */
+.stats{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
     gap: 0.75rem;
-    padding: 1.25rem;
-    margin-bottom: 1rem;
-    background-color: #f5f5dc;
-    border: 1px solid #8a8a2e;
+    margin-bottom: 0.75rem;
+}
+
+.stat{
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 1rem;
+    row-gap: 0.3rem;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+}
+
+.stat-icon{
+    grid-row: 1 / 3;
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
     border-radius: 12px;
-
+    background: var(--accent);
+    color: var(--accent-text);
+    font-size: 1.05rem;
 }
 
-form input, .search input{ /* To make multiple classes inhert the same css logic without
-    typing it again just add ( , ) and css would understand we want to add more classes
-    for this logic */ 
-    padding: 0.5rem 0.7rem;
-    border: 1px solid #8a8a2e;
-    border-radius: 6px;
-    background-color: white;
-    font-size: 1rem;
+.stat-value{
+    font-size: clamp(1.5rem, 4vw, 2.25rem);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
 }
 
-form input:focus, .search input:focus{
+.stat-label{
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+/* Form card */
+.card{
+    margin-bottom: 0.75rem;
+    padding: 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+    transition: border-color 0.2s;
+}
+
+.card.editing{
+    border-color: var(--text);
+}
+
+.card-head{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.card-head h2, .panel-head h2{
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+.title-icon{
+    display: grid;
+    place-items: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font-size: 0.8rem;
+}
+
+.hint{
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+
+/* Rules, an icon and a plain sentence each so they read at a glance */
+.rules{
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+    margin: 0 0 1.25rem;
+    padding: 0;
+    list-style: none;
+}
+
+.rules li{
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.65rem 0.8rem;
+    border-radius: 10px;
+    background: var(--surface-2);
+    font-size: 0.8rem;
+    font-weight: 500;
+    line-height: 1.3;
+}
+
+.rules i{
+    flex: none;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font-size: 0.75rem;
+}
+
+/* Form grid */
+form{
+    display: grid;
+    grid-template-columns: 2fr 1.5fr 1fr 1.4fr;
+    gap: 0.75rem;
+    align-items: end;
+}
+
+.field{
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    min-width: 0;
+}
+
+.field-label, .filter-label{
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.field-label em{
+    color: var(--faint);
+    font-style: normal;
+}
+
+.form-actions{
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+/* Inputs with a leading icon */
+.control{
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.control > i:first-child{
+    position: absolute;
+    left: 0.85rem;
+    color: var(--faint);
+    font-size: 0.8rem;
+    pointer-events: none;
+    transition: color 0.15s;
+}
+
+.control:focus-within > i:first-child{
+    color: var(--text);
+}
+
+input, select{
+    width: 100%;
+    height: 2.75rem;
+    padding: 0 0.85rem 0 2.35rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.925rem;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+input:hover, select:hover{
+    border-color: var(--border-strong);
+}
+
+input:focus, select:focus{
     outline: none;
-    border-color: #4a4a10;
-    box-shadow: 0 0 0 3px rgba(138, 138, 46, 0.35);
+    border-color: var(--text);
+    box-shadow: 0 0 0 4px var(--focus);
 }
 
-form input::placeholder, .search input::placeholder{ /* in order to change the placeholder 
-    design just do ( :: ) with no space between the class and the thing you want to be affected 
-    usually they are pre determined and placeholder isn't a variable */
-    color:#4a4a10;
-    opacity: 40%;
+input::placeholder{
+    color: var(--faint);
 }
 
-form input[type="date"] {
-    color: #4a4a10;
-    font-family: inherit;
+input.ng-invalid.ng-dirty{
+    border-color: var(--danger);
 }
 
-form input[type="date"]::-webkit-datetime-edit {
-    opacity: 70%;
-}
-
-form input[type="date"]:focus::-webkit-datetime-edit{
-    opacity: 1;
-}
-
-button {
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 6px;
-    background-color: #8a8a26;
-    color: white;
-    font-family: inherit;
-    font-size: 1rem;
+select{
+    appearance: none;
+    padding-right: 2.25rem;
     cursor: pointer;
 }
 
-button:hover{
-    background-color: #4a4a10;
-    opacity: 50%;
+.caret{
+    position: absolute;
+    right: 0.85rem;
+    color: var(--faint);
+    font-size: 0.7rem;
+    pointer-events: none;
+}
+
+.field-error{
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.75rem 0 0;
+    color: var(--danger);
+    font-size: 0.85rem;
+}
+
+/* Buttons, reset first so each kind sets its own look */
+button{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: 1px solid transparent;
+    background: none;
+    color: inherit;
+    font-family: inherit;
+    cursor: pointer;
+    transition: opacity 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+}
+
+button:active:not(:disabled){
+    transform: translateY(1px);
+}
+
+button:focus-visible{
+    outline: none;
+    box-shadow: 0 0 0 4px var(--focus);
 }
 
 button:disabled{
-    opacity: 50%;
+    opacity: 0.3;
     cursor: not-allowed;
 }
 
-.search-label{
-    margin: 0 0 0.5rem;
-    text-align: center;
-    color: #4a4a10;
+.add-btn, .cancel-btn{
+    height: 2.75rem;
+    padding: 0 1.25rem;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
 }
 
-.search input{
-    width: 18rem;
-    padding: 0.6rem 1rem;
-    border: 1px solid #4a4a10;
-    border-radius: 999px;
-    background-color: #f5f5dc;
+.add-btn{
+    background: var(--accent);
+    color: var(--accent-text);
 }
 
-.search input:focus{
-    background-color: white;
+.add-btn:hover:not(:disabled){
+    opacity: 0.85;
 }
 
-.state{
-    padding: 1rem;
-    text-align:center;
-    font-family: inherit;
-    font-style: italic;
-    color: #4a4a10;
-    font-size: 150%;
+.cancel-btn{
+    border-color: var(--border);
+    color: var(--text);
 }
 
-.state-error{
-    color: red;
-    font-style: normal;
-    font-weight: bold;
+.cancel-btn:hover{
+    border-color: var(--border-strong);
+    background: var(--hover);
 }
 
-table{
-    border-collapse: separate;
-    border-spacing: 1rem;
-    background-color: #f5f5dc;
-    border: 1px solid #8a8a26;
-    border-radius: 12px;
-    overflow: hidden;
+/* Date picker */
+.datepicker{
+    position: relative;
 }
 
-th {
-    padding: 0.75rem 1rem;
-    background-color: #8a8a26;
-    color: white;
+.date-trigger{
+    justify-content: flex-start;
+    width: 100%;
+    height: 2.75rem;
+    padding: 0 0.85rem 0 2.35rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.925rem;
     text-align: left;
 }
 
-td {
-    padding: 0.6rem 1rem;
-    border-bottom: 1px solid rgba(138, 138, 46, 0.3);
+.date-trigger:hover{
+    border-color: var(--border-strong);
+}
+
+.date-trigger.open{
+    border-color: var(--text);
+    box-shadow: 0 0 0 4px var(--focus);
+}
+
+.date-trigger.open > i:first-child{
+    color: var(--text);
+}
+
+.placeholder{
+    color: var(--faint);
+}
+
+.calendar{
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    z-index: 20;
+    width: 18.5rem;
+    padding: 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.25), 0 2px 6px rgba(0, 0, 0, 0.06);
+    animation: pop 0.14s ease-out;
+}
+
+@keyframes pop{
+    from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+}
+
+.cal-head{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.cal-title{
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.icon-btn{
+    width: 2rem;
+    height: 2rem;
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 0.75rem;
+}
+
+.icon-btn:hover:not(:disabled){
+    background: var(--hover);
+    color: var(--text);
+}
+
+.cal-grid{
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.15rem;
+}
+
+.cal-weekday{
+    padding: 0.35rem 0;
+    color: var(--faint);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.cal-day{
+    aspect-ratio: 1;
+    border-radius: 8px;
+    font-size: 0.825rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.cal-day:hover{
+    background: var(--hover);
+}
+
+.cal-day.out{
+    color: var(--faint);
+}
+
+.cal-day.today{
+    border-color: var(--border-strong);
+    font-weight: 700;
+}
+
+.cal-day.selected{
+    background: var(--accent);
+    color: var(--accent-text);
+    font-weight: 600;
+}
+
+.cal-foot{
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+}
+
+.link-btn{
+    padding: 0.35rem 0.6rem;
+    border-radius: 6px;
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.link-btn:hover{
+    background: var(--hover);
+    color: var(--text);
+}
+
+/* Table panel */
+.panel{
+    /* Follows the page theme, white in light mode and inverted in dark mode */
+    --p-bg: var(--surface);
+    --p-field: var(--bg);
+    --p-text: var(--text);
+    --p-muted: var(--muted);
+    --p-border: var(--border);
+    --p-hover: var(--hover);
+
+    margin-bottom: 0.75rem;
+    padding: 1.5rem;
+    border: 1px solid var(--p-border);
+    border-radius: 16px;
+    background: var(--p-bg);
+    color: var(--p-text);
+}
+
+.panel-head{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.panel-title{
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+/* Database status pill, black and white with the icon carrying the meaning */
+.db-status{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.65rem;
+    border: 1px solid var(--p-border);
+    border-radius: 999px;
+    color: var(--p-muted);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.db-status i{
+    font-size: 0.65rem;
+}
+
+.db-status[data-state="failed"], .db-status[data-state="offline"]{
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.panel-head h2 i{
+    color: var(--p-text);
+}
+
+.tools{
+    display: flex;
+    gap: 0.25rem;
+}
+
+.tool-btn{
+    height: 2.25rem;
+    padding: 0 0.75rem;
+    border-radius: 8px;
+    color: var(--p-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.tool-btn:hover:not(:disabled){
+    background: var(--p-hover);
+    color: var(--p-text);
+}
+
+.panel input, .panel select{
+    border-color: var(--p-border);
+    background: var(--p-field);
+    color: var(--p-text);
+}
+
+.panel input:hover, .panel select:hover{
+    border-color: var(--border-strong);
+}
+
+.panel input:focus, .panel select:focus{
+    border-color: var(--p-text);
+    box-shadow: 0 0 0 4px var(--focus);
+}
+
+.panel input::placeholder{
+    color: var(--faint);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.75rem;
+}
+
+.panel .control > i:first-child, .panel .caret{
+    color: var(--faint);
+}
+
+.panel .control:focus-within > i:first-child{
+    color: var(--p-text);
+}
+
+.panel .filter-label{
+    color: var(--p-muted);
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.filters{
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr auto;
+    gap: 0.75rem;
+    align-items: end;
+    padding-bottom: 1.25rem;
+    margin-bottom: 1.25rem;
+    border-bottom: 1px solid var(--p-border);
+}
+
+.filter{
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    min-width: 0;
+}
+
+.filter-action{
+    min-width: 9rem;
+}
+
+.toolbar{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.toolbar .search{
+    flex: 0 1 22rem;
+}
+
+.entries{
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--p-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.entries select{
+    width: 5rem;
+    height: 2.25rem;
+    padding-left: 0.75rem;
+}
+
+/* States */
+.state{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 3rem 1rem;
+    border: 1px dashed var(--border-strong);
+    border-radius: 12px;
+    color: var(--p-muted);
+    text-align: center;
+}
+
+.state i{
+    font-size: 1.5rem;
+    color: var(--faint);
+}
+
+.state-error, .state-error i{
+    color: var(--danger);
+}
+
+/* Table */
+.table-wrap{
+    position: relative; /* keeps the absolutely positioned sr-only label inside the scroll box */
+    overflow-x: auto;
+    border: 1px solid var(--p-border);
+    border-radius: 10px;
+}
+
+table{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+}
+
+th{
+    padding: 0;
+    border-bottom: 1px solid var(--p-border);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.sort-btn{
+    width: 100%;
+    justify-content: flex-start;
+    gap: 0.45rem;
+    padding: 0.85rem 1.1rem;
+    color: var(--p-muted);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.sort-btn i{
+    color: var(--faint);
+    font-size: 0.7rem;
+}
+
+.sort-btn:hover, th.sorted .sort-btn{
+    color: var(--p-text);
+}
+
+th.sorted .sort-btn i{
+    color: var(--p-text);
+}
+
+th.num .sort-btn{
+    justify-content: flex-end;
+}
+
+td{
+    padding: 0.9rem 1.1rem;
+    border-bottom: 1px solid var(--p-border);
+    white-space: nowrap;
 }
 
 tbody tr:last-child td{
     border-bottom: none;
 }
 
-tbody tr:hover{
-    background: rgba(138, 138, 46, 0.3);
+tbody tr{
+    transition: background-color 0.1s;
+}
+
+tbody tr:hover, tbody tr.editing{
+    background: var(--p-hover);
+}
+
+/* Name and price stand out by weight only */
+td.accent{
+    font-weight: 600;
+}
+
+tbody tr.editing td:first-child{
+    box-shadow: inset 3px 0 0 var(--p-text);
+}
+
+.num{
+    text-align: right;
+}
+
+.id, .muted{
+    color: var(--p-muted);
+}
+
+.actions{
+    text-align: right;
+}
+
+.edit-btn, .remove-btn{
+    height: 2rem;
+    padding: 0 0.7rem;
+    border-color: var(--p-border);
+    border-radius: 8px;
+    color: var(--p-text);
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.edit-btn i, .remove-btn i{
+    font-size: 0.7rem;
+}
+
+.edit-btn:hover{
+    border-color: var(--border-strong);
+    background: var(--p-hover);
+}
+
+.actions button + button{
+    margin-left: 0.35rem;
+}
+
+/* Delete turns dark red on hover */
+.remove-btn:hover{
+    border-color: var(--danger-bg);
+    background: var(--danger-bg);
+    color: #ffffff;
+}
+
+.panel-foot{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 1rem;
+    color: var(--p-muted);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.pager{
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.panel .icon-btn{
+    color: var(--p-muted);
+}
+
+.panel .icon-btn:hover:not(:disabled){
+    background: var(--p-hover);
+    color: var(--p-text);
+}
+
+.sr-only{
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+/* Print only the table */
+@media print {
+    .stats, .card, .tools, .filters, .toolbar, .pager, .actions, .actions-col{
+        display: none;
+    }
+
+    .panel{
+        border: none;
+        padding: 0;
+    }
+}
+
+/* Tablet */
+@media (max-width: 760px) {
+    form, .rules{
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .filters{
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .filter:first-child{
+        grid-column: 1 / -1;
+    }
+
+    .filter-action{
+        min-width: 0;
+    }
+
+    .toolbar{
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .toolbar .search{
+        flex: none;
+    }
+}
+
+/* Phone */
+@media (max-width: 480px) {
+    .stats{
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .stats .stat:last-child{
+        grid-column: 1 / -1;
+    }
+
+    .stat{
+        grid-template-columns: 1fr;
+        padding: 1rem;
+    }
+
+    .stat-icon{
+        grid-row: auto;
+        width: 2.25rem;
+        height: 2.25rem;
+        margin-bottom: 0.4rem;
+    }
+
+    .card, .panel{
+        padding: 1.25rem;
+    }
+
+    .card-head{
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.3rem;
+    }
+
+    form, .rules{
+        grid-template-columns: 1fr;
+    }
+
+    .calendar{
+        left: 0;
+        right: auto;
+        width: 100%;
+    }
+
+    .form-actions button{
+        flex: 1;
+    }
+
+    .panel-head{
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .panel-foot{
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }

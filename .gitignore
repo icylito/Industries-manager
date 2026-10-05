@@ -1,3 +1,5 @@
 api/
 obj/
 bin/
+artifacts/
+__pycache__/

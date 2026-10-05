@@ -1,16 +1,16 @@
 <div class="app">
-<h1>Stock Listing</h1>
-<p>Add and delete are local only until the API calls are wired up.</p>
-<p>The UI is showing the db content, well some more tweakings will be done.</p>
-<p><u>Rules to follow!</u></p>
-<ul>
-    <li>Name can be at most 50 characters or 5<sub>x</sub>5.</li>
-    <li>Sector can be at most 25 characters or 5 <sup>2</sup>.</li>
-    <li>Price must be between 0 &mdash; 10.</li>
-    <li>Release: pick a date from the date picker (Optional).</li>
-</ul>
-<p>Well you could just not follow the format but it won't be valid or allowed so
-feel free to break it.  
-</p><br>
-<app-my-components></app-my-components>
+    <nav class="nav">
+        <span class="brand"><i class="fa-solid fa-chart-simple" aria-hidden="true"></i>Stock Listing</span>
+        <div class="nav-links">
+            <a href="#browse" aria-label="Browse"><i class="fa-solid fa-table-list" aria-hidden="true"></i><span>Browse</span></a>
+            <a href="#add" aria-label="Add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>Add</span></a>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <h1>Industries</h1>
+        <p class="lede">Every change here saves to the database.</p>
+    </header>
+
+    <app-my-components></app-my-components>
 </div>

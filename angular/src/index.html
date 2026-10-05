@@ -2,10 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Stock Trader Angular</title>
+  <title>Stock Listing</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="dollar_sign_favicon.png">
+  <!-- Nest mode puts the svg inside the <i> instead of replacing it, so Angular keeps ownership of the element -->
+  <script>window.FontAwesomeConfig = { autoReplaceSvg: 'nest' };</script>
+  <script src="https://kit.fontawesome.com/9722f49037.js" crossorigin="anonymous"></script>
 </head>
 <body>
   <app-root></app-root>

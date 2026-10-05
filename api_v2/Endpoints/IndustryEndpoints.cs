@@ -1,6 +1,7 @@
 using api_v2.Data;
 using api_v2.Dtos;
 using api_v2.Model;
+using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
 namespace api_v2.Endpoints;
@@ -9,7 +10,17 @@ public static class IndustryEndpoints
 {
     public static void MapIndustries(this WebApplication app)
     {
-        var group = app.MapGroup("/industries");
+        // While migrations run or after they fail, answer 503 instead of hitting a half ready database
+        var group = app.MapGroup("/industries").AddEndpointFilter(async (context, next) =>
+        {
+            var status = context.HttpContext.RequestServices.GetRequiredService<DatabaseStatus>();
+            if (status.State != DatabaseState.Ready)
+            {
+                return Results.Problem(status.Message, statusCode: StatusCodes.Status503ServiceUnavailable,
+                    title: "Database not ready");
+            }
+            return await next(context);
+        });
 
             group.MapGet("/", (AppDbContext db) =>
             {
@@ -46,21 +57,24 @@ public static class IndustryEndpoints
 
             group.MapPost("/", (CreateIndustry create, AppDbContext db) =>
             {
-                var nameTaken = db.Industries.Any(row => row.Name == create.Name);
-                if (nameTaken)
+                var name = create.Name.Trim();
+                if (NameTaken(db, name))
                 {
                     return Results.Conflict("The name already exists in the database");
                 }
 
                 var industry = new Industry
                 {
-                    Name = create.Name,
+                    Name = name,
                     Sector = create.Sector,
                     Price = create.Price,
                     Release = create.Release
                 };
                 db.Industries.Add(industry);
-                db.SaveChanges();
+                if (!TrySave(db))
+                {
+                    return Results.Conflict("The name already exists in the database");
+                }
 
                 return Results.Created($"/industries/{industry.Id}", new IndustryDto(
                     industry.Id,
@@ -74,22 +88,27 @@ public static class IndustryEndpoints
             group.MapPut("/update/{id}", (int id, UpdateIndustry update, AppDbContext db) =>
             {
                 var checker2 = db.Industries.Find(id);
-                var nameTaken = db.Industries.Any(row => row.Id !=id && row.Name == update.Name);
+                var name = update.Name.Trim();
 
                 if (checker2 is null)
                 {
                     return Results.NotFound("The row doesn't exist");
                 }
 
-                if (nameTaken)
+                if (NameTaken(db, name, id))
                 {
                     return Results.Conflict("The name already exist");
                 }
-                checker2.Name= update.Name;
+                checker2.Name= name;
+                // The new name is free, so a flagged import row stops being a duplicate
+                checker2.DuplicateOf= null;
                 checker2.Sector= update.Sector;
                 checker2.Price= update.Price;
                 checker2.Release= update.Release;
-                db.SaveChanges();
+                if (!TrySave(db))
+                {
+                    return Results.Conflict("The name already exist");
+                }
                 return Results.NoContent();
             });
 
@@ -106,5 +125,27 @@ public static class IndustryEndpoints
                 return Results.Content("The row has been deleted");
             });
             
+    }
+
+    // Names match no matter the capitals or outside spaces, so "Atlas Steel" and "atlas steel " are the same company
+    private static bool NameTaken(AppDbContext db, string name, int? exceptId = null)
+    {
+        var key = name.ToLower();
+        return db.Industries.Any(row => row.Id != exceptId && row.Name.Trim().ToLower() == key);
+    }
+
+    // The unique index catches 2 saves of the same name at the same moment, which the check above can miss
+    private static bool TrySave(AppDbContext db)
+    {
+        try
+        {
+            db.SaveChanges();
+            return true;
+        }
+        catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            db.ChangeTracker.Clear();
+            return false;
+        }
     }
 }

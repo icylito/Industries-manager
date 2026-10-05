@@ -19,3 +19,12 @@ export interface UpdateIndustry{
     price: number | null;
     release: string | null;
 }
+
+// What GET /health returns, see api_v2/Data/DatabaseStatus.cs
+export interface DbHealth {
+    state: 'starting' | 'migrating' | 'ready' | 'failed';
+    message: string;
+    attempts: number;
+    appliedMigrations: string[];
+    updatedAt: string;
+}

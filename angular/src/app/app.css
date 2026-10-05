@@ -1,25 +1,109 @@
 .app{
+    max-width: 64rem;
+    margin: 0 auto;
+    padding: 1rem 1rem 6rem;
+}
+
+/* Floating pill nav */
+.nav{
+    position: sticky;
+    top: 1rem;
+    z-index: 10;
     display: flex;
-    flex-direction: column;
     align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0.75rem 0.6rem 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--nav-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 
-.app h1{
-    margin-bottom: 1rem;
-    font-size: 500%;
-    color: #4a4a10;
+.brand{
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
 }
 
-.app p{
-    max-width: 30rem;
-    margin: 0.5rem 0;
-    text-align: center;
+.brand i{
+    color: var(--text);
 }
 
-.app ul{
-    margin: 0.5rem 0 1rem;
-    padding: 1rem 1.5rem 1rem 2rem;
-    background-color: #f5f5dc;
-    border: 1px solid #8a8a2e;
-    border-radius: 12px;
+.nav-links a{
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.nav-links i{
+    font-size: 0.75rem;
+}
+
+@media print {
+    .nav, .hero{
+        display: none;
+    }
+}
+
+.nav-links{
+    display: flex;
+    gap: 0.25rem;
+}
+
+.nav-links a{
+    padding: 0.4rem 0.9rem;
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: color 0.15s, background-color 0.15s;
+}
+
+.nav-links a:hover{
+    color: var(--text);
+    background: var(--hover);
+}
+
+/* Page header, plain title and one line under it */
+.hero{
+    padding: 3.5rem 0 1.5rem;
+}
+
+.hero h1{
+    margin: 0;
+    font-size: 2.25rem;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+}
+
+.lede{
+    margin: 0.5rem 0 0;
+    color: var(--muted);
+    font-size: 1rem;
+}
+
+/* Small phones, nav links collapse to icons, aria-label keeps the name */
+@media (max-width: 420px) {
+    .nav-links a span{
+        display: none;
+    }
+
+    .nav-links i{
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 640px) {
+    .hero{
+        padding: 2.5rem 0 1.25rem;
+    }
+
+    .hero h1{
+        font-size: 1.85rem;
+    }
 }

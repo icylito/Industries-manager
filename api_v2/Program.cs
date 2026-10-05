@@ -13,10 +13,19 @@ builder.Services.AddValidation(); // Validating all the required, range, and len
 builder.Services.AddOpenApi(options => 
 options.OpenApiVersion = Microsoft.OpenApi.OpenApiSpecVersion.OpenApi3_0);
 var connectionString = builder.Configuration.GetConnectionString("ApiV2");
-builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
-    
+// EnableRetryOnFailure retries a query up to 3 times on transient errors like a dropped connection
+builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString,
+    npgsql => npgsql.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null)));
+
+// Auto migration, applies pending migrations on startup and tracks the result for /health
+builder.Services.AddSingleton<DatabaseStatus>();
+builder.Services.AddHostedService<MigrationService>();
+
 var app = builder.Build();
 app.UseCors("Angular");
+
+// Always 200 so the frontend can read the state, the body says if the database is usable
+app.MapGet("/health", (DatabaseStatus status) => Results.Ok(status.Snapshot()));
 app.MapIndustries();
 app.MapOpenApi();
 app.UseSwaggerUI(options =>

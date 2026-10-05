@@ -1,72 +1,308 @@
-<div class="overall">
-    <!-- All buttons and the tables logic -->
-<form [formGroup]="form" (ngSubmit)="submit()" (input)="formError.set('')">
-    <input formControlName="name" placeholder="Name">
-    <input formControlName="sector" placeholder="Sector">
-    <input formControlName="price" placeholder="Price" type="number">
-    <input formControlName="release" placeholder="Release" type="date">
-    <button type="submit" class="add-btn" [disabled]="form.invalid || saving()">
-        {{ editingId() === null ? 'Add' : 'Save'}}
-    </button>
-    @if (editingId() !== null){
-        <button type="button" class="cancel-btn" (click)="cancelEdit()">Cancel</button>
-    }
-</form>
+<!-- Icons come from the Font Awesome kit in index.html (nest mode, the svg sits inside each <i>) -->
 
-@if (formError()){
-    <p class="field-error">{{ formError() }}</p>
-}
+<!-- Quick numbers pulled from the loaded list -->
+<section class="stats">
+    <div class="stat">
+        <span class="stat-icon"><i class="fa-solid fa-industry" aria-hidden="true"></i></span>
+        <span class="stat-value">{{ loading() ? '--' : industries().length }}</span>
+        <span class="stat-label">Industries</span>
+    </div>
+    <div class="stat">
+        <span class="stat-icon"><i class="fa-solid fa-layer-group" aria-hidden="true"></i></span>
+        <span class="stat-value">{{ loading() ? '--' : sectorCount() }}</span>
+        <span class="stat-label">Sectors</span>
+    </div>
+    <div class="stat">
+        <span class="stat-icon"><i class="fa-solid fa-dollar-sign" aria-hidden="true"></i></span>
+        <span class="stat-value">{{ loading() ? '--' : averagePrice() }}</span>
+        <span class="stat-label">Average price</span>
+    </div>
+</section>
 
-@for (msg of fieldErrors(); track msg) {
-    <p class="field-error">{{ msg }}</p>
-}
-<br><br>
-<!-- Search bar -->
-<p class="search-label" style="font-size: 200%;">Try searching by name</p>
-<div class="search"> <br>
-<input placeholder="type a name to search"
-(input)="search.set($any($event.target).value)">
-</div>
-
-@if (loading()){
-    <p class="state">Loading...</p>
-}   @else if (error()) {
-    <p class="state-error">{{ error() }}</p>
-}   @else if (filtered().length > 0){
-    <table>
-        <thead>
-        <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Sector</th>
-            <th>Price</th>
-            <th>Release</th>
-            <th>Actions</th>
-        </tr>
-        </thead>
-    <tbody>
-        @for (item of filtered(); track item.id) {
-            <tr>
-                <td>{{ item.id }}</td>
-                <td>{{ item.name }}</td>
-                <td>{{ item.sector ?? '--' }}</td>
-                <td>{{ item.price ?? '--' }}</td>
-                <td>{{ item.release ?? '--' }}</td>
-                <td>
-                    <button class="edit-btn" (click)="edit(item)">Edit</button>
-                    <button class="remove-btn" (click)="remove(item.id)">Delete</button>
-                </td>
-            </tr>
+<!-- Add / edit form -->
+<section class="card" id="add" [class.editing]="editingId() !== null">
+    <header class="card-head">
+        <h2>
+            <span class="title-icon">
+                @if (editingId() === null) {
+                    <i class="fa-solid fa-building" aria-hidden="true"></i>
+                } @else {
+                    <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                }
+            </span>
+            {{ editingId() === null ? 'New industry' : 'Editing #' + editingId() }}
+        </h2>
+        @if (editingId() !== null) {
+            <span class="hint">Save or cancel your changes</span>
         }
-    </tbody>
-    </table>
-} @else {
-    @if (industries().length === 0) {
-        <!-- State management to distingush if the search wasn't able to pull the result
-         due to bad search vs if the actual query don't exist in the database -->
-        <p class="state">No industries yet.</p>
-    }@else {
-        <p class="state">No industries match your search. Try a different search</p>
+    </header>
+
+    <!-- Rules mirror the api_v2/Dtos validation, change both together -->
+    <ul class="rules">
+        <li><i class="fa-solid fa-font" aria-hidden="true"></i>Name, up to 50 characters</li>
+        <li><i class="fa-solid fa-industry" aria-hidden="true"></i>Sector, up to 25 characters</li>
+        <li><i class="fa-solid fa-dollar-sign" aria-hidden="true"></i>Price between 0 and 10</li>
+        <li><i class="fa-regular fa-calendar" aria-hidden="true"></i>Release date is optional</li>
+    </ul>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" (input)="formError.set('')">
+        <label class="field">
+            <span class="field-label">Name</span>
+            <span class="control">
+                <i class="fa-solid fa-font" aria-hidden="true"></i>
+                <input formControlName="name" placeholder="Aerospace">
+            </span>
+        </label>
+        <label class="field">
+            <span class="field-label">Sector</span>
+            <span class="control">
+                <i class="fa-solid fa-industry" aria-hidden="true"></i>
+                <input formControlName="sector" placeholder="Industrials">
+            </span>
+        </label>
+        <label class="field">
+            <span class="field-label">Price</span>
+            <span class="control">
+                <i class="fa-solid fa-dollar-sign" aria-hidden="true"></i>
+                <input formControlName="price" placeholder="0.331" type="number" step="any">
+            </span>
+        </label>
+
+        <!-- Custom date picker, writes 'YYYY-MM-DD' into the release control -->
+        <div class="field datepicker">
+            <span class="field-label">Release <em>optional</em></span>
+            <button type="button" class="control date-trigger" [class.open]="calendarOpen()"
+                aria-haspopup="dialog" [attr.aria-expanded]="calendarOpen()" (click)="toggleCalendar()">
+                <i class="fa-regular fa-calendar" aria-hidden="true"></i>
+                @if (releaseValue()) {
+                    <span>{{ formatDate(releaseValue()) }}</span>
+                } @else {
+                    <span class="placeholder">Pick a date</span>
+                }
+            </button>
+
+            @if (calendarOpen()) {
+                <div class="calendar" role="dialog" aria-label="Choose a release date">
+                    <div class="cal-head">
+                        <button type="button" class="icon-btn" aria-label="Previous month" (click)="moveMonth(-1)">
+                            <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+                        </button>
+                        <span class="cal-title">{{ calendarTitle() }}</span>
+                        <button type="button" class="icon-btn" aria-label="Next month" (click)="moveMonth(1)">
+                            <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <div class="cal-grid">
+                        @for (w of weekdays; track w) {
+                            <span class="cal-weekday">{{ w }}</span>
+                        }
+                        @for (d of calendarDays(); track d.iso) {
+                            <button type="button" class="cal-day" [class.out]="!d.inMonth" [class.today]="d.isToday"
+                                [class.selected]="d.isSelected" [attr.aria-label]="formatDate(d.iso)"
+                                (click)="pickDate(d.iso)">{{ d.day }}</button>
+                        }
+                    </div>
+                    <div class="cal-foot">
+                        <button type="button" class="link-btn" (click)="pickDate(null)">Clear</button>
+                        <button type="button" class="link-btn" (click)="pickToday()">Today</button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="form-actions">
+            @if (editingId() !== null){
+                <button type="button" class="cancel-btn" (click)="cancelEdit()">
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>Cancel
+                </button>
+            }
+            <button type="submit" class="add-btn" [disabled]="form.invalid || saving()">
+                @if (saving()) {
+                    <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Saving
+                } @else if (editingId() === null) {
+                    <i class="fa-solid fa-plus" aria-hidden="true"></i>Add industry
+                } @else {
+                    <i class="fa-solid fa-check" aria-hidden="true"></i>Save changes
+                }
+            </button>
+        </div>
+    </form>
+
+    @if (formError()){
+        <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ formError() }}</p>
     }
-}
-</div>
+    @for (msg of fieldErrors(); track msg) {
+        <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ msg }}</p>
+    }
+</section>
+
+<!-- Table panel -->
+<section class="panel" id="browse">
+    <header class="panel-head">
+        <div class="panel-title">
+            <h2><i class="fa-solid fa-table-list" aria-hidden="true"></i>Industries</h2>
+            <!-- Database state from GET /health -->
+            <span class="db-status" [attr.data-state]="dbState()" [attr.title]="dbMessage()">
+                @switch (dbState()) {
+                    @case ('ready') {
+                        <i class="fa-solid fa-database" aria-hidden="true"></i>Database ready
+                    }
+                    @case ('failed') {
+                        <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>Database error
+                    }
+                    @case ('offline') {
+                        <i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"></i>API offline
+                    }
+                    @default {
+                        <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Updating database
+                    }
+                }
+            </span>
+        </div>
+        <div class="tools">
+            <button type="button" class="tool-btn" (click)="print()">
+                <i class="fa-solid fa-print" aria-hidden="true"></i>Print
+            </button>
+            <button type="button" class="tool-btn" [disabled]="!sorted().length" (click)="exportCsv()">
+                <i class="fa-solid fa-file-export" aria-hidden="true"></i>Export CSV
+            </button>
+        </div>
+    </header>
+
+    <!-- Column filters -->
+    <div class="filters">
+        <label class="filter">
+            <span class="filter-label">Sector</span>
+            <span class="control">
+                <i class="fa-solid fa-industry" aria-hidden="true"></i>
+                <select (change)="sectorFilter.set($any($event.target).value); page.set(1)">
+                    <option value="" [selected]="!sectorFilter()">All sectors</option>
+                    @for (s of sectors(); track s) {
+                        <option [value]="s" [selected]="s === sectorFilter()">{{ s }}</option>
+                    }
+                </select>
+                <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
+            </span>
+        </label>
+        <label class="filter">
+            <span class="filter-label">Min price</span>
+            <span class="control">
+                <i class="fa-solid fa-arrow-down-1-9" aria-hidden="true"></i>
+                <input type="number" step="any" placeholder="0.25" [value]="minPrice() ?? ''"
+                    (input)="minPrice.set(toNumber($any($event.target).value)); page.set(1)">
+            </span>
+        </label>
+        <label class="filter">
+            <span class="filter-label">Max price</span>
+            <span class="control">
+                <i class="fa-solid fa-arrow-up-9-1" aria-hidden="true"></i>
+                <input type="number" step="any" placeholder="9.5" [value]="maxPrice() ?? ''"
+                    (input)="maxPrice.set(toNumber($any($event.target).value)); page.set(1)">
+            </span>
+        </label>
+        <div class="filter filter-action">
+            @if (hasFilters()) {
+                <button type="button" class="tool-btn" (click)="clearFilters()">
+                    <i class="fa-solid fa-filter-circle-xmark" aria-hidden="true"></i>Clear filters
+                </button>
+            }
+        </div>
+    </div>
+
+    <!-- Search and page size -->
+    <div class="toolbar">
+        <span class="control search">
+            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            <input type="search" placeholder="Try searching by name" aria-label="Search by name"
+                [value]="search()" (input)="search.set($any($event.target).value); page.set(1)">
+        </span>
+        <label class="entries">
+            Show
+            <span class="control">
+                <select (change)="pageSize.set(+$any($event.target).value); page.set(1)">
+                    @for (n of [5, 10, 25, 50]; track n) {
+                        <option [value]="n" [selected]="n === pageSize()">{{ n }}</option>
+                    }
+                </select>
+                <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
+            </span>
+            entries
+        </label>
+    </div>
+
+    @if (loading()){
+        <p class="state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+            {{ dbState() === 'migrating' ? dbMessage() : 'Loading industries' }}</p>
+    }   @else if (error()) {
+        <p class="state state-error"><i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"></i>{{ error() }}</p>
+    }   @else if (sorted().length > 0){
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        @for (col of columns; track col.key) {
+                            <th [class.num]="col.align === 'num'" [class.sorted]="sortKey() === col.key"
+                                [attr.aria-sort]="sortKey() === col.key ? (sortDir() === 1 ? 'ascending' : 'descending') : 'none'">
+                                <button type="button" class="sort-btn" (click)="sortBy(col.key)">
+                                    {{ col.label }}
+                                    @if (sortKey() !== col.key) {
+                                        <i class="fa-solid fa-sort" aria-hidden="true"></i>
+                                    } @else if (sortDir() === 1) {
+                                        <i class="fa-solid fa-sort-up" aria-hidden="true"></i>
+                                    } @else {
+                                        <i class="fa-solid fa-sort-down" aria-hidden="true"></i>
+                                    }
+                                </button>
+                            </th>
+                        }
+                        <th class="actions-col"><span class="sr-only">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (item of paged(); track item.id) {
+                        <tr [class.editing]="editingId() === item.id">
+                            <td class="id">#{{ item.id }}</td>
+                            <td class="name accent">{{ item.name }}</td>
+                            <td>{{ item.sector ?? '--' }}</td>
+                            <td class="muted">{{ item.release ? formatDate(item.release) : '--' }}</td>
+                            <td class="num accent">{{ item.price ?? '--' }}</td>
+                            <td class="actions">
+                                <button type="button" class="edit-btn" (click)="edit(item)">
+                                    <i class="fa-solid fa-pen" aria-hidden="true"></i>Edit
+                                </button>
+                                <button type="button" class="remove-btn" (click)="remove(item.id)">
+                                    <i class="fa-solid fa-trash" aria-hidden="true"></i>Delete
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    } @else {
+        @if (industries().length === 0) {
+            <!-- State management to distingush if the search wasn't able to pull the result
+             due to bad search vs if the actual query don't exist in the database -->
+            <p class="state"><i class="fa-solid fa-box-open" aria-hidden="true"></i>No industries yet. Add the first one above.</p>
+        } @else {
+            <p class="state"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>Nothing matches these filters.</p>
+        }
+    }
+
+    @if (!loading() && !error()) {
+        <footer class="panel-foot">
+            <span>Showing {{ rangeStart() }} to {{ rangeEnd() }} of {{ sorted().length }} entries</span>
+            <div class="pager">
+                <button type="button" class="icon-btn" aria-label="Previous page" [disabled]="currentPage() === 1"
+                    (click)="page.set(currentPage() - 1)">
+                    <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+                </button>
+                <span>Page {{ currentPage() }} of {{ pageCount() }}</span>
+                <button type="button" class="icon-btn" aria-label="Next page" [disabled]="currentPage() === pageCount()"
+                    (click)="page.set(currentPage() + 1)">
+                    <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+                </button>
+            </div>
+        </footer>
+    }
+</section>

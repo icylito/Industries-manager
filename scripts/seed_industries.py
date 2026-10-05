@@ -1,0 +1,288 @@
+"""Seed the industries table with synthetic rows through the API.
+
+Every row goes through POST /industries, so the API's own validation (api_v2/Dtos)
+decides what gets in. Some rows are broken on purpose to prove the rules hold.
+
+All settings live in config.toml next to this script: row count, broken row rate,
+empty value rate, field ranges, name parts, and API connection.
+
+Usage, with the API running:
+    python3.13 scripts/seed_industries.py                     # uses config.toml
+    python3.13 scripts/seed_industries.py --count 50          # override the row count
+    python3.13 scripts/seed_industries.py --dry-run           # print samples, send nothing
+    python3.13 scripts/seed_industries.py --config other.toml
+"""
+
+import argparse
+import json
+import random
+import sys
+import threading
+import time
+import tomllib
+import urllib.error
+import urllib.request
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date, timedelta
+from pathlib import Path
+
+DEFAULT_CONFIG = Path(__file__).with_name("config.toml")
+BAD_ROW_KINDS = {"name_too_long", "empty_name", "price_out_of_range", "duplicate_name"}
+
+
+def load_config(path: Path) -> dict:
+    try:
+        # utf-8-sig drops the BOM that some Windows editors add, tomllib rejects it otherwise
+        config = tomllib.loads(path.read_text(encoding="utf-8-sig"))
+    except FileNotFoundError:
+        sys.exit(f"Config file not found: {path}")
+    except tomllib.TOMLDecodeError as e:
+        sys.exit(f"Config file {path} is not valid TOML: {e}")
+
+    # Catch bad values here with a clear message, before any row is sent
+    try:
+        g, f, b, n, a = (config[k] for k in ("generation", "fields", "broken_rows", "names", "api"))
+        problems = []
+        if g["count"] < 1:
+            problems.append("generation.count must be 1 or more")
+        if not 0 <= g["bad_row_rate"] <= 1:
+            problems.append("generation.bad_row_rate must be between 0 and 1")
+        if not 0 <= g["null_rate_min"] <= g["null_rate_max"] <= 1:
+            problems.append("generation.null_rate_min and null_rate_max must be between 0 and 1, min first")
+        if not f["sectors"]:
+            problems.append("fields.sectors needs at least one sector")
+        if f["price_min"] > f["price_max"]:
+            problems.append("fields.price_min must not be above fields.price_max")
+        if not isinstance(f["release_from"], date) or not isinstance(f["release_to"], date):
+            problems.append("fields.release_from and release_to must be dates like 2026-09-30, no quotes")
+        elif f["release_from"] > f["release_to"]:
+            problems.append("fields.release_from must not be after fields.release_to")
+        if unknown := set(b["kinds"]) - BAD_ROW_KINDS:
+            problems.append(f"broken_rows.kinds has unknown kinds {sorted(unknown)}, allowed: {sorted(BAD_ROW_KINDS)}")
+        if not n["prefixes"] or not n["cores"] or not n["suffixes"]:
+            problems.append("names.prefixes, cores, and suffixes each need at least one entry")
+        if a["workers"] < 1:
+            problems.append("api.workers must be 1 or more")
+    except KeyError as e:
+        sys.exit(f"Config file {path} is missing the setting {e}")
+    if problems:
+        sys.exit("Config problems:\n  " + "\n  ".join(problems))
+    return config
+
+
+class Seeder:
+    def __init__(self, config: dict):
+        self.gen = config["generation"]
+        self.fields = config["fields"]
+        self.names = config["names"]
+        self.api = config["api"]
+        self.bad_kinds = config["broken_rows"]["kinds"]
+        self.base_url = self.api["base_url"].rstrip("/")
+        self.lock = threading.Lock()
+        self.used_names: set[str] = set()
+        self.accepted_names: list[str] = []
+        self.stats: Counter = Counter()
+
+    # Row generation
+
+    def unique_name(self) -> str:
+        n, max_len = self.names, self.fields["name_max_length"]
+        with self.lock:
+            while True:
+                name = " ".join(p for p in (random.choice(n["prefixes"]), random.choice(n["cores"]),
+                                            random.choice(n["suffixes"])) if p)
+                if name in self.used_names:
+                    name = f"{name} {random.randint(2, 9999)}"
+                if name not in self.used_names and len(name) <= max_len:
+                    self.used_names.add(name)
+                    return name
+
+    def maybe_null(self, value):
+        # Each row draws its own rate between the min and max in config.toml
+        rate = random.uniform(self.gen["null_rate_min"], self.gen["null_rate_max"])
+        return None if random.random() < rate else value
+
+    def valid_row(self) -> dict:
+        f = self.fields
+        start, end = f["release_from"], f["release_to"]
+        release = start + timedelta(days=random.randint(0, (end - start).days))
+        return {
+            "name": self.unique_name(),
+            "sector": random.choice(f["sectors"]),
+            "price": self.maybe_null(round(random.uniform(f["price_min"], f["price_max"]), f["price_decimals"])),
+            "release": self.maybe_null(release.isoformat()),
+        }
+
+    def bad_row(self) -> tuple[str, dict]:
+        f = self.fields
+        row = self.valid_row()
+        kinds = list(self.bad_kinds)
+        with self.lock:
+            if not self.accepted_names and "duplicate_name" in kinds:
+                kinds.remove("duplicate_name")
+        kind = random.choice(kinds)
+        if kind == "name_too_long":
+            row["name"] = ((row["name"] + " ") * 10)[: random.randint(f["name_max_length"] + 1, f["name_max_length"] + 30)]
+        elif kind == "empty_name":
+            row["name"] = ""
+        elif kind == "price_out_of_range":
+            spread = max(1.0, f["price_max"] - f["price_min"])
+            too_high = random.uniform(f["price_max"] + 0.01, f["price_max"] + spread * 4)
+            too_low = random.uniform(f["price_min"] - spread * 2, f["price_min"] - 0.01)
+            row["price"] = round(random.choice([too_high, too_low]), f["price_decimals"])
+        else:
+            with self.lock:
+                row["name"] = random.choice(self.accepted_names)
+        return kind, row
+
+    # HTTP
+
+    def request(self, method: str, path: str, body: dict | None = None) -> tuple[int, str]:
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(self.base_url + path, data=data, method=method,
+                                     headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=self.api["request_timeout_seconds"]) as resp:
+                return resp.status, resp.read().decode()
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode()
+
+    def post_with_retry(self, row: dict) -> tuple[int, str]:
+        # Retries a dropped connection or a 5xx (including 503 while migrating), never a 4xx
+        max_retries = self.api["max_retries"]
+        for attempt in range(max_retries + 1):
+            try:
+                status, body = self.request("POST", "/industries", row)
+                if status < 500 or attempt == max_retries:
+                    return status, body
+            except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+                if attempt == max_retries:
+                    return 0, str(e)
+            with self.lock:
+                self.stats["retries"] += 1
+            time.sleep(self.api["retry_delay_seconds"] * 2 ** attempt)
+        return 0, "unreachable"
+
+    def wait_until_ready(self) -> None:
+        deadline = time.time() + self.api["ready_timeout_seconds"]
+        while time.time() < deadline:
+            try:
+                status, body = self.request("GET", "/health")
+                health = json.loads(body)
+                if health["state"] == "ready":
+                    print(f"API ready: {health['message']}")
+                    return
+                if health["state"] == "failed":
+                    sys.exit(f"API reports a failed database: {health['message']}")
+                print(f"Waiting on the database: {health['message']}")
+            except (urllib.error.URLError, ConnectionError, TimeoutError):
+                print(f"Waiting for the API at {self.base_url}")
+            time.sleep(2)
+        sys.exit("Gave up waiting for the API to become ready")
+
+    # One row end to end
+
+    def send(self, kind: str, row: dict) -> None:
+        status, body = self.post_with_retry(row)
+        with self.lock:
+            if kind == "valid":
+                if status == 201:
+                    self.stats["accepted"] += 1
+                    self.accepted_names.append(row["name"])
+                    if row["price"] is None:
+                        self.stats["null_price"] += 1
+                    if row["release"] is None:
+                        self.stats["null_release"] += 1
+                else:
+                    self.stats["valid_rejected"] += 1
+                    print(f"  valid row rejected ({status}): {row} -> {body[:200]}")
+            else:
+                if status in (400, 409):
+                    self.stats[f"blocked_{kind}"] += 1
+                elif status == 201:
+                    # The API let a broken row in, the rules have a hole
+                    self.stats["bad_accepted"] += 1
+                    print(f"  BROKEN ROW ACCEPTED ({kind}): {row}")
+                else:
+                    self.stats["bad_other"] += 1
+                    print(f"  broken row got {status} ({kind}): {body[:200]}")
+
+    def load_existing_names(self) -> None:
+        # Real rows are off limits for new names, and give the duplicate test something to hit
+        status, body = self.request("GET", "/industries")
+        if status == 200:
+            names = [row["name"] for row in json.loads(body)]
+            self.used_names.update(names)
+            self.accepted_names.extend(names)
+            print(f"Found {len(names)} existing rows")
+
+    def bad_rows_for(self, valid_count: int) -> int:
+        if not self.bad_kinds or self.gen["bad_row_rate"] == 0:
+            return 0
+        return max(1, round(valid_count * self.gen["bad_row_rate"]))
+
+    def run(self, count: int) -> int:
+        self.wait_until_ready()
+        self.load_existing_names()
+        started = time.time()
+        with ThreadPoolExecutor(max_workers=self.api["workers"]) as pool:
+            # Send in rounds until enough valid rows got in, a rejected valid row gets replaced next round
+            while self.stats["accepted"] < count:
+                remaining = count - self.stats["accepted"]
+                jobs = [("valid", self.valid_row()) for _ in range(remaining)]
+                jobs += [self.bad_row() for _ in range(self.bad_rows_for(remaining))]
+                random.shuffle(jobs)
+                list(pool.map(lambda job: self.send(*job), jobs))
+                if self.stats["valid_rejected"] > count:
+                    print("Too many valid rows rejected, check that config.toml [fields] matches the API rules")
+                    break
+        self.report(time.time() - started)
+        return 1 if self.stats["bad_accepted"] or self.stats["valid_rejected"] else 0
+
+    def report(self, seconds: float) -> None:
+        s = self.stats
+        blocked = {k.removeprefix("blocked_"): v for k, v in s.items() if k.startswith("blocked_")}
+        print()
+        print(f"Done in {seconds:.1f}s")
+        print(f"  accepted rows          {s['accepted']}")
+        print(f"    with no price        {s['null_price']} ({s['null_price'] / max(1, s['accepted']):.1%})")
+        print(f"    with no release      {s['null_release']} ({s['null_release'] / max(1, s['accepted']):.1%})")
+        print(f"  broken rows blocked    {sum(blocked.values())}  {dict(sorted(blocked.items()))}")
+        print(f"  broken rows accepted   {s['bad_accepted']}")
+        print(f"  valid rows rejected    {s['valid_rejected']}")
+        print(f"  retries                {s['retries']}")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Seed synthetic industries through the API")
+    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG, help="settings file (default scripts/config.toml)")
+    parser.add_argument("--count", type=int, help="override generation.count")
+    parser.add_argument("--seed", type=int, help="override generation.seed")
+    parser.add_argument("--dry-run", action="store_true", help="print sample rows, send nothing")
+    args = parser.parse_args()
+
+    config = load_config(args.config)
+    count = args.count if args.count is not None else config["generation"]["count"]
+    seed = args.seed if args.seed is not None else config["generation"]["seed"]
+    if seed:
+        random.seed(seed)
+
+    seeder = Seeder(config)
+    print(f"Config: {args.config.name}, {count} rows, {config['generation']['bad_row_rate']:.0%} broken, "
+          f"empty rate {config['generation']['null_rate_min']:.0%} to {config['generation']['null_rate_max']:.0%}")
+
+    if args.dry_run:
+        for _ in range(8):
+            print("valid ", seeder.valid_row())
+        seeder.accepted_names.append("Atlas Steel Group")
+        if seeder.bad_kinds:
+            for _ in range(4):
+                print("broken", seeder.bad_row())
+        return 0
+
+    return seeder.run(count)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
