@@ -15,6 +15,10 @@ I started this on September 26, 2026, and the sections below show where things a
 - Done: the rules (name length, price range, what's required) live in the database with versions, and the page and the seed script read them from the API, see [Rules and the collector](#rules-and-the-collector).
 - Done: before the table's structure or the rules change, a full copy goes to the `collector` database, and every add, edit, and delete gets logged there.
 - Done: an optional Docker database for testing that starts empty, see [docker_setup.md](docker_setup.md). The API creates its databases by itself on the first run.
+- Done: a History page to view, download, pin, restore, or bring back rows from any saved version, see [The pages](#the-pages).
+- Done: a Fields page so the team adds fields and changes limits without touching C#.
+- Done: a Requests page with a bell in the nav for anything that needs a developer, each one comes with the code drafted.
+- Done: a break test, where we tried hard to break the app and fixed what broke. Two people saving at the same time don't overwrite each other anymore, names get cleaned before saving so lookalikes like `Atlas  Steel` with 2 spaces count as taken, CSV downloads can't run formulas in Excel, and errors come back as plain messages instead of empty 500s.
 - Next: the edge cases listed at the bottom.
 
 # Starting
@@ -59,13 +63,32 @@ Start the API first. If the page says it could not load the industries, the API 
 When the API starts, it checks the database and applies any migration that hasn't run yet. You can see how that went at http://localhost:5005/health, and the page shows the same thing as a small badge next to the table title:
 
 - `Database ready`: all good.
-- `Updating database`: migrations are running, or the database didn't answer and the API is retrying. It tries 5 times and waits longer each time (2, 4, 8, then 16 seconds).
+- `Updating database`: migrations are running, or the database didn't answer and the API is retrying. It waits 2, 4, 8, then 16 seconds, and after that it keeps trying every 30 seconds until the database answers.
+- `History offline`: the table still loads, but the `collector` isn't answering. You can read rows, but adding, editing, deleting, rule changes and the History page wait for it, since they all save a copy there first. Once it's back the badge goes away by itself.
 - `Database error`: something failed that a retry won't fix, like a wrong password in the connection string or a broken migration. The error shows in the table so you know what to fix.
 - `API offline`: the page can't reach the API at all.
+
+One catch, if there's a migration waiting and the `collector` is down, the API holds off on migrating until it's back, so the copy always gets saved first.
 
 ## Angular
 
 So this folder uses Angular mainly to replace the Swagger UI from `api_v2/`. The 2 folders should not be merged, as they both handle different things: Angular handles project state, displaying the data safely, and a nice UI to handle everything more easily. The design is black and white and switches to dark mode with your system setting. Icons come from Font Awesome, loaded by the kit script in `src/index.html`.
+
+### The pages
+
+- **Industries** (`/`) is the table. Rows can have a triangle next to the name, hover it to see why:
+  - red means a value couldn't come over from old data and shows `--`. It goes away once someone saves the row.
+  - black is minor, like a value that breaks today's rules or a similar row.
+  - Similar rows also get an amber background. That only happens through import, adding a name that's taken by hand still says it exists.
+  - A wrench on a column header means a developer was asked about that column.
+- **History** (`/history`) lists every saved copy of the table.
+  - View and Download (opens in Excel).
+  - Pin, so retention never removes it.
+  - Restore swaps every row for that version's rows after you type `RESTORE`, and the table as it was gets saved first.
+  - Bring back adds that version's rows as new rows with new numbers, nothing gets replaced. If the old data followed other rules it asks "The old data follows different rules than the table does now. Import it anyway?" first.
+  - Keep old versions sets how many to keep or after how many days to remove them. Empty means keep everything.
+- **Fields** (`/fields`) is where the team changes labels and limits, adds custom fields, and hides custom fields they don't want anymore. Hiding keeps the data. Every save is a new rules version and a copy of the table gets saved first. Changing a field's type or making it a real column goes to a developer from here. If someone else saved while you had the page open, your save gets stopped and asks you to reload, and what you typed stays there.
+- **Requests** (`/requests`) is for anything that needs a developer. The app makes some by itself, like when an import finds an old column that doesn't exist anymore or a restore brings back data from a different layout. Each one has the code drafted, Show the drafted code and Copy. The bell in the nav shows how many are open. Asking for something that's already open doesn't make a second one, your new details get added to the old one.
 
 ## Api_v2
 
@@ -83,14 +106,19 @@ To wipe the Docker database and start empty again, run `docker compose down -v`.
 The limits for each field aren't in the code anymore, they're in the `RuleVersions` table. Every change makes a new version, so you can always see what the rules were before.
 
 - `GET /schema` gives the rules in use. The page builds its rule chips and form checks from it.
-- `PUT /schema` saves new rules as the next version. For now it changes limits and labels, adding or removing fields comes later. You can try it from Swagger.
+- `PUT /schema` saves new rules as the next version, limits, labels, and hiding custom fields. Fields never get removed, only hidden. Send `basedOn` with the version you started from and it says no if someone saved in between.
+- `POST /schema/fields` adds a custom field. Its values live in the row's `Extra` column as JSON, so no migration is needed.
 - `GET /schema/versions` lists every rules version.
 
 The `collector` database keeps old data so nothing gets lost:
 
 - Before a migration runs on a database that already has data, the whole table gets copied there first. Same before new rules get saved. If that copy fails, the migration or the rules change doesn't happen.
-- Every add, edit, and delete gets logged with the row before and after. An edit or delete only goes through once its copy is saved, otherwise the API says so and nothing changes.
-- Nothing in the collector gets deleted. `GET /history/versions` lists the saved copies.
+- Every add, edit, and delete gets logged with the row before and after. None of them go through until the log is written, otherwise the API says so and nothing changes.
+- Only retention deletes from the collector, the team sets it on the History page and it never touches pinned versions. Everything under `/history` is what that page uses.
+- Old values that don't fit today's type become empty and the row remembers which ones in `LostFields`. `ImportedFrom` says which version a row came from, and `DuplicateOf` points an imported row at the row it's similar to.
+- If an old column got renamed, add it to `ColumnRenames` in `History/TableWriter.cs` so imports bring it over. The app makes a request when that's needed. An old column that matches a custom field's name goes into that field by itself.
+
+Requests live in the `Requests` table, `GET /requests` lists them and `GET /requests/count` is the bell. Settings like retention live in the `Settings` table, and `Collector:KeepVersions` and `Collector:KeepDays` in appsettings are the starting values.
 
 There's no login yet, so everyone can change the rules. The check is already in one place (`Auth/CurrentUser.cs`), so adding auth later is a small change.
 
@@ -153,3 +181,6 @@ python scripts/seed_industries.py --count 50 --dry-run
 
 - The API address `http://localhost:5005` is written straight into `angular/src/app/services/industry-api.ts` and the CORS setup in `Program.cs`, so it only works on this machine until it moves to a config.
 - Delete still uses the browser's own "are you sure" popup instead of one that matches the design.
+- Restore brings back the rows and rules of a version but not its columns. If the table had different columns back then, a developer has to bring them back in code since the API moves the database forward on every start. The request it makes says how.
+- No login yet, so anyone can restore, change rules, or close requests. Everything admin goes through `.RequireAdmin()` in `Auth/CurrentUser.cs`, that's where auth plugs in.
+- A few leftovers from the break test. Restore saves the rows and the rules in 2 steps, so if the second one fails they don't match. A restore or import that fails still leaves its "Before ..." copy in History, and with "keep the last N" on, those copies can push out the version you restored from.

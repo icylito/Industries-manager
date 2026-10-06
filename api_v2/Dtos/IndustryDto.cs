@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 
 namespace api_v2.Dtos;
 
@@ -7,5 +7,9 @@ public record IndustryDto(
     string Name,
     string? Sector,
     decimal? Price,
-    DateOnly? Release
+    DateOnly? Release,
+    int? DuplicateOf = null,
+    int? ImportedFrom = null,
+    List<string>? LostFields = null,
+    JsonElement? Extra = null
 );

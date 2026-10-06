@@ -24,8 +24,11 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    color: var(--text);
     font-weight: 700;
     letter-spacing: -0.02em;
+    text-decoration: none;
+    white-space: nowrap;
 }
 
 .brand i{
@@ -63,9 +66,27 @@
     transition: color 0.15s, background-color 0.15s;
 }
 
-.nav-links a:hover{
+.nav-links a:hover, .nav-links a.active{
     color: var(--text);
     background: var(--hover);
+}
+
+/* Bell count, a small solid pill so it reads in both themes */
+.bell{
+    position: relative;
+}
+
+.badge{
+    min-width: 1.15rem;
+    height: 1.15rem;
+    padding: 0 0.3rem;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font-size: 0.65rem;
+    font-weight: 700;
+    line-height: 1.15rem;
+    text-align: center;
 }
 
 /* Page header, plain title and one line under it */
@@ -88,9 +109,37 @@
 }
 
 /* Small phones, nav links collapse to icons, aria-label keeps the name */
-@media (max-width: 420px) {
+@media (max-width: 760px) {
     .nav-links a span{
         display: none;
+    }
+
+    .nav-links a{
+        padding: 0.4rem 0.7rem;
+    }
+}
+
+@media (max-width: 420px) {
+    .nav{
+        padding-left: 1rem;
+    }
+
+    .brand{
+        font-size: 0.9rem;
+    }
+
+    .nav-links{
+        gap: 0;
+    }
+
+    .nav-links a{
+        padding: 0.4rem 0.55rem;
+    }
+
+    .bell .badge{
+        position: absolute;
+        top: -0.2rem;
+        right: -0.15rem;
     }
 
     .nav-links i{

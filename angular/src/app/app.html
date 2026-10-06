@@ -1,16 +1,26 @@
 <div class="app">
     <nav class="nav">
-        <span class="brand"><i class="fa-solid fa-chart-simple" aria-hidden="true"></i>Stock Listing</span>
+        <a class="brand" routerLink="/"><i class="fa-solid fa-chart-simple" aria-hidden="true"></i>Stock Listing</a>
         <div class="nav-links">
-            <a href="#browse" aria-label="Browse"><i class="fa-solid fa-table-list" aria-hidden="true"></i><span>Browse</span></a>
-            <a href="#add" aria-label="Add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>Add</span></a>
+            <a routerLink="/" fragment="browse" aria-label="Browse"><i class="fa-solid fa-table-list" aria-hidden="true"></i><span>Browse</span></a>
+            <a routerLink="/" fragment="add" aria-label="Add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>Add</span></a>
+            <a routerLink="/history" routerLinkActive="active" aria-label="History"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i><span>History</span></a>
+            <a routerLink="/fields" routerLinkActive="active" aria-label="Fields"><i class="fa-solid fa-sliders" aria-hidden="true"></i><span>Fields</span></a>
+            <!-- The bell shows how many requests are waiting for a developer -->
+            <a routerLink="/requests" routerLinkActive="active" class="bell"
+                [attr.aria-label]="api.openRequests() ? 'Requests, ' + api.openRequests() + ' open' : 'Requests'">
+                <i class="fa-solid fa-bell" aria-hidden="true"></i><span>Requests</span>
+                @if (api.openRequests()) {
+                    <b class="badge" aria-hidden="true">{{ api.openRequests() > 99 ? '99+' : api.openRequests() }}</b>
+                }
+            </a>
         </div>
     </nav>
 
     <header class="hero">
-        <h1>Industries</h1>
-        <p class="lede">Every change here saves to the database.</p>
+        <h1>{{ page().title }}</h1>
+        <p class="lede">{{ page().lede }}</p>
     </header>
 
-    <app-my-components></app-my-components>
+    <router-outlet />
 </div>

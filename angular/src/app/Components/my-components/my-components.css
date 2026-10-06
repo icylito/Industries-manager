@@ -756,6 +756,52 @@ tbody tr.editing td:first-child{
     color: #ffffff;
 }
 
+/* Similar rows from an import, amber is the one color in the design so they stand out */
+tbody tr.similar, tbody tr.similar:hover{
+    background: var(--similar-bg);
+}
+
+tbody tr.similar td:first-child{
+    box-shadow: inset 3px 0 0 var(--similar-edge);
+}
+
+/* Warning triangle, black for minor (white in dark mode), red when data didn't make it */
+.flag{
+    display: inline-grid;
+    place-items: center;
+    margin-right: 0.35rem;
+    color: var(--p-text);
+    font-size: 0.75rem;
+    cursor: help;
+    vertical-align: 0.05em;
+}
+
+.flag.red{
+    color: var(--danger);
+}
+
+.flag:focus-visible{
+    outline: none;
+    border-radius: 4px;
+    box-shadow: 0 0 0 3px var(--focus);
+}
+
+/* Column waiting for a developer */
+.waiting{
+    display: inline-grid;
+    place-items: center;
+    color: var(--p-text);
+    cursor: help;
+}
+
+.waiting i{
+    color: var(--p-text);
+}
+
+input.bad{
+    border-color: var(--danger);
+}
+
 .panel-foot{
     display: flex;
     align-items: center;

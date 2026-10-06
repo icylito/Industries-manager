@@ -1,0 +1,273 @@
+/* History page, builds on my-components.css (cards, panels, tables, buttons) */
+
+.intro{
+    margin: -0.5rem 0 1.25rem;
+    color: var(--muted);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    max-width: 46rem;
+}
+
+.card .intro{
+    margin-top: -0.75rem;
+}
+
+/* Plain table headers, same look as the sortable ones on the main page */
+.th{
+    display: block;
+    padding: 0.85rem 1.1rem;
+    color: var(--p-muted);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+th.num .th{
+    text-align: right;
+}
+
+td.what{
+    white-space: normal;
+}
+
+.reason{
+    display: block;
+    font-weight: 500;
+}
+
+.sub{
+    display: block;
+    margin-top: 0.2rem;
+    color: var(--p-muted);
+    font-size: 0.75rem;
+}
+
+td.actions{
+    white-space: nowrap;
+}
+
+td.notes{
+    min-width: 16rem;
+    color: var(--p-muted);
+    white-space: normal;
+    line-height: 1.45;
+}
+
+.icon-only{
+    width: 2rem;
+    padding: 0;
+}
+
+.edit-btn.on{
+    border-color: var(--p-text);
+    background: var(--p-text);
+    color: var(--p-bg);
+}
+
+.pin-mark{
+    margin-right: 0.35rem;
+    color: var(--p-text);
+    font-size: 0.7rem;
+}
+
+tr.skipped td{
+    color: var(--faint);
+    text-decoration: line-through;
+}
+
+tr.skipped td.notes{
+    text-decoration: none;
+}
+
+.preview{
+    max-height: 26rem;
+    overflow-y: auto;
+}
+
+.preview thead th{
+    position: sticky;
+    top: 0;
+    background: var(--p-bg);
+}
+
+/* Results and notes under a panel */
+.result{
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin: 0 0 0.75rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+    line-height: 1.5;
+}
+
+.result i{
+    margin-top: 0.2rem;
+}
+
+.result.small{
+    margin: 0.85rem 0 0;
+    font-size: 0.85rem;
+}
+
+.hint-line{
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin: 0 0 0.6rem;
+    color: var(--p-muted);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.hint-line i{
+    margin-top: 0.2rem;
+    color: var(--p-text);
+}
+
+.hint-line i.red, .result i.red{
+    color: var(--danger);
+}
+
+.hint-line a, .result a{
+    color: var(--p-text);
+    font-weight: 600;
+}
+
+.swatch{
+    flex: none;
+    width: 0.85rem;
+    height: 0.85rem;
+    margin-top: 0.2rem;
+    border-left: 3px solid var(--similar-edge);
+    border-radius: 3px;
+    background: var(--similar-bg);
+}
+
+/* The "Import anyway?" question */
+.ask{
+    margin-top: 1.25rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--p-text);
+    border-radius: 12px;
+}
+
+.ask p{
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0;
+    font-weight: 600;
+}
+
+.confirm-row{
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+    margin-top: 1.25rem;
+}
+
+.confirm-row .field{
+    flex: 0 1 18rem;
+}
+
+.confirm-row.end{
+    justify-content: flex-end;
+}
+
+.ask .confirm-row{
+    margin-top: 0.85rem;
+}
+
+a.add-btn{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+}
+
+/* Restore swaps out every row, so its button is the dark red Delete uses */
+.add-btn.danger:not(:disabled){
+    background: var(--danger-bg);
+    color: #ffffff;
+}
+
+/* Retention */
+.settings-row{
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 0.75rem;
+    align-items: end;
+}
+
+.unit{
+    position: absolute;
+    right: 0.85rem;
+    color: var(--faint);
+    font-size: 0.8rem;
+    pointer-events: none;
+}
+
+.settings-row input{
+    padding-right: 5rem;
+}
+
+@media (max-width: 760px) {
+    .settings-row{
+        grid-template-columns: 1fr;
+    }
+
+    .confirm-row{
+        flex-wrap: wrap;
+    }
+
+    .confirm-row .field{
+        flex: 1 0 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .confirm-row button, .confirm-row a{
+        flex: 1;
+    }
+}
+
+/* Phones: each saved version becomes a small card with its buttons underneath */
+@media (max-width: 640px) {
+    .versions thead{
+        display: none;
+    }
+
+    .versions tbody tr{
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: start;
+        gap: 0.25rem 0.75rem;
+        padding: 0.9rem 1rem;
+        border-bottom: 1px solid var(--p-border);
+    }
+
+    .versions tbody tr:last-child{
+        border-bottom: none;
+    }
+
+    .versions td{
+        padding: 0;
+        border: none;
+    }
+
+    .versions td.actions{
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        margin-top: 0.5rem;
+        white-space: normal;
+        text-align: left;
+    }
+
+    .versions .actions button + button{
+        margin-left: 0;
+    }
+}

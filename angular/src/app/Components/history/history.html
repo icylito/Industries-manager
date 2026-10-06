@@ -1,0 +1,303 @@
+<!-- Saved versions from the collector database. Nothing here deletes data without asking. -->
+
+<section class="panel">
+    <header class="panel-head">
+        <div class="panel-title">
+            <h2><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>Saved versions</h2>
+            @if (!loading() && !error()) {
+                <span class="db-status">{{ versions().length }} saved</span>
+            }
+        </div>
+    </header>
+
+    <p class="intro">A copy of the whole table is saved before the rules change, before the table gets updated,
+        and before any restore or import, so you can always go back.</p>
+
+    @if (notice()) {
+        <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ notice() }}</p>
+    }
+
+    @if (loading()) {
+        <p class="state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading saved versions</p>
+    } @else if (error()) {
+        <p class="state state-error"><i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"></i>{{ error() }}</p>
+    } @else if (versions().length === 0) {
+        <p class="state"><i class="fa-solid fa-box-open" aria-hidden="true"></i>Nothing saved yet. A copy gets saved the first time the rules or the table change.</p>
+    } @else {
+        <div class="table-wrap">
+            <table class="versions">
+                <thead>
+                    <tr>
+                        <th><span class="th">#</span></th>
+                        <th><span class="th">What happened</span></th>
+                        <th class="num"><span class="th">Rows</span></th>
+                        <th class="actions-col"><span class="sr-only">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (v of versions(); track v.id) {
+                        <tr [class.editing]="panel()?.version?.id === v.id">
+                            <td class="id">#{{ v.id }}</td>
+                            <td class="what">
+                                <span class="reason">
+                                    @if (v.pinned) {
+                                        <i class="fa-solid fa-thumbtack pin-mark" title="Pinned, never removed" aria-label="Pinned"></i>
+                                    }
+                                    {{ describe(v.reason) }}
+                                </span>
+                                <span class="sub">{{ formatDate(v.createdAt) }} · {{ v.sameLayout ? 'Same columns as today' : 'Different columns back then' }}</span>
+                            </td>
+                            <td class="num accent">{{ v.rowCount }}</td>
+                            <td class="actions">
+                                <button type="button" class="edit-btn" [disabled]="busy()" (click)="view(v)">
+                                    <i class="fa-solid fa-eye" aria-hidden="true"></i>View
+                                </button>
+                                <button type="button" class="edit-btn icon-only" (click)="download(v)" aria-label="Download as a spreadsheet" title="Download as a spreadsheet">
+                                    <i class="fa-solid fa-download" aria-hidden="true"></i>
+                                </button>
+                                <button type="button" class="edit-btn icon-only" [class.on]="v.pinned" (click)="togglePin(v)"
+                                    [attr.aria-label]="v.pinned ? 'Unpin' : 'Pin so it never gets removed'" [attr.title]="v.pinned ? 'Unpin' : 'Pin so it never gets removed'">
+                                    <i class="fa-solid fa-thumbtack" aria-hidden="true"></i>
+                                </button>
+                                <button type="button" class="edit-btn" [disabled]="busy()" (click)="askImport(v)">
+                                    <i class="fa-solid fa-file-import" aria-hidden="true"></i>Bring back
+                                </button>
+                                <button type="button" class="edit-btn" (click)="askRestore(v)">
+                                    <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@if (panel(); as p) {
+    <section class="panel" id="version-panel">
+        <header class="panel-head">
+            <div class="panel-title">
+                <h2>
+                    @switch (p.kind) {
+                        @case ('view') { <i class="fa-solid fa-eye" aria-hidden="true"></i>Version #{{ p.version.id }} }
+                        @case ('restore') { <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore version #{{ p.version.id }} }
+                        @case ('import') { <i class="fa-solid fa-file-import" aria-hidden="true"></i>Bring back rows from version #{{ p.version.id }} }
+                    }
+                </h2>
+                <span class="db-status">{{ formatDate(p.version.createdAt) }}</span>
+            </div>
+            <div class="tools">
+                <button type="button" class="tool-btn" (click)="close()"><i class="fa-solid fa-xmark" aria-hidden="true"></i>Close</button>
+            </div>
+        </header>
+
+        @switch (p.kind) {
+            @case ('view') {
+                <p class="intro">{{ describe(p.version.reason) }}. {{ p.version.rowCount }} rows, read only.</p>
+                @if (p.version.rows.length === 0) {
+                    <p class="state"><i class="fa-solid fa-box-open" aria-hidden="true"></i>The table was empty in this version.</p>
+                } @else {
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    @for (c of viewColumns(); track c) {
+                                        <th><span class="th">{{ c === 'Extra' ? 'Other fields' : c }}</span></th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (row of viewRows(); track $index) {
+                                    <tr>
+                                        @for (c of viewColumns(); track c) {
+                                            <td [class.id]="c === 'Id'">{{ c === 'Id' ? '#' : '' }}{{ cellText(row[c]) }}</td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <footer class="panel-foot">
+                        <span>{{ p.version.rows.length }} rows</span>
+                        <div class="pager">
+                            <button type="button" class="icon-btn" aria-label="Previous page" [disabled]="viewPage() === 1" (click)="viewPage.set(viewPage() - 1)">
+                                <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+                            </button>
+                            <span>Page {{ viewPage() }} of {{ viewPages() }}</span>
+                            <button type="button" class="icon-btn" aria-label="Next page" [disabled]="viewPage() === viewPages()" (click)="viewPage.set(viewPage() + 1)">
+                                <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </footer>
+                }
+            }
+
+            @case ('restore') {
+                @if (restoreDone(); as done) {
+                    <p class="result"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                        Restored. The table now has the {{ done.restored }} rows from version #{{ p.version.id }}.
+                        @if (done.rulesRestored) { The rules from back then are back too. }
+                        The table as it was before is saved as a new version at the top.
+                    </p>
+                    @if (done.lostValues) {
+                        <p class="hint-line"><i class="fa-solid fa-triangle-exclamation red" aria-hidden="true"></i>{{ done.lostValues }} rows had values that didn't fit and show as --. They have a red triangle on the main page.</p>
+                    }
+                    @for (s of done.skipped; track s) {
+                        <p class="hint-line"><i class="fa-solid fa-circle-minus" aria-hidden="true"></i>{{ s }}</p>
+                    }
+                    @if (done.requestId) {
+                        <p class="hint-line"><i class="fa-solid fa-bell" aria-hidden="true"></i>The table looked different back then, so a developer was asked to bring that back.
+                            <a routerLink="/requests">See the request</a></p>
+                    }
+                } @else {
+                    <p class="intro">This puts the table back the way it was on {{ formatDate(p.version.createdAt) }}: {{ p.version.rowCount }} rows,
+                        and the rules from back then. Every row in the table now gets swapped out.
+                        The table as it is now gets saved first, so you can come back to it from this page.</p>
+                    @if (!p.version.sameLayout) {
+                        <p class="hint-line"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>The table had different columns back then. The rows get fitted into today's table,
+                            and a developer gets asked to bring the old columns back.</p>
+                    }
+                    <div class="confirm-row">
+                        <label class="field">
+                            <span class="field-label">Type RESTORE to confirm</span>
+                            <span class="control">
+                                <i class="fa-solid fa-keyboard" aria-hidden="true"></i>
+                                <input autocomplete="off" placeholder="RESTORE" [value]="restoreText()" (input)="restoreText.set($any($event.target).value)">
+                            </span>
+                        </label>
+                        <button type="button" class="cancel-btn" (click)="close()">Cancel</button>
+                        <button type="button" class="add-btn danger" [disabled]="restoreText() !== 'RESTORE' || busy()" (click)="restore()">
+                            @if (busy()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Restoring }
+                            @else { <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore }
+                        </button>
+                    </div>
+                }
+                @if (panelError()) {
+                    <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ panelError() }}</p>
+                }
+            }
+
+            @case ('import') {
+                @if (importDone(); as done) {
+                    <p class="result"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                        Added {{ done.imported }} rows to the table as new rows. Nothing was replaced.</p>
+                    @if (done.similar) {
+                        <p class="hint-line"><span class="swatch" aria-hidden="true"></span>{{ done.similar }} of them have a similar row in the table, they show amber on the main page.</p>
+                    }
+                    @if (done.lostValues) {
+                        <p class="hint-line"><i class="fa-solid fa-triangle-exclamation red" aria-hidden="true"></i>{{ done.lostValues }} had values that didn't fit and show as --.</p>
+                    }
+                    @if (done.breakingRules) {
+                        <p class="hint-line"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>{{ done.breakingRules }} don't match today's rules. They're in, with a black triangle until someone fixes them.</p>
+                    }
+                    @for (s of done.skipped; track s) {
+                        <p class="hint-line"><i class="fa-solid fa-circle-minus" aria-hidden="true"></i>{{ s }}</p>
+                    }
+                    @if (done.requestIds.length) {
+                        <p class="hint-line"><i class="fa-solid fa-bell" aria-hidden="true"></i>Some old columns have no place in today's table, so a developer was asked about them.
+                            <a routerLink="/requests">See the requests</a></p>
+                    }
+                    <div class="confirm-row end">
+                        <a class="add-btn" routerLink="/" fragment="browse"><i class="fa-solid fa-table-list" aria-hidden="true"></i>See the table</a>
+                    </div>
+                } @else {
+                    <p class="intro">{{ p.preview.willImport }} rows will be added as new rows, with new numbers. Nothing in the table gets replaced.</p>
+                    @for (s of p.preview.skipped; track s) {
+                        <p class="hint-line"><i class="fa-solid fa-circle-minus" aria-hidden="true"></i>{{ s }}</p>
+                    }
+                    @if (p.preview.unmatchedColumns.length) {
+                        <p class="hint-line"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                            {{ p.preview.unmatchedColumns.join(', ') }} {{ p.preview.unmatchedColumns.length === 1 ? 'has' : 'have' }} no place in today's table and won't come over.
+                            A developer gets asked about {{ p.preview.unmatchedColumns.length === 1 ? 'it' : 'them' }}.</p>
+                    }
+
+                    <div class="table-wrap preview">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th><span class="th">Old #</span></th>
+                                    <th><span class="th">Name</span></th>
+                                    <th><span class="th">Notes</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (r of p.preview.rows; track $index) {
+                                    <tr [class.similar]="r.similarTo !== null" [class.skipped]="r.skip">
+                                        <td class="id">#{{ r.oldId }}</td>
+                                        <td class="accent">
+                                            @if (r.level) {
+                                                <span class="flag" [class.red]="r.level === 'red'" [attr.title]="r.problems.join('\n')"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i></span>
+                                            }
+                                            {{ r.name || '--' }}
+                                        </td>
+                                        <td class="notes">{{ r.skip ?? (r.problems.length ? r.problems.join('. ') : 'Fine') }}</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    @if (p.preview.rulesDiffer) {
+                        <div class="ask">
+                            <p><i class="fa-solid fa-circle-question" aria-hidden="true"></i>{{ p.preview.message }}</p>
+                            <div class="confirm-row end">
+                                <button type="button" class="cancel-btn" (click)="close()">Cancel</button>
+                                <button type="button" class="add-btn" [disabled]="busy() || !p.preview.willImport" (click)="runImport()">
+                                    @if (busy()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Adding }
+                                    @else { <i class="fa-solid fa-file-import" aria-hidden="true"></i>Import anyway }
+                                </button>
+                            </div>
+                        </div>
+                    } @else {
+                        <div class="confirm-row end">
+                            <button type="button" class="cancel-btn" (click)="close()">Cancel</button>
+                            <button type="button" class="add-btn" [disabled]="busy() || !p.preview.willImport" (click)="runImport()">
+                                @if (busy()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Adding }
+                                @else { <i class="fa-solid fa-file-import" aria-hidden="true"></i>Add {{ p.preview.willImport }} rows }
+                            </button>
+                        </div>
+                    }
+                }
+                @if (panelError()) {
+                    <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ panelError() }}</p>
+                }
+            }
+        }
+    </section>
+}
+
+<!-- How long old versions stay -->
+<section class="card">
+    <header class="card-head">
+        <h2><span class="title-icon"><i class="fa-solid fa-box-archive" aria-hidden="true"></i></span>Keep old versions</h2>
+    </header>
+    <p class="intro">Leave both empty to keep everything. Pinned versions always stay.</p>
+    <div class="settings-row">
+        <label class="field">
+            <span class="field-label">Keep the last</span>
+            <span class="control">
+                <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
+                <input type="number" min="1" step="1" placeholder="All" [value]="keepVersions() ?? ''"
+                    (input)="keepVersions.set(toNumber($any($event.target).value))">
+                <span class="unit">versions</span>
+            </span>
+        </label>
+        <label class="field">
+            <span class="field-label">Remove versions older than</span>
+            <span class="control">
+                <i class="fa-regular fa-calendar" aria-hidden="true"></i>
+                <input type="number" min="1" step="1" placeholder="Never" [value]="keepDays() ?? ''"
+                    (input)="keepDays.set(toNumber($any($event.target).value))">
+                <span class="unit">days</span>
+            </span>
+        </label>
+        <button type="button" class="add-btn" (click)="saveRetention()"><i class="fa-solid fa-check" aria-hidden="true"></i>Save</button>
+    </div>
+    @if (retentionMsg()) {
+        <p class="result small"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ retentionMsg() }}</p>
+    }
+    @if (retentionError()) {
+        <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ retentionError() }}</p>
+    }
+</section>

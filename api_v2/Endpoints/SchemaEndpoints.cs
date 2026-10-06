@@ -23,8 +23,15 @@ public static class SchemaEndpoints
 
         // Saves new rules as the next version, a full copy of the table goes to the collector first
         schema.MapPut("/", async (SaveRules body, AppDbContext db, RulesService rules, ICurrentUser user,
-            ILogger<RulesService> log, CancellationToken ct) =>
+            ILogger<RulesService> log, AppLocks locks, CancellationToken ct) =>
         {
+            await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);
+            await rules.LoadAsync(db, ct);
+            if (body.BasedOn is int v && v != rules.Current.Version)
+            {
+                return Results.Conflict(
+                    "Someone changed the fields since you opened this page. Reload to see their changes, then save again");
+            }
             var errors = rules.CheckNewRules(body);
             if (errors.Count > 0)
             {
@@ -33,7 +40,7 @@ public static class SchemaEndpoints
 
             try
             {
-                return Results.Ok(await rules.SaveAsync(db, body, user.Name, ct));
+                return Results.Ok(await rules.SaveAsync(db, body.Fields, body.Note, user.Name, ct));
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -43,11 +50,29 @@ public static class SchemaEndpoints
             }
         }).RequireAdmin();
 
-        var history = app.MapGroup("/history").RequireDatabaseReady().RequireAdmin();
+        // Adds a custom field, its values live in each row's Extra JSON so no C# or migration is needed
+        schema.MapPost("/fields", async (NewField body, AppDbContext db, RulesService rules, ICurrentUser user,
+            ILogger<RulesService> log, AppLocks locks, CancellationToken ct) =>
+        {
+            await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);
+            await rules.LoadAsync(db, ct);
+            var errors = rules.CheckNewField(body);
+            if (errors.Count > 0)
+            {
+                return Results.ValidationProblem(errors);
+            }
 
-        // Saved versions in the collector, the History page (step 5) builds on this
-        history.MapGet("/versions", async (CollectorStore collector, CancellationToken ct) =>
-            Results.Ok(await collector.ListVersionsAsync(ct)));
+            try
+            {
+                return Results.Ok(await rules.AddFieldAsync(db, body, user.Name, ct));
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                log.LogError(ex, "Adding a field failed");
+                return Results.Problem("Couldn't save a copy of the table first, so the field wasn't added. Try again in a moment",
+                    statusCode: StatusCodes.Status503ServiceUnavailable, title: "Backup not available");
+            }
+        }).RequireAdmin();
     }
 
     // While migrations run or after they fail, answer 503 instead of hitting a half ready database

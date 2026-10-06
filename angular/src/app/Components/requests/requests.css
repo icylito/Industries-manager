@@ -1,0 +1,188 @@
+/* Requests page, builds on my-components.css and history.css */
+
+.ask-grid{
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+}
+
+textarea{
+    width: 100%;
+    min-height: 5.5rem;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.925rem;
+    line-height: 1.5;
+    resize: vertical;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+textarea:hover{
+    border-color: var(--border-strong);
+}
+
+textarea:focus{
+    outline: none;
+    border-color: var(--text);
+    box-shadow: 0 0 0 4px var(--focus);
+}
+
+textarea::placeholder{
+    color: var(--faint);
+}
+
+.send-row{
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* Open / Done / Dismissed / All */
+.tabs{
+    display: inline-flex;
+    gap: 0.15rem;
+    padding: 0.2rem;
+    border: 1px solid var(--p-border);
+    border-radius: 999px;
+}
+
+.tab{
+    height: 2rem;
+    padding: 0 0.85rem;
+    border-radius: 999px;
+    color: var(--p-muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.tab:hover{
+    color: var(--p-text);
+}
+
+.tab.on{
+    background: var(--accent);
+    color: var(--accent-text);
+}
+
+.request-list{
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.request{
+    padding: 1.1rem 1.2rem;
+    border: 1px solid var(--p-border);
+    border-radius: 12px;
+}
+
+.request.closed{
+    opacity: 0.7;
+}
+
+.request-head{
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+}
+
+.kind-icon{
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font-size: 0.8rem;
+}
+
+.request-title{
+    flex: 1;
+    min-width: 0;
+}
+
+.request-title h3{
+    margin: 0;
+    font-size: 0.975rem;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.meta{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.85rem;
+    margin: 0.3rem 0 0;
+    color: var(--p-muted);
+    font-size: 0.75rem;
+}
+
+.status{
+    font-weight: 600;
+    color: var(--p-text);
+}
+
+.request-actions{
+    display: flex;
+    flex: none;
+    gap: 0.35rem;
+}
+
+.details{
+    margin: 0.75rem 0 0 2.85rem;
+    color: var(--p-muted);
+    font-size: 0.875rem;
+    line-height: 1.55;
+    white-space: pre-line;
+}
+
+.code-head{
+    display: flex;
+    gap: 0.25rem;
+    margin: 0.6rem 0 0 2.35rem;
+}
+
+.code{
+    margin: 0.5rem 0 0 2.85rem;
+    padding: 1rem 1.1rem;
+    overflow-x: auto;
+    border: 1px solid var(--p-border);
+    border-radius: 10px;
+    background: var(--surface-2);
+    color: var(--p-text);
+    font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+    font-size: 0.78rem;
+    line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+    .request-head{
+        flex-wrap: wrap;
+    }
+
+    .request-actions{
+        width: 100%;
+        padding-left: 2.85rem;
+    }
+
+    .details, .code{
+        margin-left: 0;
+    }
+
+    .code-head{
+        margin-left: -0.75rem;
+    }
+
+    .panel-head .tabs{
+        width: 100%;
+        justify-content: space-between;
+    }
+}

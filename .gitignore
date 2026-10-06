@@ -1,5 +1,19 @@
-api/
-obj/
-bin/
-artifacts/
-__pycache__/
+# API build output
+api_v2/bin/
+api_v2/obj/
+api_v2/artifacts/
+
+# Has the database password, copy appsettings.Development.example.json to make yours
+api_v2/appsettings.Development.json
+
+# Seed script cache
+scripts/__pycache__/
+
+# Root editor settings, angular/.vscode stays shared for ng serve and ng test
+/.vscode/
+
+# Documents and notes
+
+report.txt
+grok.txt
+grok to claude.txt

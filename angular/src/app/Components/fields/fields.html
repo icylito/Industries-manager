@@ -1,0 +1,284 @@
+<!-- Rules for every field. Built in fields can't be removed or hidden, custom ones can be hidden and their data stays. -->
+
+<section class="panel">
+    <header class="panel-head">
+        <div class="panel-title">
+            <h2><i class="fa-solid fa-sliders" aria-hidden="true"></i>Fields</h2>
+            @if (rules(); as r) {
+                <span class="db-status">Rules version {{ r.version }}</span>
+            }
+        </div>
+    </header>
+
+    <p class="intro">Change a label or a limit and press Save. A copy of the table is saved first, and every save becomes a new version you can see below.</p>
+
+    @if (loading()) {
+        <p class="state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading fields</p>
+    } @else if (error()) {
+        <p class="state state-error"><i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"></i>{{ error() }}</p>
+    } @else {
+        <div class="field-list">
+            @for (f of draft(); track f.key) {
+                <div class="field-row" [class.hidden-field]="f.hidden">
+                    <div class="field-name">
+                        <label class="field">
+                            <span class="field-label">Label</span>
+                            <span class="control">
+                                <i class="fa-solid fa-tag" aria-hidden="true"></i>
+                                <input [value]="f.label" maxlength="40" (input)="update(f.key, { label: $any($event.target).value })">
+                            </span>
+                        </label>
+                        <span class="tags">
+                            <span class="tag">{{ typeLabel(f.type) }}</span>
+                            <span class="tag">{{ f.custom ? 'Custom' : 'Built in' }}</span>
+                            @if (f.hidden) { <span class="tag">Hidden</span> }
+                            @if (waiting().has(f.key)) {
+                                <span class="tag waiting-tag" title="Waiting for a developer"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i>Waiting for a developer</span>
+                            }
+                        </span>
+                    </div>
+
+                    <div class="limits">
+                        @switch (f.type) {
+                            @case ('text') {
+                                <label class="field">
+                                    <span class="field-label">Longest</span>
+                                    <span class="control">
+                                        <i class="fa-solid fa-ruler-horizontal" aria-hidden="true"></i>
+                                        <input type="number" min="1" placeholder="No limit" [value]="f.maxLength ?? ''"
+                                            (input)="update(f.key, { maxLength: num($any($event.target).value) })">
+                                        <span class="unit">characters</span>
+                                    </span>
+                                </label>
+                            }
+                            @case ('number') {
+                                <label class="field">
+                                    <span class="field-label">Lowest</span>
+                                    <span class="control">
+                                        <i class="fa-solid fa-arrow-down-1-9" aria-hidden="true"></i>
+                                        <input type="number" step="any" placeholder="None" [value]="f.min ?? ''"
+                                            (input)="update(f.key, { min: num($any($event.target).value) })">
+                                    </span>
+                                </label>
+                                <label class="field">
+                                    <span class="field-label">Highest</span>
+                                    <span class="control">
+                                        <i class="fa-solid fa-arrow-up-9-1" aria-hidden="true"></i>
+                                        <input type="number" step="any" placeholder="None" [value]="f.max ?? ''"
+                                            (input)="update(f.key, { max: num($any($event.target).value) })">
+                                    </span>
+                                </label>
+                            }
+                            @default {
+                                <p class="no-limits">Dates have no limits</p>
+                            }
+                        }
+                    </div>
+
+                    <div class="switches">
+                        <label class="check" [class.locked]="f.key === 'name'"
+                            [attr.title]="f.key === 'name' ? 'Name always has to be filled in' : null">
+                            <input type="checkbox" [checked]="f.required" [disabled]="f.key === 'name'"
+                                (change)="update(f.key, { required: $any($event.target).checked })">
+                            <span>Required</span>
+                        </label>
+                        @if (f.custom) {
+                            <label class="check">
+                                <input type="checkbox" [checked]="f.hidden" (change)="update(f.key, { hidden: $any($event.target).checked })">
+                                <span>Hide</span>
+                            </label>
+                        }
+                    </div>
+
+                    @if (f.custom) {
+                        <div class="dev-asks">
+                            @if (askingType() === f.key) {
+                                <span class="control small">
+                                    <select [value]="askType()" (change)="askType.set($any($event.target).value)" aria-label="New type">
+                                        @for (t of types; track t.value) {
+                                            @if (t.value !== f.type) { <option [value]="t.value">{{ t.label }}</option> }
+                                        }
+                                    </select>
+                                    <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
+                                </span>
+                                <button type="button" class="edit-btn" (click)="sendTypeAsk(f)"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i>Ask a developer</button>
+                                <button type="button" class="link-btn" (click)="askingType.set(null)">Cancel</button>
+                            } @else {
+                                <button type="button" class="link-btn" (click)="startTypeAsk(f)">Change type</button>
+                                <button type="button" class="link-btn" (click)="askRealColumn(f)">Make it a real column</button>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (askMsg()) {
+            <p class="result small"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ askMsg() }} <a routerLink="/requests">See requests</a></p>
+        }
+        @if (askError()) {
+            <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ askError() }}</p>
+        }
+
+        <div class="save-bar">
+            <label class="field note">
+                <span class="field-label">What changed <em>optional</em></span>
+                <span class="control">
+                    <i class="fa-solid fa-comment" aria-hidden="true"></i>
+                    <input placeholder="Longer names for the new import" maxlength="200" [value]="note()" (input)="note.set($any($event.target).value)">
+                </span>
+            </label>
+            @if (dirty()) {
+                <button type="button" class="cancel-btn" (click)="discard()">Discard</button>
+            }
+            <button type="button" class="add-btn" [disabled]="!dirty() || saving()" (click)="save()">
+                @if (saving()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Saving }
+                @else { <i class="fa-solid fa-check" aria-hidden="true"></i>Save }
+            </button>
+        </div>
+        @if (saveMsg()) {
+            <p class="result small"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ saveMsg() }}</p>
+        }
+        @if (saveError()) {
+            <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ saveError() }}</p>
+        }
+    }
+</section>
+
+<!-- New custom field, no C# needed -->
+<section class="card">
+    <header class="card-head">
+        <h2><span class="title-icon"><i class="fa-solid fa-plus" aria-hidden="true"></i></span>Add a field</h2>
+    </header>
+    <p class="intro">It shows up in the form and the table right away. Its values are saved with each row.</p>
+    <div class="add-grid">
+        <label class="field">
+            <span class="field-label">Label</span>
+            <span class="control">
+                <i class="fa-solid fa-tag" aria-hidden="true"></i>
+                <input placeholder="Ticker" maxlength="40" [value]="newLabel()" (input)="newLabel.set($any($event.target).value)">
+            </span>
+        </label>
+        <label class="field">
+            <span class="field-label">Type</span>
+            <span class="control">
+                <i class="fa-solid fa-shapes" aria-hidden="true"></i>
+                <select [value]="newType()" (change)="newType.set($any($event.target).value)">
+                    @for (t of types; track t.value) { <option [value]="t.value">{{ t.label }}</option> }
+                </select>
+                <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
+            </span>
+        </label>
+        @if (newType() === 'text') {
+            <label class="field">
+                <span class="field-label">Longest <em>optional</em></span>
+                <span class="control">
+                    <i class="fa-solid fa-ruler-horizontal" aria-hidden="true"></i>
+                    <input type="number" min="1" placeholder="10" [value]="newMaxLength() ?? ''" (input)="newMaxLength.set(num($any($event.target).value))">
+                </span>
+            </label>
+        } @else if (newType() === 'number') {
+            <label class="field">
+                <span class="field-label">Lowest <em>optional</em></span>
+                <span class="control">
+                    <i class="fa-solid fa-arrow-down-1-9" aria-hidden="true"></i>
+                    <input type="number" step="any" placeholder="0" [value]="newMin() ?? ''" (input)="newMin.set(num($any($event.target).value))">
+                </span>
+            </label>
+            <label class="field">
+                <span class="field-label">Highest <em>optional</em></span>
+                <span class="control">
+                    <i class="fa-solid fa-arrow-up-9-1" aria-hidden="true"></i>
+                    <input type="number" step="any" placeholder="1000" [value]="newMax() ?? ''" (input)="newMax.set(num($any($event.target).value))">
+                </span>
+            </label>
+        }
+        <label class="check">
+            <input type="checkbox" [checked]="newRequired()" (change)="newRequired.set($any($event.target).checked)">
+            <span>Required</span>
+        </label>
+        <button type="button" class="add-btn" [disabled]="!newLabel().trim() || adding()" (click)="addField()">
+            @if (adding()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Adding }
+            @else { <i class="fa-solid fa-plus" aria-hidden="true"></i>Add field }
+        </button>
+    </div>
+    @if (addMsg()) {
+        <p class="result small"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ addMsg() }}</p>
+    }
+    @if (addError()) {
+        <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ addError() }}</p>
+    }
+</section>
+
+<!-- Real columns need a developer -->
+<section class="card">
+    <header class="card-head">
+        <h2><span class="title-icon"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i></span>Need a real column?</h2>
+    </header>
+    <p class="intro">Fields above cover most needs. If something has to be a proper column, for example to sort it fast on a big table,
+        a developer adds it. They get the code drafted for them.</p>
+    <div class="add-grid">
+        <label class="field">
+            <span class="field-label">Column name</span>
+            <span class="control">
+                <i class="fa-solid fa-table-columns" aria-hidden="true"></i>
+                <input placeholder="Market cap" maxlength="40" [value]="colLabel()" (input)="colLabel.set($any($event.target).value)">
+            </span>
+        </label>
+        <label class="field">
+            <span class="field-label">Type</span>
+            <span class="control">
+                <i class="fa-solid fa-shapes" aria-hidden="true"></i>
+                <select [value]="colType()" (change)="colType.set($any($event.target).value)">
+                    @for (t of types; track t.value) { <option [value]="t.value">{{ t.label }}</option> }
+                </select>
+                <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
+            </span>
+        </label>
+        <label class="field wide">
+            <span class="field-label">Why <em>optional</em></span>
+            <span class="control">
+                <i class="fa-solid fa-comment" aria-hidden="true"></i>
+                <input placeholder="We sort by it every day" maxlength="300" [value]="colDetails()" (input)="colDetails.set($any($event.target).value)">
+            </span>
+        </label>
+        <button type="button" class="add-btn" [disabled]="!colLabel().trim()" (click)="askNewColumn()">
+            <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>Ask a developer
+        </button>
+    </div>
+</section>
+
+<!-- Every rules version -->
+<section class="panel">
+    <header class="panel-head">
+        <div class="panel-title">
+            <h2><i class="fa-solid fa-list-ol" aria-hidden="true"></i>Rules history</h2>
+        </div>
+    </header>
+    @if (versions().length) {
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th><span class="th">Version</span></th>
+                        <th><span class="th">Saved</span></th>
+                        <th><span class="th">By</span></th>
+                        <th><span class="th">Note</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (v of versions(); track v.version) {
+                        <tr>
+                            <td class="id">#{{ v.version }}</td>
+                            <td class="muted">{{ formatDate(v.createdAt) }}</td>
+                            <td class="muted">{{ v.changedBy }}</td>
+                            <td class="notes">{{ v.note ?? '--' }}</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    } @else {
+        <p class="state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading</p>
+    }
+</section>

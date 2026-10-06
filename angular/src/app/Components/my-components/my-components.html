@@ -69,6 +69,19 @@
             </span>
         </label>
 
+        <!-- Custom fields from the Fields page -->
+        @for (f of customFields(); track f.key) {
+            <label class="field">
+                <span class="field-label">{{ f.label + ' ' }}@if (!f.required) {<em>optional</em>}</span>
+                <span class="control">
+                    <i [class]="f.type === 'number' ? 'fa-solid fa-hashtag' : f.type === 'date' ? 'fa-regular fa-calendar' : 'fa-solid fa-pen-nib'" aria-hidden="true"></i>
+                    <input [type]="f.type === 'text' ? 'text' : f.type" [attr.step]="f.type === 'number' ? 'any' : null"
+                        [value]="extraValue(f.key)" (input)="setExtra(f.key, $any($event.target).value)"
+                        [class.bad]="extraTouched().has(f.key) && checkValue(f, extraValue(f.key))">
+                </span>
+            </label>
+        }
+
         <!-- Custom date picker, writes 'YYYY-MM-DD' into the release control -->
         <div class="field datepicker">
             <span class="field-label">Release <em>optional</em></span>
@@ -117,7 +130,7 @@
                     <i class="fa-solid fa-xmark" aria-hidden="true"></i>Cancel
                 </button>
             }
-            <button type="submit" class="add-btn" [disabled]="form.invalid || saving()">
+            <button type="submit" class="add-btn" [disabled]="form.invalid || customInvalid() || saving()">
                 @if (saving()) {
                     <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Saving
                 } @else if (editingId() === null) {
@@ -143,19 +156,25 @@
         <div class="panel-title">
             <h2><i class="fa-solid fa-table-list" aria-hidden="true"></i>Industries</h2>
             <!-- Database state from GET /health -->
-            <span class="db-status" [attr.data-state]="dbState()" [attr.title]="dbMessage()">
-                @switch (dbState()) {
-                    @case ('ready') {
-                        <i class="fa-solid fa-database" aria-hidden="true"></i>Database ready
-                    }
-                    @case ('failed') {
-                        <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>Database error
-                    }
-                    @case ('offline') {
-                        <i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"></i>API offline
-                    }
-                    @default {
-                        <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Updating database
+            <span class="db-status"
+                [attr.data-state]="dbState() === 'ready' && historyHealth()?.ready === false ? 'failed' : dbState()"
+                [attr.title]="dbState() === 'ready' && historyHealth()?.ready === false ? historyHealth()?.message : dbMessage()">
+                @if (dbState() === 'ready' && historyHealth()?.ready === false) {
+                    <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>History offline
+                } @else {
+                    @switch (dbState()) {
+                        @case ('ready') {
+                            <i class="fa-solid fa-database" aria-hidden="true"></i>Database ready
+                        }
+                        @case ('failed') {
+                            <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>Database error
+                        }
+                        @case ('offline') {
+                            <i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"></i>API offline
+                        }
+                        @default {
+                            <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Updating database
+                        }
                     }
                 }
             </span>
@@ -241,11 +260,14 @@
             <table>
                 <thead>
                     <tr>
-                        @for (col of columns; track col.key) {
+                        @for (col of columns(); track col.key) {
                             <th [class.num]="col.align === 'num'" [class.sorted]="sortKey() === col.key"
                                 [attr.aria-sort]="sortKey() === col.key ? (sortDir() === 1 ? 'ascending' : 'descending') : 'none'">
                                 <button type="button" class="sort-btn" (click)="sortBy(col.key)">
                                     {{ col.label }}
+                                    @if (isWaiting(col.key)) {
+                                        <span class="waiting" title="Waiting for a developer"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i><span class="sr-only">Waiting for a developer</span></span>
+                                    }
                                     @if (sortKey() !== col.key) {
                                         <i class="fa-solid fa-sort" aria-hidden="true"></i>
                                     } @else if (sortDir() === 1) {
@@ -261,12 +283,23 @@
                 </thead>
                 <tbody>
                     @for (item of paged(); track item.id) {
-                        <tr [class.editing]="editingId() === item.id">
+                        <tr [class.editing]="editingId() === item.id" [class.similar]="item.duplicateOf !== null">
                             <td class="id">#{{ item.id }}</td>
-                            <td class="name accent">{{ item.name }}</td>
+                            <td class="name accent">
+                                @if (flags().get(item.id); as flag) {
+                                    <span class="flag" [class.red]="flag.level === 'red'" [attr.title]="flag.text" tabindex="0"
+                                        [attr.aria-label]="flag.text"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i></span>
+                                }
+                                {{ item.name }}
+                            </td>
                             <td>{{ item.sector ?? '--' }}</td>
                             <td class="muted">{{ item.release ? formatDate(item.release) : '--' }}</td>
                             <td class="num accent">{{ item.price ?? '--' }}</td>
+                            @for (f of customFields(); track f.key) {
+                                <td [class.num]="f.type === 'number'" [class.muted]="f.type === 'date'">
+                                    {{ f.type === 'date' && extraOf(item, f.key) ? formatDate($any(extraOf(item, f.key))) : (extraOf(item, f.key) ?? '--') }}
+                                </td>
+                            }
                             <td class="actions">
                                 <button type="button" class="edit-btn" (click)="edit(item)">
                                     <i class="fa-solid fa-pen" aria-hidden="true"></i>Edit

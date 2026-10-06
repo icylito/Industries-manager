@@ -13,6 +13,8 @@ public class DatabaseStatus
     public int Attempts { get; private set; }
     public IReadOnlyList<string> AppliedMigrations { get; private set; } = [];
     public DateTimeOffset UpdatedAt { get; private set; } = DateTimeOffset.UtcNow;
+    public bool HistoryReady { get; private set; }
+    public string HistoryMessage { get; private set; } = "";
 
     public void Set(DatabaseState state, string message, int attempts, IReadOnlyList<string>? applied = null)
     {
@@ -22,6 +24,16 @@ public class DatabaseStatus
             Message = message;
             Attempts = attempts;
             if (applied is not null) AppliedMigrations = applied;
+            UpdatedAt = DateTimeOffset.UtcNow;
+        }
+    }
+
+    public void SetHistory(bool ready, string message)
+    {
+        lock (_lock)
+        {
+            HistoryReady = ready;
+            HistoryMessage = message;
             UpdatedAt = DateTimeOffset.UtcNow;
         }
     }
@@ -36,7 +48,8 @@ public class DatabaseStatus
                 message = Message,
                 attempts = Attempts,
                 appliedMigrations = AppliedMigrations,
-                updatedAt = UpdatedAt
+                updatedAt = UpdatedAt,
+                history = new { ready = HistoryReady, message = HistoryMessage }
             };
         }
     }

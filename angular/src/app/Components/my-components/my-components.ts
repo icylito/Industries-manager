@@ -1,7 +1,13 @@
-import { Component, signal, computed, inject, OnInit, HostListener } from '@angular/core';
+import { Component, signal, computed, inject, OnInit, HostListener, DestroyRef } from '@angular/core';
 import { Industry, CreateIndustry, DbHealth, FieldRule, RuleSet } from '../../models/industry';
 import { IndustryApi } from '../../services/industry-api';
 import { FormBuilder, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
+
+// A custom field can be named constructor or toString. A plain obj[key] would return a built in function.
+function own(obj: object | null | undefined, key: string): unknown {
+  if (obj == null || !Object.hasOwn(obj, key)) return undefined;
+  return (obj as Record<string, unknown>)[key];
+}
 
 @Component({
   imports: [ReactiveFormsModule],
@@ -41,6 +47,7 @@ export class MyComponents implements OnInit {
       sector: verify.sector ?? '',
       price: verify.price,
       release: verify.release || null,
+      extra: this.extraBody(),
     };
 
     this.saving.set(true);
@@ -54,6 +61,7 @@ export class MyComponents implements OnInit {
         next: created => {
           this.industries.update(list => [...list, created]);
           this.form.reset();
+          this.extraValues.set({});
           this.saving.set(false);
         },
         error: err => {
@@ -65,11 +73,10 @@ export class MyComponents implements OnInit {
       // update/PUT logic 
       this.api.update(id, body).subscribe({
         next: () => {
-          this.industries.update(list =>
-            list.map(i => (i.id === id ? { ...i, ...body } : i))
-          );
           this.cancelEdit();
           this.saving.set(false);
+          // Reload so flags that cleared on save (similar row, couldn't be brought over) update too
+          this.loadIndustries();
         },
         error: err => {
           this.formError.set(this.errorMessage(err));
@@ -124,7 +131,53 @@ export class MyComponents implements OnInit {
       if (errors?.['maxlength']) list.push(`${rule.label} can be at most ${rule.maxLength} characters`);
       if (errors?.['min'] || errors?.['max']) list.push(this.rangeText(rule, true));
     }
+    for (const rule of this.customFields()) {
+      const problem = this.checkValue(rule, this.extraValue(rule.key));
+      if (problem && this.extraTouched().has(rule.key)) list.push(problem);
+    }
     return list;
+  }
+
+  // Custom fields from the Fields page, their inputs sit after the built in ones
+  customFields = computed(() => (this.rules()?.fields ?? []).filter(f => f.custom && !f.hidden));
+  extraValues = signal<Record<string, string>>({});
+  extraTouched = signal(new Set<string>());
+
+  extraValue(key: string): string {
+    const value = own(this.extraValues(), key);
+    return value == null ? '' : String(value);
+  }
+
+  setExtra(key: string, value: string) {
+    this.extraValues.update(v => ({ ...v, [key]: value }));
+    this.extraTouched.update(t => new Set(t).add(key));
+    this.formError.set('');
+  }
+
+  customInvalid = computed(() =>
+    this.customFields().some(rule => this.checkValue(rule, this.extraValue(rule.key)) !== null));
+
+  private extraBody(): Record<string, string | number | null> {
+    const body: Record<string, string | number | null> = {};
+    for (const rule of this.customFields()) {
+      const raw = this.extraValue(rule.key).trim();
+      body[rule.key] = raw === '' ? null : rule.type === 'number' ? Number(raw) : raw;
+    }
+    return body;
+  }
+
+  // One value against its rule, the same checks and wording the API uses
+  checkValue(rule: FieldRule, value: unknown): string | null {
+    const empty = value === null || value === undefined || String(value).trim() === '';
+    if (empty) return rule.required ? `${rule.label} is required` : null;
+    if (rule.type === 'text' && rule.maxLength !== null && String(value).trim().length > rule.maxLength)
+      return `${rule.label} can be at most ${rule.maxLength} characters`;
+    if (rule.type === 'number') {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return `${rule.label} has to be a number`;
+      if ((rule.min !== null && n < rule.min) || (rule.max !== null && n > rule.max)) return this.rangeText(rule, true);
+    }
+    return null;
   }
 
   private rangeText(rule: FieldRule, asError: boolean): string {
@@ -145,7 +198,7 @@ export class MyComponents implements OnInit {
   ruleChips = computed(() =>
     (this.rules()?.fields ?? []).map(rule => ({
       key: rule.key,
-      icon: this.ruleIcons[rule.key] ?? 'fa-solid fa-circle-info',
+      icon: (own(this.ruleIcons, rule.key) as string | undefined) ?? 'fa-solid fa-circle-info',
       text: this.ruleText(rule),
     }))
   );
@@ -160,9 +213,23 @@ export class MyComponents implements OnInit {
   // Database state from GET /health, drives the status pill and the loading/error states
   dbState = signal<DbHealth['state'] | 'offline'>('starting');
   dbMessage = signal('');
+  historyHealth = signal<DbHealth['history']>(undefined);
+  private historyTimer?: ReturnType<typeof setTimeout>;
+  private destroyRef = inject(DestroyRef);
 
   ngOnInit(): void {
     this.checkHealth();
+    this.destroyRef.onDestroy(() => { this.left = true; clearTimeout(this.historyTimer); });
+  }
+  private left = false;
+
+  // History comes up after the main database, so keep asking until it's there and the pill clears by itself
+  private watchHistory() {
+    if (this.left || this.historyHealth()?.ready !== false) return;
+    this.historyTimer = setTimeout(() => this.api.health().subscribe({
+      next: health => { this.historyHealth.set(health.history); this.watchHistory(); },
+      error: () => this.watchHistory(),
+    }), 5000);
   }
 
   // Wait for the API's auto migration to finish before loading rows
@@ -171,9 +238,12 @@ export class MyComponents implements OnInit {
       next: health => {
         this.dbState.set(health.state);
         this.dbMessage.set(health.message);
+        this.historyHealth.set(health.history);
         if (health.state === 'ready') {
           this.loadRules();
           this.loadIndustries();
+          this.loadWaiting();
+          this.watchHistory();
         }
         else if (health.state === 'failed') {
           this.error.set(health.message);
@@ -227,6 +297,10 @@ export class MyComponents implements OnInit {
         price: item.price,
         release: item.release,
       });
+      const extra: Record<string, string> = {};
+      for (const [key, value] of Object.entries(item.extra ?? {})) extra[key] = value === null ? '' : String(value);
+      this.extraValues.set(extra);
+      this.extraTouched.set(new Set());
       // Bring the form into view so long tables don't hide it
       document.getElementById('add')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -234,6 +308,8 @@ export class MyComponents implements OnInit {
     cancelEdit() {
       this.editingId.set(null);
       this.form.reset();
+      this.extraValues.set({});
+      this.extraTouched.set(new Set());
     }
 
   search = signal ('');
@@ -269,19 +345,35 @@ export class MyComponents implements OnInit {
     this.page.set(1);
   }
 
-  // Sorting, click a header to sort, click again to flip
-  readonly columns: { key: keyof Industry; label: string; align?: 'num' }[] = [
-    { key: 'id', label: 'ID' },
-    { key: 'name', label: 'Name' },
-    { key: 'sector', label: 'Sector' },
-    { key: 'release', label: 'Release' },
-    { key: 'price', label: 'Price', align: 'num' },
-  ];
+  // Sorting, click a header to sort, click again to flip. Labels follow the rules, custom fields get their own column.
+  columns = computed(() => {
+    const label = (key: string, fallback: string) => this.rules()?.fields.find(f => f.key === key)?.label ?? fallback;
+    const cols: { key: string; label: string; align?: 'num'; custom?: FieldRule }[] = [
+      { key: 'id', label: 'ID' },
+      { key: 'name', label: label('name', 'Name') },
+      { key: 'sector', label: label('sector', 'Sector') },
+      { key: 'release', label: label('release', 'Release') },
+      { key: 'price', label: label('price', 'Price'), align: 'num' },
+    ];
+    for (const f of this.customFields()) {
+      cols.push({ key: 'extra:' + f.key, label: f.label, align: f.type === 'number' ? 'num' : undefined, custom: f });
+    }
+    return cols;
+  });
 
-  sortKey = signal<keyof Industry>('id');
+  // The value behind a column, custom ones live in extra
+  cell(item: Industry, key: string): string | number | null {
+    if (key.startsWith('extra:')) {
+      const value = own(item.extra, key.slice(6));
+      return value == null ? null : value as string | number;
+    }
+    return item[key as keyof Industry] as string | number | null;
+  }
+
+  sortKey = signal<string>('id');
   sortDir = signal<1 | -1>(1);
 
-  sortBy(key: keyof Industry) {
+  sortBy(key: string) {
     if (this.sortKey() === key) this.sortDir.update(d => (d === 1 ? -1 : 1));
     else { this.sortKey.set(key); this.sortDir.set(1); }
   }
@@ -291,7 +383,7 @@ export class MyComponents implements OnInit {
     const dir = this.sortDir();
     // Empty values always sink to the bottom
     return [...this.filtered()].sort((a, b) => {
-      const x = a[key], y = b[key];
+      const x = this.cell(a, key), y = this.cell(b, key);
       if (x === y) return 0;
       if (x === null) return 1;
       if (y === null) return -1;
@@ -313,15 +405,25 @@ export class MyComponents implements OnInit {
 
   // Export what's on screen after filters and sorting
   exportCsv() {
-    const escape = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const rows = [['ID', 'Name', 'Sector', 'Price', 'Release'],
-      ...this.sorted().map(i => [i.id, i.name, i.sector, i.price, i.release])];
+    const guard = (v: unknown) => {
+      if (typeof v === 'number') return v;
+      const text = v == null ? '' : String(v);
+      return text.length > 0 && '=+-@\t\r'.includes(text[0]) ? `'${text}` : text;
+    };
+    const escape = (v: unknown) => `"${String(guard(v) ?? '').replace(/"/g, '""')}"`;
+    const custom = this.customFields();
+    const rows = [['ID', 'Name', 'Sector', 'Price', 'Release', ...custom.map(f => f.label)],
+      ...this.sorted().map(i => [i.id, i.name, i.sector, i.price, i.release, ...custom.map(f => own(i.extra, f.key) ?? '')])];
     const csv = rows.map(r => r.map(escape).join(',')).join('\n');
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
     link.download = 'industries.csv';
     link.click();
     URL.revokeObjectURL(link.href);
+  }
+
+  extraOf(item: Industry, key: string): unknown {
+    return own(item.extra, key);
   }
 
   print() {
@@ -404,6 +506,44 @@ export class MyComponents implements OnInit {
   @HostListener('document:keydown.escape')
   onEscape() {
     this.calendarOpen.set(false);
+  }
+
+  // Warning triangles. Red: a value couldn't come over from old data. Black: minor, like a similar row
+  // or a value that breaks today's rules. A row shows one triangle in its worst color, hover lists them all.
+  flags = computed(() => {
+    const fields = (this.rules()?.fields ?? []).filter(f => !f.hidden);
+    const labelOf = (key: string) => this.rules()?.fields.find(f => f.key === key)?.label ?? key;
+    const map = new Map<number, { level: 'red' | 'black'; text: string }>();
+    for (const item of this.industries()) {
+      const red = (item.lostFields ?? []).map(k => `${labelOf(k)} couldn't be brought over from the old data`);
+      const black: string[] = [];
+      if (item.duplicateOf !== null) black.push(`A similar row exists in this table in row #${item.duplicateOf}`);
+      for (const rule of fields) {
+        if ((item.lostFields ?? []).includes(rule.key)) continue;
+        const value = rule.custom ? own(item.extra, rule.key) : item[rule.key as keyof Industry];
+        const problem = this.checkValue(rule, value);
+        if (problem) black.push(problem);
+      }
+      if (red.length || black.length) {
+        map.set(item.id, { level: red.length ? 'red' : 'black', text: [...red, ...black].join('\n') });
+      }
+    }
+    return map;
+  });
+
+  // Fields with an open request get a "waiting for a developer" marker on their column header
+  waitingFields = signal(new Set<string>());
+
+  private loadWaiting() {
+    this.api.requests('open').subscribe({
+      next: list => this.waitingFields.set(new Set(list.map(r => r.fieldKey).filter((k): k is string => !!k))),
+      error: () => {},
+    });
+  }
+
+  isWaiting(columnKey: string): boolean {
+    const key = columnKey.startsWith('extra:') ? columnKey.slice(6) : columnKey;
+    return this.waitingFields().has(key);
   }
 
   // Numbers for the stat cards

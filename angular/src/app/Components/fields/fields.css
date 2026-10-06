@@ -1,0 +1,186 @@
+/* Fields page, builds on my-components.css and history.css */
+
+.field-list{
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--p-border);
+    border-radius: 12px;
+}
+
+.field-row{
+    display: grid;
+    grid-template-columns: minmax(12rem, 1.3fr) minmax(10rem, 1.4fr) 11.5rem;
+    gap: 1rem;
+    align-items: end;
+    padding: 1rem 1.1rem;
+    border-bottom: 1px solid var(--p-border);
+}
+
+.field-row:last-child{
+    border-bottom: none;
+}
+
+.field-row.hidden-field{
+    opacity: 0.55;
+}
+
+.field-name{
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.tags{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.tag{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.15rem 0.55rem;
+    border: 1px solid var(--p-border);
+    border-radius: 999px;
+    color: var(--p-muted);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.waiting-tag{
+    border-color: var(--p-text);
+    color: var(--p-text);
+}
+
+.limits{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+    gap: 0.75rem;
+    align-self: start;
+    padding-top: 0;
+}
+
+.no-limits{
+    margin: 1.55rem 0 0;
+    color: var(--faint);
+    font-size: 0.85rem;
+    line-height: 2.75rem;
+}
+
+.limits input{
+    padding-right: 5.5rem;
+}
+
+.switches{
+    display: flex;
+    gap: 1rem;
+    align-self: start;
+    padding-top: 1.85rem;
+}
+
+/* Checkboxes in the black and white style */
+.check{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    height: 2.75rem;
+    color: var(--text);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.check input{
+    width: 1.05rem;
+    height: 1.05rem;
+    margin: 0;
+    padding: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.check.locked{
+    color: var(--muted);
+    cursor: not-allowed;
+}
+
+.switches .check{
+    height: auto;
+}
+
+.dev-asks{
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: -0.35rem;
+}
+
+.dev-asks .link-btn{
+    padding-left: 0;
+    padding-right: 0.75rem;
+}
+
+.control.small select{
+    width: 9rem;
+    height: 2rem;
+    padding-left: 0.75rem;
+    font-size: 0.85rem;
+}
+
+.save-bar{
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+    margin-top: 1.25rem;
+}
+
+.save-bar .note{
+    flex: 1;
+}
+
+.add-grid{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.75rem;
+    align-items: end;
+}
+
+.add-grid .wide{
+    grid-column: span 2;
+}
+
+@media (max-width: 760px) {
+    .field-row{
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .switches{
+        padding-top: 0;
+    }
+
+    .save-bar{
+        flex-wrap: wrap;
+    }
+
+    .save-bar .note{
+        flex: 1 0 100%;
+    }
+
+    .add-grid .wide{
+        grid-column: auto;
+    }
+}
+
+@media (max-width: 480px) {
+    .save-bar button{
+        flex: 1;
+    }
+}

@@ -12,10 +12,9 @@ public class MigrationService(
     DatabaseConnections connections,
     CollectorStore collector,
     RulesService rules,
+    SettingsService settings,
     ILogger<MigrationService> log) : BackgroundService
 {
-    private const int MaxAttempts = 5;
-
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         if (connections.UsingDockerDefault)
@@ -23,67 +22,139 @@ public class MigrationService(
             log.LogInformation("No connection string set, using the Docker database from docker-compose.yml on port 5433");
         }
 
-        for (var attempt = 1; attempt <= MaxAttempts; attempt++)
+        // Main comes up on its own. History is set up afterwards, unless an existing
+        // database has a pending change, which still needs a copy saved first.
+        for (var attempt = 1; !ct.IsCancellationRequested; attempt++)
         {
+            var step = "main";
             try
             {
-                status.Set(DatabaseState.Migrating, "Checking the collector database", attempt);
-                await EnsureDatabaseAsync(connections.Collector, ct);
-                await collector.EnsureSchemaAsync(ct);
-
-                using var scope = scopes.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-                var pending = (await db.Database.GetPendingMigrationsAsync(ct)).ToList();
-
-                // An existing database gets a full copy in the collector before its structure changes
-                if (pending.Count > 0 && (await db.Database.GetAppliedMigrationsAsync(ct)).Any())
+                var collectorReady = false;
+                using (var scope = scopes.CreateScope())
                 {
-                    status.Set(DatabaseState.Migrating, "Saving a copy before updating the database", attempt);
-                    try
+                    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                    status.Set(DatabaseState.Migrating, "Checking the database", attempt);
+                    var pending = (await db.Database.GetPendingMigrationsAsync(ct)).ToList();
+                    var appliedBefore = (await db.Database.GetAppliedMigrationsAsync(ct)).ToList();
+
+                    if (pending.Count > 0 && appliedBefore.Count > 0)
                     {
-                        await collector.SaveVersionAsync($"Before database update {string.Join(", ", pending)}", "system", ct);
+                        step = "collector";
+                        status.Set(DatabaseState.Migrating, "Checking the collector database", attempt);
+                        await EnsureDatabaseAsync(connections.Collector, ct);
+                        await collector.EnsureSchemaAsync(ct);
+
+                        // An existing database gets a full copy in the collector before its structure changes
+                        status.Set(DatabaseState.Migrating, "Saving a copy before updating the database", attempt);
+                        try
+                        {
+                            await collector.SaveVersionAsync($"Before database update {string.Join(", ", pending)}", "system", ct);
+                        }
+                        catch (Exception ex) when (!IsTransient(ex) && ex is not OperationCanceledException)
+                        {
+                            status.Set(DatabaseState.Failed,
+                                $"Couldn't save a copy before updating the database, so nothing was changed: {ex.GetBaseException().Message}", attempt);
+                            log.LogError(ex, "Copy before migration failed, not migrating");
+                            return;
+                        }
+
+                        collectorReady = true;
+                        status.SetHistory(true, "History is ready");
+                        step = "main";
                     }
-                    catch (Exception ex) when (!IsTransient(ex) && ex is not OperationCanceledException)
+
+                    status.Set(DatabaseState.Migrating,
+                        pending.Count == 0 ? "Checking the database" : $"Applying {pending.Count} migration(s)", attempt);
+
+                    await db.Database.MigrateAsync(ct);
+                    await rules.LoadAsync(db, ct);
+                    await settings.LoadAsync(db, ct);
+
+                    var applied = (await db.Database.GetAppliedMigrationsAsync(ct)).ToList();
+                    var message = pending.Count == 0
+                        ? "Database is up to date"
+                        : $"Applied {string.Join(", ", pending)}";
+                    if (!collectorReady)
                     {
-                        status.Set(DatabaseState.Failed,
-                            $"Couldn't save a copy before updating the database, so nothing was changed: {ex.GetBaseException().Message}", attempt);
-                        log.LogError(ex, "Copy before migration failed, not migrating");
-                        return;
+                        status.SetHistory(false, "Checking the history database");
                     }
+                    status.Set(DatabaseState.Ready, message, attempt, applied);
+                    log.LogInformation("Database ready after {Attempts} attempt(s): {Message}", attempt, message);
                 }
 
-                status.Set(DatabaseState.Migrating,
-                    pending.Count == 0 ? "Checking the database" : $"Applying {pending.Count} migration(s)", attempt);
-
-                await db.Database.MigrateAsync(ct);
-                await rules.LoadAsync(db, ct);
-
-                var applied = (await db.Database.GetAppliedMigrationsAsync(ct)).ToList();
-                var message = pending.Count == 0
-                    ? "Database is up to date"
-                    : $"Applied {string.Join(", ", pending)}";
-                status.Set(DatabaseState.Ready, message, attempt, applied);
-                log.LogInformation("Database ready after {Attempts} attempt(s): {Message}", attempt, message);
+                if (!collectorReady)
+                {
+                    await BringHistoryUpAsync(ct);
+                }
                 return;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
                 return;
             }
-            catch (Exception ex) when (IsTransient(ex) && attempt < MaxAttempts)
+            catch (Exception ex) when (IsTransient(ex))
             {
-                // 2s, 4s, 8s, 16s
-                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt));
-                status.Set(DatabaseState.Migrating,
-                    $"Database not reachable, retry {attempt} of {MaxAttempts - 1} in {delay.TotalSeconds:0}s", attempt);
-                log.LogWarning(ex, "Migration attempt {Attempt} failed, retrying in {Delay}", attempt, delay);
-                await Task.Delay(delay, ct);
+                // 2s, 4s, 8s, 16s, then every 30s until the database answers or the app stops
+                var seconds = attempt <= 4 ? Math.Pow(2, attempt) : 30;
+                var delay = TimeSpan.FromSeconds(seconds);
+                var where = step == "collector" ? "The history database (collector)" : "The main database";
+                status.Set(DatabaseState.Migrating, $"{where} isn't reachable, retrying in {delay.TotalSeconds:0}s", attempt);
+                log.LogWarning(ex, "Migration attempt {Attempt} failed on {Step}, retrying in {Delay}", attempt, step, delay);
+                try
+                {
+                    await Task.Delay(delay, ct);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    return;
+                }
             }
             catch (Exception ex)
             {
                 status.Set(DatabaseState.Failed, $"Migration failed: {ex.GetBaseException().Message}", attempt);
                 log.LogError(ex, "Migration failed on attempt {Attempt}, not retrying", attempt);
+                return;
+            }
+        }
+    }
+
+    // History keeps retrying after the main database is already usable.
+    private async Task BringHistoryUpAsync(CancellationToken ct)
+    {
+        for (var attempt = 1; !ct.IsCancellationRequested; attempt++)
+        {
+            try
+            {
+                await EnsureDatabaseAsync(connections.Collector, ct);
+                await collector.EnsureSchemaAsync(ct);
+                status.SetHistory(true, "History is ready");
+                log.LogInformation("History database ready after {Attempts} attempt(s)", attempt);
+                return;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex) when (IsTransient(ex))
+            {
+                var seconds = attempt <= 4 ? Math.Pow(2, attempt) : 30;
+                var delay = TimeSpan.FromSeconds(seconds);
+                status.SetHistory(false, $"The history database (collector) isn't reachable, retrying in {delay.TotalSeconds:0}s");
+                log.LogWarning(ex, "History setup attempt {Attempt} failed, retrying in {Delay}", attempt, delay);
+                try
+                {
+                    await Task.Delay(delay, ct);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                status.SetHistory(false, $"The history database (collector) couldn't be set up: {ex.GetBaseException().Message}");
+                log.LogError(ex, "History setup failed, not retrying");
                 return;
             }
         }

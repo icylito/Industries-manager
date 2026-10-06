@@ -1,0 +1,110 @@
+<!-- Requests for a developer. Some get made by the app, like when an import finds an old column. -->
+
+<section class="card">
+    <header class="card-head">
+        <h2><span class="title-icon"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i></span>Ask a developer</h2>
+    </header>
+    <div class="ask-grid">
+        <label class="field">
+            <span class="field-label">What do you need</span>
+            <span class="control">
+                <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                <input placeholder="Add a sector filter to the export" maxlength="120" [value]="title()" (input)="title.set($any($event.target).value)">
+            </span>
+        </label>
+        <label class="field">
+            <span class="field-label">Details <em>optional</em></span>
+            <textarea rows="3" maxlength="2000" placeholder="Only the rows we filtered, not the whole table"
+                [value]="details()" (input)="details.set($any($event.target).value)"></textarea>
+        </label>
+        <div class="send-row">
+            <button type="button" class="add-btn" [disabled]="!title().trim() || sending()" (click)="send()">
+                @if (sending()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Sending }
+                @else { <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>Send }
+            </button>
+        </div>
+    </div>
+    @if (sent()) {
+        <p class="result small"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ sent() }}</p>
+    }
+    @if (sendError()) {
+        <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ sendError() }}</p>
+    }
+</section>
+
+<section class="panel">
+    <header class="panel-head">
+        <div class="panel-title">
+            <h2><i class="fa-solid fa-bell" aria-hidden="true"></i>Requests</h2>
+            <span class="db-status">{{ api.openRequests() }} open</span>
+        </div>
+        <div class="tabs" role="tablist" aria-label="Show requests">
+            @for (f of filters; track f.value) {
+                <button type="button" role="tab" class="tab" [class.on]="filter() === f.value"
+                    [attr.aria-selected]="filter() === f.value" (click)="setFilter(f.value)">{{ f.label }}</button>
+            }
+        </div>
+    </header>
+
+    @if (notice()) {
+        <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ notice() }}</p>
+    }
+
+    @if (loading()) {
+        <p class="state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading requests</p>
+    } @else if (error()) {
+        <p class="state state-error"><i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"></i>{{ error() }}</p>
+    } @else if (requests().length === 0) {
+        <p class="state"><i class="fa-solid fa-mug-hot" aria-hidden="true"></i>
+            {{ filter() === 'open' ? 'Nothing waiting for a developer.' : 'No requests here.' }}</p>
+    } @else {
+        <ul class="request-list">
+            @for (r of requests(); track r.id) {
+                <li class="request" [class.closed]="r.status !== 'open'">
+                    <div class="request-head">
+                        <span class="kind-icon"><i [class]="kinds[r.kind].icon" aria-hidden="true"></i></span>
+                        <div class="request-title">
+                            <h3>{{ r.title }}</h3>
+                            <p class="meta">
+                                <span>#{{ r.id }}</span>
+                                <span>{{ kinds[r.kind].label }}</span>
+                                <span>{{ formatDate(r.createdAt) }}</span>
+                                @if (r.status !== 'open') {
+                                    <span class="status">{{ r.status === 'done' ? 'Done' : 'Dismissed' }}@if (r.resolvedAt) { {{ ' ' + formatDate(r.resolvedAt) }}}</span>
+                                }
+                            </p>
+                        </div>
+                        <div class="request-actions">
+                            @if (r.status === 'open') {
+                                <button type="button" class="edit-btn" (click)="setStatus(r, 'done')"><i class="fa-solid fa-check" aria-hidden="true"></i>Done</button>
+                                <button type="button" class="edit-btn" (click)="setStatus(r, 'dismissed')"><i class="fa-solid fa-xmark" aria-hidden="true"></i>Dismiss</button>
+                            } @else {
+                                <button type="button" class="edit-btn" (click)="setStatus(r, 'open')"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Reopen</button>
+                            }
+                        </div>
+                    </div>
+                    @if (r.details) {
+                        <p class="details">{{ r.details }}</p>
+                    }
+                    @if (r.draftedCode) {
+                        <div class="code-head">
+                            <button type="button" class="link-btn" [attr.aria-expanded]="expanded().has(r.id)" (click)="toggleCode(r.id)">
+                                <i [class]="expanded().has(r.id) ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" aria-hidden="true"></i>
+                                {{ expanded().has(r.id) ? 'Hide the drafted code' : 'Show the drafted code' }}
+                            </button>
+                            @if (expanded().has(r.id)) {
+                                <button type="button" class="link-btn" (click)="copy(r)">
+                                    <i [class]="copied() === r.id ? 'fa-solid fa-check' : 'fa-regular fa-copy'" aria-hidden="true"></i>
+                                    {{ copied() === r.id ? 'Copied' : 'Copy' }}
+                                </button>
+                            }
+                        </div>
+                        @if (expanded().has(r.id)) {
+                            <pre class="code"><code>{{ r.draftedCode }}</code></pre>
+                        }
+                    }
+                </li>
+            }
+        </ul>
+    }
+</section>
