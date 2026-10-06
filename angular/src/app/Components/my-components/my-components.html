@@ -19,7 +19,8 @@
     </div>
 </section>
 
-<!-- Add / edit form -->
+<!-- Add / edit form, for people who are signed in -->
+@if (auth.isSignedIn()) {
 <section class="card" id="add" [class.editing]="editingId() !== null">
     <header class="card-head">
         <h2>
@@ -134,6 +135,13 @@
             }
         </div>
 
+        @if (formError()){
+            <p class="field-error form-problem"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ formError() }}</p>
+        }
+        @for (msg of fieldErrors(); track msg) {
+            <p class="field-error form-problem"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ msg }}</p>
+        }
+
         <div class="form-actions">
             @if (editingId() !== null){
                 <button type="button" class="cancel-btn" (click)="cancelEdit()">
@@ -151,14 +159,12 @@
             </button>
         </div>
     </form>
-
-    @if (formError()){
-        <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ formError() }}</p>
-    }
-    @for (msg of fieldErrors(); track msg) {
-        <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ msg }}</p>
-    }
 </section>
+} @else {
+<section class="card" id="add">
+    <p class="hint-line"><i class="fa-solid fa-lock" aria-hidden="true"></i>You're looking at the table as a guest. <a routerLink="/login" [queryParams]="{ back: '/' }">Sign in</a> to add, edit or delete rows.</p>
+</section>
+}
 
 <!-- Table panel -->
 <section class="panel" id="browse">
@@ -174,7 +180,7 @@
                 } @else {
                     @switch (dbState()) {
                         @case ('ready') {
-                            <i class="fa-solid fa-database" aria-hidden="true"></i>Database ready
+                            <i class="fa-solid fa-database" aria-hidden="true"></i>Connected
                         }
                         @case ('failed') {
                             <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>Database error
@@ -267,7 +273,7 @@
         <p class="state state-error"><i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"></i>{{ error() }}</p>
     }   @else if (sorted().length > 0){
         <div class="table-wrap">
-            <table>
+            <table class="industries">
                 <thead>
                     <tr>
                         @for (col of columns(); track col.key) {
@@ -288,14 +294,16 @@
                                 </button>
                             </th>
                         }
-                        <th class="actions-col"><span class="sr-only">Actions</span></th>
+                        @if (auth.isSignedIn()) {
+                            <th class="actions-col"><span class="sr-only">Actions</span></th>
+                        }
                     </tr>
                 </thead>
                 <tbody>
                     @for (item of paged(); track item.id) {
                         <tr [class.editing]="editingId() === item.id" [class.similar]="item.duplicateOf !== null">
                             <td class="id">#{{ item.id }}</td>
-                            <td class="name accent">
+                            <td class="name accent" [attr.title]="item.name">
                                 @if (flags().get(item.id); as flag) {
                                     <span class="flag" [class.red]="flag.level === 'red'" [attr.title]="flag.text" tabindex="0"
                                         [attr.aria-label]="flag.text"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i></span>
@@ -310,14 +318,25 @@
                                     {{ f.type === 'date' && extraOf(item, f.key) ? formatDate($any(extraOf(item, f.key))) : (extraOf(item, f.key) ?? '--') }}
                                 </td>
                             }
+                            @if (auth.isSignedIn()) {
                             <td class="actions">
-                                <button type="button" class="edit-btn" (click)="edit(item)">
-                                    <i class="fa-solid fa-pen" aria-hidden="true"></i>Edit
-                                </button>
-                                <button type="button" class="remove-btn" (click)="remove(item.id)">
-                                    <i class="fa-solid fa-trash" aria-hidden="true"></i>Delete
-                                </button>
+                                @if (confirmingId() === item.id) {
+                                    <span class="confirm-text">Delete for good?</span>
+                                    <button type="button" class="edit-btn" [disabled]="deletingId() === item.id" (click)="confirmingId.set(null)" aria-label="Cancel"><i class="fa-solid fa-xmark" aria-hidden="true"></i><span class="btn-text">Cancel</span></button>
+                                    <button type="button" class="remove-btn confirming" aria-label="Delete this row" [disabled]="deletingId() === item.id" (click)="remove(item.id)">
+                                        @if (deletingId() === item.id) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i><span class="btn-text">Deleting...</span> }
+                                        @else { <i class="fa-solid fa-trash" aria-hidden="true"></i><span class="btn-text">Delete</span> }
+                                    </button>
+                                } @else {
+                                    <button type="button" class="edit-btn" [attr.aria-label]="'Edit ' + item.name" (click)="edit(item)">
+                                        <i class="fa-solid fa-pen" aria-hidden="true"></i><span class="btn-text">Edit</span>
+                                    </button>
+                                    <button type="button" class="remove-btn" [attr.aria-label]="'Delete ' + item.name" (click)="confirmingId.set(item.id)">
+                                        <i class="fa-solid fa-trash" aria-hidden="true"></i><span class="btn-text">Delete</span>
+                                    </button>
+                                }
                             </td>
+                            }
                         </tr>
                     }
                 </tbody>

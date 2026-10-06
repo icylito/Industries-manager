@@ -4,12 +4,14 @@ import { MonoTypeOperatorFunction, Observable, retry, throwError, timer } from '
 import {
     Industry, CreateIndustry, UpdateIndustry, DbHealth, RuleSet, FieldRule, NewField, VersionSummary, VersionDetail,
     ImportPreview, ImportResult, RestoreResult, Retention, BackupEntry, BackupStatus, DevRequest,
+    SettingsFile, SettingsImportPreview, SettingsImportResult, AuthUser, NewUserResult,
 } from '../models/industry';
+import { environment } from '../../environments/environment';
 
 @Service()
 export class IndustryApi {
     private http = inject(HttpClient);
-    private apiUrl = 'http://localhost:5005';
+    private apiUrl = environment.apiUrl;
     private baseUrl = `${this.apiUrl}/industries`;
 
     // Retries a dropped connection or a 5xx up to 3 times (0.5s, 1s, 2s), a 4xx fails right away.
@@ -86,6 +88,19 @@ export class IndustryApi {
     saveRetention(body: Retention): Observable<Retention & { removed: number }> {
         return this.http.put<Retention & { removed: number }>(`${this.apiUrl}/history/settings`, body);
     }
+    // How many saved versions these settings would remove, nothing is saved
+    previewRetention(body: Retention): Observable<{ willRemove: number }> {
+        return this.http.post<{ willRemove: number }>(`${this.apiUrl}/history/settings/preview`, body);
+    }
+    settingsExportUrl(): string {
+        return `${this.apiUrl}/history/settings/export`;
+    }
+    previewSettingsImport(file: SettingsFile): Observable<SettingsImportPreview> {
+        return this.http.post<SettingsImportPreview>(`${this.apiUrl}/history/settings/import/preview`, file);
+    }
+    importSettings(file: SettingsFile): Observable<SettingsImportResult> {
+        return this.http.post<SettingsImportResult>(`${this.apiUrl}/history/settings/import`, file);
+    }
     backups(): Observable<{ backups: BackupEntry[]; status: BackupStatus }> {
         return this.http.get<{ backups: BackupEntry[]; status: BackupStatus }>(`${this.apiUrl}/backups`).pipe(this.retryTransient());
     }
@@ -94,6 +109,43 @@ export class IndustryApi {
     }
     backupDownloadUrl(id: string, file: 'main' | 'collector' | 'excel'): string {
         return `${this.apiUrl}/backups/${id}/${file}`;
+    }
+
+    // People, admins only
+    users(): Observable<AuthUser[]> {
+        return this.http.get<AuthUser[]>(`${this.apiUrl}/users`);
+    }
+    createUser(username: string, role: string): Observable<NewUserResult> {
+        return this.http.post<NewUserResult>(`${this.apiUrl}/users`, { username, role });
+    }
+    resetPassword(id: number): Observable<NewUserResult> {
+        return this.http.post<NewUserResult>(`${this.apiUrl}/users/${id}/reset-password`, {});
+    }
+    updateUser(id: number, body: { role?: string; disabled?: boolean }): Observable<AuthUser> {
+        return this.http.put<AuthUser>(`${this.apiUrl}/users/${id}`, body);
+    }
+
+    // A link can't carry the sign in token, so files are fetched with it and saved from the page
+    downloadFile(url: string, fallbackName: string): Observable<void> {
+        return new Observable<void>(subscriber => {
+            this.http.get(url, { responseType: 'blob', observe: 'response' }).subscribe({
+                next: (res: HttpResponse<Blob>) => {
+                    const disposition = res.headers.get('Content-Disposition') ?? '';
+                    const named = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition)?.[1];
+                    const link = document.createElement('a');
+                    const href = URL.createObjectURL(res.body as Blob);
+                    link.href = href;
+                    link.download = named ? decodeURIComponent(named) : fallbackName;
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    setTimeout(() => URL.revokeObjectURL(href), 10000);
+                    subscriber.next();
+                    subscriber.complete();
+                },
+                error: err => subscriber.error(err),
+            });
+        });
     }
 
     // Requests, openRequests is the number on the bell

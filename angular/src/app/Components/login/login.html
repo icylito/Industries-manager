@@ -1,0 +1,37 @@
+<!-- Sign in. Anyone can look at the table without it, an account is needed to change anything. -->
+<section class="card narrow">
+    <header class="card-head">
+        <h2><span class="title-icon"><i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i></span>Sign in</h2>
+    </header>
+
+    @if (auth.expired()) {
+        <p class="hint-line"><i class="fa-solid fa-circle-info" aria-hidden="true"></i>You were signed out. Sign in again to keep going.</p>
+    }
+
+    <form class="auth-form" (submit)="submit($event)">
+        <label class="field">
+            <span class="field-label">Username</span>
+            <span class="control">
+                <i class="fa-solid fa-user" aria-hidden="true"></i>
+                <input autocomplete="username" autocapitalize="none" spellcheck="false" [value]="username()"
+                    (input)="username.set($any($event.target).value)">
+            </span>
+        </label>
+        <label class="field">
+            <span class="field-label">Password</span>
+            <span class="control">
+                <i class="fa-solid fa-key" aria-hidden="true"></i>
+                <input type="password" autocomplete="current-password" [value]="password()"
+                    (input)="password.set($any($event.target).value)">
+            </span>
+        </label>
+        @if (error()) {
+            <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ error() }}</p>
+        }
+        <button type="submit" class="add-btn" [disabled]="busy()">
+            @if (busy()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Signing in... }
+            @else { <i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>Sign in }
+        </button>
+    </form>
+    <p class="hint-line"><i class="fa-solid fa-circle-question" aria-hidden="true"></i>No account? Ask an admin to make one for you.</p>
+</section>

@@ -1,5 +1,7 @@
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using api_v2.Data;
 using api_v2.Model;
@@ -99,6 +101,24 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
 
     public static List<FieldRule> ParseFields(string json) => JsonSerializer.Deserialize<List<FieldRule>>(json, Json)!;
 
+    // For rules saved in old versions, which could have been edited by hand
+    public static bool TryParseFields(string json, out List<FieldRule> fields)
+    {
+        fields = [];
+        try
+        {
+            var read = JsonSerializer.Deserialize<List<FieldRule>>(json, Json);
+            if (read is null || read.Any(f => f is null || string.IsNullOrWhiteSpace(f.Key)
+                || string.IsNullOrWhiteSpace(f.Label) || string.IsNullOrWhiteSpace(f.Type))) return false;
+            fields = read;
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
     // True when old rules (from a saved version) don't match the rules in use
     public bool Differs(string? oldRulesJson)
     {
@@ -108,9 +128,11 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
 
     // Reads a row from the page: the 4 built in fields plus the custom ones in Extra.
     // currentSector is the sector already stored on the row. An edit may keep that value even when it isn't in the list.
+    // existingExtra is the row's stored custom values. A custom field the caller didn't send keeps its stored value.
     public RowInput Read(string? name, string? sector, decimal? price, DateOnly? release, Dictionary<string, JsonElement>? extra,
-        string? currentSector = null)
+        string? currentSector = null, string? existingExtra = null)
     {
+        var kept = existingExtra is null ? null : JsonNode.Parse(existingExtra) as JsonObject;
         var values = new Dictionary<string, object?>
         {
             ["name"] = Names.Clean(name),
@@ -130,7 +152,18 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
         {
             JsonElement element = default;
             var given = extra is not null && extra.TryGetValue(rule.Key, out element);
-            var (value, problem) = given ? FromJson(rule, element) : (null, null);
+            if (!given)
+            {
+                // Not sent, so the stored value stays as it is. It still counts for the checks (Required, limits).
+                object? stored = null;
+                if (kept is not null && kept.TryGetPropertyValue(rule.Key, out var node) && node is not null)
+                {
+                    stored = FromJson(rule, JsonDocument.Parse(node.ToJsonString()).RootElement).Value;
+                }
+                values[rule.Key] = stored;
+                continue;
+            }
+            var (value, problem) = FromJson(rule, element);
             if (problem is not null)
             {
                 errors[rule.Key] = [problem];
@@ -238,18 +271,30 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
             }
         }
 
-        if (rule.MaxLength is int max && text.Length > max)
+        // A custom text field with no limit set still gets one, so a huge value can't end up in every saved copy
+        var limit = rule.MaxLength ?? (rule.Custom ? DefaultCustomTextMax : (int?)null);
+        if (limit is int max && text.Length > max)
         {
             return (text, $"{rule.Label} can be at most {max} characters");
         }
         return (text, null);
     }
 
+    private const int DefaultCustomTextMax = 1000;
+    private const int MaxDecimals = 4;
+
+    // Digits after the decimal point, not counting trailing zeros
+    private static int Decimals(decimal d) => (decimal.GetBits(d / 1.0000000000000000000000000000m)[3] >> 16) & 0xFF;
+
     private static string? CheckNumber(FieldRule rule, decimal? number)
     {
         if (number is not decimal n)
         {
             return rule.Required ? $"{rule.Label} is required" : null;
+        }
+        if (Decimals(n) > MaxDecimals)
+        {
+            return $"{rule.Label} can have at most {MaxDecimals} decimal places";
         }
         var tooLow = rule.Min is decimal low && n < low;
         var tooHigh = rule.Max is decimal high && n > high;
@@ -473,11 +518,13 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
         return used;
     }
 
-    // "Stock ticker" becomes "stock_ticker", with a number on the end if it's taken.
+    // "Stock ticker" becomes "stock_ticker", with a number on the end if it's taken. Letters from other languages stay.
     // taken includes keys already handed out in this batch, so two similar labels don't collide.
     private static string MakeKey(string label, HashSet<string> taken)
     {
-        var slug = Regex.Replace(label.ToLowerInvariant(), "[^a-z0-9]+", "_").Trim('_');
+        // Accents come off ("Ümläut" becomes "umlaut"), letters and digits from any language stay
+        var plain = Regex.Replace(label.Normalize(NormalizationForm.FormKD), @"\p{Mn}+", "");
+        var slug = Regex.Replace(plain.ToLowerInvariant(), @"[^\p{L}\p{N}]+", "_").Trim('_');
         if (slug.Length == 0) slug = "field";
         if (ReservedKeys.Contains(slug)) slug += "_field";
         var key = slug;

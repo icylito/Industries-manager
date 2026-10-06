@@ -1,6 +1,8 @@
 import { Component, signal, computed, inject, OnInit, HostListener, DestroyRef } from '@angular/core';
 import { Industry, CreateIndustry, DbHealth, FieldRule, RuleSet } from '../../models/industry';
+import { Auth } from '../../services/auth';
 import { IndustryApi } from '../../services/industry-api';
+import { RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
 
 // A custom field can be named constructor or toString. A plain obj[key] would return a built in function.
@@ -10,7 +12,7 @@ function own(obj: object | null | undefined, key: string): unknown {
 }
 
 @Component({
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, RouterLink],
   selector: 'app-my-components',
   styleUrl: './my-components.css',
   templateUrl: './my-components.html',
@@ -18,6 +20,7 @@ function own(obj: object | null | undefined, key: string): unknown {
 
 export class MyComponents implements OnInit { 
   private api = inject(IndustryApi);
+  protected auth = inject(Auth);
   private fb = inject(FormBuilder);
 
   // General Table logic 
@@ -302,16 +305,25 @@ export class MyComponents implements OnInit {
   });
   }
   // Delete by id 
+  // The row that is asking "Delete this row?", and the one being deleted
+  confirmingId = signal<number | null>(null);
+  deletingId = signal<number | null>(null);
+
   remove(id: number){
-    // Delete logic if id don't exist
-    if (!confirm('Are you sure you want to delete this industry?'))return;
+    this.deletingId.set(id);
     this.api.delete(id).subscribe({
       next: () => {
+        this.deletingId.set(null);
+        this.confirmingId.set(null);
         this.industries.update(list => list.filter(i => i.id !== id));
         if (this.editingId() === id) this.cancelEdit();
       },
       // Delete logic if id found
-      error: err => this.formError.set(this.errorMessage(err)),   
+      error: err => {
+        this.deletingId.set(null);
+        this.confirmingId.set(null);
+        this.formError.set(this.errorMessage(err));
+      },
     });
   }
   // Edit button logic
@@ -562,6 +574,8 @@ export class MyComponents implements OnInit {
   waitingFields = signal(new Set<string>());
 
   private loadWaiting() {
+    // The list of requests is for people who are signed in
+    if (!this.auth.isSignedIn()) return;
     this.api.requests('open').subscribe({
       next: list => this.waitingFields.set(new Set(list.map(r => r.fieldKey).filter((k): k is string => !!k))),
       error: () => {},

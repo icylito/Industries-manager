@@ -1,6 +1,6 @@
 # About
 
-So this project is a small web app that shows a list of industries kept in a database. You can search the list, add new rows, edit them, and delete them, and everything you do on the page is saved to the database.
+This project is a small web app that shows a list of industries kept in a database. You can search the list, add new rows, edit them, and delete them, and everything you do on the page is saved to the database.
 
 I started this on September 26, 2026, and the sections below show where things are and what comes next.
 
@@ -22,14 +22,17 @@ I started this on September 26, 2026, and the sections below show where things a
 - Done: nightly backups of both databases, with a Back up now button on the History page, see [Backups](#backups).
 - Done: sector is a dropdown now, and the choices come from `scripts/config.toml`, so nobody types it wrong and the API says no to anything else.
 - Done: on Fields you can line up as many new fields as you want and send them in one go, and delete the ones made from the page.
-- Next: the edge cases listed at the bottom.
+- Done: login with usernames and passwords. Anyone can look at the table, an account is needed to change rows, and admins also get History, Fields and People, see [Accounts and sign in](#accounts-and-sign-in).
+- Done: Export and Import settings on the History page, for how long old versions are kept and the field labels and limits.
+- Done: the last break test findings. Restore is all or nothing, damaged saved versions are marked instead of breaking History, and saving retention first says how many versions it would remove.
+- Next: the open items listed at the bottom, see [Not done yet](#not-done-yet).
 
 # Starting
 
-- Well, to start things, first go to `/angular` and run `npm install` to get the packages. Most likely there are 4 packages you'd forget, so do
+- To start, go to `/angular` and run `npm install` to get the packages. Most likely there are 4 packages you'd forget, so do
 `npm approve-scripts <package>`, which could look like this:
 `npm approve-scripts @parcel/watcher`. That's an example.
-Anyway, that's all for Angular, as it's barebone. Pro tip: use `ssr=false`, as this project uses a barebone app, and preferably skip git by using this flag:
+That's all for Angular, as it's a bare project. When you create it, use `ssr=false`, and skip git with this flag:
 `--skip-git`.
 
 - For `api_v2`, it's a dotnet project, so you'd need to run `dotnet build`. It's a bit more non linear, as you'd need to get some packages. Make sure NuGet
@@ -52,9 +55,9 @@ And that should be all to get started.
 
 ## Running it
 
-The easy way is to double click `start.bat` in the project folder, or run `.\start.bat`. It starts the Docker database if the API uses it, then opens 2 windows, one for the API and one for the page, and closing a window stops that one.
+Double click `start.bat` in the project folder, or run `.\start.bat`. It starts the Docker database if the API uses it (no settings file, or settings pointing at port 5433), then opens 2 windows, one for the API at http://localhost:5005 and one for the page at http://localhost:4200. Closing a window stops that one.
 
-On a fresh clone the tables start empty, nobody's data comes with the repo. The API creates 2 databases on its first run: `main` with the `Industries` table and `collector`, which will keep old versions of the data later on. If you want fake rows to test with, see [Seeding synthetic data](#seeding-synthetic-data).
+On a fresh clone the tables start empty, nobody's data comes with the repo. The API creates 2 databases on its first run: `main` with the `Industries` table and `collector`, which keeps the saved copies and the change log. If you want fake rows to test with, see [Seeding synthetic data](#seeding-synthetic-data).
 
 If you want to do it by hand, open two terminals, one for each folder. If you use Docker, run `docker compose up -d` in the project folder first.
 
@@ -75,10 +78,12 @@ One catch, if there's a migration waiting and the `collector` is down, the API h
 
 ## Angular
 
-So this folder uses Angular mainly to replace the Swagger UI from `api_v2/`. The 2 folders should not be merged, as they both handle different things: Angular handles project state, displaying the data safely, and a nice UI to handle everything more easily. The design is black and white and switches to dark mode with your system setting. Icons come from Font Awesome, loaded by the kit script in `src/index.html`.
+This folder uses Angular mainly to replace the Swagger UI from `api_v2/`. The 2 folders should not be merged, as they both handle different things: Angular handles project state, displaying the data safely, and a nice UI to handle everything more easily. The design is black and white and switches to dark mode with your system setting. Icons come from Font Awesome, loaded by the kit script in `src/index.html`.
 
 ### The pages
 
+- **Sign in** (`/login`) and **Your account** (`/account`) are for changing your password or signing out. A new account has to pick its own password first.
+- **People** (`/users`) is where an admin makes accounts, gives someone a new password, makes someone admin or normal, or turns an account off.
 - **Industries** (`/`) is the table. Rows can have a triangle next to the name, hover it to see why:
   - red means a value couldn't come over from old data and shows `--`. It goes away once someone saves the row.
   - black is minor, like a value that breaks today's rules or a similar row.
@@ -89,15 +94,17 @@ So this folder uses Angular mainly to replace the Swagger UI from `api_v2/`. The
   - Pin, so retention never removes it.
   - Restore swaps every row for that version's rows after you type `RESTORE`, and the table as it was gets saved first.
   - Bring back adds that version's rows as new rows with new numbers, nothing gets replaced. If the old data followed other rules it asks "The old data follows different rules than the table does now. Import it anyway?" first. Import without dups next to it skips every row whose name is already in the table, so you only get the ones that went missing.
-  - Keep old versions sets how many to keep or after how many days to remove them. Empty means keep everything.
+  - Keep old versions sets how many to keep or after how many days to remove them. Empty means keep everything. Saving asks first when it would remove saved versions, and says how many.
+  - Settings file: Export settings saves the retention and the field labels and limits to a file, Import settings loads one. It says what would change before it does anything, leaves out fields the table doesn't have, and saves a copy of the table first.
+  - A saved version with a value that can't be read shows a Damaged tag and can't be restored or brought back.
 - **Fields** (`/fields`) is where the team changes labels and limits, adds custom fields, and hides custom fields they don't want anymore. Hiding keeps the data. Every save is a new rules version and a copy of the table gets saved first. Changing a field's type or making it a real column goes to a developer from here. If someone else saved while you had the page open, your save gets stopped and asks you to reload, and what you typed stays there.
   - Add field puts the field in a list, nothing is saved yet. Add as many as you want, take one out with the x, then Send fields saves them all as one version.
-  - Delete is on the fields made from the page, the built in ones (Name, Sector, Price, Release) live in code so they can't be deleted. It takes the values off every row, but a copy of the table is saved first so History can bring it back. Hide is still there if you just want it off the page.
+  - Delete is on the fields made from the page, the built in ones (Name, Sector, Price, Release) live in code so they can't be deleted. It takes the values off every row, but a copy of the table is saved first so History can bring it back. Hide is still there if you only want it off the page.
 - **Requests** (`/requests`) is for anything that needs a developer. The app makes some by itself, like when an import finds an old column that doesn't exist anymore or a restore brings back data from a different layout. Each one has the code drafted, Show the drafted code and Copy. The bell in the nav shows how many are open. Asking for something that's already open doesn't make a second one, your new details get added to the old one.
 
 ## Api_v2
 
-So this folder is a minimal web app API that has a direct line of communication with the database using **ConnectionString**, which is in `appsettings.Development.json`. That file is git ignored since it holds private details, so you won't find it in the repo.
+This folder is a minimal web app API that has a direct line of communication with the database using **ConnectionString**, which is in `appsettings.Development.json`. That file is git ignored since it holds private details, so you won't find it in the repo.
 
 You don't need it though. With no settings file, the API connects to the Docker database by itself. If you want your own Postgres instead, copy `appsettings.Development.example.json` to `appsettings.Development.json` and change the connection strings in it:
 
@@ -127,17 +134,31 @@ The `collector` database keeps old data so nothing gets lost:
 
 Requests live in the `Requests` table, `GET /requests` lists them and `GET /requests/count` is the bell. Settings like retention live in the `Settings` table, and `Collector:KeepVersions` and `Collector:KeepDays` in appsettings are the starting values.
 
-There's no login yet, so everyone can change the rules. The check is already in one place (`Auth/CurrentUser.cs`), so adding auth later is a small change.
+### Accounts and sign in
+
+Anyone can look at the table. Adding, editing and deleting rows needs an account, and History, Fields, People and backups need an admin. Requests are for anyone with an account, but only an admin can mark them done.
+
+- The first start makes an account called `admin` with a random password and prints it once in the API window. Sign in with it and pick your own. If there's ever no working admin, the next start makes one again the same way.
+- Forgot an admin password? Start the API with `Auth:ResetPassword` set to that username (for example `dotnet run --launch-profile http --Auth:ResetPassword=yahya`). It prints a new password once. Take the setting out again afterwards.
+- Admins make the other accounts on the People page. Each gets a temporary password shown once, and has to pick their own at first sign in. Nobody can sign up by themselves, and accounts are turned off, never deleted, so History keeps the names.
+- Passwords are at least 10 characters and are stored as a salted PBKDF2 hash, never as text. Signing in is limited to 5 tries a minute per address (`Auth:LoginTriesPerMinute`). A sign in lasts 12 hours after its last use, 7 days at most, and is kept in the browser.
+- `Auth:GuestCanView` set to `false` hides the table from people who aren't signed in.
+- Everything here travels over plain http on your network, so anyone on the same Wi-Fi who is listening could read a password. Use https before this leaves a trusted network.
+- The seed script needs an account now: set `SEED_USER` and `SEED_PASSWORD` before running it.
+- Numbers have to arrive as numbers. The API refuses a price sent as text, like `"5"`.
+- Restoring an old copy of the main database brings back its old accounts and passwords too.
+
+The address the page uses for the API is in `angular/src/environments/environment.ts`. The page addresses the API accepts are `Cors:Origins` in `appsettings.json`.
 
 ### Backups
 
-So every night at 2:00 AM the API saves a full copy of both databases with `pg_dump`, and keeps them for 14 days. The newest one never gets deleted, even if it's older than that. If the PC was off at 2:00, it makes one a few minutes after the API starts instead. On the History page there's a Back up now button and a list where you can download each one. Excel gives you the table as it was at that time, it opens straight in Excel. Main and History are the `.dump` files, those are for restoring.
+Every night at 2:00 AM the API saves a full copy of both databases with `pg_dump`, and keeps them for 14 days. The newest one never gets deleted, even if it's older than that. If the PC was off at 2:00, it makes one a few minutes after the API starts instead. On the History page there's a Back up now button and a list where you can download each one. Excel gives you the table as it was at that time, it opens straight in Excel. Main and History are the `.dump` files, those are for restoring.
 
 They go in `backups/` in the project folder, which is git ignored. That's fine for mistakes, but if the disk dies the backups die with it, so point `Backup:Folder` in `appsettings.Development.json` at OneDrive or another drive. `Backup:Time` and `Backup:KeepDays` change the time and how long they stay.
 
 It needs `pg_dump`, which comes with Postgres. The API finds it in `C:\Program Files\PostgreSQL` by itself, or you can set `Backup:PgDump` to its path.
 
-There's no restore button yet on purpose, it comes with login so only an admin can do it. For now it's by hand, stop the API first and run:
+There's no restore button yet. When it's built it has to leave the accounts alone, so for now it's by hand, stop the API first and run:
 
 ```
 pg_restore --clean --if-exists --no-owner -h localhost -p 5432 -U postgres -d api_v2 main.dump
@@ -157,7 +178,7 @@ Then update `angular/src/app/models/industry.ts` so the page knows about the new
 
 # Seeding synthetic data
 
-So `scripts/seed_industries.py` fills the table with fake companies so there's something to test with. Every row goes through the API like it would from the page, which means the API's rules decide what gets in. It also sends some broken rows on purpose (empty names, names that are too long, prices outside 0 to 10, names that already exist) to check that the API blocks them.
+`scripts/seed_industries.py` fills the table with fake companies so there's something to test with. Every row goes through the API like it would from the page, which means the API's rules decide what gets in. It also sends some broken rows on purpose (empty names, names that are too long, prices outside 0 to 10, names that already exist) to check that the API blocks them.
 
 Start the API first, then from the project folder run:
 
@@ -169,7 +190,7 @@ When it's done it prints how many rows got in, how many had no price or release,
 
 ## Using config.toml
 
-Well, everything the script does is controlled from `scripts/config.toml`, so you don't touch the Python file. Open it, change a number, save, and run the script again. Each part is split by a comment that says what it's for:
+Everything the script does is controlled from `scripts/config.toml`, so you don't touch the Python file. Open it, change a number, save, and run the script again. Each part is split by a comment that says what it's for:
 
 - `[generation]` is the main one. `count` is how many rows you want in the database, so set it to `50` if you want 50. `bad_row_rate` is how many broken rows get mixed in, `0.10` means 10 for every 100, and `0` turns them off. `seed` gives you the same data every run if you set it to any number, `0` means random every time. `null_rate_min` and `null_rate_max` are how often price and release are left empty, right now that's somewhere between 5% and 7%.
 - `[fields]` is what each value can be. The sectors list, the price range, how many decimals, the date range for release, and the longest name. The longest name, the price range and the sectors get replaced by the API's rules from `/schema` when the script runs, so they always match. The sectors list here is also what the API uses, so this is the place to change them.
@@ -202,9 +223,6 @@ python scripts/seed_industries.py --count 50 --dry-run
 
 # Not done yet
 
-- The API address `http://localhost:5005` is written straight into `angular/src/app/services/industry-api.ts` and the CORS setup in `Program.cs`, so it only works on this machine until it moves to a config.
-- Delete still uses the browser's own "are you sure" popup instead of one that matches the design.
 - Restore brings back the rows and rules of a version but not its columns. If the table had different columns back then, a developer has to bring them back in code since the API moves the database forward on every start. The request it makes says how.
-- No login yet, so anyone can restore, change rules, or close requests. Everything admin goes through `.RequireAdmin()` in `Auth/CurrentUser.cs`, that's where auth plugs in.
-- Backups can only be restored by hand for now, the button comes with login.
-- A few leftovers from the break test. Restore saves the rows and the rules in 2 steps, so if the second one fails they don't match. A restore or import that fails still leaves its "Before ..." copy in History, and with "keep the last N" on, those copies can push out the version you restored from.
+- Backups can only be restored by hand for now. A button has to skip the accounts and sign ins, or restoring an old backup would bring back old passwords.
+- After the accounts update, every older saved version says "Different columns back then", and restoring one asks a developer about the layout. The accounts were added as new tables, the Industries table itself didn't change.

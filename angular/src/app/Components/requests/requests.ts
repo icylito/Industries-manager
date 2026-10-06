@@ -2,6 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { DevRequest } from '../../models/industry';
 import { IndustryApi, errorText } from '../../services/industry-api';
+import { Auth } from '../../services/auth';
 
 type Filter = 'open' | 'done' | 'dismissed' | 'all';
 
@@ -12,6 +13,7 @@ type Filter = 'open' | 'done' | 'dismissed' | 'all';
 })
 export class RequestsPage implements OnInit {
   protected api = inject(IndustryApi);
+  protected auth = inject(Auth);
 
   requests = signal<DevRequest[]>([]);
   filter = signal<Filter>('open');

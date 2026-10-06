@@ -1,21 +1,35 @@
 <div class="app">
+    <div class="nav-wrap">
     <nav class="nav">
-        <a class="brand" routerLink="/"><i class="fa-solid fa-chart-simple" aria-hidden="true"></i>Stock Listing</a>
+        <a class="brand" routerLink="/"><i class="fa-solid fa-chart-simple" aria-hidden="true"></i><span class="brand-text">Stock Listing</span></a>
         <div class="nav-links">
             <a routerLink="/" fragment="browse" aria-label="Browse"><i class="fa-solid fa-table-list" aria-hidden="true"></i><span>Browse</span></a>
-            <a routerLink="/" fragment="add" aria-label="Add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>Add</span></a>
-            <a routerLink="/history" routerLinkActive="active" aria-label="History"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i><span>History</span></a>
-            <a routerLink="/fields" routerLinkActive="active" aria-label="Fields"><i class="fa-solid fa-sliders" aria-hidden="true"></i><span>Fields</span></a>
-            <!-- The bell shows how many requests are waiting for a developer -->
-            <a routerLink="/requests" routerLinkActive="active" class="bell"
-                [attr.aria-label]="api.openRequests() ? 'Requests, ' + api.openRequests() + ' open' : 'Requests'">
-                <i class="fa-solid fa-bell" aria-hidden="true"></i><span>Requests</span>
-                @if (api.openRequests()) {
-                    <b class="badge" aria-hidden="true">{{ api.openRequests() > 99 ? '99+' : api.openRequests() }}</b>
-                }
-            </a>
+            @if (auth.isSignedIn()) {
+                <a routerLink="/" fragment="add" aria-label="Add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>Add</span></a>
+            }
+            @if (auth.isAdmin()) {
+                <a routerLink="/history" routerLinkActive="active" aria-label="History"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i><span>History</span></a>
+                <a routerLink="/fields" routerLinkActive="active" aria-label="Fields"><i class="fa-solid fa-sliders" aria-hidden="true"></i><span>Fields</span></a>
+                <a routerLink="/users" routerLinkActive="active" aria-label="People"><i class="fa-solid fa-users" aria-hidden="true"></i><span>People</span></a>
+            }
+            @if (auth.isSignedIn()) {
+                <!-- The bell shows how many requests are waiting for a developer -->
+                <a routerLink="/requests" routerLinkActive="active" class="bell"
+                    [attr.aria-label]="api.openRequests() ? 'Requests, ' + api.openRequests() + ' open' : 'Requests'">
+                    <i class="fa-solid fa-bell" aria-hidden="true"></i><span>Requests</span>
+                    @if (api.openRequests()) {
+                        <b class="badge" aria-hidden="true">{{ api.openRequests() > 99 ? '99+' : api.openRequests() }}</b>
+                    }
+                </a>
+                <a routerLink="/account" routerLinkActive="active" [attr.aria-label]="'Your account, ' + auth.user()?.username">
+                    <i class="fa-solid fa-circle-user" aria-hidden="true"></i><span>{{ auth.user()?.username }}</span>
+                </a>
+            } @else {
+                <a routerLink="/login" routerLinkActive="active" aria-label="Sign in"><i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i><span>Sign in</span></a>
+            }
         </div>
     </nav>
+    </div>
 
     <header class="hero">
         <h1>{{ page().title }}</h1>

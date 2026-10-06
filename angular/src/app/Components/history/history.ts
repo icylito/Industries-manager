@@ -1,7 +1,9 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { BackupEntry, BackupStatus, ImportPreview, ImportResult, RestoreResult, VersionDetail, VersionSummary } from '../../models/industry';
+import {
+  BackupEntry, BackupStatus, ImportPreview, ImportResult, RestoreResult, SettingsFile, SettingsImportPreview, VersionDetail, VersionSummary,
+} from '../../models/industry';
 import { IndustryApi, errorText } from '../../services/industry-api';
 
 type Panel =
@@ -103,7 +105,9 @@ export class HistoryPage implements OnInit {
   }
 
   downloadBackup(entry: BackupEntry, file: 'main' | 'collector' | 'excel') {
-    window.location.href = this.api.backupDownloadUrl(entry.id, file);
+    this.api.downloadFile(this.api.backupDownloadUrl(entry.id, file), `backup-${entry.id}-${file}`).subscribe({
+      error: (err: HttpErrorResponse) => this.backupError.set(errorText(err, "Couldn't download that file")),
+    });
   }
 
   load() {
@@ -182,7 +186,9 @@ export class HistoryPage implements OnInit {
   }
 
   download(v: VersionSummary) {
-    window.location.href = this.api.downloadUrl(v.id);
+    this.api.downloadFile(this.api.downloadUrl(v.id), `version-${v.id}.csv`).subscribe({
+      error: (err: HttpErrorResponse) => this.notice.set(errorText(err, "Couldn't download that file")),
+    });
   }
 
   // Pin
@@ -238,20 +244,116 @@ export class HistoryPage implements OnInit {
     });
   }
 
+  // Settings file, Export settings and Import settings
+  settingsAsk = signal<{ file: SettingsFile; preview: SettingsImportPreview } | null>(null);
+  settingsBusy = signal(false);
+  settingsMsg = signal('');
+  settingsError = signal('');
+
+  exportSettings() {
+    this.api.downloadFile(this.api.settingsExportUrl(), 'settings.json').subscribe({
+      error: (err: HttpErrorResponse) => this.settingsError.set(errorText(err, "Couldn't download that file")),
+    });
+  }
+
+  // Reads the chosen file in the browser, then asks the API what it would change before anything is saved
+  chooseSettingsFile(input: HTMLInputElement) {
+    const chosen = input.files?.[0];
+    input.value = '';
+    this.settingsMsg.set('');
+    this.settingsError.set('');
+    this.settingsAsk.set(null);
+    if (!chosen) return;
+    chosen.text().then(text => {
+      let file: SettingsFile;
+      try {
+        file = JSON.parse(text);
+      } catch {
+        this.settingsError.set("That file couldn't be read. Use a file made with Export settings");
+        return;
+      }
+      this.settingsBusy.set(true);
+      this.api.previewSettingsImport(file).subscribe({
+        next: preview => { this.settingsBusy.set(false); this.settingsAsk.set({ file, preview }); },
+        error: (err: HttpErrorResponse) => { this.settingsBusy.set(false); this.settingsError.set(errorText(err)); },
+      });
+    });
+  }
+
+  // One plain sentence about what the file would change
+  settingsSummary(p: SettingsImportPreview): string {
+    const parts: string[] = [];
+    if (p.rulesChanged) parts.push('the field labels and limits');
+    if (p.retentionChanged && p.retention) {
+      const keep = p.retention.keepVersions ? `keep the last ${p.retention.keepVersions} versions` : 'keep every version';
+      const days = p.retention.keepDays ? `, remove ones older than ${p.retention.keepDays} days` : '';
+      parts.push(`how long old versions are kept (${keep}${days})`);
+    }
+    if (parts.length === 0) return 'Nothing in this file is different from today, so nothing would change.';
+    return `This changes ${parts.join(' and ')}.`;
+  }
+
+  importSettings() {
+    const ask = this.settingsAsk();
+    if (!ask) return;
+    this.settingsBusy.set(true);
+    this.settingsError.set('');
+    this.api.importSettings(ask.file).subscribe({
+      next: r => {
+        this.settingsBusy.set(false);
+        this.settingsAsk.set(null);
+        const removed = r.removed ? ` ${r.removed} old version${r.removed === 1 ? '' : 's'} removed.` : '';
+        this.settingsMsg.set(`Settings imported.${removed}`);
+        this.api.retention().subscribe({ next: x => { this.keepVersions.set(x.keepVersions); this.keepDays.set(x.keepDays); }, error: () => {} });
+        this.load();
+      },
+      error: (err: HttpErrorResponse) => { this.settingsBusy.set(false); this.settingsError.set(errorText(err)); },
+    });
+  }
+
   // Retention
   toNumber(value: string): number | null {
     return value === '' ? null : Math.floor(Number(value));
   }
 
+  // How many versions the settings would remove, set while the page asks before saving
+  retentionAsk = signal<number | null>(null);
+  retentionBusy = signal(false);
+
+  // Saving asks first when it would remove saved versions, because that can't be undone
   saveRetention() {
     this.retentionMsg.set('');
     this.retentionError.set('');
-    this.api.saveRetention({ keepVersions: this.keepVersions(), keepDays: this.keepDays() }).subscribe({
+    this.retentionAsk.set(null);
+    const body = { keepVersions: this.keepVersions(), keepDays: this.keepDays() };
+    this.retentionBusy.set(true);
+    this.api.previewRetention(body).subscribe({
+      next: p => {
+        if (p.willRemove > 0) {
+          this.retentionBusy.set(false);
+          this.retentionAsk.set(p.willRemove);
+        } else {
+          this.sendRetention(body);
+        }
+      },
+      error: (err: HttpErrorResponse) => { this.retentionBusy.set(false); this.retentionError.set(errorText(err)); },
+    });
+  }
+
+  confirmRetention() {
+    this.retentionAsk.set(null);
+    this.retentionBusy.set(true);
+    this.sendRetention({ keepVersions: this.keepVersions(), keepDays: this.keepDays() });
+  }
+
+  private sendRetention(body: { keepVersions: number | null; keepDays: number | null }) {
+    this.api.saveRetention(body).subscribe({
       next: r => {
+        this.retentionBusy.set(false);
         this.retentionMsg.set(r.removed ? `Saved. ${r.removed} old version${r.removed === 1 ? '' : 's'} removed.` : 'Saved.');
         if (r.removed) this.load();
       },
-      error: (err: HttpErrorResponse) => this.retentionError.set(errorText(err)),
+      error: (err: HttpErrorResponse) => { this.retentionBusy.set(false); this.retentionError.set(errorText(err)); },
     });
   }
 }

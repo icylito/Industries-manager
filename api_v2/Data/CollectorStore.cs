@@ -4,8 +4,10 @@ using NpgsqlTypes;
 
 namespace api_v2.Data;
 
+// Damaged means a saved value in the collector couldn't be read (edited by hand, or a format that changed).
+// The version still shows in the list but can't be restored or imported.
 public record VersionSummary(long Id, DateTimeOffset CreatedAt, string Reason, string CreatedBy, int RowCount,
-    int? RulesVersion, bool Pinned, List<string> Migrations);
+    int? RulesVersion, bool Pinned, List<string> Migrations, bool Damaged = false);
 
 // One saved version with everything in it, what View, Download, Restore and Import read
 public record VersionDetail(VersionSummary Summary, List<VersionColumn> Columns, string? Rules, List<JsonElement> Rows);
@@ -63,7 +65,8 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
 
     // Copies the whole table into the collector. Returns null when there's no table yet (fresh database).
     // The copy is one transaction, so a version is either complete or not there at all.
-    public async Task<long?> SaveVersionAsync(string reason, string createdBy, CancellationToken ct = default)
+    // applyRetention false is for restore and import, they clean up once the change went through (and keep the version they used)
+    public async Task<long?> SaveVersionAsync(string reason, string createdBy, CancellationToken ct = default, bool applyRetention = true)
     {
         await using var main = await OpenAsync(connections.Main, ct);
         if (!await TableExistsAsync(main, Table, ct))
@@ -141,16 +144,53 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
         await tx.CommitAsync(ct);
         log.LogInformation("Saved version {Version} with {Rows} rows: {Reason}", versionId, rows.Count, reason);
 
+        if (applyRetention)
+        {
+            try
+            {
+                await ApplyRetentionAsync(ct);
+            }
+            catch (Exception ex)
+            {
+                // The new version is saved either way, old ones just stay a bit longer
+                log.LogWarning(ex, "Retention cleanup failed");
+            }
+        }
+        return versionId;
+    }
+
+    // Takes back a copy that was saved for a change that didn't happen. Best effort, a leftover copy is only clutter.
+    public async Task DeleteVersionAsync(long id)
+    {
         try
         {
-            await ApplyRetentionAsync(ct);
+            await using var conn = await OpenAsync(connections.Collector, CancellationToken.None);
+            await using var tx = await conn.BeginTransactionAsync();
+            await using var cmd = new NpgsqlCommand("""
+                DELETE FROM version_rows WHERE version_id = @id;
+                DELETE FROM versions WHERE id = @id AND NOT pinned;
+                """, conn, tx);
+            cmd.Parameters.AddWithValue("id", id);
+            await cmd.ExecuteNonQueryAsync();
+            await tx.CommitAsync();
         }
         catch (Exception ex)
         {
-            // The new version is saved either way, old ones just stay a bit longer
+            log.LogWarning(ex, "Couldn't remove the unused copy {Version}", id);
+        }
+    }
+
+    // Retention after a restore or import, the version the rows came from always stays
+    public async Task ApplyRetentionQuietlyAsync(long? keepVersionId, CancellationToken ct)
+    {
+        try
+        {
+            await ApplyRetentionAsync(ct, keepVersionId);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
             log.LogWarning(ex, "Retention cleanup failed");
         }
-        return versionId;
     }
 
     // Edits and deletes log first as "pending", then get marked "done" or "failed" once the change ran.
@@ -223,10 +263,22 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
 
     private const string SummaryColumns = "id, created_at, reason, created_by, row_count, rules_version, pinned, migrations::text";
 
-    private static VersionSummary ReadSummary(NpgsqlDataReader reader) => new(
-        reader.GetInt64(0), reader.GetFieldValue<DateTimeOffset>(1), reader.GetString(2), reader.GetString(3),
-        reader.GetInt32(4), reader.IsDBNull(5) ? null : reader.GetInt32(5), reader.GetBoolean(6),
-        JsonSerializer.Deserialize<List<string>>(reader.GetString(7))!);
+    private static VersionSummary ReadSummary(NpgsqlDataReader reader)
+    {
+        List<string>? migrations = null;
+        try
+        {
+            migrations = JsonSerializer.Deserialize<List<string>>(reader.GetString(7));
+        }
+        catch (JsonException)
+        {
+            // Left null, the version is marked damaged below
+        }
+        return new VersionSummary(
+            reader.GetInt64(0), reader.GetFieldValue<DateTimeOffset>(1), reader.GetString(2), reader.GetString(3),
+            reader.GetInt32(4), reader.IsDBNull(5) ? null : reader.GetInt32(5), reader.GetBoolean(6),
+            migrations ?? [], Damaged: migrations is null || migrations.Any(m => m is null));
+    }
 
     public async Task<List<VersionSummary>> ListVersionsAsync(CancellationToken ct = default)
     {
@@ -253,8 +305,21 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             if (!await reader.ReadAsync(ct)) return null;
             summary = ReadSummary(reader);
-            columns = JsonSerializer.Deserialize<List<VersionColumn>>(reader.GetString(8), JsonSerializerOptions.Web)!;
+            try
+            {
+                var read = JsonSerializer.Deserialize<List<VersionColumn>>(reader.GetString(8), JsonSerializerOptions.Web);
+                var bad = read is null || read.Any(c => c is null || c.Name is null);
+                columns = bad ? [] : read!;
+                if (bad) summary = summary with { Damaged = true };
+            }
+            catch (JsonException)
+            {
+                columns = [];
+                summary = summary with { Damaged = true };
+            }
             rules = reader.IsDBNull(9) ? null : reader.GetString(9);
+            // Rules that can't be read count as "no rules saved", rows can still be brought back
+            if (rules is not null && !Rules.RulesService.TryParseFields(rules, out _)) rules = null;
         }
 
         var rows = new List<JsonElement>();
@@ -264,7 +329,10 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
-                rows.Add(JsonDocument.Parse(reader.GetString(0)).RootElement.Clone());
+                var row = JsonDocument.Parse(reader.GetString(0)).RootElement.Clone();
+                // A saved row that isn't an object can't be read as a row, it's left out
+                if (row.ValueKind == JsonValueKind.Object) rows.Add(row);
+                else log.LogWarning("Version {Version} has a saved row that isn't an object, it was left out", id);
             }
         }
         return new VersionDetail(summary, columns, rules, rows);
@@ -280,7 +348,8 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
     }
 
     // Removes versions past the retention settings, never pinned ones. Returns how many went.
-    public async Task<int> ApplyRetentionAsync(CancellationToken ct = default)
+    // keepVersionId is treated like a pinned version for this run (the version a restore or import came from)
+    public async Task<int> ApplyRetentionAsync(CancellationToken ct = default, long? keepVersionId = null)
     {
         var (keepVersions, keepDays) = settings.Retention;
         if (keepVersions is null && keepDays is null) return 0;
@@ -288,22 +357,7 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
         await using var conn = await OpenAsync(connections.Collector, ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
 
-        var gone = new List<long>();
-        await using (var find = new NpgsqlCommand("""
-            WITH ranked AS (
-                SELECT id, created_at, row_number() OVER (ORDER BY id DESC) AS n FROM versions WHERE NOT pinned
-            )
-            SELECT id FROM ranked
-            WHERE (@keep::int IS NOT NULL AND n > @keep::int)
-               OR (@days::int IS NOT NULL AND created_at < now() - make_interval(days => @days::int))
-            """, conn, tx))
-        {
-            find.Parameters.AddWithValue("keep", (object?)keepVersions ?? DBNull.Value);
-            find.Parameters.AddWithValue("days", (object?)keepDays ?? DBNull.Value);
-            await using var reader = await find.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct)) gone.Add(reader.GetInt64(0));
-        }
-
+        var gone = await FindRemovableAsync(conn, tx, keepVersions, keepDays, keepVersionId, ct);
         if (gone.Count > 0)
         {
             await using var delete = new NpgsqlCommand("""
@@ -316,6 +370,37 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
         }
         await tx.CommitAsync(ct);
         return gone.Count;
+    }
+
+    // How many versions these settings would remove, nothing gets deleted. The page asks before saving.
+    // newCopies is how many copies will be saved first (a rules change saves one), they count toward "keep the last N"
+    public async Task<int> CountRemovableAsync(Retention retention, int newCopies = 0, CancellationToken ct = default)
+    {
+        if (retention.KeepVersions is null && retention.KeepDays is null) return 0;
+        await using var conn = await OpenAsync(connections.Collector, ct);
+        return (await FindRemovableAsync(conn, null, retention.KeepVersions, retention.KeepDays, null, ct, newCopies)).Count;
+    }
+
+    private static async Task<List<long>> FindRemovableAsync(NpgsqlConnection conn, NpgsqlTransaction? tx,
+        int? keepVersions, int? keepDays, long? keepVersionId, CancellationToken ct, int newCopies = 0)
+    {
+        var gone = new List<long>();
+        await using var find = new NpgsqlCommand("""
+            WITH ranked AS (
+                SELECT id, created_at, row_number() OVER (ORDER BY id DESC) AS n
+                FROM versions WHERE NOT pinned AND id <> COALESCE(@keepId::bigint, 0)
+            )
+            SELECT id FROM ranked
+            WHERE (@keep::int IS NOT NULL AND n + @extra::int > @keep::int)
+               OR (@days::int IS NOT NULL AND created_at < now() - make_interval(days => @days::int))
+            """, conn, tx);
+        find.Parameters.AddWithValue("keep", (object?)keepVersions ?? DBNull.Value);
+        find.Parameters.AddWithValue("days", (object?)keepDays ?? DBNull.Value);
+        find.Parameters.AddWithValue("keepId", (object?)keepVersionId ?? DBNull.Value);
+        find.Parameters.AddWithValue("extra", newCopies);
+        await using var reader = await find.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct)) gone.Add(reader.GetInt64(0));
+        return gone;
     }
 
     private static async Task<NpgsqlConnection> OpenAsync(string connectionString, CancellationToken ct)

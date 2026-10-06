@@ -15,7 +15,7 @@ public static class RequestEndpoints
 {
     public static void MapRequests(this WebApplication app)
     {
-        var requests = app.MapGroup("/requests").RequireDatabaseReady();
+        var requests = app.MapGroup("/requests").RequireDatabaseReady().RequireSignIn();
 
         // status is open (default), done, dismissed or all
         requests.MapGet("/", async (string? status, AppDbContext db, CancellationToken ct) =>
@@ -68,7 +68,7 @@ public static class RequestEndpoints
             return request.Created
                 ? Results.Created($"/requests/{request.Request.Id}", request.Request)
                 : Results.Ok(request.Request);
-        });
+        }).RequireAdmin();
 
         // Changing a custom field's type needs its values converted, so a developer does it
         requests.MapPost("/field-type", async (TypeAsk body, AppDbContext db, RulesService rules, ICurrentUser user, AppLocks locks, CancellationToken ct) =>
@@ -81,8 +81,10 @@ public static class RequestEndpoints
             var request = await RequestService.CreateAsync(db, locks, "field-type", $"Change \"{field.Label}\" from {field.Type} to {body.Type}",
                 $"The team wants \"{field.Label}\" to be a {body.Type} instead of {field.Type}. Values that don't fit the new type will show as --.",
                 Drafts.FieldType(field.Key, field.Label, field.Type, body.Type), user.Name, field.Key, ct);
-            return Results.Created($"/requests/{request.Request.Id}", request.Request);
-        });
+            return request.Created
+                ? Results.Created($"/requests/{request.Request.Id}", request.Request)
+                : Results.Ok(request.Request);
+        }).RequireAdmin();
 
         // Developers mark requests done or dismissed, open brings one back
         requests.MapPut("/{id:int}/status", async (int id, StatusBody body, AppDbContext db, ICurrentUser user, AppLocks locks, CancellationToken ct) =>

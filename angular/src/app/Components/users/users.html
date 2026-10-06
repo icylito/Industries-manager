@@ -1,0 +1,116 @@
+<!-- People who can sign in. Admins only. Nobody is ever deleted, History keeps their name. -->
+<section class="panel">
+    <header class="panel-head">
+        <div class="panel-title">
+            <h2><i class="fa-solid fa-users" aria-hidden="true"></i>People</h2>
+            @if (!loading() && !error()) {
+                <span class="db-status">{{ users().length }} {{ users().length === 1 ? 'person' : 'people' }}</span>
+            }
+        </div>
+    </header>
+
+    <p class="intro">An admin can change rules, restore history and answer requests. Everyone else can add, edit and delete rows.
+        Nobody can sign up on their own, so make an account for each person here.</p>
+
+    @if (shown(); as s) {
+        <div class="ask">
+            <p><i class="fa-solid fa-key" aria-hidden="true"></i>
+                {{ s.created ? 'Account made for' : 'New password for' }} {{ s.username }}. Give them this password, it's shown only now.
+                They pick their own the first time they sign in.</p>
+            <div class="password-line">
+                <code>{{ s.password }}</code>
+                <button type="button" class="cancel-btn" (click)="copy(s.password)">
+                    @if (copied()) { <i class="fa-solid fa-check" aria-hidden="true"></i>Copied }
+                    @else { <i class="fa-regular fa-copy" aria-hidden="true"></i>Copy }
+                </button>
+                <button type="button" class="cancel-btn" (click)="shown.set(null)">Done</button>
+            </div>
+        </div>
+    }
+
+    @if (error()) {
+        <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ error() }}</p>
+    }
+
+    @if (loading()) {
+        <p class="state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading people</p>
+    } @else {
+        <div class="table-wrap">
+            <table class="versions people">
+                <thead>
+                    <tr>
+                        <th><span class="th">Username</span></th>
+                        <th><span class="th">Role</span></th>
+                        <th><span class="th">Last signed in</span></th>
+                        <th class="actions-col"><span class="sr-only">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (u of users(); track u.id) {
+                        <tr [class.dimmed]="u.disabled">
+                            <td class="what">
+                                <span class="reason">{{ u.username }}
+                                    @if (u.id === auth.user()?.id) { <span class="tag-inline">You</span> }
+                                    @if (u.disabled) { <span class="tag-inline">Turned off</span> }
+                                    @if (u.mustChangePassword && !u.disabled) { <span class="tag-inline">Hasn't picked a password yet</span> }
+                                </span>
+                            </td>
+                            <td class="role">{{ u.role === 'admin' ? 'Admin' : 'Normal' }}</td>
+                            <td class="muted">{{ formatDate(u.lastLoginAt) }}</td>
+                            <td class="actions">
+                                @if (u.id !== auth.user()?.id) {
+                                    @if (pending()?.user?.id === u.id) {
+                                        <span class="confirm-text">{{ pending()?.action === 'off' ? 'Turn off and sign them out?' : 'Give a new password?' }}</span>
+                                        <button type="button" class="edit-btn" [disabled]="busy()" (click)="pending.set(null)">Cancel</button>
+                                        <button type="button" class="remove-btn" [disabled]="busy()" (click)="confirm()">{{ pending()?.action === 'off' ? 'Turn off' : 'New password' }}</button>
+                                    } @else if (u.disabled) {
+                                        <button type="button" class="edit-btn" [disabled]="busy()" (click)="turnOn(u)">Turn on</button>
+                                    } @else {
+                                        <button type="button" class="edit-btn" [disabled]="busy()" (click)="setRole(u, u.role === 'admin' ? 'normal' : 'admin')">
+                                            {{ u.role === 'admin' ? 'Remove admin' : 'Make admin' }}
+                                        </button>
+                                        <button type="button" class="edit-btn" [disabled]="busy()" (click)="ask(u, 'reset')">New password</button>
+                                        <button type="button" class="remove-btn" [disabled]="busy()" (click)="ask(u, 'off')">Turn off</button>
+                                    }
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<section class="card">
+    <header class="card-head">
+        <h2><span class="title-icon"><i class="fa-solid fa-user-plus" aria-hidden="true"></i></span>Add a person</h2>
+    </header>
+    <div class="settings-row buttons add-person">
+        <label class="field">
+            <span class="field-label">Username <span class="optional">letters and digits, 3 or more</span></span>
+            <span class="control">
+                <i class="fa-solid fa-user" aria-hidden="true"></i>
+                <input autocapitalize="none" spellcheck="false" [value]="newName()" (input)="newName.set($any($event.target).value)"
+                    (keydown.enter)="add()">
+            </span>
+        </label>
+        <label class="field">
+            <span class="field-label">Role</span>
+            <span class="control">
+                <i class="fa-solid fa-user-shield" aria-hidden="true"></i>
+                <select [value]="newRole()" (change)="newRole.set($any($event.target).value)">
+                    <option value="normal">Normal, can edit rows</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </span>
+        </label>
+        <button type="button" class="add-btn" [disabled]="busy()" (click)="add()">
+            @if (busy()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Adding... }
+            @else { <i class="fa-solid fa-plus" aria-hidden="true"></i>Add person }
+        </button>
+    </div>
+    @if (addError()) {
+        <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ addError() }}</p>
+    }
+</section>

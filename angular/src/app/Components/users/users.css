@@ -1,0 +1,73 @@
+/* A turned off account is greyed in the list */
+tr.dimmed td{
+    color: var(--p-muted);
+}
+
+.tag-inline{
+    display: inline-block;
+    margin-left: 0.5rem;
+    white-space: nowrap;
+    padding: 0.1rem 0.5rem;
+    border: 1px solid var(--p-border);
+    border-radius: 999px;
+    color: var(--p-text);
+    font-size: 0.68rem;
+    font-weight: 600;
+}
+
+/* The temporary password, easy to read out loud */
+.password-line{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.85rem;
+}
+
+.password-line code{
+    padding: 0.5rem 0.8rem;
+    border: 1px solid var(--p-border);
+    border-radius: 8px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    user-select: all;
+}
+
+.add-person{
+    align-items: end;
+}
+
+.add-person .field{
+    flex: 1 1 14rem;
+}
+
+/* A name and its small tags wrap as whole pieces, never letter by letter */
+.what .reason{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0;
+}
+
+/* On a phone each person is a small card: the name on top, the role and last sign in under it, then the buttons */
+@media (max-width: 640px) {
+    .people tbody tr{
+        grid-template-columns: 1fr auto;
+    }
+
+    .people td.what{
+        grid-column: 1 / -1;
+    }
+
+    .people td.muted{
+        text-align: right;
+    }
+
+    .people td.actions .confirm-text{
+        flex: 1 0 100%;
+        max-width: none;
+        text-align: left;
+        white-space: normal;
+    }
+}

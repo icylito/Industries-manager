@@ -5,6 +5,8 @@ using api_v2.Data;
 using api_v2.History;
 using api_v2.Requests;
 using api_v2.Rules;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
 
 namespace api_v2.Endpoints;
@@ -52,8 +54,8 @@ public static class HistoryEndpoints
             var versions = await collector.ListVersionsAsync(ct);
             return Results.Ok(versions.Select(v => new
             {
-                v.Id, v.CreatedAt, v.Reason, v.CreatedBy, v.RowCount, v.RulesVersion, v.Pinned,
-                SameLayout = current.SetEquals(v.Migrations)
+                v.Id, v.CreatedAt, v.Reason, v.CreatedBy, v.RowCount, v.RulesVersion, v.Pinned, v.Damaged,
+                SameLayout = !v.Damaged && current.SetEquals(v.Migrations)
             }));
         });
 
@@ -65,7 +67,7 @@ public static class HistoryEndpoints
             return Results.Ok(new
             {
                 v.Summary.Id, v.Summary.CreatedAt, v.Summary.Reason, v.Summary.CreatedBy, v.Summary.RowCount,
-                v.Summary.RulesVersion, v.Summary.Pinned,
+                v.Summary.RulesVersion, v.Summary.Pinned, v.Summary.Damaged,
                 SameLayout = status.AppliedMigrations.ToHashSet().SetEquals(v.Summary.Migrations),
                 Columns = v.Columns.Select(c => c.Name),
                 Rules = v.Rules is null ? null : RulesService.ParseFields(v.Rules),
@@ -107,11 +109,17 @@ public static class HistoryEndpoints
             await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);
             var v = await collector.GetVersionAsync(id, ct);
             if (v is null) return NotFound(id);
+            if (v.Summary.Damaged) return Results.Conflict(DamagedMessage);
 
             var plan = await writer.PlanAsync(v, forRestore: true, ct);
+
+            // Refuse before anything is saved, so a refused restore leaves no copy behind
+            if (await writer.HasNameClashAsync(plan, ct)) return Results.Conflict(SameNameMessage);
+
+            long? copyId;
             try
             {
-                await collector.SaveVersionAsync($"Before restoring version {id}", user.Name, ct);
+                copyId = await collector.SaveVersionAsync($"Before restoring version {id}", user.Name, ct, applyRetention: false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -119,42 +127,40 @@ public static class HistoryEndpoints
                 return BackupFailed("the table wasn't restored");
             }
 
-            int restored;
+            RestoreOutcome outcome;
             try
             {
-                restored = await writer.RestoreAsync(plan, ct);
+                outcome = await RestoreInOneStepAsync(v, plan, id, db, writer, rules, status, user, locks, ct);
             }
-            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                return Results.Conflict("Two rows in that version have the same name, so it can't be restored as it was. Nothing was changed. Try Import instead");
+                // The change didn't happen, so the copy of the unchanged table isn't needed
+                if (copyId is long unused) await collector.DeleteVersionAsync(unused);
+                if (ex is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+                {
+                    return Results.Conflict(SameNameMessage);
+                }
+                throw;
             }
 
-            var rulesRestored = false;
-            if (v.Rules is not null && rules.Differs(v.Rules))
+            try
             {
-                await rules.SaveAsync(db, RulesService.ParseFields(v.Rules), $"Restored from version {id}", user.Name, ct, copyFirst: false);
-                rulesRestored = true;
+                await collector.LogChangeAsync(null, "restore", new { Rows = outcome.RowsBefore },
+                    new { RestoredFrom = id, Rows = outcome.Restored }, rules.Current.Version, user.Name, "done", ct);
             }
-
-            int? requestId = null;
-            var current = status.AppliedMigrations.ToList();
-            if (!current.ToHashSet().SetEquals(v.Summary.Migrations))
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                var request = await RequestService.CreateAsync(db, locks, "restore-layout",
-                    $"Bring back the table layout of version #{id}",
-                    $"Version #{id} was restored, but the table looked different back then. Its rows were fitted into today's layout. A developer is needed to bring the old layout back.",
-                    Drafts.RestoreLayout(id, v.Summary.Migrations.Except(current), current.Except(v.Summary.Migrations)),
-                    user.Name, ct: ct);
-                requestId = request.Request.Id;
+                log.LogWarning(ex, "Restore went through but the collector log failed");
             }
+            await collector.ApplyRetentionQuietlyAsync(id, ct);
 
             return Results.Ok(new
             {
-                Restored = restored,
+                outcome.Restored,
                 Skipped = plan.Rows.Where(r => r.Skip is not null).Select(r => r.Skip),
                 LostValues = plan.Rows.Count(r => r.Lost.Count > 0),
-                RulesRestored = rulesRestored,
-                RequestId = requestId
+                outcome.RulesRestored,
+                outcome.RequestId
             });
         });
 
@@ -165,6 +171,7 @@ public static class HistoryEndpoints
             await using var tableLock = await locks.TakeAsync(AppLock.Table, ct);
             var v = await collector.GetVersionAsync(id, ct);
             if (v is null) return NotFound(id);
+            if (v.Summary.Damaged) return Results.Conflict(DamagedMessage);
             var plan = await writer.PlanAsync(v, forRestore: false, ct);
             return Results.Ok(new
             {
@@ -197,6 +204,7 @@ public static class HistoryEndpoints
             await using var tableLock = await locks.TakeAsync(AppLock.Table, ct);
             var v = await collector.GetVersionAsync(id, ct);
             if (v is null) return NotFound(id);
+            if (v.Summary.Damaged) return Results.Conflict(DamagedMessage);
             var plan = await writer.PlanAsync(v, forRestore: false, ct);
             if (plan.RulesDiffer && !body.Confirm)
             {
@@ -222,9 +230,10 @@ public static class HistoryEndpoints
                 }
             }
 
+            long? copyId;
             try
             {
-                await collector.SaveVersionAsync($"Before importing from version {id}", user.Name, ct);
+                copyId = await collector.SaveVersionAsync($"Before importing from version {id}", user.Name, ct, applyRetention: false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -232,10 +241,20 @@ public static class HistoryEndpoints
                 return BackupFailed("nothing was imported");
             }
 
-            var added = await writer.ImportAsync(plan, ct);
+            List<(PlannedRow Row, int NewId, JsonElement Snapshot)> added;
             try
             {
-                await collector.LogImportsAsync(added.Select(a => (a.NewId, (object)new { Id = a.NewId, a.Row.Name, ImportedFrom = id })),
+                added = await writer.ImportAsync(plan, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Nothing was imported, so the copy of the unchanged table isn't needed
+                if (copyId is long unused) await collector.DeleteVersionAsync(unused);
+                throw;
+            }
+            try
+            {
+                await collector.LogImportsAsync(added.Select(a => (a.NewId, (object)a.Snapshot)),
                     rules.Current.Version, user.Name, ct);
             }
             catch (Exception ex)
@@ -251,6 +270,7 @@ public static class HistoryEndpoints
                     Drafts.RenamedColumn(column, id), user.Name, ct: ct);
                 requests.Add(request.Request.Id);
             }
+            await collector.ApplyRetentionQuietlyAsync(id, ct);
 
             return Results.Ok(new
             {
@@ -265,7 +285,17 @@ public static class HistoryEndpoints
             });
         });
 
+        history.MapSettingsFile();
+
         history.MapGet("/settings", (SettingsService settings) => Results.Ok(settings.Retention));
+
+        // How many saved versions these settings would remove, nothing is saved or deleted
+        history.MapPost("/settings/preview", async (Retention body, CollectorStore collector, CancellationToken ct) =>
+        {
+            var errors = SettingsService.Check(body);
+            if (errors.Count > 0) return Results.ValidationProblem(errors);
+            return Results.Ok(new { WillRemove = await collector.CountRemovableAsync(body, 0, ct) });
+        });
 
         history.MapPut("/settings", async (Retention body, SettingsService settings, CollectorStore collector,
             AppDbContext db, ICurrentUser user, AppLocks locks, ILogger<SettingsService> log, CancellationToken ct) =>
@@ -289,6 +319,74 @@ public static class HistoryEndpoints
                     Removed = (int?)null,
                     Note = "Saved. Old versions will be removed the next time history is reachable"
                 });
+            }
+        });
+    }
+
+    private const string DamagedMessage = "That saved version is damaged, so it can't be used. Nothing was changed";
+
+    private const string SameNameMessage =
+        "Two rows in that version have the same name, so it can't be restored as it was. Nothing was changed. Try Import instead";
+
+    private record RestoreOutcome(int Restored, bool RulesRestored, int? RequestId, int RowsBefore);
+
+    // Rows, rules and the developer request go in together. If any of them fails nothing is kept,
+    // and the rules in memory are loaded again so they match the database.
+    private static Task<RestoreOutcome> RestoreInOneStepAsync(VersionDetail v, ImportPlan plan, long id, AppDbContext db,
+        TableWriter writer, RulesService rules, DatabaseStatus status, ICurrentUser user, AppLocks locks, CancellationToken ct)
+    {
+        var strategy = db.Database.CreateExecutionStrategy();
+        return strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            try
+            {
+                var rowsBefore = await db.Industries.CountAsync(ct);
+                var restored = await writer.RestoreAsync(plan, (NpgsqlConnection)db.Database.GetDbConnection(),
+                    (NpgsqlTransaction)tx.GetDbTransaction(), ct);
+
+                var rulesRestored = false;
+                if (v.Rules is not null && rules.Differs(v.Rules))
+                {
+                    await rules.SaveAsync(db, RulesService.ParseFields(v.Rules), $"Restored from version {id}", user.Name, ct, copyFirst: false);
+                    rulesRestored = true;
+                }
+
+                int? requestId = null;
+                var current = status.AppliedMigrations.ToList();
+                if (!current.ToHashSet().SetEquals(v.Summary.Migrations))
+                {
+                    var request = await RequestService.CreateAsync(db, locks, "restore-layout",
+                        $"Bring back the table layout of version #{id}",
+                        $"Version #{id} was restored, but the table looked different back then. Its rows were fitted into today's layout. A developer is needed to bring the old layout back.",
+                        Drafts.RestoreLayout(id, v.Summary.Migrations.Except(current), current.Except(v.Summary.Migrations)),
+                        user.Name, ct: ct);
+                    requestId = request.Request.Id;
+                }
+
+                await tx.CommitAsync(ct);
+                return new RestoreOutcome(restored, rulesRestored, requestId, rowsBefore);
+            }
+            catch
+            {
+                try
+                {
+                    await tx.RollbackAsync(CancellationToken.None);
+                }
+                catch
+                {
+                    // The connection is gone, so the transaction is already rolled back
+                }
+                db.ChangeTracker.Clear();
+                try
+                {
+                    await rules.LoadAsync(db, CancellationToken.None);
+                }
+                catch
+                {
+                    // The next save loads them again
+                }
+                throw;
             }
         });
     }

@@ -218,7 +218,7 @@ input:focus, select:focus{
 }
 
 input::placeholder{
-    color: var(--faint);
+    color: var(--muted);
 }
 
 input.ng-invalid.ng-dirty, select.ng-invalid.ng-dirty{
@@ -273,7 +273,7 @@ button:focus-visible{
 }
 
 button:disabled{
-    opacity: 0.3;
+    opacity: 0.6;
     cursor: not-allowed;
 }
 
@@ -547,7 +547,7 @@ select.placeholder option{
 }
 
 .panel input::placeholder{
-    color: var(--faint);
+    color: var(--p-muted);
     text-transform: uppercase;
     letter-spacing: 0.06em;
     font-size: 0.75rem;
@@ -711,6 +711,13 @@ tbody tr:hover, tbody tr.editing{
     background: var(--p-hover);
 }
 
+/* A long name is cut with ... so one name can't push every other column off the screen. The full name shows on hover. */
+td.name{
+    max-width: 15rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* Name and price stand out by weight only */
 td.accent{
     font-weight: 600;
@@ -730,6 +737,23 @@ tbody tr.editing td:first-child{
 
 .actions{
     text-align: right;
+}
+
+/* The buttons stay in view when a wide table scrolls sideways. The solid background hides what scrolls under them,
+   and the overlays give the row's own hover or amber colour on top of it. */
+td.actions, th.actions-col{
+    position: sticky;
+    right: 0;
+    background-color: var(--p-bg);
+    box-shadow: inset 1px 0 0 var(--p-border);
+}
+
+tbody tr:hover td.actions, tbody tr.editing td.actions{
+    background-image: linear-gradient(var(--p-hover), var(--p-hover));
+}
+
+tbody tr.similar td.actions, tbody tr.similar:hover td.actions{
+    background-image: linear-gradient(var(--similar-bg), var(--similar-bg));
 }
 
 .edit-btn, .remove-btn{
@@ -756,10 +780,44 @@ tbody tr.editing td:first-child{
 }
 
 /* Delete turns dark red on hover */
-.remove-btn:hover{
+.remove-btn{
+    color: var(--danger);
+    border-color: color-mix(in srgb, var(--danger) 40%, var(--p-border));
+}
+
+.remove-btn:disabled{
+    color: var(--p-muted);
+    border-color: var(--p-border);
+}
+
+.remove-btn:hover:not(:disabled), .remove-btn.confirming{
     border-color: var(--danger-bg);
     background: var(--danger-bg);
     color: #ffffff;
+}
+
+tbody tr.similar .edit-btn, tbody tr.similar .remove-btn:not(.confirming){
+    background: var(--p-bg);
+}
+
+/* A soft edge where the pinned Actions column starts, so it reads as a column and not a cut-off */
+td.actions, th.actions-col{
+    box-shadow: inset 1px 0 0 var(--p-border), -10px 0 10px -10px rgba(0, 0, 0, 0.18);
+}
+
+/* On an amber row the grey ID and date would be too faint, so they take the full text colour */
+tbody tr.similar .id, tbody tr.similar .muted, tbody tr.similar td.muted{
+    color: var(--p-text);
+}
+
+/* The question that replaces Edit and Delete on a row while it waits for a yes */
+.confirm-text{
+    display: block;
+    margin-bottom: 0.4rem;
+    color: var(--p-text);
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
 }
 
 /* Similar rows from an import, amber is the one color in the design so they stand out */
@@ -887,6 +945,31 @@ input.bad{
 
 /* Phone */
 @media (max-width: 480px) {
+    /* The row number goes, so the name has room. The amber and editing edges move to the name cell. */
+    .industries thead th:first-child, .industries tbody td:first-child{
+        display: none;
+    }
+
+    .industries tbody tr.similar td:nth-child(2){
+        box-shadow: inset 3px 0 0 var(--similar-edge);
+    }
+
+    .industries tbody tr.editing td:nth-child(2){
+        box-shadow: inset 3px 0 0 var(--p-text);
+    }
+
+    /* The question in a row wraps, so the pinned column stays narrow */
+    .confirm-text{
+        max-width: 8.5rem;
+        white-space: normal;
+        text-align: right;
+    }
+
+    /* The pinned Actions column shows icons only, so more of the table fits next to it */
+    .actions .btn-text{
+        display: none;
+    }
+
     form{
         grid-template-columns: 1fr;
     }
@@ -944,4 +1027,10 @@ input.bad{
         flex-direction: column;
         align-items: flex-start;
     }
+}
+
+/* A problem with what was typed sits right above the button that is waiting on it */
+.form-problem{
+    grid-column: 1 / -1;
+    margin: 0;
 }

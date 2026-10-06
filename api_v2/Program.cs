@@ -9,11 +9,20 @@ using api_v2.Auth;
 using api_v2.Rules;
 using api_v2.Backups;
 using Npgsql;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddCors(options => options.AddPolicy("Angular", policy => 
-policy.WithOrigins("http://localhost:4200").AllowAnyHeader().AllowAnyMethod()));
+// Pages that may call the API. Cors:Origins in appsettings overrides this list, the Angular dev server is the default.
+var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() is { Length: > 0 } configured
+    ? configured
+    : ["http://localhost:4200"];
+builder.Services.AddCors(options => options.AddPolicy("Angular", policy =>
+    policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("Content-Disposition")));
+// A number has to arrive as a number, "5" as text is refused
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.Strict);
 builder.Services.AddValidation(); // Validating all the required, range, and length in Dtos folder
 builder.Services.AddProblemDetails();
 builder.Services.Configure<RouteHandlerOptions>(o => o.ThrowOnBadRequest = true);
@@ -37,7 +46,23 @@ builder.Services.AddSingleton<api_v2.History.TableWriter>();
 builder.Services.AddSingleton<RulesService>();
 builder.Services.AddSingleton<BackupService>();
 builder.Services.AddHostedService<BackupScheduler>();
-builder.Services.AddScoped<ICurrentUser, NoAuthUser>();
+// Who is signed in comes from the token the page sends, see Auth/CurrentUser.cs
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, SessionUser>();
+// Signing in is limited per address, so a password can't be guessed by trying over and over
+var loginTries = builder.Configuration.GetValue("Auth:LoginTriesPerMinute", 5);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("login", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = loginTries, Window = TimeSpan.FromMinutes(1) }));
+    options.OnRejected = async (context, token) =>
+    {
+        await Results.Problem("Too many tries. Wait a minute and try again", statusCode: StatusCodes.Status429TooManyRequests,
+            title: "Slow down").ExecuteAsync(context.HttpContext);
+    };
+});
 
 var app = builder.Build();
 
@@ -58,9 +83,12 @@ app.UseExceptionHandler(errors =>
 });
 
 app.UseCors("Angular");
+app.UseRateLimiter();
 
 // Always 200 so the frontend can read the state, the body says if the database is usable
 app.MapGet("/health", (DatabaseStatus status) => Results.Ok(status.Snapshot()));
+app.MapAuth();
+app.MapUsers();
 app.MapIndustries();
 app.MapSchema();
 app.MapHistory();

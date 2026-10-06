@@ -14,6 +14,7 @@ public class MigrationService(
     RulesService rules,
     SettingsService settings,
     AppLocks locks,
+    IConfiguration config,
     ILogger<MigrationService> log) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken ct)
@@ -77,6 +78,8 @@ public class MigrationService(
                         await rules.SyncSectorsAsync(db, ct);
                     }
                     await settings.LoadAsync(db, ct);
+                    // Someone must always be able to sign in, see UserService.EnsureAdminAsync
+                    await Auth.UserService.EnsureAdminAsync(db, config, log, ct);
 
                     var applied = (await db.Database.GetAppliedMigrationsAsync(ct)).ToList();
                     var message = pending.Count == 0

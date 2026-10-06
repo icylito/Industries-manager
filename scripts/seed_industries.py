@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import random
 import sys
 import threading
@@ -64,6 +65,7 @@ class Seeder:
         self.api = config["api"]
         self.bad_kinds = config["broken_rows"]["kinds"]
         self.base_url = self.api["base_url"].rstrip("/")
+        self.token: str | None = None
         self.lock = threading.Lock()
         self.used_names: set[str] = set()
         self.accepted_names: list[str] = []
@@ -125,12 +127,16 @@ class Seeder:
 
     def request(self, method: str, path: str, body: dict | None = None) -> tuple[int, str]:
         data = json.dumps(body).encode() if body is not None else None
-        req = urllib.request.Request(self.base_url + path, data=data, method=method,
-                                     headers={"Content-Type": "application/json"})
+        headers = {"Content-Type": "application/json"}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+        req = urllib.request.Request(self.base_url + path, data=data, method=method, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=self.api["request_timeout_seconds"]) as resp:
                 return resp.status, resp.read().decode()
         except urllib.error.HTTPError as e:
+            if e.code == 401 and not self.token:
+                sys.exit("The API needs a sign in. Set SEED_USER and SEED_PASSWORD (an account from the Users page) and run again")
             return e.code, e.read().decode()
 
     def post_with_retry(self, row: dict) -> tuple[int, str]:
@@ -228,8 +234,19 @@ class Seeder:
             return 0
         return max(1, round(valid_count * self.gen["bad_row_rate"]))
 
+    def sign_in(self) -> None:
+        user, password = os.environ.get("SEED_USER"), os.environ.get("SEED_PASSWORD")
+        if not user or not password:
+            return
+        status, body = self.request("POST", "/auth/login", {"username": user, "password": password})
+        if status != 200:
+            sys.exit(f"Couldn't sign in as {user}: {json.loads(body).get('detail', body)}")
+        self.token = json.loads(body)["token"]
+        print(f"Signed in as {user}")
+
     def run(self, count: int) -> int:
         self.wait_until_ready()
+        self.sign_in()
         self.load_rules()
         self.load_existing_names()
         started = time.time()

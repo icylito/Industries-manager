@@ -12,14 +12,14 @@ public static class SchemaEndpoints
         var schema = app.MapGroup("/schema").RequireDatabaseReady();
 
         // The rules in use, the page builds its limits and rule chips from this
-        schema.MapGet("/", (RulesService rules) => Results.Ok(rules.Current));
+        schema.MapGet("/", (RulesService rules) => Results.Ok(rules.Current)).RequireViewer();
 
         // Every rules version, newest first
         schema.MapGet("/versions", async (AppDbContext db) =>
         {
             var rows = await db.RuleVersions.OrderByDescending(r => r.Id).ToListAsync();
             return Results.Ok(rows.Select(RulesService.ToRuleSet));
-        });
+        }).RequireSignIn();
 
         // Saves new rules as the next version, a full copy of the table goes to the collector first
         schema.MapPut("/", async (SaveRules body, AppDbContext db, RulesService rules, ICurrentUser user,

@@ -82,6 +82,32 @@ export interface VersionSummary {
     rulesVersion: number | null;
     pinned: boolean;
     sameLayout: boolean;
+    // A saved value couldn't be read, so it can't be restored or brought back
+    damaged: boolean;
+}
+
+// The file Export settings makes and Import settings reads
+export interface SettingsFile {
+    app: string;
+    format: number;
+    exportedAt?: string;
+    retention?: Retention | null;
+    fields?: FieldRule[] | null;
+}
+
+export interface SettingsImportPreview {
+    rulesChanged: boolean;
+    retentionChanged: boolean;
+    retention: Retention | null;
+    ignored: string[];
+    willRemove: number;
+}
+
+export interface SettingsImportResult {
+    rulesChanged: boolean;
+    retentionChanged: boolean;
+    ignored: string[];
+    removed: number;
 }
 
 export interface VersionDetail extends VersionSummary {
@@ -169,4 +195,27 @@ export interface DevRequest {
     fieldKey: string | null;
     resolvedAt: string | null;
     resolvedBy: string | null;
+}
+
+// Accounts. The API never sends a password hash.
+export interface AuthUser {
+    id: number;
+    username: string;
+    role: 'admin' | 'normal';
+    disabled: boolean;
+    mustChangePassword: boolean;
+    createdAt: string;
+    lastLoginAt: string | null;
+}
+
+export interface LoginResult {
+    token: string;
+    expiresAt: string;
+    user: AuthUser;
+}
+
+// A new or reset account. The temporary password is shown once.
+export interface NewUserResult {
+    user: AuthUser;
+    temporaryPassword: string;
 }

@@ -136,14 +136,18 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
                 anyRuleProblem = true;
             }
 
-            var oldId = data.TryGetValue("Id", out var idJson) && idJson.ValueKind == JsonValueKind.Number ? idJson.GetInt32() : (int?)null;
+            // An id that isn't a whole number can't be put back, so that row is skipped
+            var idUnreadable = data.TryGetValue("Id", out var idJson) && idJson.ValueKind != JsonValueKind.Null
+                && !(idJson.ValueKind == JsonValueKind.Number && idJson.TryGetInt32(out _));
+            var oldId = !idUnreadable && idJson.ValueKind == JsonValueKind.Number ? idJson.GetInt32() : (int?)null;
             var name = Names.Clean(values.GetValueOrDefault("name") as string);
             values["name"] = name;
             foreach (var key in columnValues.Keys.Where(k => string.Equals(k, "Name", StringComparison.OrdinalIgnoreCase)).ToList())
             {
                 columnValues[key] = name;
             }
-            string? skip = string.IsNullOrEmpty(name) ? $"Row #{oldId} has no name, so it was skipped"
+            string? skip = idUnreadable ? "A row has an id that isn't a whole number, so it was skipped"
+                : string.IsNullOrEmpty(name) ? $"Row #{oldId} has no name, so it was skipped"
                 : name!.Length > Names.MaxLength ? $"Row #{oldId} has a name longer than {Names.MaxLength} characters, so it was skipped"
                 : null;
 
@@ -154,7 +158,8 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
             int? keepImported = forRestore ? IntOrNull(data, "ImportedFrom") : null;
             if (forRestore && data.TryGetValue("LostFields", out var oldLost) && oldLost.ValueKind == JsonValueKind.Array)
             {
-                lost.InsertRange(0, oldLost.EnumerateArray().Select(e => e.GetString()!).Where(k => !lost.Contains(k)));
+                lost.InsertRange(0, oldLost.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.String)
+                    .Select(e => e.GetString()!).Where(k => !lost.Contains(k)));
             }
 
             planned.Add(new PlannedRow(oldId, name, values, columnValues, extra, lost, problems, similarTo, similarInBatch, skip,
@@ -188,7 +193,8 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
     }
 
     // Adds the planned rows as new rows with new ids. Returns the new ids per planned row.
-    public async Task<List<(PlannedRow Row, int NewId)>> ImportAsync(ImportPlan plan, CancellationToken ct)
+    // Snapshot is the row as it was saved, for the collector log.
+    public async Task<List<(PlannedRow Row, int NewId, JsonElement Snapshot)>> ImportAsync(ImportPlan plan, CancellationToken ct)
     {
         await using var conn = new NpgsqlConnection(connections.Main);
         await conn.OpenAsync(ct);
@@ -205,26 +211,42 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
 
         var keys = await Names.KeysAsync(conn, tx,
             plan.Rows.Where(r => r.Skip is null && !string.IsNullOrEmpty(r.Name)).Select(r => r.Name!), ct);
-        var added = new List<(PlannedRow, int)>();
+        var added = new List<(PlannedRow, int, JsonElement)>();
         foreach (var row in plan.Rows.Where(r => r.Skip is null))
         {
             var normal = keys[row.Name!];
             int? duplicateOf = owners.TryGetValue(normal, out var owner) ? owner : null;
             var id = await InsertAsync(conn, tx, columns, row, id: null, duplicateOf, (int)plan.VersionId, ct);
             if (duplicateOf is null) owners[normal] = id;
-            added.Add((row, id));
+
+            await using var read = new NpgsqlCommand($"""SELECT row_to_json(t)::text FROM "{Table}" t WHERE "Id" = @id""", conn, tx);
+            read.Parameters.AddWithValue("id", id);
+            var snapshot = JsonDocument.Parse((string)(await read.ExecuteScalarAsync(ct))!).RootElement.Clone();
+            added.Add((row, id, snapshot));
         }
         await tx.CommitAsync(ct);
         return added;
     }
 
-    // Swaps every row in the table for the version's rows, keeping their old ids. One transaction, all or nothing.
-    public async Task<int> RestoreAsync(ImportPlan plan, CancellationToken ct)
+    // True when two rows that would be restored as originals share a name, the unique index would refuse that.
+    // Flagged copies keep their flag and don't count, same as the index.
+    public async Task<bool> HasNameClashAsync(ImportPlan plan, CancellationToken ct)
     {
+        var names = plan.Rows.Where(r => r.Skip is null && r.KeepDuplicateOf is null && !string.IsNullOrEmpty(r.Name))
+            .Select(r => r.Name!).ToList();
+        if (names.Count < 2) return false;
         await using var conn = new NpgsqlConnection(connections.Main);
         await conn.OpenAsync(ct);
+        var keys = await Names.KeysAsync(conn, null, names, ct);
+        var seen = new HashSet<string>();
+        return names.Any(n => !seen.Add(keys[n]));
+    }
+
+    // Swaps every row in the table for the version's rows, keeping their old ids.
+    // The caller owns the transaction, so the rules and the request can join it and it is all or nothing.
+    public async Task<int> RestoreAsync(ImportPlan plan, NpgsqlConnection conn, NpgsqlTransaction tx, CancellationToken ct)
+    {
         var columns = await CurrentColumnsAsync(conn, ct);
-        await using var tx = await conn.BeginTransactionAsync(ct);
 
         await using (var clear = new NpgsqlCommand($"""DELETE FROM "{Table}" """, conn, tx))
         {
@@ -245,7 +267,6 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
         {
             await seq.ExecuteScalarAsync(ct);
         }
-        await tx.CommitAsync(ct);
         return count;
     }
 

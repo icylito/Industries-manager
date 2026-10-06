@@ -5,7 +5,7 @@
         <div class="panel-title">
             <h2><i class="fa-solid fa-sliders" aria-hidden="true"></i>Fields</h2>
             @if (rules(); as r) {
-                <span class="db-status">Rules version {{ r.version }}</span>
+                <span class="db-status">Version {{ r.version }}</span>
             }
         </div>
     </header>
@@ -44,7 +44,7 @@
                                     }
                                 </span>
                             }
-                            <p class="hint-line sector-hint">Change them in scripts/config.toml</p>
+                            <p class="hint-line sector-hint">Ask a developer to change this list</p>
                         }
                     </div>
 

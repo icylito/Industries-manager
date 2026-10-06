@@ -258,6 +258,9 @@ a.add-btn{
     }
 
     .versions td.actions{
+        position: static;
+        background: none;
+        box-shadow: none;
         grid-column: 1 / -1;
         display: flex;
         flex-wrap: wrap;
@@ -270,4 +273,25 @@ a.add-btn{
     .versions .actions button + button{
         margin-left: 0;
     }
+}
+
+/* A saved version whose data couldn't be read */
+.tag.damaged{
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.5rem;
+    padding: 0.1rem 0.5rem;
+    border: 1px solid var(--p-text);
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+/* Export and Import settings sit side by side and wrap on a phone */
+.settings-row.buttons{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
 }

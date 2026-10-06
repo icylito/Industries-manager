@@ -20,7 +20,7 @@ public static class IndustryEndpoints
             {
                 var rows = await db.Industries.AsNoTracking().OrderBy(i => i.Id).ToListAsync();
                 return Results.Ok(rows.Select(ToDto));
-            });
+            }).RequireViewer();
 
             // Get with Id
 
@@ -33,7 +33,7 @@ public static class IndustryEndpoints
                     return Results.NotFound("There is no row with that id");
                 }
                 return Results.Ok(ToDto(checker));
-            });
+            }).RequireViewer();
 
             // Post basically adding functions to the table
 
@@ -94,7 +94,7 @@ public static class IndustryEndpoints
                 }
                 await collector.FinishChangeAsync(changeId, true, rowId: industry.Id, after: Snapshot(industry));
                 return Results.Created($"/industries/{industry.Id}", ToDto(industry));
-            });
+            }).RequireSignIn();
 
             // Put or update the available tables
             group.MapPut("/update/{id}", async (int id, UpdateIndustry update, AppDbContext db, RulesService rules,
@@ -108,7 +108,7 @@ public static class IndustryEndpoints
                     return Results.NotFound("The row doesn't exist");
                 }
 
-                var input = rules.Read(update.Name, update.Sector, update.Price, update.Release, update.Extra, checker2.Sector);
+                var input = rules.Read(update.Name, update.Sector, update.Price, update.Release, update.Extra, checker2.Sector, checker2.Extra);
                 if (input.Errors.Count > 0)
                 {
                     return Results.ValidationProblem(input.Errors);
@@ -163,10 +163,10 @@ public static class IndustryEndpoints
                 }
                 if (renamed)
                 {
-                    await ResolveDuplicatesAsync(db, id);
+                    await ResolveDuplicatesAsync(db, id, collector, rules, user);
                 }
                 return Results.NoContent();
-            });
+            }).RequireSignIn();
 
             // Detele
             group.MapDelete("/{id}", async (int id, AppDbContext db, RulesService rules,
@@ -207,9 +207,9 @@ public static class IndustryEndpoints
                     throw;
                 }
                 await collector.FinishChangeAsync(changeId, done: true);
-                await ResolveDuplicatesAsync(db, id);
+                await ResolveDuplicatesAsync(db, id, collector, rules, user);
                 return Results.Content("The row has been deleted");
-            });
+            }).RequireSignIn();
 
     }
 
@@ -242,7 +242,8 @@ public static class IndustryEndpoints
 
     // When a row that imported rows were flagged against gets renamed or deleted, the oldest of those
     // rows takes its place and the others point at it, so the similar row flags stay right
-    private static async Task ResolveDuplicatesAsync(AppDbContext db, int ownerId)
+    private static async Task ResolveDuplicatesAsync(AppDbContext db, int ownerId, CollectorStore collector,
+        RulesService rules, ICurrentUser user)
     {
         var flagged = await db.Industries.Where(r => r.DuplicateOf == ownerId).OrderBy(r => r.Id).ToListAsync();
         if (flagged.Count == 0) return;
@@ -265,7 +266,21 @@ public static class IndustryEndpoints
             flagged[0].DuplicateOf = null;
             foreach (var row in flagged.Skip(1)) row.DuplicateOf = flagged[0].Id;
         }
-        TrySave(db);
+        if (!TrySave(db)) return;
+
+        // The flags moved by themselves, so the log gets one entry per row that now points somewhere else
+        foreach (var row in flagged)
+        {
+            try
+            {
+                await collector.LogChangeAsync(row.Id, "flag-move", new { row.Id, DuplicateOf = (int?)ownerId },
+                    new { row.Id, row.DuplicateOf }, rules.Current.Version, user.Name, "done");
+            }
+            catch (Exception)
+            {
+                // The flags already moved, a missing log line isn't worth failing the delete or rename
+            }
+        }
     }
 
     // The unique index catches 2 saves of the same name at the same moment, which the check above can miss.

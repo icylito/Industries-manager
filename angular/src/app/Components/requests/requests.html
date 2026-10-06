@@ -56,7 +56,9 @@
         <p class="state state-error"><i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"></i>{{ error() }}</p>
     } @else if (requests().length === 0) {
         <p class="state"><i class="fa-solid fa-mug-hot" aria-hidden="true"></i>
-            {{ filter() === 'open' ? 'Nothing waiting for a developer.' : 'No requests here.' }}</p>
+            {{ filter() === 'open' ? 'Nothing waiting for a developer.' : 'No ' + (filter() === 'all' ? '' : filter() + ' ') + 'requests yet.' }}
+            @if (filter() !== 'open') { <button type="button" class="link-btn" (click)="setFilter('open')">See the open ones</button> }
+        </p>
     } @else {
         <ul class="request-list">
             @for (r of requests(); track r.id) {
@@ -74,6 +76,7 @@
                                 }
                             </p>
                         </div>
+                        @if (auth.isAdmin()) {
                         <div class="request-actions">
                             @if (r.status === 'open') {
                                 <button type="button" class="edit-btn" (click)="setStatus(r, 'done')"><i class="fa-solid fa-check" aria-hidden="true"></i>Done</button>
@@ -82,6 +85,7 @@
                                 <button type="button" class="edit-btn" (click)="setStatus(r, 'open')"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Reopen</button>
                             }
                         </div>
+                        }
                     </div>
                     @if (r.details) {
                         <p class="details">{{ r.details }}</p>

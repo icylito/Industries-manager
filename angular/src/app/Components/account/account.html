@@ -1,0 +1,53 @@
+<!-- The signed in person: who they are, and a new password -->
+@if (auth.user(); as user) {
+    <section class="card narrow">
+        <header class="card-head">
+            <h2><span class="title-icon"><i class="fa-solid fa-user" aria-hidden="true"></i></span>{{ user.username }}</h2>
+            <span class="db-status">{{ user.role === 'admin' ? 'Admin' : 'Can edit rows' }}</span>
+        </header>
+
+        @if (user.mustChangePassword) {
+            <p class="hint-line"><i class="fa-solid fa-circle-info" aria-hidden="true"></i>Pick a password of your own before you carry on.</p>
+        } @else {
+            <p class="intro">Change your password. You'll be signed out of your other devices.</p>
+        }
+
+        <form class="auth-form" (submit)="submit($event)">
+            <label class="field">
+                <span class="field-label">{{ user.mustChangePassword ? 'The temporary password you were given' : 'Current password' }}</span>
+                <span class="control">
+                    <i class="fa-solid fa-key" aria-hidden="true"></i>
+                    <input type="password" autocomplete="current-password" [value]="current()" (input)="current.set($any($event.target).value)">
+                </span>
+            </label>
+            <label class="field">
+                <span class="field-label">New password <span class="optional">at least 10 characters</span></span>
+                <span class="control">
+                    <i class="fa-solid fa-lock" aria-hidden="true"></i>
+                    <input type="password" autocomplete="new-password" [value]="next()" (input)="next.set($any($event.target).value)">
+                </span>
+            </label>
+            <label class="field">
+                <span class="field-label">New password again</span>
+                <span class="control">
+                    <i class="fa-solid fa-lock" aria-hidden="true"></i>
+                    <input type="password" autocomplete="new-password" [value]="repeat()" (input)="repeat.set($any($event.target).value)">
+                </span>
+            </label>
+            @if (error()) {
+                <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ error() }}</p>
+            }
+            @if (done()) {
+                <p class="result small"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>Password changed.</p>
+            }
+            <button type="submit" class="add-btn" [disabled]="busy()">
+                @if (busy()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Saving... }
+                @else { <i class="fa-solid fa-check" aria-hidden="true"></i>Change password }
+            </button>
+        </form>
+
+        <div class="confirm-row end">
+            <button type="button" class="cancel-btn" (click)="auth.logout()"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>Sign out</button>
+        </div>
+    </section>
+}

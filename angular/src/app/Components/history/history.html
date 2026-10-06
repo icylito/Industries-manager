@@ -11,7 +11,8 @@
     </header>
 
     <p class="intro">A copy of the whole table is saved before the rules change, before the table gets updated,
-        and before any restore or import, so you can always go back.</p>
+        and before any restore or import, so you can always go back.
+        <strong>Bring back</strong> adds a version's rows to the table as new rows. <strong>Restore</strong> replaces the whole table with that version.</p>
 
     @if (notice()) {
         <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ notice() }}</p>
@@ -44,8 +45,11 @@
                                         <i class="fa-solid fa-thumbtack pin-mark" title="Pinned, never removed" aria-label="Pinned"></i>
                                     }
                                     {{ describe(v.reason) }}
+                                    @if (v.damaged) {
+                                        <span class="tag damaged" title="A saved value in this version couldn't be read">Damaged</span>
+                                    }
                                 </span>
-                                <span class="sub">{{ formatDate(v.createdAt) }} · {{ v.sameLayout ? 'Same columns as today' : 'Different columns back then' }}</span>
+                                <span class="sub">{{ formatDate(v.createdAt) }} · {{ v.damaged ? "Can't be restored or brought back" : v.sameLayout ? 'Same table layout' : 'Other table layout' }}</span>
                             </td>
                             <td class="num accent">{{ v.rowCount }}</td>
                             <td class="actions">
@@ -59,10 +63,10 @@
                                     [attr.aria-label]="v.pinned ? 'Unpin' : 'Pin so it never gets removed'" [attr.title]="v.pinned ? 'Unpin' : 'Pin so it never gets removed'">
                                     <i class="fa-solid fa-thumbtack" aria-hidden="true"></i>
                                 </button>
-                                <button type="button" class="edit-btn" [disabled]="busy()" (click)="askImport(v)">
+                                <button type="button" class="edit-btn" [disabled]="busy() || v.damaged" (click)="askImport(v)">
                                     <i class="fa-solid fa-file-import" aria-hidden="true"></i>Bring back
                                 </button>
-                                <button type="button" class="edit-btn" (click)="askRestore(v)">
+                                <button type="button" class="remove-btn" [disabled]="v.damaged" (click)="askRestore(v)">
                                     <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore
                                 </button>
                             </td>
@@ -309,13 +313,67 @@
                 <span class="unit">days</span>
             </span>
         </label>
-        <button type="button" class="add-btn" (click)="saveRetention()"><i class="fa-solid fa-check" aria-hidden="true"></i>Save</button>
+        <button type="button" class="add-btn" [disabled]="retentionBusy()" (click)="saveRetention()">
+            @if (retentionBusy()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Saving... }
+            @else { <i class="fa-solid fa-check" aria-hidden="true"></i>Save }
+        </button>
     </div>
+    @if (retentionAsk(); as count) {
+        <div class="ask">
+            <p><i class="fa-solid fa-circle-question" aria-hidden="true"></i>This removes {{ count }} saved {{ count === 1 ? 'version' : 'versions' }} for good. Pinned versions stay.</p>
+            <div class="confirm-row end">
+                <button type="button" class="cancel-btn" (click)="retentionAsk.set(null)">Cancel</button>
+                <button type="button" class="add-btn danger" (click)="confirmRetention()">Remove {{ count }}</button>
+            </div>
+        </div>
+    }
     @if (retentionMsg()) {
         <p class="result small"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ retentionMsg() }}</p>
     }
     @if (retentionError()) {
         <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ retentionError() }}</p>
+    }
+</section>
+
+<!-- Retention and the field rules as a file -->
+<section class="card">
+    <header class="card-head">
+        <h2><span class="title-icon"><i class="fa-solid fa-file-code" aria-hidden="true"></i></span>Settings file</h2>
+    </header>
+    <p class="intro">Save how long old versions are kept and the field labels and limits to a file, or load them from one.
+        Importing saves a copy of the table first, so you can go back from this page.</p>
+    <div class="settings-row buttons">
+        <button type="button" class="cancel-btn" (click)="exportSettings()">
+            <i class="fa-solid fa-file-export" aria-hidden="true"></i>Export settings
+        </button>
+        <button type="button" class="cancel-btn" [disabled]="settingsBusy()" (click)="settingsFile.click()">
+            @if (settingsBusy() && !settingsAsk()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Reading... }
+            @else { <i class="fa-solid fa-file-import" aria-hidden="true"></i>Import settings }
+        </button>
+        <input #settingsFile type="file" accept=".json,application/json" hidden (change)="chooseSettingsFile(settingsFile)">
+    </div>
+    @if (settingsAsk(); as ask) {
+        <div class="ask">
+            <p><i class="fa-solid fa-circle-question" aria-hidden="true"></i>{{ settingsSummary(ask.preview) }}
+                @if (ask.preview.willRemove) { {{ ask.preview.willRemove }} saved {{ ask.preview.willRemove === 1 ? 'version' : 'versions' }} would be removed for good. }
+                @if (ask.preview.ignored.length) { {{ ask.preview.ignored.length }} {{ ask.preview.ignored.length === 1 ? 'field in the file isn\'t' : 'fields in the file aren\'t' }} in this table and will be left out. }
+            </p>
+            <div class="confirm-row end">
+                <button type="button" class="cancel-btn" [disabled]="settingsBusy()" (click)="settingsAsk.set(null)">Cancel</button>
+                <button type="button" class="add-btn" [class.danger]="ask.preview.willRemove > 0"
+                    [disabled]="settingsBusy() || (!ask.preview.rulesChanged && !ask.preview.retentionChanged)" (click)="importSettings()">
+                    @if (settingsBusy()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Importing... }
+                    @else if (ask.preview.willRemove > 0) { <i class="fa-solid fa-file-import" aria-hidden="true"></i>Import and remove {{ ask.preview.willRemove }} }
+                    @else { <i class="fa-solid fa-file-import" aria-hidden="true"></i>Import }
+                </button>
+            </div>
+        </div>
+    }
+    @if (settingsMsg()) {
+        <p class="result small"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ settingsMsg() }}</p>
+    }
+    @if (settingsError()) {
+        <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ settingsError() }}</p>
     }
 </section>
 
