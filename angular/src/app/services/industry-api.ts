@@ -3,7 +3,7 @@ import { HttpClient, HttpErrorResponse, HttpResponse } from '@angular/common/htt
 import { MonoTypeOperatorFunction, Observable, retry, throwError, timer } from 'rxjs';
 import {
     Industry, CreateIndustry, UpdateIndustry, DbHealth, RuleSet, FieldRule, NewField, VersionSummary, VersionDetail,
-    ImportPreview, ImportResult, RestoreResult, Retention, DevRequest,
+    ImportPreview, ImportResult, RestoreResult, Retention, BackupEntry, BackupStatus, DevRequest,
 } from '../models/industry';
 
 @Service()
@@ -48,6 +48,12 @@ export class IndustryApi {
     addField(field: NewField): Observable<RuleSet> {
         return this.http.post<RuleSet>(`${this.apiUrl}/schema/fields`, field);
     }
+    addFields(fields: NewField[], basedOn: number | null): Observable<RuleSet> {
+        return this.http.post<RuleSet>(`${this.apiUrl}/schema/fields/many`, { basedOn, fields });
+    }
+    deleteField(key: string, basedOn: number): Observable<RuleSet> {
+        return this.http.delete<RuleSet>(`${this.apiUrl}/schema/fields/${encodeURIComponent(key)}`, { params: { basedOn } });
+    }
     ruleVersions(): Observable<RuleSet[]> {
         return this.http.get<RuleSet[]>(`${this.apiUrl}/schema/versions`).pipe(this.retryTransient());
     }
@@ -71,14 +77,23 @@ export class IndustryApi {
     importPreview(id: number): Observable<ImportPreview> {
         return this.http.post<ImportPreview>(`${this.apiUrl}/history/versions/${id}/import/preview`, {});
     }
-    importVersion(id: number, confirm: boolean): Observable<ImportResult> {
-        return this.http.post<ImportResult>(`${this.apiUrl}/history/versions/${id}/import`, { confirm });
+    importVersion(id: number, confirm: boolean, skipDuplicates = false): Observable<ImportResult> {
+        return this.http.post<ImportResult>(`${this.apiUrl}/history/versions/${id}/import`, { confirm, skipDuplicates });
     }
     retention(): Observable<Retention> {
         return this.http.get<Retention>(`${this.apiUrl}/history/settings`).pipe(this.retryTransient());
     }
     saveRetention(body: Retention): Observable<Retention & { removed: number }> {
         return this.http.put<Retention & { removed: number }>(`${this.apiUrl}/history/settings`, body);
+    }
+    backups(): Observable<{ backups: BackupEntry[]; status: BackupStatus }> {
+        return this.http.get<{ backups: BackupEntry[]; status: BackupStatus }>(`${this.apiUrl}/backups`).pipe(this.retryTransient());
+    }
+    backupNow(): Observable<BackupEntry> {
+        return this.http.post<BackupEntry>(`${this.apiUrl}/backups`, {});
+    }
+    backupDownloadUrl(id: string, file: 'main' | 'collector' | 'excel'): string {
+        return `${this.apiUrl}/backups/${id}/${file}`;
     }
 
     // Requests, openRequests is the number on the bell

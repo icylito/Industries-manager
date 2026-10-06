@@ -40,7 +40,11 @@ public static class SchemaEndpoints
 
             try
             {
-                return Results.Ok(await rules.SaveAsync(db, body.Fields, body.Note, user.Name, ct));
+                // The page can send options, but only config.toml changes them
+                var current = rules.Current.Fields.ToDictionary(f => f.Key);
+                var fields = body.Fields.Select(f =>
+                    current.TryGetValue(f.Key, out var was) ? f with { Options = was.Options } : f).ToList();
+                return Results.Ok(await rules.SaveAsync(db, fields, body.Note, user.Name, ct));
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -72,6 +76,79 @@ public static class SchemaEndpoints
                 return Results.Problem("Couldn't save a copy of the table first, so the field wasn't added. Try again in a moment",
                     statusCode: StatusCodes.Status503ServiceUnavailable, title: "Backup not available");
             }
+        }).RequireAdmin();
+
+        // Several custom fields in one rules version and one table copy
+        schema.MapPost("/fields/many", async (NewFields body, AppDbContext db, RulesService rules, ICurrentUser user,
+            ILogger<RulesService> log, AppLocks locks, CancellationToken ct) =>
+        {
+            if (body.Fields is null || body.Fields.Count == 0)
+            {
+                return Results.BadRequest("Add at least one field first");
+            }
+
+            await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);
+            await rules.LoadAsync(db, ct);
+            if (body.BasedOn is int v && v != rules.Current.Version)
+            {
+                return Results.Conflict(
+                    "Someone changed the fields since you opened this page. Reload to see their changes, then save again");
+            }
+
+            var errors = rules.CheckNewFields(body.Fields);
+            if (errors.Count > 0)
+            {
+                return Results.ValidationProblem(errors);
+            }
+
+            try
+            {
+                return Results.Ok(await rules.AddFieldsAsync(db, body.Fields, user.Name, ct));
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                log.LogError(ex, "Adding fields failed");
+                return Results.Problem("Couldn't save a copy of the table first, so the field wasn't added. Try again in a moment",
+                    statusCode: StatusCodes.Status503ServiceUnavailable, title: "Backup not available");
+            }
+        }).RequireAdmin();
+
+        // Removes a field the page added. Built in fields stay. A copy of the table is saved first.
+        schema.MapDelete("/fields/{key}", async (string key, int? basedOn, AppDbContext db, RulesService rules,
+            CollectorStore collector, ICurrentUser user, ILogger<RulesService> log, AppLocks locks, CancellationToken ct) =>
+        {
+            await using var tableLock = await locks.TakeAsync(AppLock.Table, ct);
+            await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);
+            await rules.LoadAsync(db, ct);
+
+            var field = rules.Current.Fields.FirstOrDefault(f => f.Key == key);
+            if (field is null)
+            {
+                return Results.NotFound($"There's no field {key}");
+            }
+            if (!field.Custom)
+            {
+                return Results.BadRequest($"{field.Label} is built in, only a developer can remove it");
+            }
+            if (basedOn is int v && v != rules.Current.Version)
+            {
+                return Results.Conflict(
+                    "Someone changed the fields since you opened this page. Reload to see their changes, then save again");
+            }
+
+            try
+            {
+                await collector.SaveVersionAsync($"Before deleting the field {field.Label}", user.Name, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                log.LogError(ex, "Copy before deleting a field failed");
+                return Results.Problem(
+                    "Couldn't save a copy of the table first, so the field wasn't deleted. Try again in a moment",
+                    statusCode: StatusCodes.Status503ServiceUnavailable, title: "Backup not available");
+            }
+
+            return Results.Ok(await rules.DeleteFieldAsync(db, field.Key, field.Label, user.Name, ct));
         }).RequireAdmin();
     }
 

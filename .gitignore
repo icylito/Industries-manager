@@ -13,7 +13,7 @@ scripts/__pycache__/
 /.vscode/
 
 # Documents and notes
-
 report.txt
-grok.txt
-grok to claude.txt
+
+# Copies of the database made by the nightly backup, only the root folder (api_v2/Backups is code)
+/backups/

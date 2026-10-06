@@ -1,0 +1,667 @@
+using System.Diagnostics;
+using System.Globalization;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using api_v2.Data;
+using api_v2.Rules;
+using Npgsql;
+
+namespace api_v2.Backups;
+
+// Thrown when a second backup is asked for while one is already running.
+public sealed class BackupBusyException : Exception
+{
+    public BackupBusyException() : base("A backup is already running, try again in a minute") { }
+}
+
+// One saved backup, what GET /backups lists and what POST /backups returns.
+public sealed record BackupEntry(
+    string Id,
+    DateTimeOffset CreatedAt,
+    string Kind,
+    string By,
+    long MainSize,
+    long CollectorSize,
+    int RulesVersion,
+    bool HasExcel);
+
+// Runs pg_dump for main and the collector, one backup at a time.
+public sealed class BackupService(
+    IConfiguration config,
+    IWebHostEnvironment env,
+    DatabaseConnections connections,
+    DatabaseStatus status,
+    RulesService rules,
+    ILogger<BackupService> log)
+{
+    public const string MissingToolMessage =
+        "Backups need pg_dump. Install the Postgres tools or set Backup:PgDump in appsettings";
+
+    public const string MissingConfiguredToolMessage =
+        "Backup:PgDump is set, but that file doesn't exist";
+
+    // The table as a CSV that opens in Excel. Backups from before it existed don't have one.
+    public const string ExcelFile = "main.csv";
+
+    private static readonly Regex IdPattern = new(
+        @"^\d{4}-\d{2}-\d{2}_\d{6}_(nightly|manual)$",
+        RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true
+    };
+
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly object _statusLock = new();
+    private readonly string _folder = ResolveFolder(config, env);
+    private readonly string? _pgDumpSetting = BlankToNull(config["Backup:PgDump"]);
+    private readonly int _keepDays = ReadKeepDays(config);
+    private string? _lastError;
+    private DateTimeOffset? _lastErrorAt;
+    private bool _running;
+
+    public TimeSpan NightlyTime { get; } = ReadTime(config);
+
+    public static bool ValidId(string? id) => id is not null && IdPattern.IsMatch(id);
+
+    public async Task<BackupEntry> RunAsync(string kind, string by, CancellationToken ct)
+    {
+        if (!await _gate.WaitAsync(0, ct))
+        {
+            throw new BackupBusyException();
+        }
+
+        _running = true;
+        string? dir = null;
+        try
+        {
+            var tool = ResolveTool();
+            Directory.CreateDirectory(_folder);
+            // Ids go down to the second. Two runs in the same second would share a folder, and a failed one
+            // would delete the good one with it, so wait for a free name.
+            string id;
+            while (true)
+            {
+                id = $"{DateTime.Now.ToString("yyyy-MM-dd_HHmmss", CultureInfo.InvariantCulture)}_{kind}";
+                if (!Directory.Exists(Path.Combine(_folder, id))) break;
+                await Task.Delay(250, ct);
+            }
+            dir = Path.Combine(_folder, id);
+            Directory.CreateDirectory(dir);
+
+            var mainFile = Path.Combine(dir, "main.dump");
+            var collectorFile = Path.Combine(dir, "collector.dump");
+            var main = new NpgsqlConnectionStringBuilder(connections.Main);
+            var collector = new NpgsqlConnectionStringBuilder(connections.Collector);
+
+            // The dump and the Excel file read the same snapshot, so they match even if someone edits a row meanwhile
+            await using (var conn = new NpgsqlConnection(connections.Main))
+            {
+                await conn.OpenAsync(ct);
+                await using var tx = await conn.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, ct);
+                await using var snap = new NpgsqlCommand("SELECT pg_export_snapshot()", conn, tx);
+                var snapshot = (string)(await snap.ExecuteScalarAsync(ct))!;
+                await DumpAsync(tool, main, mainFile, "main", ct, snapshot);
+                await WriteExcelAsync(conn, tx, Path.Combine(dir, ExcelFile), ct);
+            }
+            await DumpAsync(tool, collector, collectorFile, "history", ct);
+
+            var createdAt = DateTimeOffset.UtcNow;
+            var entry = new BackupEntry(
+                id,
+                createdAt,
+                kind,
+                by,
+                new FileInfo(mainFile).Length,
+                new FileInfo(collectorFile).Length,
+                rules.Current.Version,
+                HasExcel: true);
+
+            var json = JsonSerializer.Serialize(new
+            {
+                createdAt,
+                kind,
+                by,
+                mainSize = entry.MainSize,
+                collectorSize = entry.CollectorSize,
+                migrations = status.AppliedMigrations.ToList(),
+                rulesVersion = entry.RulesVersion
+            }, JsonOptions);
+            await File.WriteAllTextAsync(Path.Combine(dir, "backup.json"), json, ct);
+
+            lock (_statusLock)
+            {
+                _lastError = null;
+                _lastErrorAt = null;
+            }
+
+            dir = null;
+            try
+            {
+                Prune();
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // The copy is already saved. A failed cleanup waits for the next run.
+                log.LogError(ex, "Backup prune failed");
+            }
+
+            return entry;
+        }
+        catch (Exception ex)
+        {
+            if (dir is not null)
+            {
+                DeleteFolder(dir);
+            }
+            if (ex is not OperationCanceledException)
+            {
+                lock (_statusLock)
+                {
+                    _lastError = ex.Message;
+                    _lastErrorAt = DateTimeOffset.UtcNow;
+                }
+            }
+            throw;
+        }
+        finally
+        {
+            _running = false;
+            _gate.Release();
+        }
+    }
+
+    public IReadOnlyList<BackupEntry> List()
+    {
+        if (!Directory.Exists(_folder))
+        {
+            return [];
+        }
+
+        var found = new List<BackupEntry>();
+        foreach (var dir in Directory.GetDirectories(_folder))
+        {
+            if (TryRead(dir, out var entry))
+            {
+                found.Add(entry);
+            }
+        }
+        return found.OrderByDescending(e => e.CreatedAt).ThenByDescending(e => e.Id).ToList();
+    }
+
+    public object Status()
+    {
+        lock (_statusLock)
+        {
+            return new
+            {
+                running = _running,
+                lastError = _lastError,
+                lastErrorAt = _lastErrorAt,
+                nextNightly = NextNightly(),
+                keepDays = _keepDays,
+                folder = _folder
+            };
+        }
+    }
+
+    // Deletes copies older than KeepDays. The newest successful copy always stays,
+    // and a folder with no readable backup.json is left alone.
+    public void Prune() => PruneDirectory(_folder, _keepDays, DateTimeOffset.UtcNow);
+
+    public static void PruneDirectory(string folder, int keepDays, DateTimeOffset now)
+    {
+        if (!Directory.Exists(folder))
+        {
+            return;
+        }
+
+        var readable = new List<(string Path, DateTimeOffset CreatedAt)>();
+        foreach (var dir in Directory.GetDirectories(folder))
+        {
+            if (!TryRead(dir, out var entry))
+            {
+                continue;
+            }
+            readable.Add((dir, entry.CreatedAt));
+        }
+        if (readable.Count == 0)
+        {
+            return;
+        }
+
+        var newest = readable
+            .OrderByDescending(item => item.CreatedAt)
+            .ThenByDescending(item => item.Path, StringComparer.OrdinalIgnoreCase)
+            .First();
+        var cutoff = now.AddDays(-keepDays);
+        foreach (var item in readable)
+        {
+            if (string.Equals(item.Path, newest.Path, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            if (item.CreatedAt < cutoff)
+            {
+                DeleteFolder(item.Path);
+            }
+        }
+    }
+
+    // Full path of a dump, or null when the path would leave the backup folder.
+    public string? ResolveDump(string id, string file)
+    {
+        var name = file switch
+        {
+            "main" => "main.dump",
+            "collector" => "collector.dump",
+            "excel" => ExcelFile,
+            _ => null
+        };
+        if (name is null)
+        {
+            return null;
+        }
+
+        var root = Path.GetFullPath(_folder);
+        var full = Path.GetFullPath(Path.Combine(root, id, name));
+        var prefix = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
+        if (!full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+        return full;
+    }
+
+    private DateTimeOffset NextNightly()
+    {
+        var local = DateTime.Now;
+        var next = local.Date + NightlyTime;
+        if (local.TimeOfDay >= NightlyTime)
+        {
+            next = next.AddDays(1);
+        }
+        return new DateTimeOffset(next);
+    }
+
+    // a. Backup:PgDump, and a missing file is an error. b. PATH. c. Newest installed Postgres. d. docker, only for the Docker database.
+    private DumpTool ResolveTool()
+    {
+        if (_pgDumpSetting is not null)
+        {
+            if (!File.Exists(_pgDumpSetting))
+            {
+                throw new InvalidOperationException(MissingConfiguredToolMessage);
+            }
+            return DumpTool.FromFile(_pgDumpSetting);
+        }
+
+        var onPath = FindOnPath();
+        if (onPath is not null)
+        {
+            return DumpTool.FromFile(onPath);
+        }
+
+        var installed = NewestInstalledDump();
+        if (installed is not null)
+        {
+            return DumpTool.FromFile(installed);
+        }
+
+        if (UseDockerDump())
+        {
+            return DumpTool.InDocker();
+        }
+
+        throw new InvalidOperationException(MissingToolMessage);
+    }
+
+    private bool UseDockerDump()
+    {
+        if (connections.UsingDockerDefault)
+        {
+            return true;
+        }
+        var main = new NpgsqlConnectionStringBuilder(connections.Main);
+        return main.Port == 5433;
+    }
+
+    // label is what the page calls the database, "main" or "history". pg_dump's own words only go to the log.
+    private async Task DumpAsync(DumpTool tool, NpgsqlConnectionStringBuilder db, string outFile, string label,
+        CancellationToken ct, string? snapshot = null)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = tool.Docker ? "docker" : tool.Path!,
+            UseShellExecute = false,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        if (tool.Docker)
+        {
+            psi.ArgumentList.Add("exec");
+            psi.ArgumentList.Add("-i");
+            // Copies PGPASSWORD into the container. The value stays in the environment, not on the command line.
+            if (!string.IsNullOrEmpty(db.Password))
+            {
+                psi.ArgumentList.Add("-e");
+                psi.ArgumentList.Add("PGPASSWORD");
+            }
+            psi.ArgumentList.Add("stock-listing-db");
+            psi.ArgumentList.Add("pg_dump");
+        }
+
+        psi.ArgumentList.Add("-Fc");
+        psi.ArgumentList.Add("--no-owner");
+        if (snapshot is not null)
+        {
+            psi.ArgumentList.Add($"--snapshot={snapshot}");
+        }
+        if (!tool.Docker)
+        {
+            psi.ArgumentList.Add("-h");
+            psi.ArgumentList.Add(string.IsNullOrEmpty(db.Host) ? "localhost" : db.Host);
+            psi.ArgumentList.Add("-p");
+            psi.ArgumentList.Add(db.Port.ToString(CultureInfo.InvariantCulture));
+        }
+        psi.ArgumentList.Add("-U");
+        psi.ArgumentList.Add(db.Username ?? "");
+        psi.ArgumentList.Add("-d");
+        psi.ArgumentList.Add(db.Database ?? "");
+        if (!tool.Docker)
+        {
+            psi.ArgumentList.Add("-f");
+            psi.ArgumentList.Add(outFile);
+        }
+        if (!string.IsNullOrEmpty(db.Password))
+        {
+            psi.Environment["PGPASSWORD"] = db.Password;
+        }
+
+        using var process = new Process { StartInfo = psi };
+        try
+        {
+            if (!process.Start()) throw new InvalidOperationException("The backup program didn't start");
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            log.LogError(ex, "Couldn't start {Program}", psi.FileName);
+            throw new InvalidOperationException(MissingToolMessage);
+        }
+        process.StandardInput.Close();
+
+        var stderrTask = process.StandardError.ReadToEndAsync(ct);
+        using var timeout = new CancellationTokenSource();
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
+        timeout.CancelAfter(TimeSpan.FromMinutes(10));
+
+        try
+        {
+            if (tool.Docker)
+            {
+                await using var stream = new FileStream(outFile, FileMode.Create, FileAccess.Write, FileShare.Read);
+                // BaseStream, because a text reader would break the custom-format bytes.
+                await process.StandardOutput.BaseStream.CopyToAsync(stream, linked.Token);
+            }
+            else
+            {
+                await process.StandardOutput.BaseStream.CopyToAsync(Stream.Null, linked.Token);
+            }
+            await process.WaitForExitAsync(linked.Token);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            Kill(process);
+            log.LogError("pg_dump of {Database} timed out: {Detail}", db.Database, LastNonEmptyLine(await ReadQuiet(stderrTask)));
+            throw new InvalidOperationException($"Copying the {label} database took too long and was stopped");
+        }
+
+        var stderr = await ReadQuiet(stderrTask);
+        if (process.ExitCode != 0)
+        {
+            log.LogError("pg_dump of {Database} failed with code {Code}: {Detail}", db.Database, process.ExitCode, LastNonEmptyLine(stderr));
+            throw new InvalidOperationException($"Couldn't copy the {label} database, the details are in the API log");
+        }
+    }
+
+    // The table as Excel opens it: the same columns the page export has, custom fields included
+    private async Task WriteExcelAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string file, CancellationToken ct)
+    {
+        var custom = rules.Current.Fields.Where(f => f.Custom && !f.Hidden).ToList();
+        var csv = new System.Text.StringBuilder();
+        csv.AppendLine(string.Join(",", new[] { "ID", "Name", "Sector", "Price", "Release" }
+            .Concat(custom.Select(f => f.Label)).Select(CsvText.Cell)));
+
+        await using var cmd = new NpgsqlCommand(
+            """SELECT "Id", "Name", "Sector", "Price", "Release", "Extra" FROM "Industries" ORDER BY "Id" """, conn, tx);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            JsonElement? extra = reader.IsDBNull(5) ? null : JsonSerializer.Deserialize<JsonElement>(reader.GetString(5));
+            var cells = new List<string>
+            {
+                reader.GetInt32(0).ToString(CultureInfo.InvariantCulture),
+                Text(reader.IsDBNull(1) ? "" : reader.GetString(1)),
+                Text(reader.IsDBNull(2) ? "" : reader.GetString(2)),
+                reader.IsDBNull(3) ? "" : reader.GetDecimal(3).ToString(CultureInfo.InvariantCulture),
+                reader.IsDBNull(4) ? "" : reader.GetFieldValue<DateOnly>(4).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+            };
+            foreach (var field in custom)
+            {
+                var cell = "";
+                if (extra is { ValueKind: JsonValueKind.Object } e && e.TryGetProperty(field.Key, out var v))
+                {
+                    cell = v.ValueKind switch
+                    {
+                        JsonValueKind.String => v.GetString()!,
+                        JsonValueKind.Null => "",
+                        _ => v.GetRawText()
+                    };
+                }
+                cells.Add(Text(cell));
+            }
+            csv.AppendLine(string.Join(",", cells));
+        }
+
+        // The BOM makes Excel read it as UTF-8, so Arabic and accented names come through
+        await File.WriteAllTextAsync(file, csv.ToString(), new System.Text.UTF8Encoding(true), ct);
+
+        static string Text(string value) => CsvText.Cell(CsvText.GuardFormula(value));
+    }
+
+    private static bool TryRead(string dir, out BackupEntry entry)
+    {
+        entry = null!;
+        var path = Path.Combine(dir, "backup.json");
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            var doc = JsonSerializer.Deserialize<BackupJson>(File.ReadAllText(path), JsonOptions);
+            if (doc?.CreatedAt is not DateTimeOffset createdAt)
+            {
+                return false;
+            }
+            entry = new BackupEntry(
+                Path.GetFileName(dir),
+                createdAt,
+                doc.Kind ?? "",
+                doc.By ?? "",
+                doc.MainSize,
+                doc.CollectorSize,
+                doc.RulesVersion,
+                File.Exists(Path.Combine(dir, ExcelFile)));
+            return true;
+        }
+        catch (Exception ex) when (ex is JsonException or IOException)
+        {
+            return false;
+        }
+    }
+
+    private static string? FindOnPath()
+    {
+        var path = Environment.GetEnvironmentVariable("PATH");
+        if (string.IsNullOrEmpty(path))
+        {
+            return null;
+        }
+        foreach (var dir in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        {
+            foreach (var name in new[] { "pg_dump.exe", "pg_dump" })
+            {
+                var candidate = Path.Combine(dir.Trim(), name);
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static string? NewestInstalledDump()
+    {
+        var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PostgreSQL");
+        if (!Directory.Exists(root))
+        {
+            return null;
+        }
+
+        string? bestPath = null;
+        Version? best = null;
+        foreach (var dir in Directory.GetDirectories(root))
+        {
+            var name = Path.GetFileName(dir);
+            if (!Version.TryParse(name.Contains('.') ? name : name + ".0", out var version))
+            {
+                continue;
+            }
+            var exe = Path.Combine(dir, "bin", "pg_dump.exe");
+            if (!File.Exists(exe))
+            {
+                continue;
+            }
+            if (best is null || version > best)
+            {
+                best = version;
+                bestPath = exe;
+            }
+        }
+        return bestPath;
+    }
+
+    private static void Kill(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+        }
+    }
+
+    private static async Task<string> ReadQuiet(Task<string> stderrTask)
+    {
+        try
+        {
+            return await stderrTask;
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or IOException)
+        {
+            return "";
+        }
+    }
+
+    private static string LastNonEmptyLine(string text)
+    {
+        var lines = text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return lines.Length == 0 ? "" : lines[^1];
+    }
+
+    private static void DeleteFolder(string dir)
+    {
+        for (var attempt = 1; attempt <= 5; attempt++)
+        {
+            try
+            {
+                if (Directory.Exists(dir))
+                {
+                    Directory.Delete(dir, true);
+                }
+                return;
+            }
+            catch (IOException) when (attempt < 5)
+            {
+                Thread.Sleep(200);
+            }
+            catch (UnauthorizedAccessException) when (attempt < 5)
+            {
+                Thread.Sleep(200);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
+    private static string ResolveFolder(IConfiguration config, IWebHostEnvironment env)
+    {
+        var configured = BlankToNull(config["Backup:Folder"]);
+        return configured is null
+            ? Path.GetFullPath(Path.Combine(env.ContentRootPath, "..", "backups"))
+            : Path.GetFullPath(configured);
+    }
+
+    private static TimeSpan ReadTime(IConfiguration config)
+    {
+        var text = BlankToNull(config["Backup:Time"]);
+        if (text is not null && TimeSpan.TryParseExact(text, [@"hh\:mm", @"h\:mm"], CultureInfo.InvariantCulture, out var time))
+        {
+            return time;
+        }
+        return new TimeSpan(2, 0, 0);
+    }
+
+    private static int ReadKeepDays(IConfiguration config)
+    {
+        var text = BlankToNull(config["Backup:KeepDays"]);
+        return text is not null && int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var days) && days >= 1
+            ? days
+            : 14;
+    }
+
+    private static string? BlankToNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private sealed class BackupJson
+    {
+        public DateTimeOffset? CreatedAt { get; set; }
+        public string? Kind { get; set; }
+        public string? By { get; set; }
+        public long MainSize { get; set; }
+        public long CollectorSize { get; set; }
+        public int RulesVersion { get; set; }
+    }
+
+    private readonly record struct DumpTool(bool Docker, string? Path)
+    {
+        public static DumpTool FromFile(string path) => new(false, path);
+        public static DumpTool InDocker() => new(true, null);
+    }
+}

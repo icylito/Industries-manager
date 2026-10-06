@@ -194,6 +194,9 @@
                     @for (s of done.skipped; track s) {
                         <p class="hint-line"><i class="fa-solid fa-circle-minus" aria-hidden="true"></i>{{ s }}</p>
                     }
+                    @if (done.leftOutDuplicates) {
+                        <p class="hint-line"><i class="fa-solid fa-filter" aria-hidden="true"></i>Left out {{ done.leftOutDuplicates }} {{ done.leftOutDuplicates === 1 ? 'row that was' : 'rows that were' }} already in the table.</p>
+                    }
                     @if (done.requestIds.length) {
                         <p class="hint-line"><i class="fa-solid fa-bell" aria-hidden="true"></i>Some old columns have no place in today's table, so a developer was asked about them.
                             <a routerLink="/requests">See the requests</a></p>
@@ -243,8 +246,15 @@
                             <p><i class="fa-solid fa-circle-question" aria-hidden="true"></i>{{ p.preview.message }}</p>
                             <div class="confirm-row end">
                                 <button type="button" class="cancel-btn" (click)="close()">Cancel</button>
+                                @if (duplicateCount(p.preview.rows); as dups) {
+                                    <button type="button" class="cancel-btn" [disabled]="busy() || p.preview.willImport === dups"
+                                        [attr.title]="'Leaves out the ' + dups + ' rows already in the table'" (click)="runImport(true)">
+                                        @if (busy() && skippingDups()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Adding }
+                                        @else { <i class="fa-solid fa-filter" aria-hidden="true"></i>Import without dups }
+                                    </button>
+                                }
                                 <button type="button" class="add-btn" [disabled]="busy() || !p.preview.willImport" (click)="runImport()">
-                                    @if (busy()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Adding }
+                                    @if (busy() && !skippingDups()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Adding }
                                     @else { <i class="fa-solid fa-file-import" aria-hidden="true"></i>Import anyway }
                                 </button>
                             </div>
@@ -252,8 +262,15 @@
                     } @else {
                         <div class="confirm-row end">
                             <button type="button" class="cancel-btn" (click)="close()">Cancel</button>
+                            @if (duplicateCount(p.preview.rows); as dups) {
+                                <button type="button" class="cancel-btn" [disabled]="busy() || p.preview.willImport === dups"
+                                    [attr.title]="'Leaves out the ' + dups + ' rows already in the table'" (click)="runImport(true)">
+                                    @if (busy() && skippingDups()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Adding }
+                                    @else { <i class="fa-solid fa-filter" aria-hidden="true"></i>Import without dups }
+                                </button>
+                            }
                             <button type="button" class="add-btn" [disabled]="busy() || !p.preview.willImport" (click)="runImport()">
-                                @if (busy()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Adding }
+                                @if (busy() && !skippingDups()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Adding }
                                 @else { <i class="fa-solid fa-file-import" aria-hidden="true"></i>Add {{ p.preview.willImport }} rows }
                             </button>
                         </div>
@@ -299,5 +316,63 @@
     }
     @if (retentionError()) {
         <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ retentionError() }}</p>
+    }
+</section>
+
+<!-- Full copies of both databases, outside Postgres -->
+<section class="card">
+    <header class="card-head">
+        <h2><span class="title-icon"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i></span>Backups</h2>
+    </header>
+    <p class="intro">{{ backupIntro() }}</p>
+    <button type="button" class="add-btn" [disabled]="backingUp()" (click)="backupNow()">
+        @if (backingUp()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Backing up... }
+        @else { <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>Back up now }
+    </button>
+    @if (backupMsg()) {
+        <p class="result small"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ backupMsg() }}</p>
+    }
+    @if (backupError()) {
+        <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ backupError() }}</p>
+    }
+
+    @if (backupsLoaded() && backups().length === 0) {
+        <p class="state"><i class="fa-solid fa-box-open" aria-hidden="true"></i>No backups yet. The first one runs a few minutes after the API starts.</p>
+    } @else if (backups().length > 0) {
+        <div class="table-wrap">
+            <table class="versions">
+                <thead>
+                    <tr>
+                        <th><span class="th">When</span></th>
+                        <th class="num"><span class="th">Size</span></th>
+                        <th class="actions-col"><span class="sr-only">Downloads</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (b of backups(); track b.id) {
+                        <tr>
+                            <td class="what">
+                                <span class="reason">{{ formatDate(b.createdAt) }}</span>
+                                <span class="sub">{{ kindLabel(b.kind) }}</span>
+                            </td>
+                            <td class="num accent">{{ kb(b.mainSize + b.collectorSize) }}</td>
+                            <td class="actions">
+                                @if (b.hasExcel) {
+                                    <button type="button" class="edit-btn" title="The table at that time, opens in Excel" (click)="downloadBackup(b, 'excel')"><i class="fa-solid fa-file-excel" aria-hidden="true"></i>Excel</button>
+                                }
+                                <button type="button" class="edit-btn" (click)="downloadBackup(b, 'main')">Main</button>
+                                <button type="button" class="edit-btn" (click)="downloadBackup(b, 'collector')">History</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (backupStatus()?.lastError) {
+        <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ backupStatus()!.lastErrorAt ? formatDate(backupStatus()!.lastErrorAt!) + '. ' : '' }}{{ backupStatus()!.lastError }}</p>
+    } @else if (backupStatus()) {
+        <p class="hint-line"><i class="fa-regular fa-calendar" aria-hidden="true"></i>Next nightly backup {{ formatDate(backupStatus()!.nextNightly) }}</p>
     }
 </section>

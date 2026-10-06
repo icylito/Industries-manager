@@ -19,6 +19,9 @@ I started this on September 26, 2026, and the sections below show where things a
 - Done: a Fields page so the team adds fields and changes limits without touching C#.
 - Done: a Requests page with a bell in the nav for anything that needs a developer, each one comes with the code drafted.
 - Done: a break test, where we tried hard to break the app and fixed what broke. Two people saving at the same time don't overwrite each other anymore, names get cleaned before saving so lookalikes like `Atlas  Steel` with 2 spaces count as taken, CSV downloads can't run formulas in Excel, and errors come back as plain messages instead of empty 500s.
+- Done: nightly backups of both databases, with a Back up now button on the History page, see [Backups](#backups).
+- Done: sector is a dropdown now, and the choices come from `scripts/config.toml`, so nobody types it wrong and the API says no to anything else.
+- Done: on Fields you can line up as many new fields as you want and send them in one go, and delete the ones made from the page.
 - Next: the edge cases listed at the bottom.
 
 # Starting
@@ -85,9 +88,11 @@ So this folder uses Angular mainly to replace the Swagger UI from `api_v2/`. The
   - View and Download (opens in Excel).
   - Pin, so retention never removes it.
   - Restore swaps every row for that version's rows after you type `RESTORE`, and the table as it was gets saved first.
-  - Bring back adds that version's rows as new rows with new numbers, nothing gets replaced. If the old data followed other rules it asks "The old data follows different rules than the table does now. Import it anyway?" first.
+  - Bring back adds that version's rows as new rows with new numbers, nothing gets replaced. If the old data followed other rules it asks "The old data follows different rules than the table does now. Import it anyway?" first. Import without dups next to it skips every row whose name is already in the table, so you only get the ones that went missing.
   - Keep old versions sets how many to keep or after how many days to remove them. Empty means keep everything.
 - **Fields** (`/fields`) is where the team changes labels and limits, adds custom fields, and hides custom fields they don't want anymore. Hiding keeps the data. Every save is a new rules version and a copy of the table gets saved first. Changing a field's type or making it a real column goes to a developer from here. If someone else saved while you had the page open, your save gets stopped and asks you to reload, and what you typed stays there.
+  - Add field puts the field in a list, nothing is saved yet. Add as many as you want, take one out with the x, then Send fields saves them all as one version.
+  - Delete is on the fields made from the page, the built in ones (Name, Sector, Price, Release) live in code so they can't be deleted. It takes the values off every row, but a copy of the table is saved first so History can bring it back. Hide is still there if you just want it off the page.
 - **Requests** (`/requests`) is for anything that needs a developer. The app makes some by itself, like when an import finds an old column that doesn't exist anymore or a restore brings back data from a different layout. Each one has the code drafted, Show the drafted code and Copy. The bell in the nav shows how many are open. Asking for something that's already open doesn't make a second one, your new details get added to the old one.
 
 ## Api_v2
@@ -106,8 +111,10 @@ To wipe the Docker database and start empty again, run `docker compose down -v`.
 The limits for each field aren't in the code anymore, they're in the `RuleVersions` table. Every change makes a new version, so you can always see what the rules were before.
 
 - `GET /schema` gives the rules in use. The page builds its rule chips and form checks from it.
-- `PUT /schema` saves new rules as the next version, limits, labels, and hiding custom fields. Fields never get removed, only hidden. Send `basedOn` with the version you started from and it says no if someone saved in between.
-- `POST /schema/fields` adds a custom field. Its values live in the row's `Extra` column as JSON, so no migration is needed.
+- `PUT /schema` saves new rules as the next version, limits, labels, and hiding custom fields. It can't remove a field. Send `basedOn` with the version you started from and it says no if someone saved in between.
+- `POST /schema/fields` adds a custom field, `POST /schema/fields/many` adds a whole list as one version. Their values live in the row's `Extra` column as JSON, so no migration is needed.
+- `DELETE /schema/fields/{key}` deletes a custom field and its values, after saving a copy. A deleted field's key never gets used again, so old values can't come back on a new field.
+- The sector choices come from `[fields] sectors` in `scripts/config.toml`. Change the list there and restart the API, it saves the new list as a rules version by itself.
 - `GET /schema/versions` lists every rules version.
 
 The `collector` database keeps old data so nothing gets lost:
@@ -121,6 +128,22 @@ The `collector` database keeps old data so nothing gets lost:
 Requests live in the `Requests` table, `GET /requests` lists them and `GET /requests/count` is the bell. Settings like retention live in the `Settings` table, and `Collector:KeepVersions` and `Collector:KeepDays` in appsettings are the starting values.
 
 There's no login yet, so everyone can change the rules. The check is already in one place (`Auth/CurrentUser.cs`), so adding auth later is a small change.
+
+### Backups
+
+So every night at 2:00 AM the API saves a full copy of both databases with `pg_dump`, and keeps them for 14 days. The newest one never gets deleted, even if it's older than that. If the PC was off at 2:00, it makes one a few minutes after the API starts instead. On the History page there's a Back up now button and a list where you can download each one. Excel gives you the table as it was at that time, it opens straight in Excel. Main and History are the `.dump` files, those are for restoring.
+
+They go in `backups/` in the project folder, which is git ignored. That's fine for mistakes, but if the disk dies the backups die with it, so point `Backup:Folder` in `appsettings.Development.json` at OneDrive or another drive. `Backup:Time` and `Backup:KeepDays` change the time and how long they stay.
+
+It needs `pg_dump`, which comes with Postgres. The API finds it in `C:\Program Files\PostgreSQL` by itself, or you can set `Backup:PgDump` to its path.
+
+There's no restore button yet on purpose, it comes with login so only an admin can do it. For now it's by hand, stop the API first and run:
+
+```
+pg_restore --clean --if-exists --no-owner -h localhost -p 5432 -U postgres -d api_v2 main.dump
+```
+
+Use `-d collector` with `collector.dump` for the history one, and `-p 5433 -d main` if you're on Docker.
 
 ### Changing the table
 
@@ -149,7 +172,7 @@ When it's done it prints how many rows got in, how many had no price or release,
 Well, everything the script does is controlled from `scripts/config.toml`, so you don't touch the Python file. Open it, change a number, save, and run the script again. Each part is split by a comment that says what it's for:
 
 - `[generation]` is the main one. `count` is how many rows you want in the database, so set it to `50` if you want 50. `bad_row_rate` is how many broken rows get mixed in, `0.10` means 10 for every 100, and `0` turns them off. `seed` gives you the same data every run if you set it to any number, `0` means random every time. `null_rate_min` and `null_rate_max` are how often price and release are left empty, right now that's somewhere between 5% and 7%.
-- `[fields]` is what each value can be. The sectors list, the price range, how many decimals, the date range for release, and the longest name. The longest name and the price range get replaced by the API's rules from `/schema` when the script runs, so they always match.
+- `[fields]` is what each value can be. The sectors list, the price range, how many decimals, the date range for release, and the longest name. The longest name, the price range and the sectors get replaced by the API's rules from `/schema` when the script runs, so they always match. The sectors list here is also what the API uses, so this is the place to change them.
 - `[broken_rows]` is which rules to test. Remove one from the list and it stops sending that kind.
 - `[names]` is the word lists the company names are built from. A name is one word from each list, like `Nizwa Retail Group`. Add your own words if you want different names.
 - `[api]` is where the API is and how hard to push it. `workers` is how many rows get sent at the same time, and `max_retries` is how many times it tries again when the connection drops.
@@ -183,4 +206,5 @@ python scripts/seed_industries.py --count 50 --dry-run
 - Delete still uses the browser's own "are you sure" popup instead of one that matches the design.
 - Restore brings back the rows and rules of a version but not its columns. If the table had different columns back then, a developer has to bring them back in code since the API moves the database forward on every start. The request it makes says how.
 - No login yet, so anyone can restore, change rules, or close requests. Everything admin goes through `.RequireAdmin()` in `Auth/CurrentUser.cs`, that's where auth plugs in.
+- Backups can only be restored by hand for now, the button comes with login.
 - A few leftovers from the break test. Restore saves the rows and the rules in 2 steps, so if the second one fails they don't match. A restore or import that fails still leaves its "Before ..." copy in History, and with "keep the last N" on, those copies can push out the version you restored from.

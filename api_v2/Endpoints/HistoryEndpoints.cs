@@ -11,7 +11,8 @@ namespace api_v2.Endpoints;
 
 public record PinBody(bool Pinned);
 public record RestoreBody(string? Confirm);
-public record ImportBody(bool Confirm);
+// SkipDuplicates leaves out rows whose name is already in the table, or shows up twice in the import
+public record ImportBody(bool Confirm, bool SkipDuplicates = false);
 
 public static class HistoryEndpoints
 {
@@ -182,6 +183,7 @@ public static class HistoryEndpoints
                     Level = Level(r),
                     Problems = r.Problems.Select(p => p.Text),
                     r.SimilarTo,
+                    r.SimilarInBatch,
                     r.Skip
                 })
             });
@@ -199,6 +201,25 @@ public static class HistoryEndpoints
             if (plan.RulesDiffer && !body.Confirm)
             {
                 return Results.Conflict(new { NeedsConfirm = true, Message = RulesDifferMessage });
+            }
+
+            // Rows already in the table get skipped like nameless rows, so the import only adds new names
+            var leftOut = 0;
+            if (body.SkipDuplicates)
+            {
+                plan = plan with
+                {
+                    Rows = plan.Rows.Select(r =>
+                    {
+                        if (r.Skip is not null || (r.SimilarTo is null && !r.SimilarInBatch)) return r;
+                        leftOut++;
+                        return r with { Skip = "" };
+                    }).ToList()
+                };
+                if (!plan.Rows.Any(r => r.Skip is null))
+                {
+                    return Results.Conflict("Every row in that version is already in the table, so there's nothing new to bring back");
+                }
             }
 
             try
@@ -237,7 +258,9 @@ public static class HistoryEndpoints
                 Similar = added.Count(a => a.Row.SimilarTo is not null || a.Row.SimilarInBatch),
                 LostValues = added.Count(a => a.Row.Lost.Count > 0),
                 BreakingRules = added.Count(a => a.Row.Problems.Any(p => p.Level == "black" && !p.Text.StartsWith("A similar row"))),
-                Skipped = plan.Rows.Where(r => r.Skip is not null).Select(r => r.Skip),
+                // Left out duplicates are counted, not listed one by one
+                Skipped = plan.Rows.Where(r => !string.IsNullOrEmpty(r.Skip)).Select(r => r.Skip),
+                LeftOutDuplicates = leftOut,
                 RequestIds = requests
             });
         });
@@ -293,14 +316,9 @@ public static class HistoryEndpoints
     private static string CellText(JsonElement value) => value.ValueKind switch
     {
         JsonValueKind.Null => "",
-        JsonValueKind.String => GuardFormula(value.GetString()!),
+        JsonValueKind.String => CsvText.GuardFormula(value.GetString()!),
         _ => value.GetRawText()
     };
 
-    // A leading quote stops Excel treating the cell as a formula. Numbers stay numbers.
-    private static string GuardFormula(string text) =>
-        text.Length > 0 && text[0] is '=' or '+' or '-' or '@' or '\t' or '\r' ? "'" + text : text;
-
-    private static string Csv(string text) =>
-        text.IndexOfAny([',', '"', '\n', '\r']) >= 0 ? $"\"{text.Replace("\"", "\"\"")}\"" : text;
+    private static string Csv(string text) => CsvText.Cell(text);
 }

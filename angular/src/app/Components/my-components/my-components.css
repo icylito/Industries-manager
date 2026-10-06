@@ -221,12 +221,13 @@ input::placeholder{
     color: var(--faint);
 }
 
-input.ng-invalid.ng-dirty{
+input.ng-invalid.ng-dirty, select.ng-invalid.ng-dirty{
     border-color: var(--danger);
 }
 
 select{
     appearance: none;
+    min-width: 0;
     padding-right: 2.25rem;
     cursor: pointer;
 }
@@ -336,6 +337,11 @@ button:disabled{
 
 .placeholder{
     color: var(--faint);
+}
+
+/* An empty select looks like an empty input, its open list keeps the normal color */
+select.placeholder option{
+    color: var(--text);
 }
 
 .calendar{
@@ -881,6 +887,10 @@ input.bad{
 
 /* Phone */
 @media (max-width: 480px) {
+    form{
+        grid-template-columns: 1fr;
+    }
+
     .stats{
         grid-template-columns: 1fr 1fr;
     }

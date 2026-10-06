@@ -9,7 +9,7 @@
 
 .field-row{
     display: grid;
-    grid-template-columns: minmax(12rem, 1.3fr) minmax(10rem, 1.4fr) 11.5rem;
+    grid-template-columns: minmax(12rem, 1.3fr) minmax(10rem, 1.4fr) auto;
     gap: 1rem;
     align-items: end;
     padding: 1rem 1.1rem;
@@ -71,15 +71,84 @@
     line-height: 2.75rem;
 }
 
-.limits input{
+/* Room for the "characters" word, only on the boxes that have it */
+.limits input:has(+ .unit){
     padding-right: 5.5rem;
 }
 
 .switches{
     display: flex;
-    gap: 1rem;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    align-items: center;
     align-self: start;
     padding-top: 1.85rem;
+}
+
+.field-row .ask{
+    grid-column: 1 / -1;
+}
+
+.sector-hint{
+    margin: 0.15rem 0 0;
+}
+
+.queue{
+    list-style: none;
+    margin: 0.9rem 0 0;
+    padding: 0;
+    border: 1px solid var(--p-border);
+    border-radius: 12px;
+}
+
+.queue li{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid var(--p-border);
+}
+
+.queue li:last-child{
+    border-bottom: none;
+}
+
+.queue .name{
+    font-weight: 600;
+    min-width: 0;
+}
+
+.queue-limits{
+    color: var(--p-muted);
+    font-size: 0.85rem;
+}
+
+.queue .remove-btn{
+    margin-left: auto;
+}
+
+.add-actions{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+/* Send fields on its own line under the list, with a divider between it and the form */
+.send-bar{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1.5rem;
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--p-border);
+}
+
+.send-bar .hint-line{
+    margin: 0;
+    flex: 1 1 16rem;
 }
 
 /* Checkboxes in the black and white style */
@@ -183,4 +252,22 @@
     .save-bar button{
         flex: 1;
     }
+}
+
+@media (max-width: 390px) {
+    .add-actions, .send-bar{
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .queue .remove-btn{
+        margin-left: 0;
+    }
+}
+
+/* The table page shows its search placeholders in capitals, here they're sentences and hints, so they stay as written */
+.panel input::placeholder{
+    text-transform: none;
+    letter-spacing: normal;
+    font-size: inherit;
 }

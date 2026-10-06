@@ -12,7 +12,7 @@ public record RowInput(Dictionary<string, object?> Values, Dictionary<string, ob
 
 // Keeps the rules in use in memory and checks rows against them. The rules themselves live
 // in the RuleVersions table, so changing a limit is a save, not a code change.
-public class RulesService(CollectorStore collector)
+public class RulesService(CollectorStore collector, IConfiguration config, IWebHostEnvironment env, ILogger<RulesService> log)
 {
     public static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
     private readonly SemaphoreSlim _saving = new(1, 1);
@@ -39,6 +39,62 @@ public class RulesService(CollectorStore collector)
         _current = ToRuleSet(latest);
     }
 
+    // After the rules load, copy the sector list from scripts/config.toml when it differs.
+    // A missing or broken file keeps the rules that are already loaded and never stops startup.
+    public async Task SyncSectorsAsync(AppDbContext db, CancellationToken ct)
+    {
+        try
+        {
+            var configured = config["Rules:ConfigToml"];
+            var path = string.IsNullOrWhiteSpace(configured)
+                ? Path.GetFullPath(Path.Combine(env.ContentRootPath, "..", "scripts", "config.toml"))
+                : configured;
+            if (!File.Exists(path))
+            {
+                log.LogWarning("No sector list at {Path}, keeping the current rules", path);
+                return;
+            }
+
+            string text;
+            try
+            {
+                text = await File.ReadAllTextAsync(path, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                log.LogWarning(ex, "Couldn't read the sector list at {Path}, keeping the current rules", path);
+                return;
+            }
+
+            if (!SectorList.TryRead(text, out var sectors, out var problem))
+            {
+                log.LogWarning("Sector list at {Path} was skipped ({Problem}), keeping the current rules", path, problem);
+                return;
+            }
+            if (sectors.Count == 0)
+            {
+                log.LogWarning("Sector list at {Path} is empty, keeping the current rules", path);
+                return;
+            }
+
+            var fields = Current.Fields.ToList();
+            var index = fields.FindIndex(f => f.Key == "sector");
+            if (index < 0)
+            {
+                log.LogWarning("There's no sector field, so the list in {Path} was skipped", path);
+                return;
+            }
+            if (FieldRule.SameOptions(fields[index].Options, sectors)) return;
+
+            fields[index] = fields[index] with { Options = sectors };
+            await SaveAsync(db, fields, "Sector list from config.toml", "system", ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            log.LogWarning(ex, "Sector list was not applied, keeping the current rules");
+        }
+    }
+
     public static RuleSet ToRuleSet(RuleVersion row) => new(row.Id, row.CreatedAt, row.ChangedBy, row.Note, ParseFields(row.Fields));
 
     public static List<FieldRule> ParseFields(string json) => JsonSerializer.Deserialize<List<FieldRule>>(json, Json)!;
@@ -50,8 +106,10 @@ public class RulesService(CollectorStore collector)
         return !ParseFields(oldRulesJson).SequenceEqual(Current.Fields);
     }
 
-    // Reads a row from the page: the 4 built in fields plus the custom ones in Extra
-    public RowInput Read(string? name, string? sector, decimal? price, DateOnly? release, Dictionary<string, JsonElement>? extra)
+    // Reads a row from the page: the 4 built in fields plus the custom ones in Extra.
+    // currentSector is the sector already stored on the row. An edit may keep that value even when it isn't in the list.
+    public RowInput Read(string? name, string? sector, decimal? price, DateOnly? release, Dictionary<string, JsonElement>? extra,
+        string? currentSector = null)
     {
         var values = new Dictionary<string, object?>
         {
@@ -82,7 +140,15 @@ public class RulesService(CollectorStore collector)
             custom[rule.Key] = value;
         }
 
-        foreach (var (key, problems) in Validate(values))
+        // A matching choice is stored with the spelling from the list ("private sector" becomes "Private Sector")
+        foreach (var rule in Current.Fields.Where(f => !f.Hidden && f.Type == "text" && f.Options is { Count: > 0 }))
+        {
+            var keep = rule.Key == "sector" ? currentSector : null;
+            var (stored, problem) = CheckText(rule, values.GetValueOrDefault(rule.Key) as string, keep);
+            if (problem is null) values[rule.Key] = stored;
+        }
+
+        foreach (var (key, problems) in Validate(values, currentSector))
         {
             errors.TryAdd(key, problems);
         }
@@ -125,15 +191,16 @@ public class RulesService(CollectorStore collector)
     public static object? ToStored(object? value) => value is DateOnly date ? date.ToString("yyyy-MM-dd") : value;
 
     // Field key to its problems, the same shape ValidationProblem sends back
-    public Dictionary<string, string[]> Validate(IReadOnlyDictionary<string, object?> values)
+    public Dictionary<string, string[]> Validate(IReadOnlyDictionary<string, object?> values, string? currentSector = null)
     {
         var errors = new Dictionary<string, string[]>();
         foreach (var rule in Current.Fields.Where(f => !f.Hidden))
         {
             values.TryGetValue(rule.Key, out var value);
+            var keep = rule.Key == "sector" ? currentSector : null;
             var problem = rule.Type switch
             {
-                "text" => CheckText(rule, (value as string)?.Trim()),
+                "text" => CheckText(rule, value as string, keep).Problem,
                 "number" => CheckNumber(rule, value as decimal?),
                 _ => rule.Required && value is null ? $"{rule.Label} is required" : null
             };
@@ -145,13 +212,37 @@ public class RulesService(CollectorStore collector)
         return errors;
     }
 
-    private static string? CheckText(FieldRule rule, string? text)
+    // Stored is the value to keep. A choice is rewritten to the list's own spelling.
+    private static (string? Stored, string? Problem) CheckText(FieldRule rule, string? text, string? keep)
     {
+        text = string.IsNullOrWhiteSpace(text) ? null : text.Trim();
         if (string.IsNullOrEmpty(text))
         {
-            return rule.Required ? $"{rule.Label} is required" : null;
+            return (null, rule.Required ? $"{rule.Label} is required" : null);
         }
-        return rule.MaxLength is int max && text.Length > max ? $"{rule.Label} can be at most {max} characters" : null;
+
+        if (rule.Options is { Count: > 0 })
+        {
+            var match = rule.Options.FirstOrDefault(o => string.Equals(o, text, StringComparison.OrdinalIgnoreCase));
+            if (match is not null)
+            {
+                text = match;
+            }
+            else if (keep is not null && string.Equals(keep.Trim(), text, StringComparison.OrdinalIgnoreCase))
+            {
+                text = keep.Trim();
+            }
+            else
+            {
+                return (text, $"{rule.Label} has to be one of: {string.Join(", ", rule.Options)}");
+            }
+        }
+
+        if (rule.MaxLength is int max && text.Length > max)
+        {
+            return (text, $"{rule.Label} can be at most {max} characters");
+        }
+        return (text, null);
     }
 
     private static string? CheckNumber(FieldRule rule, decimal? number)
@@ -177,8 +268,8 @@ public class RulesService(CollectorStore collector)
 
     private static string Show(decimal d) => ((double)d).ToString(CultureInfo.InvariantCulture);
 
-    // Limits, labels and hiding custom fields change here. New fields come in through AddFieldAsync.
-    // Fields never get removed, a custom field gets hidden instead so its data stays.
+    // Limits, labels and hiding custom fields change here. New fields come in through AddFieldsAsync.
+    // This save still can't drop a field. Removing one goes through DELETE /schema/fields/{key}.
     public Dictionary<string, string[]> CheckNewRules(SaveRules body)
     {
         var errors = new Dictionary<string, string[]>();
@@ -225,12 +316,30 @@ public class RulesService(CollectorStore collector)
 
     public Dictionary<string, string[]> CheckNewField(NewField field)
     {
-        var problems = CheckLimits(field.Label, field.Type, field.MaxLength, field.Min, field.Max);
-        if (field.Type is not ("text" or "number" or "date")) problems.Add("Type has to be text, number or date");
-        if (Current.Fields.Any(f => string.Equals(f.Label, field.Label?.Trim(), StringComparison.OrdinalIgnoreCase)))
-            problems.Add("A field with that label already exists");
-        if (Current.Fields.Count(f => f.Custom) >= 30) problems.Add("There can be at most 30 custom fields");
-        return problems.Count > 0 ? new() { ["field"] = [.. problems] } : [];
+        var errors = CheckNewFields([field]);
+        return errors.Count > 0 ? new() { ["field"] = errors["fields[0]"] } : [];
+    }
+
+    // One problem list per field, keyed fields[0], fields[1], ... Nothing is saved unless every field is fine.
+    public Dictionary<string, string[]> CheckNewFields(IReadOnlyList<NewField> fields)
+    {
+        var errors = new Dictionary<string, string[]>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var custom = Current.Fields.Count(f => f.Custom);
+        for (var i = 0; i < fields.Count; i++)
+        {
+            var field = fields[i];
+            var problems = CheckLimits(field.Label, field.Type, field.MaxLength, field.Min, field.Max);
+            if (field.Type is not ("text" or "number" or "date")) problems.Add("Type has to be text, number or date");
+            var label = field.Label?.Trim() ?? "";
+            if (label.Length > 0 && Current.Fields.Any(f => string.Equals(f.Label.Trim(), label, StringComparison.OrdinalIgnoreCase)))
+                problems.Add("A field with that label already exists");
+            if (label.Length > 0 && !seen.Add(label))
+                problems.Add("A field with that label already exists");
+            if (custom + i + 1 > 30) problems.Add("There can be at most 30 custom fields");
+            if (problems.Count > 0) errors[$"fields[{i}]"] = [.. problems];
+        }
+        return errors;
     }
 
     private static List<string> CheckLimits(string? label, string type, int? maxLength, decimal? min, decimal? max)
@@ -246,11 +355,95 @@ public class RulesService(CollectorStore collector)
         return problems;
     }
 
-    public Task<RuleSet> AddFieldAsync(AppDbContext db, NewField field, string changedBy, CancellationToken ct)
+    public Task<RuleSet> AddFieldAsync(AppDbContext db, NewField field, string changedBy, CancellationToken ct) =>
+        AddFieldsAsync(db, [field], changedBy, ct);
+
+    // One rules version and one table copy for the whole batch.
+    public async Task<RuleSet> AddFieldsAsync(AppDbContext db, IReadOnlyList<NewField> fields, string changedBy, CancellationToken ct)
     {
-        var label = field.Label.Trim();
-        var rule = new FieldRule(MakeKey(label), label, field.Type, field.Required, field.MaxLength, field.Min, field.Max, Custom: true);
-        return SaveAsync(db, [.. Current.Fields, rule], $"Added the field {label}", changedBy, ct);
+        var taken = await UsedKeysAsync(db, ct);
+        var labels = new List<string>();
+        var added = new List<FieldRule>();
+        foreach (var field in fields)
+        {
+            var label = field.Label.Trim();
+            labels.Add(label);
+            var key = MakeKey(label, taken);
+            added.Add(new FieldRule(key, label, field.Type, field.Required, field.MaxLength, field.Min, field.Max, Custom: true));
+        }
+        return await SaveAsync(db, [.. Current.Fields, .. added], AddedNote(labels), changedBy, ct);
+    }
+
+    // "Added the field A", "Added the fields A and B", "Added the fields A, B and C"
+    public static string AddedNote(IReadOnlyList<string> labels)
+    {
+        if (labels.Count <= 1) return $"Added the field {labels.FirstOrDefault()}";
+        if (labels.Count == 2) return $"Added the fields {labels[0]} and {labels[1]}";
+        return $"Added the fields {string.Join(", ", labels.Take(labels.Count - 1))} and {labels[^1]}";
+    }
+
+    // Removes a custom field, its values, and closes requests that were waiting on it. The caller saved a table copy first.
+    public async Task<RuleSet> DeleteFieldAsync(AppDbContext db, string key, string label, string changedBy, CancellationToken ct)
+    {
+        var strategy = db.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            try
+            {
+                await db.Database.ExecuteSqlInterpolatedAsync($$"""
+                    UPDATE "Industries"
+                    SET "Extra" = NULLIF("Extra" - {{key}}, '{}'::jsonb)
+                    WHERE jsonb_exists("Extra", {{key}})
+                    """, ct);
+
+                await db.Database.ExecuteSqlInterpolatedAsync($"""
+                    UPDATE "Industries"
+                    SET "LostFields" = CASE
+                        WHEN cardinality(array_remove("LostFields", {key})) = 0 THEN NULL
+                        ELSE array_remove("LostFields", {key})
+                    END
+                    WHERE {key} = ANY("LostFields")
+                    """, ct);
+
+                var open = await db.Requests.Where(r => r.Status == "open" && r.FieldKey == key).ToListAsync(ct);
+                var now = DateTimeOffset.UtcNow;
+                const string line = "The field was deleted, so this was closed by itself.";
+                foreach (var request in open)
+                {
+                    request.Status = "dismissed";
+                    request.ResolvedAt = now;
+                    request.ResolvedBy = "system";
+                    request.Details = string.IsNullOrWhiteSpace(request.Details) ? line : request.Details.TrimEnd() + "\n" + line;
+                }
+
+                var kept = Current.Fields.Where(f => f.Key != key).ToList();
+                var saved = await SaveAsync(db, kept, $"Deleted the field {label}", changedBy, ct, copyFirst: false);
+                await tx.CommitAsync(ct);
+                return saved;
+            }
+            catch
+            {
+                try
+                {
+                    await tx.RollbackAsync(CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    log.LogWarning(ex, "Rolling back the field delete failed");
+                }
+                db.ChangeTracker.Clear();
+                try
+                {
+                    await LoadAsync(db, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    log.LogWarning(ex, "Reloading the rules after a failed delete failed");
+                }
+                throw;
+            }
+        });
     }
 
     // Built in object names, and id/extra, so a custom field can't hide a real property
@@ -260,14 +453,36 @@ public class RulesService(CollectorStore collector)
         "isprototypeof", "propertyisenumerable", "tolocalestring", "id", "extra"
     ];
 
-    // "Stock ticker" becomes "stock_ticker", with a number on the end if it's taken
-    private string MakeKey(string label)
+    // Keys from every rules version, so a deleted field can't come back under the same key
+    private async Task<HashSet<string>> UsedKeysAsync(AppDbContext db, CancellationToken ct)
+    {
+        var used = new HashSet<string>(StringComparer.Ordinal);
+        var rows = await db.RuleVersions.AsNoTracking().Select(r => r.Fields).ToListAsync(ct);
+        foreach (var json in rows)
+        {
+            try
+            {
+                foreach (var field in ParseFields(json)) used.Add(field.Key);
+            }
+            catch (JsonException)
+            {
+                // A rules row that can't be read doesn't block adding a field
+            }
+        }
+        foreach (var field in Current.Fields) used.Add(field.Key);
+        return used;
+    }
+
+    // "Stock ticker" becomes "stock_ticker", with a number on the end if it's taken.
+    // taken includes keys already handed out in this batch, so two similar labels don't collide.
+    private static string MakeKey(string label, HashSet<string> taken)
     {
         var slug = Regex.Replace(label.ToLowerInvariant(), "[^a-z0-9]+", "_").Trim('_');
         if (slug.Length == 0) slug = "field";
         if (ReservedKeys.Contains(slug)) slug += "_field";
         var key = slug;
-        for (var n = 2; Current.Fields.Any(f => f.Key == key); n++) key = $"{slug}_{n}";
+        for (var n = 2; taken.Contains(key); n++) key = $"{slug}_{n}";
+        taken.Add(key);
         return key;
     }
 

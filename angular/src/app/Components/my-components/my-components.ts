@@ -29,6 +29,15 @@ export class MyComponents implements OnInit {
     price: [null as number | null],
     release: [''],
   })
+
+  // The two sectors people pick. Anything else only shows while editing a row that already has it.
+  sectorChoices = ['Public Sector', 'Private Sector'];
+
+  otherSector(): string | null {
+    const value = this.form.controls.sector.value;
+    if (!value || this.sectorChoices.includes(value)) return null;
+    return value;
+  }
 // signals for error, saving, editingId, formError
   industries = signal<Industry[]>([]);
   loading = signal(true);
@@ -38,7 +47,13 @@ export class MyComponents implements OnInit {
   formError = signal('');
 
    submit() {
-    if (this.form.invalid) return;
+    if (this.form.invalid) {
+      if (this.form.controls.sector.hasError('required')) {
+        this.form.controls.sector.markAsDirty();
+        this.formError.set('Choose a sector');
+      }
+      return;
+    }
 
     // Table logic and enforcements
     const verify = this.form.getRawValue();
@@ -60,7 +75,7 @@ export class MyComponents implements OnInit {
       this.api.create(body).subscribe({
         next: created => {
           this.industries.update(list => [...list, created]);
-          this.form.reset();
+          this.form.reset({ sector: '' });
           this.extraValues.set({});
           this.saving.set(false);
         },
@@ -101,8 +116,8 @@ export class MyComponents implements OnInit {
   private loadRules() {
     this.api.schema().subscribe({
       next: rules => {
-        this.rules.set(rules);
         this.applyRules(rules.fields);
+        this.rules.set(rules);
       },
       // Without the rules the form still works, the API checks every save anyway
       error: () => this.rules.set(null),
@@ -110,6 +125,9 @@ export class MyComponents implements OnInit {
   }
 
   private applyRules(fields: FieldRule[]) {
+    const sector = fields.find(f => f.key === 'sector');
+    const options = (sector?.options ?? []).map(o => o.trim()).filter(o => o.length > 0);
+    this.sectorChoices = options.length ? options : ['Public Sector', 'Private Sector'];
     for (const rule of fields) {
       const control = this.form.get(rule.key);
       if (!control) continue;
@@ -170,6 +188,11 @@ export class MyComponents implements OnInit {
   checkValue(rule: FieldRule, value: unknown): string | null {
     const empty = value === null || value === undefined || String(value).trim() === '';
     if (empty) return rule.required ? `${rule.label} is required` : null;
+    if (rule.type === 'text' && rule.options?.length) {
+      const text = String(value).trim();
+      const listed = rule.options.some(o => o.toLowerCase() === text.toLowerCase());
+      if (!listed) return `${rule.label} has to be one of: ${rule.options.join(', ')}`;
+    }
     if (rule.type === 'text' && rule.maxLength !== null && String(value).trim().length > rule.maxLength)
       return `${rule.label} can be at most ${rule.maxLength} characters`;
     if (rule.type === 'number') {
@@ -204,6 +227,10 @@ export class MyComponents implements OnInit {
   );
 
   private ruleText(rule: FieldRule): string {
+    if (rule.key === 'sector') {
+      const choices = rule.options?.length ? rule.options : this.sectorChoices;
+      return `${rule.label}, ${choices.join(' or ')}`;
+    }
     if (rule.type === 'text' && rule.maxLength !== null) return `${rule.label}, up to ${rule.maxLength} characters`;
     if (rule.type === 'number' && (rule.min !== null || rule.max !== null)) return this.rangeText(rule, false);
     const what = rule.type === 'date' ? `${rule.label} date` : rule.label;
@@ -293,7 +320,7 @@ export class MyComponents implements OnInit {
       this.formError.set('');
       this.form.setValue({
         name: item.name,
-        sector: item.sector,
+        sector: item.sector ?? '',
         price: item.price,
         release: item.release,
       });
@@ -307,7 +334,7 @@ export class MyComponents implements OnInit {
 // Cancel button logic
     cancelEdit() {
       this.editingId.set(null);
-      this.form.reset();
+      this.form.reset({ sector: '' });
       this.extraValues.set({});
       this.extraTouched.set(new Set());
     }

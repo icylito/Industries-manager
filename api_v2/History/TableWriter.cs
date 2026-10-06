@@ -92,7 +92,8 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
                 values[column.ToLowerInvariant()] = value;
             }
 
-            // Custom fields: keep the old Extra as is, values that don't fit today's type become empty
+            // Custom fields. Bring back drops values for fields that aren't in today's rules.
+            // Restore keeps them, because restore brings the old rules back too. Hidden fields still count as current.
             JsonObject? extra = data.TryGetValue("Extra", out var extraJson) && extraJson.ValueKind == JsonValueKind.Object
                 ? JsonNode.Parse(extraJson.GetRawText())!.AsObject()
                 : null;
@@ -102,6 +103,14 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
                 extra ??= new JsonObject();
                 if (extra.ContainsKey(rule.Key) && extra[rule.Key] is not null) continue;
                 extra[rule.Key] = JsonNode.Parse(oldValue.GetRawText());
+            }
+            if (!forRestore && extra is not null)
+            {
+                foreach (var extraKey in extra.Select(p => p.Key).ToList())
+                {
+                    if (!customRules.ContainsKey(extraKey)) extra.Remove(extraKey);
+                }
+                if (extra.Count == 0) extra = null;
             }
 
             if (extra is not null)

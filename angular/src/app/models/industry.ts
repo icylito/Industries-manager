@@ -51,6 +51,8 @@ export interface FieldRule {
     max: number | null;
     custom: boolean;
     hidden: boolean;
+    // Allowed values for a text field. Sector reads these from scripts/config.toml.
+    options?: string[] | null;
 }
 
 export interface RuleSet {
@@ -95,6 +97,7 @@ export interface ImportPreviewRow {
     level: 'red' | 'black' | null;
     problems: string[];
     similarTo: number | null;
+    similarInBatch: boolean;
     skip: string | null;
 }
 
@@ -115,6 +118,7 @@ export interface ImportResult {
     lostValues: number;
     breakingRules: number;
     skipped: string[];
+    leftOutDuplicates: number;
     requestIds: number[];
 }
 
@@ -129,6 +133,27 @@ export interface RestoreResult {
 export interface Retention {
     keepVersions: number | null;
     keepDays: number | null;
+}
+
+// History page backups card, see api_v2/Endpoints/BackupEndpoints.cs
+export interface BackupEntry {
+    id: string;
+    createdAt: string;
+    kind: string;
+    by: string;
+    mainSize: number;
+    collectorSize: number;
+    rulesVersion: number;
+    hasExcel: boolean;
+}
+
+export interface BackupStatus {
+    running: boolean;
+    lastError: string | null;
+    lastErrorAt: string | null;
+    nextNightly: string;
+    keepDays: number;
+    folder: string;
 }
 
 // Requests page, see api_v2/Endpoints/RequestEndpoints.cs

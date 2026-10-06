@@ -99,7 +99,7 @@ export class RequestsPage implements OnInit {
         this.sending.set(false);
         this.sent.set(res.status === 200
           ? `This was already asked as request #${res.body?.id}. Your details were added to it.`
-          : 'Sent. It shows in the list below and on the bell.');
+          : 'Sent! the request will be shown in the list.');
         this.title.set('');
         this.details.set('');
         this.api.refreshRequestCount();

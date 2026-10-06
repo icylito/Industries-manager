@@ -1,4 +1,4 @@
-<!-- Rules for every field. Built in fields can't be removed or hidden, custom ones can be hidden and their data stays. -->
+<!-- Rules for every field. Built in fields stay. Custom ones can be hidden or deleted. -->
 
 <section class="panel">
     <header class="panel-head">
@@ -36,6 +36,16 @@
                                 <span class="tag waiting-tag" title="Waiting for a developer"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i>Waiting for a developer</span>
                             }
                         </span>
+                        @if (f.key === 'sector') {
+                            @if (f.options?.length) {
+                                <span class="tags">
+                                    @for (choice of f.options; track choice) {
+                                        <span class="tag">{{ choice }}</span>
+                                    }
+                                </span>
+                            }
+                            <p class="hint-line sector-hint">Change them in scripts/config.toml</p>
+                        }
                     </div>
 
                     <div class="limits">
@@ -87,8 +97,25 @@
                                 <input type="checkbox" [checked]="f.hidden" (change)="update(f.key, { hidden: $any($event.target).checked })">
                                 <span>Hide</span>
                             </label>
+                            <button type="button" class="remove-btn" (click)="startDelete(f)">Delete</button>
                         }
                     </div>
+
+                    @if (deleting()?.key === f.key) {
+                        <div class="ask">
+                            <p><i class="fa-solid fa-circle-question" aria-hidden="true"></i>Delete {{ f.label }}? Its values are removed from every row. A copy of the table is saved first, so you can bring it back from History.</p>
+                            <div class="confirm-row end">
+                                <button type="button" class="cancel-btn" [disabled]="deleteBusy()" (click)="deleting.set(null)">Cancel</button>
+                                <button type="button" class="add-btn danger" [disabled]="deleteBusy()" (click)="confirmDelete()">
+                                    @if (deleteBusy()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Deleting... }
+                                    @else { Delete }
+                                </button>
+                            </div>
+                            @if (deleteError()) {
+                                <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ deleteError() }}</p>
+                            }
+                        </div>
+                    }
 
                     @if (f.custom) {
                         <div class="dev-asks">
@@ -142,6 +169,9 @@
         @if (saveError()) {
             <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ saveError() }}</p>
         }
+        @if (deleteMsg()) {
+            <p class="result small"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ deleteMsg() }}</p>
+        }
     }
 </section>
 
@@ -150,7 +180,7 @@
     <header class="card-head">
         <h2><span class="title-icon"><i class="fa-solid fa-plus" aria-hidden="true"></i></span>Add a field</h2>
     </header>
-    <p class="intro">It shows up in the form and the table right away. Its values are saved with each row.</p>
+    <p class="intro">Add as many as you need, then press Send fields. They show up in the form and the table after that. Their values are saved with each row.</p>
     <div class="add-grid">
         <label class="field">
             <span class="field-label">Label</span>
@@ -197,9 +227,34 @@
             <input type="checkbox" [checked]="newRequired()" (change)="newRequired.set($any($event.target).checked)">
             <span>Required</span>
         </label>
-        <button type="button" class="add-btn" [disabled]="!newLabel().trim() || adding()" (click)="addField()">
-            @if (adding()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Adding }
-            @else { <i class="fa-solid fa-plus" aria-hidden="true"></i>Add field }
+        <div class="add-actions">
+            <button type="button" class="add-btn" [disabled]="sending()" (click)="addField()">
+                <i class="fa-solid fa-plus" aria-hidden="true"></i>Add field
+            </button>
+        </div>
+    </div>
+    @if (queue().length) {
+        <ul class="queue">
+            @for (field of queue(); track $index) {
+                <li>
+                    <span class="name">{{ field.label }}</span>
+                    <span class="tag">{{ typeLabel(field.type) }}</span>
+                    @if (queueLimits(field)) { <span class="queue-limits">{{ queueLimits(field) }}</span> }
+                    @if (field.required) { <span class="tag">Required</span> }
+                    <button type="button" class="remove-btn" [attr.aria-label]="'Remove ' + field.label" [disabled]="sending()" (click)="removeQueued($index)"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+                </li>
+            }
+        </ul>
+    }
+    <!-- Send sits on its own under the list, away from Add field, so one can't be pressed for the other -->
+    <div class="send-bar">
+        <p class="hint-line">
+            @if (queue().length) { Not saved yet. Press Send fields when you're done. }
+            @else { Fields you add show up here first. Nothing is saved until you press Send fields. }
+        </p>
+        <button type="button" class="add-btn" [disabled]="!queue().length || sending()" (click)="sendFields()">
+            @if (sending()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Sending... }
+            @else { <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>Send fields ({{ queue().length }}) }
         </button>
     </div>
     @if (addMsg()) {

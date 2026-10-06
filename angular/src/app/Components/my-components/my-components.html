@@ -46,7 +46,7 @@
         </ul>
     }
 
-    <form [formGroup]="form" (ngSubmit)="submit()" (input)="formError.set('')">
+    <form [formGroup]="form" (ngSubmit)="submit()" (input)="formError.set('')" (change)="formError.set('')">
         <label class="field">
             <span class="field-label">Name</span>
             <span class="control">
@@ -58,7 +58,17 @@
             <span class="field-label">Sector</span>
             <span class="control">
                 <i class="fa-solid fa-industry" aria-hidden="true"></i>
-                <input formControlName="sector" placeholder="Industrials">
+                <select formControlName="sector" [class.placeholder]="!form.controls.sector.value">
+                    <option value="">Choose a sector</option>
+                    @for (choice of sectorChoices; track choice) {
+                        <option [value]="choice">{{ choice }}</option>
+                    }
+                    <!-- An older row can still show the sector it already has -->
+                    @if (otherSector(); as saved) {
+                        <option [value]="saved">{{ saved }}</option>
+                    }
+                </select>
+                <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
             </span>
         </label>
         <label class="field">

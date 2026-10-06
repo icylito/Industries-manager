@@ -13,6 +13,7 @@ public class MigrationService(
     CollectorStore collector,
     RulesService rules,
     SettingsService settings,
+    AppLocks locks,
     ILogger<MigrationService> log) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken ct)
@@ -69,6 +70,12 @@ public class MigrationService(
 
                     await db.Database.MigrateAsync(ct);
                     await rules.LoadAsync(db, ct);
+                    // The sector list is saved with a table copy, so it needs history. When history isn't set up yet
+                    // it waits for BringHistoryUpAsync, so a slow history database never holds the main one back.
+                    if (collectorReady)
+                    {
+                        await rules.SyncSectorsAsync(db, ct);
+                    }
                     await settings.LoadAsync(db, ct);
 
                     var applied = (await db.Database.GetAppliedMigrationsAsync(ct)).ToList();
@@ -130,6 +137,21 @@ public class MigrationService(
                 await collector.EnsureSchemaAsync(ct);
                 status.SetHistory(true, "History is ready");
                 log.LogInformation("History database ready after {Attempts} attempt(s)", attempt);
+
+                // The page is already serving, so take the same rules lock the Fields page uses.
+                // A failure here is logged only, history itself is fine.
+                try
+                {
+                    await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);
+                    using var scope = scopes.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                    await rules.LoadAsync(db, ct);
+                    await rules.SyncSectorsAsync(db, ct);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    log.LogWarning(ex, "The sector list from config.toml wasn't applied, it's tried again on the next start");
+                }
                 return;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)

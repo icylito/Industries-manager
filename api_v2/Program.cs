@@ -7,6 +7,7 @@ using static Microsoft.OpenApi.OpenApiSpecVersion;
 using api_v2.Data;
 using api_v2.Auth;
 using api_v2.Rules;
+using api_v2.Backups;
 using Npgsql;
 
 
@@ -34,6 +35,8 @@ builder.Services.AddSingleton<CollectorStore>();
 builder.Services.AddSingleton<AppLocks>();
 builder.Services.AddSingleton<api_v2.History.TableWriter>();
 builder.Services.AddSingleton<RulesService>();
+builder.Services.AddSingleton<BackupService>();
+builder.Services.AddHostedService<BackupScheduler>();
 builder.Services.AddScoped<ICurrentUser, NoAuthUser>();
 
 var app = builder.Build();
@@ -61,6 +64,7 @@ app.MapGet("/health", (DatabaseStatus status) => Results.Ok(status.Snapshot()));
 app.MapIndustries();
 app.MapSchema();
 app.MapHistory();
+app.MapBackups();
 app.MapRequests();
 app.MapOpenApi();
 app.UseSwaggerUI(options =>

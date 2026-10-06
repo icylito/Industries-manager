@@ -1,18 +1,3 @@
-"""Seed the industries table with synthetic rows through the API.
-
-Every row goes through POST /industries, so the API's own validation (api_v2/Dtos)
-decides what gets in. Some rows are broken on purpose to prove the rules hold.
-
-All settings live in config.toml next to this script: row count, broken row rate,
-empty value rate, field ranges, name parts, and API connection.
-
-Usage, with the API running (use py or python3.13 if that is how Python runs on your PC):
-    python scripts/seed_industries.py                     # uses config.toml
-    python scripts/seed_industries.py --count 50          # override the row count
-    python scripts/seed_industries.py --dry-run           # print samples, send nothing
-    python scripts/seed_industries.py --config other.toml
-"""
-
 import argparse
 import json
 import random
@@ -223,8 +208,11 @@ class Seeder:
             f["price_min"] = float(price["min"])
         if price.get("max") is not None:
             f["price_max"] = float(price["max"])
+        options = [s for s in (rules.get("sector", {}).get("options") or []) if s]
+        if options:
+            f["sectors"] = options
         print(f"Rules version {json.loads(body)['version']}: name up to {f['name_max_length']}, "
-              f"price {f['price_min']:g} to {f['price_max']:g}")
+              f"price {f['price_min']:g} to {f['price_max']:g}, sectors {', '.join(f['sectors'])}")
 
     def load_existing_names(self) -> None:
         # Real rows are off limits for new names, and give the duplicate test something to hit

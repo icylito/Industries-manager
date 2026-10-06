@@ -1,5 +1,3 @@
-# Settings for seed_industries.py, flags like --count and --seed override these
-
 # This is for synthetic data generation
 [generation]
 count = 300           # Rows that need to get accepted by the API

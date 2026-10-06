@@ -41,7 +41,7 @@ public static class IndustryEndpoints
                 CollectorStore collector, ICurrentUser user, AppLocks locks, CancellationToken ct) =>
             {
                 await using var tableLock = await locks.TakeAsync(AppLock.Table, ct);
-                var input = rules.Read(create.Name, create.Sector, create.Price, create.Release, create.Extra);
+                var input = rules.Read(create.Name, create.Sector, create.Price, create.Release, create.Extra, currentSector: null);
                 if (input.Errors.Count > 0)
                 {
                     return Results.ValidationProblem(input.Errors);
@@ -56,7 +56,7 @@ public static class IndustryEndpoints
                 var industry = new Industry
                 {
                     Name = name,
-                    Sector = create.Sector?.Trim(),
+                    Sector = input.Values["sector"] as string,
                     Price = create.Price,
                     Release = create.Release,
                     Extra = MergeExtra(null, input.Custom)
@@ -108,7 +108,7 @@ public static class IndustryEndpoints
                     return Results.NotFound("The row doesn't exist");
                 }
 
-                var input = rules.Read(update.Name, update.Sector, update.Price, update.Release, update.Extra);
+                var input = rules.Read(update.Name, update.Sector, update.Price, update.Release, update.Extra, checker2.Sector);
                 if (input.Errors.Count > 0)
                 {
                     return Results.ValidationProblem(input.Errors);
@@ -128,7 +128,7 @@ public static class IndustryEndpoints
                 checker2.Name= name;
                 // The new name is free, so a flagged import row stops being a duplicate
                 if (!staysDuplicate) checker2.DuplicateOf= null;
-                checker2.Sector= update.Sector?.Trim();
+                checker2.Sector= input.Values["sector"] as string;
                 checker2.Price= update.Price;
                 checker2.Release= update.Release;
                 checker2.Extra= MergeExtra(checker2.Extra, input.Custom);
