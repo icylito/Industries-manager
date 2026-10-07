@@ -120,6 +120,10 @@ Contributor: deepseek flash"
 
 **The trap:** `app.spec.ts:58` supplies its own inline stub route with `admin: true` for `'/history'`, so four shell tests keep passing after this change while the real app is broken. Only the assertion at line 48 catches it.
 
+- [ ] **Step 0: Clear the warning you will see in every build**
+
+Every `ng build` and `ng test` currently prints `NG8113: 'RouterLink' is declared but its value is never read` pointing at `angular/src/app/Components/account/account.ts:11`. It is there because the admin-page links on that card were parked in an HTML comment earlier, leaving the import unused. Remove `RouterLink` from that component's `imports` array, and add one line to the parked comment in `account.html` saying the `RouterLink` import returns with the block. Both commands must then print no warnings at all.
+
 - [ ] **Step 1: Write the failing expectation**
 
 In `angular/src/app/app.spec.ts`, line 39, change the list to:
@@ -246,6 +250,8 @@ The em dash is deliberate: `history.ts`'s `describe()` prefix-matches `Before re
 - `testing/stress.py:78`: same change, with any phrase of 10 characters or more.
 
 Leave `testing/check_restore.py` alone — it exercises the **backup** card, which keeps its typed `RESTORE` gate.
+
+**Careful — both files hold two restore calls each, for different endpoints.** In `testing/check_big.py` line 23 restores a **saved version** (change it) while line 40 restores a **backup** (leave it). In `testing/stress.py` line 78 is the saved version (change it) and line 76 is a backup (leave it). Never use a blind find-and-replace for this step; edit the two named lines and nothing else. Verified by search: the saved-version endpoint is called from exactly these two lines anywhere under `testing/`.
 
 - [ ] **Step 5: Build and re-run the check**
 
@@ -656,8 +662,9 @@ fs.mkdirSync(out, { recursive: true });
 const control = fs.readFileSync(path.join(repo, 'scripts', 'seeding.control.toml'), 'utf8');
 const field = (n) => (control.match(new RegExp(`^\\s*${n}\\s*=\\s*"?([^"\\r\\n]*?)"?\\s*$`, 'm')) || [])[1] || '';
 
-const app = 'http://localhost:4200';
-if (!app.includes('localhost')) throw new Error('this check only runs against localhost');
+const app = process.env.APP_URL ?? 'http://localhost:4200';
+const host = new URL(app).hostname;
+if (host !== 'localhost' && host !== '127.0.0.1') throw new Error(`refusing to run against ${host}: this check is for localhost only`);
 const fails = [];
 const check = (label, ok) => { console.log(`${ok ? '  ok  ' : '  FAIL'} ${label}`); if (!ok) fails.push(label); };
 const shot = (page, name) => page.screenshot({ path: path.join(out, `${name}.png`) });
@@ -698,7 +705,7 @@ await shot(page, 'restore-note');
 await page.keyboard.press('Escape').catch(() => {});
 
 // 3. The age line sits beside the saved copy
-check('a saved copy says how old it is', /hour|day/.test(await page.locator('table.versions tbody tr').first().textContent()));
+check('a saved copy says how old it is', /\d+ (hour|hours|day|days)|less than an hour/.test(await page.locator('table.versions tbody tr').first().textContent()));
 
 // 4. The shortcuts panel dims less and blurs what is behind it
 await page.goto(`${app}/overview`, { waitUntil: 'domcontentloaded' });
@@ -711,9 +718,19 @@ check('the backdrop blurs what is behind it', await page.locator('.backdrop').ev
 check('the page dims only a little', await page.locator('.app').evaluate((n) => Number(getComputedStyle(n).opacity) > 0.8));
 await shot(page, 'shortcuts-blur');
 
-// 5. The same, with the theme the other way round
+// 5. Closing the panel by its own path must clear the mark. The unit test drives the service directly, so it cannot catch this.
+await page.keyboard.press('Escape');
+await page.waitForTimeout(500);
+check('closing the panel clears the mark', !(await page.evaluate(() => document.documentElement.classList.contains('shortcuts-open'))));
+
+// 6. The same, with the theme the other way round. The backdrop covers the page on purpose, so the panel has to be closed
+//    before the theme button can be clicked at all - a real behaviour of this design, learned by trying it.
 await page.locator('.theme-btn').click();
-await page.waitForTimeout(700);
+await page.waitForTimeout(800);
+await page.keyboard.press('?');
+await page.waitForSelector('.panel.pop', { timeout: 15000 });
+await page.waitForTimeout(900);
+check('the backdrop blurs in dark mode too', await page.locator('.backdrop').evaluate((n) => getComputedStyle(n).backdropFilter.includes('blur')));
 await shot(page, 'shortcuts-blur-dark');
 
 await browser.close();
