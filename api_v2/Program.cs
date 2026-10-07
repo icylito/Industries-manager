@@ -38,14 +38,17 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connect
 builder.Services.AddSingleton<DatabaseStatus>();
 builder.Services.AddHostedService<MigrationService>();
 
-// Collector copies, versioned rules, and who is making the request (no login yet, see Auth/CurrentUser.cs)
+// Collector copies, versioned rules, backups and the restore from a backup
 builder.Services.AddSingleton<SettingsService>();
 builder.Services.AddSingleton<CollectorStore>();
 builder.Services.AddSingleton<AppLocks>();
 builder.Services.AddSingleton<api_v2.History.TableWriter>();
 builder.Services.AddSingleton<RulesService>();
 builder.Services.AddSingleton<BackupService>();
+builder.Services.AddSingleton<BackupRestore>();
 builder.Services.AddHostedService<BackupScheduler>();
+// Notices when the history database goes away or comes back after startup, so the page's badge stays right
+builder.Services.AddHostedService<HistoryMonitor>();
 // Who is signed in comes from the token the page sends, see Auth/CurrentUser.cs
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, SessionUser>();

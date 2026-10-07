@@ -25,6 +25,7 @@ I started this on September 26, 2026, and the sections below show where things a
 - Done: login with usernames and passwords. Anyone can look at the table, an account is needed to change rows, and admins also get History, Fields and People, see [Accounts and sign in](#accounts-and-sign-in).
 - Done: Export and Import settings on the History page, for how long old versions are kept and the field labels and limits.
 - Done: the last break test findings. Restore is all or nothing, damaged saved versions are marked instead of breaking History, and saving retention first says how many versions it would remove.
+- Done: a Restore button on every backup. It puts the table, its rules, settings and requests back the way they were that night and leaves the accounts alone, see [Backups](#backups). Restores and imports of big tables got fast too, 100,000 rows in a few seconds instead of hitting the 30 second limit.
 - Next: the open items listed at the bottom, see [Not done yet](#not-done-yet).
 
 # Starting
@@ -97,6 +98,7 @@ This folder uses Angular mainly to replace the Swagger UI from `api_v2/`. The 2 
   - Keep old versions sets how many to keep or after how many days to remove them. Empty means keep everything. Saving asks first when it would remove saved versions, and says how many.
   - Settings file: Export settings saves the retention and the field labels and limits to a file, Import settings loads one. It says what would change before it does anything, leaves out fields the table doesn't have, and saves a copy of the table first.
   - A saved version with a value that can't be read shows a Damaged tag and can't be restored or brought back.
+  - Backups at the bottom: Back up now, a download for each one, and Restore, see [Backups](#backups).
 - **Fields** (`/fields`) is where the team changes labels and limits, adds custom fields, and hides custom fields they don't want anymore. Hiding keeps the data. Every save is a new rules version and a copy of the table gets saved first. Changing a field's type or making it a real column goes to a developer from here. If someone else saved while you had the page open, your save gets stopped and asks you to reload, and what you typed stays there.
   - Add field puts the field in a list, nothing is saved yet. Add as many as you want, take one out with the x, then Send fields saves them all as one version.
   - Delete is on the fields made from the page, the built in ones (Name, Sector, Price, Release) live in code so they can't be deleted. It takes the values off every row, but a copy of the table is saved first so History can bring it back. Hide is still there if you only want it off the page.
@@ -152,19 +154,25 @@ The address the page uses for the API is in `angular/src/environments/environmen
 
 ### Backups
 
-Every night at 2:00 AM the API saves a full copy of both databases with `pg_dump`, and keeps them for 14 days. The newest one never gets deleted, even if it's older than that. If the PC was off at 2:00, it makes one a few minutes after the API starts instead. On the History page there's a Back up now button and a list where you can download each one. Excel gives you the table as it was at that time, it opens straight in Excel. Main and History are the `.dump` files, those are for restoring.
+Every night at 2:00 AM the API saves a full copy of both databases with `pg_dump`, and keeps them for 14 days. The newest one never gets deleted, even if it's older than that. If the PC was off at 2:00, it makes one a few minutes after the API starts instead. On the History page there's a Back up now button and a list where you can download each one. Excel gives you the table as it was at that time, it opens straight in Excel. Main and History are the `.dump` files, those are what Restore reads.
 
 They go in `backups/` in the project folder, which is git ignored. That's fine for mistakes, but if the disk dies the backups die with it, so point `Backup:Folder` in `appsettings.Development.json` at OneDrive or another drive. `Backup:Time` and `Backup:KeepDays` change the time and how long they stay.
 
 It needs `pg_dump`, which comes with Postgres. The API finds it in `C:\Program Files\PostgreSQL` by itself, or you can set `Backup:PgDump` to its path.
 
-There's no restore button yet. When it's built it has to leave the accounts alone, so for now it's by hand, stop the API first and run:
+Restore is next to each backup, for admins. After you type `RESTORE` it puts the table, its rules, how long old versions are kept, and the requests back the way they were in that backup. Accounts and sign ins are left as they are now, so nobody gets an old password back and nobody gets signed out. The table as it is now is saved to History first, so the restore itself can be undone from the same page.
+
+How it works: the dump is loaded into a scratch database on the same server first, so a damaged file never touches the live one. Then the four tables are swapped in one transaction, either all of it goes in or nothing changes. It needs `pg_restore`, which sits next to `pg_dump`, and the API finds it the same way. A backup made when the table had other columns shows "Other table layout" and its Restore button is off, that one needs a developer.
+
+The history database isn't restored from the page, it only ever grows and restoring it would throw away the versions saved since. If you ever need to, stop the API and run:
 
 ```
-pg_restore --clean --if-exists --no-owner -h localhost -p 5432 -U postgres -d api_v2 main.dump
+pg_restore --clean --if-exists --no-owner -h localhost -p 5432 -U postgres -d collector collector.dump
 ```
 
-Use `-d collector` with `collector.dump` for the history one, and `-p 5433 -d main` if you're on Docker.
+Use `-p 5433` if you're on Docker.
+
+If the history database goes away while the API is running, the badge on the main page says History offline within half a minute, adding and editing rows stops with a plain message until it's back, and everything clears by itself once it answers again.
 
 ### Changing the table
 
@@ -224,5 +232,5 @@ python scripts/seed_industries.py --count 50 --dry-run
 # Not done yet
 
 - Restore brings back the rows and rules of a version but not its columns. If the table had different columns back then, a developer has to bring them back in code since the API moves the database forward on every start. The request it makes says how.
-- Backups can only be restored by hand for now. A button has to skip the accounts and sign ins, or restoring an old backup would bring back old passwords.
+- Restore from a backup needs the backup to have today's table layout. One from before a database update shows "Other table layout" and needs a developer, the same as an old saved version.
 - After the accounts update, every older saved version says "Different columns back then", and restoring one asks a developer about the layout. The accounts were added as new tables, the Industries table itself didn't change.

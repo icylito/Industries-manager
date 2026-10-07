@@ -171,6 +171,29 @@ export interface BackupEntry {
     collectorSize: number;
     rulesVersion: number;
     hasExcel: boolean;
+    // Rows in the table when the copy was made, older backups don't have it
+    rowCount: number | null;
+    // False when the table had other columns back then, so Restore isn't offered. Null when the backup didn't record it.
+    sameLayout: boolean | null;
+}
+
+// What GET /backups/{id}/restore/preview says before a restore
+export interface BackupRestorePreview {
+    id: string;
+    createdAt: string;
+    rulesVersion: number;
+    rowCount: number | null;
+    sameLayout: boolean | null;
+    currentRows: number;
+    historyReady: boolean;
+}
+
+export interface BackupRestoreResult {
+    backup: string;
+    rowsBefore: number;
+    rows: number;
+    rulesVersion: number;
+    copyId: number | null;
 }
 
 export interface BackupStatus {

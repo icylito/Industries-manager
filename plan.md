@@ -1,13 +1,13 @@
 # Stock Listing plan and handoff
 
-Project is in `Desktop/testing`. Last updated 2026-10-06 (batches 6 and 7).
+Project is in `Desktop/testing`. Last updated 2026-10-07 (batch 8, restore from a backup).
 
 The app lists industries (name, sector, price, release) from a Postgres database. Angular 22 page in `angular/`, .NET 10 API in `api_v2/`. Everything on the page saves to the database, and since today the team can change rules, add fields, go back to old versions, and ask a developer for help all from the page.
 
 ## Where things are right now
 
-- Steps 1 to 7 are built, plus backups (batch 4). Step 8 (login) is built in batch 7.
-- Last commit is `5d7ff11` (batches 4 and 5 are in it). Batches 6 and 7 (the break test fixes left over, Settings export and import, and the login, see `testing/report.txt`) are done and checked but not committed.
+- Steps 1 to 7 are built, plus backups (batch 4). Step 8 (login) is built in batch 7. Restore from a backup is built in batch 8.
+- Last commit on main is `1e6118f`, batches 1 to 7 are all in. Batch 8 is on its own branch, see `testing/report.txt`.
 - My own Postgres (port 5432, database `api_v2`) is up to date. The `AddHistoryFieldsRequests` migration ran on 2026-10-05 at 12:12 with its copy saved first, 301 rows, nothing changed.
 - The Docker database (port 5433, databases `main` and `collector`) has test data only: a fake old version #4, a custom field Ticker, a few imported rows, and some requests. Safe to wipe with `docker compose down -v`.
 - Nothing of Claude's is running. Run `start.bat` to bring the API and the page up. The first start after batch 4 makes a backup in `testing/backups` a few seconds after the API is ready.
@@ -15,7 +15,7 @@ The app lists industries (name, sector, price, release) from a Postgres database
 
 ## Waiting on me
 
-- [ ] Commit batches 6 and 7, the notes are in `testing/report.txt`
+- [x] Commit batches 6 and 7 (`17bfc53`)
 - [ ] First `start.bat` after batch 7 applies the `AddUsersAndSessions` migration on my own database (a copy is saved first) and prints the first admin password once in the API window. Write it down, sign in, pick a new one
 - [ ] Use https before the login leaves a trusted network (passwords travel over plain http on the Wi-Fi)
 - [ ] First `start.bat` after batch 5 adds one rules version "Sector list from config.toml" on my own database (copy saved first). Expected, it happens once
@@ -71,6 +71,18 @@ The app lists industries (name, sector, price, release) from a Postgres database
 - [x] Each one has the code drafted, with Show and Copy. Done, Dismiss, Reopen
 - [x] The same open request never gets made twice
 
+### 9. Restore from a backup (batch 8)
+- [x] Restore next to every backup on History, admins only, type `RESTORE`. Rows, rules, retention and requests go back to that night, accounts and sign ins stay
+- [x] The dump goes into a scratch database first (`main_restore_scratch`), then the four tables are swapped in one transaction with a binary COPY. A failed read never touches the live database, a failed swap rolls back
+- [x] A backup from another table layout is refused before anything changes, its button is off with "Other table layout". `backup.json` records the migrations and the row count now
+- [x] History page: the row count under each backup, the ask panel with the typed word, the result line, the "Before restoring the backup from ..." reason on the saved copy
+- [x] Restore and Bring back from History write with one COPY, 10 minute limit. 100,000 rows in about 4 seconds
+- [x] "History offline" after startup: every failed collector call marks it down at once, `HistoryMonitor` checks every 30 seconds and brings it back, the main page asks `/health` every 30 seconds
+- [x] Failed backups and restores only show this code's own sentences (`BackupFailedException`), everything else goes to the log
+- [x] Keep old versions refuses anything that isn't a whole number of 1 or more and sends nothing
+
+How it was made: the box had no Docker daemon, so a Postgres 16 was started by hand on 5433 with the same user and password as `docker-compose.yml`, and the API built its own `main` and `collector` on first start. Every check was a small Python script against a throwaway API on 5104 (sign in, seed 300 rows, back up, change things, restore, compare), and the big table checks inserted 100,000 rows straight in SQL. The page was checked with a headless Chromium at 1280 and 390 wide and in dark mode. Then a race test: 30 rounds of three restores at once under 8 threads of adds, edits, deletes, bring backs, rules and retention saves and backups, plus 10 rounds on 20,000 rows, no errors and nothing stuck. Details in `testing/report.txt`.
+
 ### Main table
 - [x] Red triangle when a value couldn't come over, black for minor things, hover lists every reason
 - [x] Amber row for similar rows, wrench on a column header when a developer was asked about it
@@ -100,6 +112,9 @@ The app lists industries (name, sector, price, release) from a Postgres database
 - **PowerShell 5.1 adds a BOM** when saving, `config.toml` reading handles it.
 - **The browser extension freezes on `confirm()` popups**, so Delete is never clicked during checks. Also why the custom delete popup is on the leftovers list.
 - **History being down took the whole app down.** The collector was set up before the main database, so one unreachable collector meant no rows at all. Main comes first now, and only a waiting migration still needs the collector first.
+- **"History offline" only knew about outages at startup.** Nothing set the flag back to false once it was true, so a collector that died mid run left the badge green. Every failed collector call marks it down now and a check every 30 seconds brings it back.
+- **The restore scratch database came back dead the second time.** Npgsql pooled the connection to it, the forced drop killed that connection, and the next restore pulled the dead one out of the pool. The scratch connection doesn't pool anymore.
+- **Restores of big tables hit the 30 second limit.** One INSERT per row, 100,000 rows meant 100,000 round trips. Restore and Bring back write with one binary COPY now, 100,000 rows take about 4 seconds.
 
 ## Still open
 
@@ -107,7 +122,7 @@ The app lists industries (name, sector, price, release) from a Postgres database
 - [x] `ICurrentUser` and `.RequireAdmin()` in `Auth/CurrentUser.cs`, used on rules, history and request status
 - [x] Typed confirmation on Restore
 - [x] Login with usernames and passwords (batch 7): People page for admins, bearer token sign ins, first admin made on first start, `Auth:ResetPassword` for a forgotten password, 5 tries a minute
-- [ ] Restore from a backup button, admin only. It has to skip the Users and Sessions tables or old passwords come back
+- [x] Restore from a backup button, admin only (batch 8). It leaves Users and Sessions alone, loads the dump into a scratch database first, and swaps the four tables in one transaction. A backup from another layout is refused
 - [x] Sector list from `config.toml` into the rules, and the API refuses other sectors (batch 5)
 - [x] Settings Export and Import on the History page (batch 7), retention and the field labels and limits
 
@@ -137,6 +152,8 @@ The app lists industries (name, sector, price, release) from a Postgres database
 | History, requests, schema endpoints | `api_v2/Endpoints/` |
 | Drafted code for requests | `api_v2/Requests/Drafts.cs` |
 | Login, sessions, roles | `api_v2/Auth/` (`CurrentUser.cs`, `UserService.cs`, `PasswordHasher.cs`), `api_v2/Endpoints/AuthEndpoints.cs`, `UserEndpoints.cs`, page side `angular/src/app/services/auth.ts` |
+| Backups and restoring one | `api_v2/Backups/BackupService.cs` (pg_dump, the list, pruning), `BackupRestore.cs` (pg_restore into a scratch database, the swap), `api_v2/Endpoints/BackupEndpoints.cs` |
+| History going offline and back | `api_v2/Data/HistoryMonitor.cs`, `CollectorStore.NoteFailure` |
 | Pages | `angular/src/app/Components/` (my-components is the table, plus history, fields, requests) |
 | Colors, including the amber | `angular/src/styles.css` |
 | Team setup | `README.md`, `docker_setup.md`, `Desktop/server.md` for sharing my Docker server on Wi-Fi |
@@ -181,6 +198,13 @@ The app lists industries (name, sector, price, release) from a Postgres database
 
 ### Wording
 - Everything the team sees is plain words, no technical terms
+
+### Restore from a backup
+- Scratch database first, never pg_restore straight into the live one. pg_restore runs as its own program with its own connection, so it can't join a transaction. Loading into a scratch copy and then moving rows over from our own connection is what makes the swap all or nothing
+- Only Industries, RuleVersions, Requests and Settings come back. Users and Sessions are left alone on purpose, a restore must never hand out an old password or sign everyone out. The history database isn't restored from the page either, it only grows and restoring it would drop the versions saved since
+- The dump's own `__EFMigrationsHistory` decides if the layout matches, `backup.json` is only the quick check that turns the button off. A different layout is refused, the same rule as an old saved version
+- A copy of the table goes to History before the swap and is deleted again if the swap fails, the same as Restore from a version
+- The scratch connection doesn't pool and gets a 10 minute command timeout. Pooled connections to a database that gets dropped with FORCE come back dead
 
 ### Commits
 - Only I commit and push. Claude writes the message: one plain line plus `Contributor: coder bot opus 5.5`, no co-author line

@@ -3,7 +3,7 @@ import { HttpClient, HttpErrorResponse, HttpResponse } from '@angular/common/htt
 import { MonoTypeOperatorFunction, Observable, retry, throwError, timer } from 'rxjs';
 import {
     Industry, CreateIndustry, UpdateIndustry, DbHealth, RuleSet, FieldRule, NewField, VersionSummary, VersionDetail,
-    ImportPreview, ImportResult, RestoreResult, Retention, BackupEntry, BackupStatus, DevRequest,
+    ImportPreview, ImportResult, RestoreResult, Retention, BackupEntry, BackupStatus, BackupRestorePreview, BackupRestoreResult, DevRequest,
     SettingsFile, SettingsImportPreview, SettingsImportResult, AuthUser, NewUserResult,
 } from '../models/industry';
 import { environment } from '../../environments/environment';
@@ -109,6 +109,13 @@ export class IndustryApi {
     }
     backupDownloadUrl(id: string, file: 'main' | 'collector' | 'excel'): string {
         return `${this.apiUrl}/backups/${id}/${file}`;
+    }
+    // Restoring a backup. The preview changes nothing, the restore wants the word RESTORE like History does.
+    backupRestorePreview(id: string): Observable<BackupRestorePreview> {
+        return this.http.get<BackupRestorePreview>(`${this.apiUrl}/backups/${id}/restore/preview`);
+    }
+    restoreBackup(id: string, confirm: string): Observable<BackupRestoreResult> {
+        return this.http.post<BackupRestoreResult>(`${this.apiUrl}/backups/${id}/restore`, { confirm });
     }
 
     // People, admins only

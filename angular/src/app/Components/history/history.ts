@@ -2,7 +2,8 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
-  BackupEntry, BackupStatus, ImportPreview, ImportResult, RestoreResult, SettingsFile, SettingsImportPreview, VersionDetail, VersionSummary,
+  BackupEntry, BackupRestorePreview, BackupRestoreResult, BackupStatus, ImportPreview, ImportResult, RestoreResult, SettingsFile,
+  SettingsImportPreview, VersionDetail, VersionSummary,
 } from '../../models/industry';
 import { IndustryApi, errorText } from '../../services/industry-api';
 
@@ -31,9 +32,11 @@ export class HistoryPage implements OnInit {
   restoreDone = signal<RestoreResult | null>(null);
   importDone = signal<ImportResult | null>(null);
 
-  // Retention, empty means keep everything
-  keepVersions = signal<number | null>(null);
-  keepDays = signal<number | null>(null);
+  // Retention, empty means keep everything. The boxes keep their text so a bad value can be refused before anything is sent.
+  keepVersionsText = signal('');
+  keepDaysText = signal('');
+  keepVersions = computed(() => this.toNumber(this.keepVersionsText()));
+  keepDays = computed(() => this.toNumber(this.keepDaysText()));
   retentionMsg = signal('');
   retentionError = signal('');
 
@@ -48,9 +51,14 @@ export class HistoryPage implements OnInit {
     this.load();
     this.loadBackups();
     this.api.retention().subscribe({
-      next: r => { this.keepVersions.set(r.keepVersions); this.keepDays.set(r.keepDays); },
+      next: r => this.setRetention(r.keepVersions, r.keepDays),
       error: () => {},
     });
+  }
+
+  private setRetention(versions: number | null, days: number | null) {
+    this.keepVersionsText.set(versions === null ? '' : String(versions));
+    this.keepDaysText.set(days === null ? '' : String(days));
   }
 
   loadBackups() {
@@ -110,6 +118,48 @@ export class HistoryPage implements OnInit {
     });
   }
 
+  // Restore from a backup. The table, its rules, settings and requests go back to that night, accounts stay.
+  restoreAsk = signal<{ entry: BackupEntry; preview: BackupRestorePreview } | null>(null);
+  restoreBackupText = signal('');
+  restoreBackupBusy = signal(false);
+  restoreBackupDone = signal<BackupRestoreResult | null>(null);
+  restoreBackupError = signal('');
+
+  askRestoreBackup(entry: BackupEntry) {
+    this.restoreBackupDone.set(null);
+    this.restoreBackupError.set('');
+    this.restoreBackupText.set('');
+    this.restoreBackupBusy.set(true);
+    this.api.backupRestorePreview(entry.id).subscribe({
+      next: preview => { this.restoreBackupBusy.set(false); this.restoreAsk.set({ entry, preview }); },
+      error: (err: HttpErrorResponse) => { this.restoreBackupBusy.set(false); this.restoreBackupError.set(errorText(err)); },
+    });
+  }
+
+  closeRestoreBackup() {
+    this.restoreAsk.set(null);
+    this.restoreBackupText.set('');
+  }
+
+  restoreBackup() {
+    const ask = this.restoreAsk();
+    if (!ask || this.restoreBackupText() !== 'RESTORE' || this.restoreBackupBusy()) return;
+    this.restoreBackupBusy.set(true);
+    this.restoreBackupError.set('');
+    this.api.restoreBackup(ask.entry.id, 'RESTORE').subscribe({
+      next: result => {
+        this.restoreBackupBusy.set(false);
+        this.restoreAsk.set(null);
+        this.restoreBackupDone.set(result);
+        // The saved versions and the retention boxes come from the restored database now
+        this.load();
+        this.api.retention().subscribe({ next: r => this.setRetention(r.keepVersions, r.keepDays), error: () => {} });
+        this.api.refreshRequestCount();
+      },
+      error: (err: HttpErrorResponse) => { this.restoreBackupBusy.set(false); this.restoreBackupError.set(errorText(err)); },
+    });
+  }
+
   load() {
     this.api.versions().subscribe({
       next: v => { this.versions.set(v); this.loading.set(false); this.error.set(''); },
@@ -124,7 +174,16 @@ export class HistoryPage implements OnInit {
     if (reason.startsWith('Before rules version')) return 'Before the rules changed';
     if (reason.startsWith('Before restoring version')) return `Before restoring version #${m?.[1]}`;
     if (reason.startsWith('Before importing from version')) return `Before bringing back rows from version #${m?.[1]}`;
+    if (reason.startsWith('Before restoring backup')) return `Before restoring the backup from ${this.backupDate(reason.slice('Before restoring backup '.length))}`;
     return reason;
+  }
+
+  // A backup id looks like 2026-10-07_020000_nightly, this turns it into the date and time people see in the Backups card
+  backupDate(id: string): string {
+    const m = /^(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})(\d{2})/.exec(id);
+    if (!m) return id;
+    const [, y, mo, d, h, mi] = m;
+    return this.formatDate(new Date(+y, +mo - 1, +d, +h, +mi).toISOString());
   }
 
   formatDate(iso: string): string {
@@ -304,17 +363,21 @@ export class HistoryPage implements OnInit {
         this.settingsAsk.set(null);
         const removed = r.removed ? ` ${r.removed} old version${r.removed === 1 ? '' : 's'} removed.` : '';
         this.settingsMsg.set(`Settings imported.${removed}`);
-        this.api.retention().subscribe({ next: x => { this.keepVersions.set(x.keepVersions); this.keepDays.set(x.keepDays); }, error: () => {} });
+        this.api.retention().subscribe({ next: x => this.setRetention(x.keepVersions, x.keepDays), error: () => {} });
         this.load();
       },
       error: (err: HttpErrorResponse) => { this.settingsBusy.set(false); this.settingsError.set(errorText(err)); },
     });
   }
 
-  // Retention
+  // Retention. Empty is null (no limit). Anything that isn't a whole number of 1 or more is NaN, which the save refuses.
   toNumber(value: string): number | null {
-    return value === '' ? null : Math.floor(Number(value));
+    if (value.trim() === '') return null;
+    const n = Math.floor(Number(value));
+    return Number.isFinite(n) && n >= 1 ? n : NaN;
   }
+
+  static readonly RetentionProblem = 'Use a whole number of 1 or more, or leave the box empty';
 
   // How many versions the settings would remove, set while the page asks before saving
   retentionAsk = signal<number | null>(null);
@@ -326,6 +389,10 @@ export class HistoryPage implements OnInit {
     this.retentionError.set('');
     this.retentionAsk.set(null);
     const body = { keepVersions: this.keepVersions(), keepDays: this.keepDays() };
+    if (Number.isNaN(body.keepVersions) || Number.isNaN(body.keepDays)) {
+      this.retentionError.set(HistoryPage.RetentionProblem);
+      return;
+    }
     this.retentionBusy.set(true);
     this.api.previewRetention(body).subscribe({
       next: p => {

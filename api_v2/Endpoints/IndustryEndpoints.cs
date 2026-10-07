@@ -70,8 +70,9 @@ public static class IndustryEndpoints
                     changeId = await collector.LogChangeAsync(null, "add", null, Snapshot(industry),
                         rules.Current.Version, user.Name);
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    collector.NoteFailure(ex);
                     return Results.Problem(
                         "History isn't available right now, so the row wasn't added. Try again in a moment",
                         statusCode: StatusCodes.Status503ServiceUnavailable, title: "Backup not available");
@@ -141,8 +142,9 @@ public static class IndustryEndpoints
                     changeId = await collector.LogChangeAsync(id, "edit", before, Snapshot(checker2),
                         rules.Current.Version, user.Name);
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    collector.NoteFailure(ex);
                     return CopyFailed();
                 }
 
@@ -186,8 +188,9 @@ public static class IndustryEndpoints
                     changeId = await collector.LogChangeAsync(id, "delete", Snapshot(checker3), null,
                         rules.Current.Version, user.Name);
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    collector.NoteFailure(ex);
                     return CopyFailed();
                 }
 

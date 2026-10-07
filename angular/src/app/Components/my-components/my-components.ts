@@ -253,13 +253,15 @@ export class MyComponents implements OnInit {
   }
   private left = false;
 
-  // History comes up after the main database, so keep asking until it's there and the pill clears by itself
+  // Keeps the badge honest while the page is open: every 5 seconds while History is offline so it clears as soon
+  // as it's back, every 30 seconds otherwise so an outage after startup shows up too
   private watchHistory() {
-    if (this.left || this.historyHealth()?.ready !== false) return;
+    if (this.left) return;
+    const every = this.historyHealth()?.ready === false ? 5000 : 30000;
     this.historyTimer = setTimeout(() => this.api.health().subscribe({
       next: health => { this.historyHealth.set(health.history); this.watchHistory(); },
       error: () => this.watchHistory(),
-    }), 5000);
+    }), every);
   }
 
   // Wait for the API's auto migration to finish before loading rows
