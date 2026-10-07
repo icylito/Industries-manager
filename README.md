@@ -85,6 +85,7 @@ This folder uses Angular mainly to replace the Swagger UI from `api_v2/`. The 2 
 
 ### The pages
 
+- Any page left alone for 5 minutes starts from the top when you come back to it (the tab becomes visible again, the window gets focus, or you click or type), in one jump, so nobody lands halfway down a table they don't remember scrolling. The time is `IdleAfterMs` in `angular/src/app/services/idle-top.ts`.
 - **Sign in** (`/login`) and **Your account** (`/account`) are for changing your password or signing out. A new account has to pick its own password first. After a sign in the page goes back to where you were, as long as that's a page of this app.
 - **People** (`/users`) is where an admin makes accounts, gives someone a new password, makes someone admin or normal, or turns an account off.
 - **Industries** (`/`) is the table. Delete asks in the row, and afterwards says what went: "Deleted 1 row from Industries: Horizon Water LLC." Deleting a field on Fields says how many rows lost a value. Rows can have a triangle next to the name, hover it to see why:
