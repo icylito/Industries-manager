@@ -1,28 +1,28 @@
 # Stock Listing plan and handoff
 
-Project is in `Desktop/testing`. Last updated 2026-10-07 (batch 8, restore from a backup).
+Project is in `Desktop/testing`. Last updated 2026-10-07 (batches 8 and 9 merged into main).
 
 The app lists industries (name, sector, price, release) from a Postgres database. Angular 22 page in `angular/`, .NET 10 API in `api_v2/`. Everything on the page saves to the database, and since today the team can change rules, add fields, go back to old versions, and ask a developer for help all from the page.
 
 ## Where things are right now
 
-- Steps 1 to 7 are built, plus backups (batch 4). Step 8 (login) is built in batch 7. Restore from a backup is built in batch 8.
-- Last commit on main is `1e6118f`, batches 1 to 7 are all in. Batch 8 is on its own branch, see `testing/report.txt`.
+- Steps 1 to 7 are built, plus backups (batch 4). Step 8 (login) is built in batch 7. Restore from a backup is built in batch 8, https and the UI judge's list in batch 9.
+- Batches 1 to 9 are all on main. Batches 8 and 9 came in from the `restore-from-backup` branch with the merge `e770068` (PR #1, 2026-10-07).
 - My own Postgres (port 5432, database `api_v2`) is up to date. The `AddHistoryFieldsRequests` migration ran on 2026-10-05 at 12:12 with its copy saved first, 301 rows, nothing changed.
 - The Docker database (port 5433, databases `main` and `collector`) has test data only: a fake old version #4, a custom field Ticker, a few imported rows, and some requests. Safe to wipe with `docker compose down -v`.
-- Nothing of Claude's is running. Run `start.bat` to bring the API and the page up. The first start after batch 4 makes a backup in `testing/backups` a few seconds after the API is ready.
-- Builds are clean, `ng test` passes 4 of 4, and every batch was checked on throwaway databases and in the browser, see `testing/report.txt`.
+- Nothing of Claude's is running. Run `start.bat` to bring the API and the page up. The first start after batch 4 makes a backup in `backups/` in the project folder a few seconds after the API is ready.
+- Builds are clean, `ng test` passes 32 of 32 in 9 files (rechecked 2026-10-07), and every batch was checked on throwaway databases and in the browser, see `testing/report.txt`.
 
 ## Waiting on me
 
 - [x] Commit batches 6 and 7 (`17bfc53`)
-- [ ] First `start.bat` after batch 7 applies the `AddUsersAndSessions` migration on my own database (a copy is saved first) and prints the first admin password once in the API window. Write it down, sign in, pick a new one
+- [x] Ran `start.bat` on 2026-10-07. The first start after batch 7 applies the `AddUsersAndSessions` migration on my own database (a copy is saved first) and prints the first admin password once in the API window. Write it down, sign in, pick a new one
 - [x] Https is built (batch 9), `start.bat https`. Still yours: run `dotnet dev-certs https --trust` once, and use it on the Wi-Fi instead of plain http
-- [ ] First `start.bat` after batch 5 adds one rules version "Sector list from config.toml" on my own database (copy saved first). Expected, it happens once
+- [x] Ran `start.bat` on 2026-10-07. The first start after batch 5 adds one rules version "Sector list from config.toml" on my own database (copy saved first). Expected, it happens once
 - [ ] `Backup:Folder` stays local for now. Later, when there's a server, see what it can do that a PC can't
 - [x] Commit steps 5 to 7, the .gitignore cleanup, and break test batches 1 to 3 (`b92d06b`)
 - [x] Run `start.bat` so my own database updates (it already was, since 2026-10-05)
-- [ ] Decide if `ac2d450` gets rewritten (old long message and Claude co-author line). Not pushed, but `75165b4` and `9497e93` sit on top so it needs a rebase. Leaving it is fine too
+- [x] `ac2d450` stays as it is (old long message and Claude co-author line). It's on GitHub with 21 commits on top, so a rewrite means force pushing main for one message. Not worth it
 - [x] `angular/public/dollar_sign_favicon.png` deleted (batch 9)
 - [x] Commit `start.bat` and Docker (`75165b4`)
 - [x] Commit steps 3 and 4 (`9497e93`)
@@ -104,7 +104,7 @@ How it was made: https was checked on the cloud box with the dev certificate (ht
 - [x] Fixing a flagged row without renaming it keeps the flag, saving clears the red triangle, deleting the original row moves the flag to the next one
 
 ### Gitignore
-- [x] Root `.gitignore` only lists what this project makes: `api_v2` build output, `appsettings.Development.json` (has the password), the seed script's `__pycache__`, root `.vscode/`. Angular keeps its own `angular/.gitignore`
+- [x] Root `.gitignore` only lists what this project makes: `api_v2` build output, `appsettings.Development.json` (has the password), the seed script's `__pycache__`, root `.vscode/`, `report.txt`, the nightly `/backups/`, and the checks' `appsettings.Throwaway.json` and `testing/throwaway-backups/`. Angular keeps its own `angular/.gitignore`
 - [x] `api_v2/.gitignore` removed, the root one covers it
 - [x] `appsettings.json` is tracked now, it only has logging and no password
 - [x] Root `.vscode/settings.json` untracked (it was just `{}`), the file stays on disk
@@ -142,16 +142,16 @@ How it was made: https was checked on the cloud box with the dev certificate (ht
 
 ### Break test (2026-10-05)
 - [x] 37 findings in `Desktop/break_report.md`, ranked, with how each one was made
-- [x] Batch 1 (races, error handling) and batch 2 (name rules, unchecked text) fixed and tested, not committed yet
+- [x] Batch 1 (races, error handling) and batch 2 (name rules, unchecked text) fixed and tested, committed in `b92d06b`
 - [x] Batch 3 (2026-10-06), gaps the verify run found: Fields save checks the version it started from, the page opens while history is down ("History offline" badge), adds are logged before saving (finding 15), repeat requests keep their new details, column labels refuse line breaks. Committed in `b92d06b`
-- [x] Batch 4 (2026-10-06): nightly backups with a Back up now button and downloads on History, and the sector dropdown. Tested, not committed yet
-- [x] Batch 5 (2026-10-06): queue fields and Send fields once, Delete for page made fields (built in ones stay), sector list from `scripts/config.toml` enforced by the API. Tested, not committed yet
+- [x] Batch 4 (2026-10-06): nightly backups with a Back up now button and downloads on History, and the sector dropdown. Committed in `5d7ff11`
+- [x] Batch 5 (2026-10-06): queue fields and Send fields once, Delete for page made fields (built in ones stay), sector list from `scripts/config.toml` enforced by the API. Committed in `5d7ff11`
 - [x] Batch 6 (2026-10-06): restore all or nothing, retention keeps the source version, failed restore/import leaves no copy, damaged versions marked, fuller change log, retention preview, strict numbers, custom values kept on update, 1000 character default for custom text, 4 decimal places. Details in `testing/report.txt`
 
 - [x] Batch 7 (2026-10-06): Settings export and import, login, field keys keep letters from any language, the Actions column stays pinned on a wide table, and the fixes a UI judge asked for (darker faint grey, readable amber rows, the nav fits at 390px, plain words, one red style for dangerous buttons)
 
 ### Leftovers
-- [ ] Restore brings back rows and rules but not old columns, that part stays a developer request
+- By design: restore brings back rows and rules but not old columns, that part stays a developer request
 - [x] API address moved to `angular/src/environments/environment.ts`, CORS origins come from `Cors:Origins` in `api_v2/appsettings.json`
 - [x] Delete asks inside the row now, no browser popup
 - [x] The API only retried for about 30 seconds on start. It keeps retrying every 30 seconds now and says which database is down
@@ -170,6 +170,7 @@ How it was made: https was checked on the cloud box with the dev certificate (ht
 | History going offline and back | `api_v2/Data/HistoryMonitor.cs`, `CollectorStore.NoteFailure` |
 | Pages | `angular/src/app/Components/` (my-components is the table, plus history, fields, requests) |
 | Colors, including the amber | `angular/src/styles.css` |
+| The checks and how to run them safely | `testing/README.md` |
 | Team setup | `README.md`, `docker_setup.md`, `Desktop/server.md` for sharing my Docker server on Wi-Fi |
 
 ## Decisions

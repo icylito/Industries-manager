@@ -4,13 +4,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import t
 from t import call
 t.TOK, _ = t.login("admin", t.ADMIN_PASSWORD)
-env = dict(os.environ, PGPASSWORD="postgres")
-def admin(q): return subprocess.run(["psql", "-h", "localhost", "-p", "5433", "-U", "postgres", "-d", "postgres", "-qAt", "-c", q], env=env, capture_output=True, text=True, check=True).stdout.strip()
+def admin(q): return t.psql("postgres", q)
+DB, OFF = t.COLLECTOR_DB, t.COLLECTOR_DB + "_off"
 
 s, h = call("GET", "/health"); assert h["history"]["ready"], h
 # take the collector away under the running API
-admin("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'collector'")
-admin('ALTER DATABASE collector RENAME TO collector_off')
+admin(f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{DB}'")
+admin(f'ALTER DATABASE "{DB}" RENAME TO "{OFF}"')
 try:
     # a write notices right away and marks history down
     s, b = call("POST", "/industries", {"name": f"While history is off {int(time.time())}", "sector": "Public Sector", "price": 1, "release": None, "extra": {}})
@@ -22,7 +22,7 @@ try:
     s, lst = call("GET", "/backups"); bid = lst["backups"][0]["id"]
     s, b = call("POST", f"/backups/{bid}/restore", {"confirm": "RESTORE"}); print("restore while history is off:", s, b.get("detail")); assert s == 503
 finally:
-    admin('ALTER DATABASE collector_off RENAME TO collector')
+    admin(f'ALTER DATABASE "{OFF}" RENAME TO "{DB}"')
 # the monitor brings it back within its 30 second check
 for i in range(14):
     time.sleep(5)

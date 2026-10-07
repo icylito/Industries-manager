@@ -4,11 +4,21 @@ The scripts that checked batch 8, kept so the next round doesn't start from noth
 
 ## Setup
 
-1. A throwaway Postgres. Docker: `docker compose up -d` gives one on 5433. Without Docker, start one by hand on 5433 with the user and password from `docker-compose.yml`.
-2. A throwaway API. Build `api_v2`, copy `appsettings.Throwaway.example.json` next to the built `api_v2.exe` as `appsettings.Production.json` (fix the paths in it), then run it with `ASPNETCORE_ENVIRONMENT=Production` and `ASPNETCORE_URLS=http://localhost:5104`. The first start prints the admin password in that window.
-3. Python 3.13 or newer, nothing to install. The page check needs Node 22.23.3 or newer and the `playwright` package with Chromium.
+1. A Postgres on 5433. `docker compose up -d` gives one. The checks use their own databases on it, `throwaway_main` and `throwaway_collector`, so the `main` and `collector` that `start.bat` uses are never touched. `t.py` refuses to run against `main`, `collector` or `api_v2`, and refuses the API on 5005 or 7165.
+2. A throwaway API. In `api_v2`, copy `..\testing\appsettings.Throwaway.example.json` to `appsettings.Throwaway.json` (git ignores it), then from the `api_v2` folder:
 
-Every script reads `API` (default `http://localhost:5104`) and `ADMIN_PASSWORD` (default `Admin-pass-2026!`) from the environment.
+   ```
+   set ASPNETCORE_ENVIRONMENT=Throwaway
+   dotnet run -c Release --no-launch-profile --urls http://localhost:5104
+   ```
+
+   `-c Release` builds into its own folder, so it runs next to `start.bat`'s API without fighting over the files. The first start makes both throwaway databases and prints the admin password in that window. Backups go to `testing/throwaway-backups` (git ignores it).
+3. Set `ADMIN_PASSWORD` to the password the checks should use, for example `set ADMIN_PASSWORD=Pick-one-2026!`. There's no default on purpose. `check_restore.py` and `grade_setup.py` set it as the admin password on a first run.
+4. Python 3.13 or newer, nothing to install. The page checks need Node 22.23.3 or newer and the `playwright` package with Chromium.
+
+The Python scripts read `API` (default `http://localhost:5104`), `ADMIN_PASSWORD`, `MAIN_DB`, `COLLECTOR_DB` and `BACKUPS` from the environment.
+
+The page checks (`check_page.mjs`, `check_design.mjs`, `grade_capture.mjs`, `grade_recapture.mjs`) drive the page, and the page calls the API on 5005. For those, close `start.bat`'s API window and run the throwaway API with `--urls http://localhost:5005` instead.
 
 ## The scripts
 
@@ -22,9 +32,9 @@ Every script reads `API` (default `http://localhost:5104`) and `ADMIN_PASSWORD` 
 | `check_design.mjs` | The batch 9 design checks: the nav at 390, errors under their field, the delete question, the History card on a phone, the sign in page, a disabled button in dark mode, screenshots of each | same setup as `check_page.mjs`: `node check_design.mjs <folder for screenshots>` |
 | `contrast.py` | WCAG contrast of the colour pairs the UI judge pointed at, read from `styles.css`, light and dark | `python3 -I contrast.py ../angular/src/styles.css`, every line should say ok |
 | `grade_setup.py` | Builds the state `rubric_batches_8_9.md` asks for on a throwaway API: 300 rows with a long name, a custom field with a value in 12 rows, two amber rows, a backup, 20 rows deleted after it, and a copy of the backup marked as another layout | `python3 -I grade_setup.py <password from the API window>` on a fresh database, with `BACKUPS` pointing at the backup folder if it isn't the default |
-| `grade_capture.mjs` | Takes captures 1 to 7 of the rubric (screenshots and `facts.json` with the console readings) for a critic to grade. `START=4` resumes from capture 4 | `node grade_capture.mjs <folder>` after `grade_setup.py`, with the page on 4200. Raise `Auth:LoginTriesPerMinute` in the throwaway settings first, capture 7 signs in six times in a row |
+| `grade_capture.mjs` | Takes captures 1 to 7 of the rubric (screenshots and `facts.json` with the console readings) for a critic to grade. `START=4` resumes from capture 4 | `node grade_capture.mjs <folder>` after `grade_setup.py`, with the page on 4200. Capture 7 signs in six times in a row, the example settings already allow 100 tries a minute |
 | `grade_recapture.mjs` | The captures the first grading round found missing: a real amber row with its red Delete text and its flag, the flag focused by Tab, the spinner read from the DOM, the account page problems under their boxes, the phone cells | `node grade_recapture.mjs <folder>` after `grade_capture.mjs`, adds to its `facts.json` |
-| `t.py` | The API client the others share | not run on its own |
+| `t.py` | What the others share: the API client, the throwaway database names, psql and the safety checks | not run on its own |
 
 `check_restore.py` and `check_big.py` can run one after the other on the same database. `stress.py` empties the table first and leaves it with whatever the rounds made, run it last or on its own copy.
 

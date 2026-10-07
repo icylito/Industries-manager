@@ -3,9 +3,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import t
 from t import call
 t.TOK, _ = t.login("admin", t.ADMIN_PASSWORD)
-PSQL = ["psql", "-h", "localhost", "-p", "5433", "-U", "postgres", "-d", "main", "-qAt", "-c"]
-env = dict(os.environ, PGPASSWORD="postgres")
-def sql(q): return subprocess.run(PSQL + [q], env=env, capture_output=True, text=True, check=True).stdout.strip()
+def sql(q): return t.psql(t.MAIN_DB, q)
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 100000
 # a big table straight in the database, same shape as the page makes
@@ -34,7 +32,7 @@ s, versions = call("GET", "/history/versions"); v20 = versions[0]; print("20k ve
 t0 = time.time(); s, res = call("POST", f"/history/versions/{v20['id']}/import", {"confirm": True, "skipDuplicates": False}); dt = time.time()-t0
 print(f"bring back {v20['rowCount']} rows: {s} {dt:.1f}s", res if s != 200 else (res["imported"], "imported,", res["similar"], "similar")); assert s == 200
 # the imported rows point at the row they copy
-print("flagged copies", sql('SELECT count(*) FROM "Industries" WHERE "DuplicateOf" IS NOT NULL'), "log rows", subprocess.run(["psql","-h","localhost","-p","5433","-U","postgres","-d","collector","-qAt","-c","SELECT count(*) FROM row_changes WHERE action='import'"], env=env, capture_output=True, text=True).stdout.strip())
+print("flagged copies", sql('SELECT count(*) FROM "Industries" WHERE "DuplicateOf" IS NOT NULL'), "log rows", t.psql(t.COLLECTOR_DB, "SELECT count(*) FROM row_changes WHERE action='import'", check=False))
 
 # back up and restore the big backup through the new button too
 s, bk = call("POST", "/backups", {}); assert s == 200, bk; print("backup rows", bk["rowCount"])

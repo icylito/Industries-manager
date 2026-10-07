@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+if (!process.env.ADMIN_PASSWORD) { console.error('Set ADMIN_PASSWORD first, see testing/README.md'); process.exit(1); }
 const out = process.argv[2];
 const browser = await chromium.launch();
 const errors = [];
@@ -9,7 +10,7 @@ async function run(name, { width, height, dark }) {
   page.on('pageerror', e => errors.push(`${name}: ${e.message}`));
   await page.goto('http://localhost:4200/login');
   await page.fill('input[type="text"], input[autocomplete="username"]', 'admin');
-  await page.fill('input[type="password"]', process.env.ADMIN_PASSWORD ?? 'Admin-pass-2026!');
+  await page.fill('input[type="password"]', process.env.ADMIN_PASSWORD);
   await page.click('button[type="submit"]');
   await page.waitForURL(u => !u.pathname.includes('/login'), { timeout: 15000 });
   await page.goto('http://localhost:4200/history');

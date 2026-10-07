@@ -2,7 +2,7 @@ import sys, json, time, random, shutil, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import t
 from t import call
-# First run: python3 -I check_restore.py <password from the API window>. It picks Admin-pass-2026! (or ADMIN_PASSWORD) and later runs use that.
+# First run: python3 -I check_restore.py <password from the API window>. It sets ADMIN_PASSWORD and later runs use that.
 PW0 = sys.argv[1]
 ADMIN_PW = t.ADMIN_PASSWORD
 # 1. first sign in and the forced password change
@@ -70,7 +70,7 @@ call("DELETE", f"/industries/{b['id']}")
 print("RESTORE OK: rows, rules, requests and settings back; users, sessions kept; copy saved first")
 
 # 7. a backup from another layout is refused before anything changes
-folder = os.environ.get("BACKUPS", "/var/tmp/apitest/backups")
+folder = t.BACKUPS
 fake = os.path.join(folder, bid[:-7] + "_manual") if bid.endswith("nightly") else os.path.join(folder, bid.replace("_manual", "_nightly"))
 shutil.copytree(os.path.join(folder, bid), fake)
 j = json.load(open(os.path.join(fake, "backup.json"))); j["migrations"] = j["migrations"][:-1]; json.dump(j, open(os.path.join(fake, "backup.json"), "w"))

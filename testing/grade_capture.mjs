@@ -1,9 +1,10 @@
 // Captures 1 to 7 of the rubric. node grade_capture.mjs <out folder> ; writes screenshots and facts.json
 import { chromium } from 'playwright';
 import fs from 'node:fs';
+if (!process.env.ADMIN_PASSWORD) { console.error('Set ADMIN_PASSWORD first, see testing/README.md'); process.exit(1); }
 const out = process.argv[2];
-const setup = JSON.parse(fs.readFileSync('/var/tmp/apitest/grade.json', 'utf8'));
-const PW = process.env.ADMIN_PASSWORD ?? 'Admin-pass-2026!';
+const setup = JSON.parse(fs.readFileSync(process.env.BACKUPS ? `${process.env.BACKUPS}/grade.json` : new URL('./throwaway-backups/grade.json', import.meta.url), 'utf8'));
+const PW = process.env.ADMIN_PASSWORD;
 const browser = await chromium.launch();
 const START = +(process.env.START || 1);
 const factsPath = `${out}/facts.json`;

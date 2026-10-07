@@ -1,7 +1,8 @@
 import { chromium } from 'playwright';
 import fs from 'node:fs';
+if (!process.env.ADMIN_PASSWORD) { console.error('Set ADMIN_PASSWORD first, see testing/README.md'); process.exit(1); }
 const out = process.argv[2];
-const PW = process.env.ADMIN_PASSWORD ?? 'Admin-pass-2026!';
+const PW = process.env.ADMIN_PASSWORD;
 const browser = await chromium.launch();
 const facts = JSON.parse(fs.readFileSync(`${out}/facts.json`, 'utf8'));
 facts.recapture ??= {};

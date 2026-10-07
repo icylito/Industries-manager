@@ -17,3 +17,7 @@ report.txt
 
 # Copies of the database made by the nightly backup, only the root folder (api_v2/Backups is code)
 /backups/
+
+# The checks in testing/: the throwaway API's settings and its backups
+api_v2/appsettings.Throwaway.json
+/testing/throwaway-backups/

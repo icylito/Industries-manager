@@ -7,13 +7,12 @@ from t import call
 ROUNDS = int(sys.argv[1]) if len(sys.argv) > 1 else 30
 ROWS = int(sys.argv[2]) if len(sys.argv) > 2 else 300
 t.TOK, _ = t.login("admin", t.ADMIN_PASSWORD)
-env = dict(os.environ, PGPASSWORD="postgres")
-def sql(db, q): return subprocess.run(["psql","-h","localhost","-p","5433","-U","postgres","-d",db,"-qAt","-c",q], env=env, capture_output=True, text=True, check=True).stdout.strip()
+def sql(db, q): return t.psql(db, q)
 
 # starting point: 300 rows, one backup of exactly that, one saved version of it
-sql("main", """DELETE FROM "Industries" """)
+sql(t.MAIN_DB, """DELETE FROM "Industries" """)
 stamp = int(time.time())
-sql("main", f"""INSERT INTO "Industries" ("Name","Sector","Price") SELECT 'Stress {stamp} ' || g, 'Public Sector', 1 FROM generate_series(1, {ROWS}) g""")
+sql(t.MAIN_DB, f"""INSERT INTO "Industries" ("Name","Sector","Price") SELECT 'Stress {stamp} ' || g, 'Public Sector', 1 FROM generate_series(1, {ROWS}) g""")
 s, bk = call("POST", "/backups", {}); assert s == 200, bk
 s, schema = call("GET", "/schema"); s, b = call("PUT", "/schema", {"note": "stress base", "fields": schema["fields"], "basedOn": schema["version"]}); assert s == 200, b
 s, versions = call("GET", "/history/versions"); base_version = versions[0]["id"]
@@ -88,9 +87,9 @@ for rnd_no in range(1, ROUNDS + 1):
     # after the dust settles: the table is readable, the rules load, and nothing is stuck pending
     s, rows = call("GET", "/industries"); assert s == 200, rows
     s, h = call("GET", "/health"); assert h["state"] == "ready" and h["history"]["ready"], h
-    pending = sql("collector", "SELECT count(*) FROM row_changes WHERE status = 'pending'")
+    pending = sql(t.COLLECTOR_DB, "SELECT count(*) FROM row_changes WHERE status = 'pending'")
     scratch = sql("postgres", "SELECT count(*) FROM pg_database WHERE datname = 'main_restore_scratch'")
-    dup_names = sql("main", 'SELECT count(*) FROM (SELECT lower(btrim("Name")) n FROM "Industries" WHERE "DuplicateOf" IS NULL GROUP BY n HAVING count(*) > 1) x')
+    dup_names = sql(t.MAIN_DB, 'SELECT count(*) FROM (SELECT lower(btrim("Name")) n FROM "Industries" WHERE "DuplicateOf" IS NULL GROUP BY n HAVING count(*) > 1) x')
     if pending != "0" or scratch != "0" or dup_names != "0":
         errors.append((f"round {rnd_no}", "state", f"pending={pending} scratch={scratch} dup_names={dup_names}"))
     print(f"round {rnd_no:2d}: rows {len(rows):5d}, restores {[(k, v[0], round(v[2],1)) for k, v in sorted(results.items())]}, errors so far {len(errors)}", flush=True)

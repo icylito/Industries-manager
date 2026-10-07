@@ -52,7 +52,7 @@ STILL TO DO
 =====================================================================
 
 Waiting on you (from plan.md):
-- [ ] Commit batches 6 and 7 (everything above, including the login). The first start after that applies the AddUsersAndSessions migration on the real database and prints the first admin password once in the API window. Batches 1 to 5 are already in 5d7ff11. Old notes for batches 1 and 2:
+- [x] Commit batches 6 and 7 (everything above, including the login). Done in 17bfc53, and batches 8 and 9 are on main too (merge e770068, 2026-10-07). The first start after that applies the AddUsersAndSessions migration on the real database and prints the first admin password once in the API window. Batches 1 to 5 are already in 5d7ff11. Old notes for batches 1 and 2:
       fixed the race conditions with database locks, added plain error messages, cleaned names before saving, guarded labels, keys and csv exports, and the history page waits before showing the saved count
       Contributor: coder bot opus 5.5
   Batch 3:
@@ -67,8 +67,8 @@ Waiting on you (from plan.md):
       Contributor: coder bot opus 5.5
   Batch 5 (Grok, reviewed by Claude, 2026-10-06): Add field queues, Send fields saves the queue as one version and one table copy, unsaved edits survive Send and Delete. Delete on page made fields only, copy first, values off every row, open requests about the field close, keys never reused, Bring back drops deleted values, Restore brings them back. Sector choices from scripts/config.toml, the API refuses others and fixes the capitals, old rows keep their sector on edit, imports get a black triangle. Claude's fixes: the sector sync no longer waits on a down history database at startup (it runs once history is up, under the rules lock), the Lowest and Highest boxes were squeezed by the Delete button, the queue remove button is an icon. Checked on throwaway databases and in the browser, light, dark and phone.
   Batch 4 follow ups (Claude, 2026-10-06): Import without dups next to Import anyway and Add N rows, an Excel button on every new backup (the table as a CSV from the same snapshot as the dump), Fields placeholders no longer forced into capitals, and History, Fields and Requests load the first time they're opened so the first download went from 501 kB to 386 kB.
-- [ ] Decide if ac2d450 gets rewritten (or leave it)
-- [ ] Decide if angular/public/dollar_sign_favicon.png gets deleted
+- [x] ac2d450 stays as it is, a rewrite means force pushing main for one message
+- [x] angular/public/dollar_sign_favicon.png deleted (batch 9)
 - [x] Desktop/Stock Listing plan and break test.docx is a handout made from plan.md and break_report.md. A new copy with "(updated)" in the name sits next to it. Desktop/Firefox.exe is still unchecked.
 
 Break test findings: all closed (batch 6, 2026-10-06, Claude did it by hand, no Grok). Numbers from break_report.md:
@@ -132,13 +132,15 @@ Found during the session:
 - Phone width and dark mode were checked on 2026-10-06 with a headless Edge: all 4 pages, no sideways scroll at 390px, dark colors applied.
 
 Still open (needs a person, a database or a decision):
-- https for the API and the page. Passwords travel over plain http today.
-- Restore can't bring back old columns. That stays a developer request.
-- Whether Delete should be quieter on a big table (six red outlined buttons in a column look loud to the UI judge). A design decision.
+- [x] https for the API and the page. Built in batch 9, start.bat https.
+- Restore can't bring back old columns. That stays a developer request, by design.
+- [x] Whether Delete should be quieter on a big table. Handled in batch 9: the delete question asks inside the row with the name, and the phone gets icon buttons.
 
 =====================================================================
 FOR A CLOUD AGENT (design and small edge cases, no database, no login)
 =====================================================================
+Status 2026-10-07: done in batch 9, see the batch 9 notes above (D1 to D12, E1 to E10). The brief stays as it was written.
+
 Everything here is front end only. It can be done and checked with `npm install`, `npx ng build` and `npx ng test --watch=false` inside angular/. No API, no Postgres, no Docker and no account is needed for any of it.
 
 Rules
