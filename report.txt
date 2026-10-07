@@ -1,0 +1,158 @@
+STOCK LISTING: WHAT'S LEFT AFTER THE BREAK TEST
+Written 2026-10-05, end of session. The full break test (37 findings, how each was made) is in Desktop/break_report.md.
+
+=====================================================================
+WHERE THINGS STAND
+=====================================================================
+
+Fixed and tested today, in two batches. Grok implemented both, Claude planned and reviewed them, and the one History chip fix was Claude's.
+
+Batch 1, races and error handling:
+- Write paths take turns through Postgres advisory locks (Data/AppLocks.cs): rows, rules, requests, settings.
+- One global error handler in Program.cs turns database errors into plain 400/409/503 messages instead of empty 500s.
+- History answers 503 "History isn't available right now" when the collector is down. Saving retention while it's down returns 200 with a note.
+- Startup keeps retrying every 30s instead of giving up, and names which database is down.
+- Race tests, 30 rounds each: parallel imports, deletes, edits, restores, requests, settings and field adds all pass. Before, they failed in 9 to 30 of 30 rounds.
+
+Batch 2, names and text:
+- Names are cleaned before saving (Rules/Names.cs): invisible characters removed, fullwidth letters and accents normalized, repeated spaces collapsed. Names are compared in Postgres only.
+- The original row is editable again after Bring back rows.
+- The Turkish I no longer breaks imports.
+- Names are capped at 200 characters, and longer old names are skipped on import and restore.
+- Labels can't hold line breaks. Drafted code escapes labels.
+- A custom field can't be keyed "constructor" or similar, and the page reads custom values safely.
+- CSV downloads (History and the page export) guard against formulas.
+- Sector and custom text refuse hidden characters. Custom dates must be yyyy-MM-dd, and custom text is trimmed.
+- A null field in PUT /schema returns 400 instead of 500. "Infinity" is refused on the page.
+- The edit and add conflict messages match. The History "saved" chip only shows once the list has loaded.
+
+Checks: dotnet build 0 errors, ng build 0 warnings, ng test 4/4. 13 edge case checks and the race regression all pass. The page check passed at 8.0. Your own database is unchanged (301 rows, 2 versions, rules version 1).
+
+Batch 3 (2026-10-06), gaps found in the verify run. Grok implemented it, Claude planned, reviewed and added the pill polling:
+- The Fields page sends the rules version it loaded. If someone saved in between, Save gets "Someone changed the fields since you opened this page..." and the typed changes stay (finding 2, the rest of it).
+- Startup opens the main database first and sets up the collector after. While the collector is down, rows can be read and the badge says "History offline", and it clears by itself once the collector is back. A waiting migration still waits for the collector so a copy is saved first (finding 8, the rest of it).
+- Column requests refuse labels with line breaks or hidden characters, and drafted C# escapes line breaks (finding 3, the last path).
+- Asking for something already asked adds the new details to the open request, and the page says "This was already asked as request #N" (finding 13, the dropped details).
+- Adds are logged as pending before saving and marked done after, like edits. While the collector is down, Add refuses with a plain message (finding 15).
+Checks: dotnet build 0 warnings, ng build clean, ng test 4/4. Grok's 15 checks and Claude's rerun of A, B, C, D, E on a throwaway copy all pass. Browser checks: History offline badge, Fields stale save, Requests merge message. Your own database was not touched.
+
+Batch 4 (2026-10-06), backups and the sector dropdown. Grok implemented it, Claude planned, reviewed and fixed 4 things:
+- Nightly pg_dump of main and collector at 2:00 AM into backups/, kept 14 days, the newest always stays, a catch-up run when the PC was off at 2:00.
+- Back up now button and a list with downloads on the History page. Restore stays by hand until login.
+- Sector is a dropdown (Public Sector, Private Sector). Editing an old row with another sector still shows it.
+Claude's fixes after review:
+- .gitignore said backups/, which on Windows also matched api_v2/Backups (the code). It's /backups/ now, so the code gets committed.
+- Two backups in the same second shared a folder, and a failed one would delete the good one. Names wait for a free second now.
+- A failed backup showed pg_dump's own words on the page. It says "Couldn't copy the history database" now, and the details go to the API log.
+- Sizes over 1 MB show in MB, and the empty sector dropdown looks like the other empty fields.
+Checks: dotnet build 0 warnings, ng build clean, ng test 4/4. Grok's 11 checks pass, and Claude's rerun on a throwaway copy: restore both dumps into fresh databases and the rows match exactly, parallel runs, pruning, path tricks on downloads, both failure messages. Browser: Back up now, the list, phone and dark, the dropdown add and the old sector edit. Your own database and testing/backups were not touched.
+
+=====================================================================
+STILL TO DO
+=====================================================================
+
+Waiting on you (from plan.md):
+- [ ] Commit batches 6 and 7 (everything above, including the login). The first start after that applies the AddUsersAndSessions migration on the real database and prints the first admin password once in the API window. Batches 1 to 5 are already in 5d7ff11. Old notes for batches 1 and 2:
+      fixed the race conditions with database locks, added plain error messages, cleaned names before saving, guarded labels, keys and csv exports, and the history page waits before showing the saved count
+      Contributor: coder bot opus 5.5
+  Batch 3:
+      fields save checks the version it started from, the page opens while history is down, adds are logged before saving, repeat requests keep their new details, column labels refuse line breaks
+      Contributor: coder bot opus 5.5
+  Steps 5 to 7 still have their own message in plan.md if you'd rather do separate commits.
+  Batch 4 (steps 5 to 7 and batches 1 to 3 are in b92d06b already):
+      added nightly backups with a back up now button, excel and dump downloads, import without dups on bring back, sector is a dropdown now, fields placeholders keep their case, history fields and requests pages load when opened
+      Contributor: coder bot opus 5.5
+  Batch 5 (if batch 4 is committed first):
+      fields can be queued and sent at once, page made fields can be deleted, the sector list comes from config.toml and the api enforces it
+      Contributor: coder bot opus 5.5
+  Batch 5 (Grok, reviewed by Claude, 2026-10-06): Add field queues, Send fields saves the queue as one version and one table copy, unsaved edits survive Send and Delete. Delete on page made fields only, copy first, values off every row, open requests about the field close, keys never reused, Bring back drops deleted values, Restore brings them back. Sector choices from scripts/config.toml, the API refuses others and fixes the capitals, old rows keep their sector on edit, imports get a black triangle. Claude's fixes: the sector sync no longer waits on a down history database at startup (it runs once history is up, under the rules lock), the Lowest and Highest boxes were squeezed by the Delete button, the queue remove button is an icon. Checked on throwaway databases and in the browser, light, dark and phone.
+  Batch 4 follow ups (Claude, 2026-10-06): Import without dups next to Import anyway and Add N rows, an Excel button on every new backup (the table as a CSV from the same snapshot as the dump), Fields placeholders no longer forced into capitals, and History, Fields and Requests load the first time they're opened so the first download went from 501 kB to 386 kB.
+- [ ] Decide if ac2d450 gets rewritten (or leave it)
+- [ ] Decide if angular/public/dollar_sign_favicon.png gets deleted
+- [x] Desktop/Stock Listing plan and break test.docx is a handout made from plan.md and break_report.md. A new copy with "(updated)" in the name sits next to it. Desktop/Firefox.exe is still unchecked.
+
+Break test findings: all closed (batch 6, 2026-10-06, Claude did it by hand, no Grok). Numbers from break_report.md:
+- 5 Restore is all or nothing now: rows, rules and the layout request go in one database transaction. If any step fails everything rolls back.
+- 23 A refused restore (two rows with the same name) is checked before any copy is saved. A copy saved for a restore or import that then fails gets deleted again.
+- 19 Restore and import only run retention after they worked, and the version they came from always stays.
+- 18, 21 Damaged saved versions show in History with a "Damaged" tag and can't be restored or brought back (plain 409). Rows that aren't objects are left out, an id that isn't a whole number skips that row, bad rules count as "no rules saved".
+- 24 Imports log the whole row, moved duplicate flags log a "flag-move" entry, and a restore logs one "restore" entry.
+- 27 Saving retention first asks "This removes N saved versions" (POST /history/settings/preview). Numbers sent as text ("5") are refused everywhere.
+- 28 Updating a row without "extra" keeps its custom values.
+- 31 Custom text with no limit set gets a default cap of 1000 characters.
+- 34 Numbers allow at most 4 decimal places, and "5" as text is refused.
+- 35 Field keys keep letters from any language now (a label in Japanese or with accents keeps its letters), a key that was used once is never reused.
+Leftovers done: the API address is in angular/src/environments/environment.ts and CORS reads Cors:Origins from appsettings.json. Delete asks inside the row ("Delete this row?") instead of the browser popup. POST /requests/field-type answers 200 when it only added to an open request.
+Checks (throwaway API on 5104, break_c6 databases, all dropped after): rollback test with a database rule that refuses the restored rules (rows, rules and copy all unchanged), refused restore leaves no copy, keep 2 then restore keeps the source, every damaged-version case from the report, 6 parallel imports and restores in 3 rounds with no 500s and no stuck "pending" log entries, strict numbers, preview count. ng build clean at 387 kB, ng test 4 of 4. Browser: Damaged tag, retention question, in-row Delete, phone width, dark mode, console clean.
+Batch 7 (2026-10-06), Claude by hand: Settings export and import, login, and the checks left from batch 6.
+- Settings file: Export settings and Import settings on History (retention and field labels and limits). The preview says what would change, how many versions would go, and which fields in the file the table doesn't have. Rules save a copy of the table first.
+- Login: Users and Sessions tables (migration AddUsersAndSessions), PBKDF2 hashes, opaque bearer tokens kept in the browser, 12 hours idle and 7 days at most, 5 sign ins a minute per address. Guests can read the table, anyone with an account changes rows, admins get History, Fields, People, backups and request status. The first start makes an `admin` account and prints its password once. `Auth:ResetPassword=<name>` is the way back in after a forgotten password. The seed script signs in with SEED_USER and SEED_PASSWORD.
+- Field keys keep letters from any language (finding 35 is fixed after all), the Actions column stays pinned when a table scrolls sideways, and downloads carry the sign in token.
+- A UI judge (a fresh Opus agent with a written rubric) scored screenshots in 5 rounds: 5.6, 5.8, 6.1, 6.5 and 6.3 out of 10. Pass is 8.0, so it never passed. Fixed along the way: faint grey text, amber rows, dangerous buttons not looking alike, developer wording, a nav that was too wide on a phone (now labelled and fits), the phone table (icon buttons, no row number), the form error placement, disabled buttons, the empty state. Still on the judge's list at the end: the form error sits one row under its field, long names on a phone are cut without dots, the phone nav labels are small, mixed capitals in small labels ("TRY SEARCHING BY NAME", "SHOW ... ENTRIES"), "Sign in" four times on the Sign in page, bare numbers on History cards, and placeholder contrast that looked low by eye (not measured). Focus rings, loading states, Fields at 390px and the guest view were never in a screenshot.
+Checks (throwaway API and databases, dropped afterwards): race tests at 30 rounds each (180 imports, 180 restores and 240 edits, no errors), a restore with connections killed while it ran (retried and finished consistent), a restore that fails 20,000 rows in (500, rows, rules and copies all unchanged), seed script and backups with strict numbers, every login case (wrong password, no admin, reset, limit, normal user, turned off, logout, expired token). ng build clean at 392 kB, ng test 14 of 14.
+Still not done: a restore button for backups (it has to skip the accounts), https, restores of very large tables (a 20,000 row restore took 12 to 18 seconds).
+
+Found during the session:
+- Restores on very large tables (100k+ rows) take over a minute and hit the 30s database command timeout.
+- The page retries a 503 for about 8 seconds before showing the History error.
+- Phone width and dark mode were checked on 2026-10-06 with a headless Edge: all 4 pages, no sideways scroll at 390px, dark colors applied.
+
+Still open (needs a person, a database or a decision):
+- A restore button for backups. It has to skip the Users and Sessions tables, or old passwords come back.
+- https for the API and the page. Passwords travel over plain http today.
+- Restore can't bring back old columns. That stays a developer request.
+- Restores of very large tables are slow (20,000 rows took 12 to 18 seconds, 100k+ rows hit the 30 second command timeout).
+- Whether Delete should be quieter on a big table (six red outlined buttons in a column look loud to the UI judge). A design decision.
+
+=====================================================================
+FOR A CLOUD AGENT (design and small edge cases, no database, no login)
+=====================================================================
+Everything here is front end only. It can be done and checked with `npm install`, `npx ng build` and `npx ng test --watch=false` inside angular/. No API, no Postgres, no Docker and no account is needed for any of it.
+
+Rules
+- Only touch angular/ (and the notes at the end). Do NOT touch api_v2/, scripts/, migrations, docker files or anything about passwords, sessions, roles, rules, restore or backups.
+- Do not commit or push. Leave the changes in the working tree.
+- No new npm packages. Angular 22, standalone components, signals, `@Service()` decorator and `@if/@for` control flow, as the rest of the code does. The test runner is Vitest (`vi.fn`, `vi.spyOn`).
+- The files in angular/src use Windows line endings (CRLF). Keep them. If you edit with a script, read and write in text mode and check `git diff --stat` shows small diffs, not whole files.
+- Plain words in everything people see, no technical terms. Colors only from the CSS variables in angular/src/styles.css (black and white, red only for danger, amber only for similar rows).
+- Done means: `npx ng build` has no warnings and the initial total is under 500 kB (it is about 395 kB), `npx ng test --watch=false` passes, and every task below says what it did in a new file testing/cloud_report.txt (one line per task: done, skipped or blocked, and why).
+- If you can run the page, run `npx ng serve` with the API missing: the pages show their error states, which is fine for checking layout. For states that need data you can write a tiny throwaway Node server in a temp folder (not in the repo) that answers GET /health, /schema, /industries, /auth/me, /requests, /requests/count, /history/versions, /history/settings and /backups with small JSON, and point angular/src/environments/environment.ts at it while you look. Put environment.ts back before you finish.
+
+Why these tasks exist: a UI judge scored screenshots 5 times (5.6, 5.8, 6.1, 6.5, 6.3 out of 10, pass is 8.0). The list below is what it kept pointing at that doesn't need a database.
+
+DESIGN
+D1  Form errors sit by their field. In angular/src/app/Components/my-components/my-components.html the problems from fieldErrors() and formError() now show in one place, just above the Add button, two rows below the Name field. Show each problem directly under the input it belongs to (Name, Sector, Price, Release, custom fields) and connect them with aria-describedby. Keep a short summary line only for errors that belong to no field (formError). Check the fieldErrors() code in my-components.ts to see which message belongs to which field.
+D2  Long names on a phone. At 480px and below, the names in the main table are cut hard by the pinned Actions column. Give td.name a max width that leaves room for the pinned column (for example calc(100vw - 15rem)) and keep text-overflow: ellipsis, so a long name ends with "...". Check at 390px.
+D3  Phone nav labels. At 560px and below the labels under the nav icons are 0.6rem (about 10px). Raise them to at least 0.75rem. Seven items won't fit at that size on 390px, so move "Add" (or the account link) into the account page or drop the label only for the plus icon. Keep every item reachable, keep aria-label on all of them, and check there's no sideways page scroll at 390px (document.documentElement.scrollWidth <= window.innerWidth).
+D4  Sign in page says "Sign in" four times (nav, page title, card title, button). Keep the nav link, the page title and the button. Replace the card title with the person-facing line "Welcome back" or drop the card header. Center or left align the card so it lines up with the page title (pick one and use it on the Your account page too).
+D5  History cards on a phone show bare numbers (20022, 44). Add the word: "20022 rows" (singular "1 row"). In angular/src/app/Components/history/history.html the rows cell is the one with class "num accent".
+D6  "Never days" in Keep old versions. The placeholder says Never and the unit says days. Hide the unit while the box is empty, or change the placeholder to "Don't remove by age". Same for "All versions" in the other box. Both are in history.html.
+D7  Capital letters. Small labels mix styles ("TRY SEARCHING BY NAME", "SHOW ... ENTRIES", "PRINT", "EXPORT CSV"). Change the search placeholder to normal sentence case ("Search by name") and the entries line to "Show 10 entries". Keep the small uppercase table headers. This is a taste call, so keep the change to those places only.
+D8  Contrast numbers. Write a small script in a temp folder (not in the repo) that reads the CSS variables in angular/src/styles.css, computes the WCAG contrast ratio of these pairs in light and dark and prints a table: --muted on --bg and on --surface, --faint on --bg and on --surface (placeholders and small helper text), --danger on --bg, --danger on the amber row color (--similar-bg over --bg, light and dark), --text on the amber row color, the disabled button color at its 0.6 opacity. Any pair under 4.5:1 for text: fix the variable in styles.css (smallest change that passes) and say which ones changed in cloud_report.txt. Do not change the amber hue.
+D9  "Delete for good?" in the table row should say which row. On a phone the cell is narrow, so keep the short text visible and put the row name in the button's aria-label ("Delete Horizon Water LLC") and in the title attribute. On desktop (above 760px) show "Delete <name>?" with the name cut at 24 characters.
+D10 "Connected" badge on the Industries panel is unexplained. Add a title attribute: "The page can reach the database" (and keep the existing failed and migrating states' titles).
+D11 Focus rings. Check every button, link, input and select for a visible keyboard focus (:focus-visible) in light and dark. Add one shared rule in styles.css if some have none (2px outline using var(--text), offset 2px). List what was missing in cloud_report.txt.
+D12 Loading states. Look at what the pages show while data loads (main table, History, Fields, Requests, People). Where a list shows nothing at all for a moment, use the same small spinner line the other pages use ("Loading ..." with fa-spinner).
+
+SMALL EDGE CASES (add a Vitest spec for each one, and fix the code if it fails)
+E1  The sign in page's `back` link. In angular/src/app/Components/login/login.ts only values that start with "/" and not "//" are followed. A value like "/\evil.com" is read by browsers as "//evil.com". Refuse any value containing a backslash, a colon or a line break, and fall back to "/". Test: back=/history goes there, back=//evil.com, back=/\evil.com, back=https://evil.com, back=%0d%0a all go to "/".
+E2  Auth service with blocked storage. In angular/src/app/services/auth.ts, when localStorage throws, the token must still work for the visit from memory and sign out must clear it. Test with a localStorage that throws on every call.
+E3  Interceptor. In angular/src/app/services/auth.interceptor.ts: a 401 from /auth/login must not redirect; a 401 from another call must clear the person and go to /login with back set to the page they were on; a 403 whose body title is "New password needed" must go to /account; a 403 with another title must not redirect. Calls to other sites must never get the token (already tested) and must never trigger a redirect on 401.
+E4  downloadFile in angular/src/app/services/industry-api.ts reads the file name from Content-Disposition. Test: `attachment; filename=settings-2026-10-06.json; filename*=UTF-8''settings-2026-10-06.json`, a quoted name with spaces, a percent-encoded name (%E6%97%A5%E6%9C%AC.csv), no header at all (uses the fallback name), and an error response (the error reaches the caller and nothing is downloaded).
+E5  Retention boxes in history.ts: toNumber('') is null, toNumber('abc') and toNumber('-5') and toNumber('2.7') must never send NaN or a negative number. Make them show "Use a whole number of 1 or more" and not send. 2.7 becomes 2.
+E6  Settings import file in history.ts: refuse a file bigger than 1 MB before reading it ("That file is too big to be a settings file"), refuse a file that isn't JSON (already handled, add the test), and a JSON file that is an array or has no app field gets the API's message.
+E7  Users page (angular/src/app/Components/users/users.ts): the add person box trims spaces and lower cases the name before sending; an empty name shows "Type a username" and sends nothing; the temporary password panel is cleared when the page is left (destroy) and can't be copied twice into a failed clipboard (if navigator.clipboard is missing, show "Select the password and copy it yourself").
+E8  Account page: new password under 10 characters, two new passwords that differ, and a new password equal to the current one are all stopped on the page with plain messages before any call is made. Test that no request is sent in those three cases.
+E9  Guest view: with nobody signed in the main table has no Actions column, no Add form, and no calls to /requests or /requests/count (assert with the HTTP testing controller). With an account it has all three.
+E10 Route guards (angular/src/app/guards.ts): a signed in person with mustChangePassword gets sent to /account from every guarded route, including /requests, and can still open /account. Already partly tested, add the missing cases.
+
+NOT FOR THE CLOUD AGENT (leave these to a person with the database)
+- Anything in api_v2/, including a restore button for backups, https, the login rules, rate limits, sessions, migrations.
+- Checking real downloads, backups and restores against a database.
+- Deciding whether Delete should be quieter, or the nav should become a menu. Note the options in cloud_report.txt instead.
+
+=====================================================================
+HOW TO REPEAT THE TESTS
+=====================================================================
+- Run tests only against a throwaway copy of the API on its own port (5104 to 5106 were used), pointed at throwaway Docker databases (break_*), with ASPNETCORE_ENVIRONMENT=Production, so your own database on 5432 is never touched.
+- Grok's race harness and both of its check scripts were in the grok report files, which are now deleted as asked. The test cases themselves are in break_report.md.
