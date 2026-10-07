@@ -8,6 +8,7 @@ api_v2/appsettings.Development.json
 
 # Seed script cache
 scripts/__pycache__/
+testing/__pycache__/
 
 # Root editor settings, angular/.vscode stays shared for ng serve and ng test
 /.vscode/
