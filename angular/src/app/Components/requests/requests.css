@@ -192,6 +192,12 @@ textarea::placeholder{
     transform: rotate(180deg);
 }
 
+/* Copy and Copied: both glyphs are drawn up front, so Font Awesome never has to redraw one */
+.code-head .copy-btn.copied i:first-of-type,
+.code-head .copy-btn:not(.copied) i:last-of-type{
+    display: none;
+}
+
 /* A button that reads as a link, for "See the open ones" */
 .link-btn{
     height: auto;

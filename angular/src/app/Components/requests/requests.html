@@ -97,8 +97,9 @@
                                 {{ expanded().has(r.id) ? 'Hide the drafted code' : 'Show the drafted code' }}
                             </button>
                             @if (expanded().has(r.id)) {
-                                <button type="button" class="link-btn" (click)="copy(r)">
-                                    <i [class]="copied() === r.id ? 'fa-solid fa-check' : 'fa-regular fa-copy'" aria-hidden="true"></i>
+                                <button type="button" class="link-btn copy-btn" [class.copied]="copied() === r.id" (click)="copy(r)">
+                                    <i class="fa-regular fa-copy" aria-hidden="true"></i>
+                                    <i class="fa-solid fa-check" aria-hidden="true"></i>
                                     {{ copied() === r.id ? 'Copied' : 'Copy' }}
                                 </button>
                             }
