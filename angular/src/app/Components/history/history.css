@@ -186,6 +186,29 @@ tr.skipped td.notes{
     margin-top: 0.85rem;
 }
 
+/* The restore question lands with a flash of the signal colour, then settles. Inside @if (panel()), so it plays each time. */
+@keyframes restore-glow{
+    0%{
+        box-shadow: 0 0 0 0 transparent;
+    }
+    35%{
+        box-shadow: 0 0 0 4px var(--signal), 0 0 28px 4px var(--signal);
+    }
+    100%{
+        box-shadow: 0 0 0 0 transparent;
+    }
+}
+
+.panel.glow{
+    animation: restore-glow 1.4s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce){
+    .panel.glow{
+        animation: none;
+    }
+}
+
 a.add-btn{
     display: inline-flex;
     align-items: center;

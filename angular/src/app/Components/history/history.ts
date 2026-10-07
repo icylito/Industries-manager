@@ -6,6 +6,7 @@ import {
   SettingsImportPreview, VersionDetail, VersionSummary,
 } from '../../models/industry';
 import { IndustryApi, errorText } from '../../services/industry-api';
+import { age } from './age';
 
 type Panel =
   | { kind: 'view'; version: VersionDetail }
@@ -28,7 +29,7 @@ export class HistoryPage implements OnInit {
   panel = signal<Panel | null>(null);
   panelError = signal('');
   notice = signal('');
-  restoreText = signal('');
+  restoreNote = signal('');
   restoreDone = signal<RestoreResult | null>(null);
   importDone = signal<ImportResult | null>(null);
 
@@ -172,7 +173,12 @@ export class HistoryPage implements OnInit {
     const m = reason.match(/(\d+)$/);
     if (reason.startsWith('Before database update')) return 'Before the table was updated';
     if (reason.startsWith('Before rules version')) return 'Before the rules changed';
-    if (reason.startsWith('Before restoring version')) return `Before restoring version #${m?.[1]}`;
+    if (reason.startsWith('Before restoring version')) {
+      // The id sits before the note, so it cannot come from the trailing-digits match above: with a note appended
+      // there are no trailing digits at all, and that match returns null.
+      const [id, note] = reason.slice('Before restoring version '.length).split(' — ');
+      return note ? `Before restoring version #${id} — ${note}` : `Before restoring version #${id}`;
+    }
     if (reason.startsWith('Before importing from version')) return `Before bringing back rows from version #${m?.[1]}`;
     if (reason.startsWith('Before restoring backup')) return `Before restoring the backup from ${this.backupDate(reason.slice('Before restoring backup '.length))}`;
     return reason;
@@ -186,6 +192,9 @@ export class HistoryPage implements OnInit {
     return this.formatDate(new Date(+y, +mo - 1, +d, +h, +mi).toISOString());
   }
 
+  // The template can only call members, so the helper is handed to it under the name the row uses
+  readonly howOld = age;
+
   formatDate(iso: string): string {
     return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
   }
@@ -193,7 +202,7 @@ export class HistoryPage implements OnInit {
   private reset() {
     this.panelError.set('');
     this.notice.set('');
-    this.restoreText.set('');
+    this.restoreNote.set('');
     this.restoreDone.set(null);
     this.importDone.set(null);
   }
@@ -265,10 +274,11 @@ export class HistoryPage implements OnInit {
 
   restore() {
     const p = this.panel();
-    if (p?.kind !== 'restore' || this.restoreText() !== 'RESTORE') return;
+    const note = this.restoreNote().trim();
+    if (p?.kind !== 'restore' || note.length < 10) return;
     this.busy.set(true);
     this.panelError.set('');
-    this.api.restore(p.version.id, 'RESTORE').subscribe({
+    this.api.restore(p.version.id, note).subscribe({
       next: result => { this.busy.set(false); this.restoreDone.set(result); this.load(); },
       error: (err: HttpErrorResponse) => { this.busy.set(false); this.panelError.set(errorText(err)); },
     });

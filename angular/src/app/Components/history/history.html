@@ -49,7 +49,7 @@
                                         <span class="tag damaged" title="A saved value in this version couldn't be read">Damaged</span>
                                     }
                                 </span>
-                                <span class="sub">{{ formatDate(v.createdAt) }} · {{ v.damaged ? "Can't be restored or brought back" : v.sameLayout ? 'Same table layout' : 'Other table layout' }}</span>
+                                <span class="sub">{{ formatDate(v.createdAt) }} · {{ howOld(v.createdAt) }} · {{ v.damaged ? "Can't be restored or brought back" : v.sameLayout ? 'Same table layout' : 'Other table layout' }}</span>
                             </td>
                             <td class="num accent">{{ v.rowCount }}<span class="unit-word"> {{ v.rowCount === 1 ? 'row' : 'rows' }}</span></td>
                             <td class="actions">
@@ -79,7 +79,7 @@
 </section>
 
 @if (panel(); as p) {
-    <section class="panel" id="version-panel">
+    <section class="panel" [class.glow]="panel()?.kind === 'restore'" id="version-panel">
         <header class="panel-head">
             <div class="panel-title">
                 <h2>
@@ -164,14 +164,14 @@
                     }
                     <div class="confirm-row">
                         <label class="field">
-                            <span class="field-label">Type RESTORE to confirm</span>
+                            <span class="field-label">Say why, in a few words</span>
                             <span class="control">
                                 <i class="fa-solid fa-keyboard" aria-hidden="true"></i>
-                                <input autocomplete="off" placeholder="RESTORE" [value]="restoreText()" (input)="restoreText.set($any($event.target).value)">
+                                <input autocomplete="off" placeholder="Why go back to this copy?" [value]="restoreNote()" (input)="restoreNote.set($any($event.target).value)">
                             </span>
                         </label>
                         <button type="button" class="cancel-btn" (click)="close()">Cancel</button>
-                        <button type="button" class="add-btn danger" [disabled]="restoreText() !== 'RESTORE' || busy()" (click)="restore()">
+                        <button type="button" class="add-btn danger" [disabled]="restoreNote().trim().length < 10 || busy()" (click)="restore()">
                             @if (busy()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Restoring }
                             @else { <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore }
                         </button>

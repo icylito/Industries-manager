@@ -74,8 +74,8 @@ export class IndustryApi {
     pin(id: number, pinned: boolean): Observable<void> {
         return this.http.put<void>(`${this.apiUrl}/history/versions/${id}/pin`, { pinned });
     }
-    restore(id: number, confirm: string): Observable<RestoreResult> {
-        return this.http.post<RestoreResult>(`${this.apiUrl}/history/versions/${id}/restore`, { confirm });
+    restore(id: number, note: string): Observable<RestoreResult> {
+        return this.http.post<RestoreResult>(`${this.apiUrl}/history/versions/${id}/restore`, { note });
     }
     importPreview(id: number): Observable<ImportPreview> {
         return this.http.post<ImportPreview>(`${this.apiUrl}/history/versions/${id}/import/preview`, {});
@@ -111,7 +111,7 @@ export class IndustryApi {
     backupDownloadUrl(id: string, file: 'main' | 'collector' | 'excel'): string {
         return `${this.apiUrl}/backups/${id}/${file}`;
     }
-    // Restoring a backup. The preview changes nothing, the restore wants the word RESTORE like History does.
+    // Restoring a backup. The preview changes nothing, the restore wants the word RESTORE.
     backupRestorePreview(id: string): Observable<BackupRestorePreview> {
         return this.http.get<BackupRestorePreview>(`${this.apiUrl}/backups/${id}/restore/preview`);
     }

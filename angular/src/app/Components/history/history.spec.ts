@@ -162,4 +162,61 @@ describe('HistoryPage', () => {
     expect(page.settingsSummary({ ...preview, rulesChanged: false, retentionChanged: false }))
       .toContain('nothing would change');
   });
+
+  // The word RESTORE is replaced by a note that says why, and the note is kept with the copy the restore saves
+  it('asks for a note before restoring a saved version', () => {
+    const fixture = setup();
+    const page = fixture.componentInstance;
+
+    page.askRestore(version(1));
+    fixture.detectChanges();
+
+    // Scoped to the panel on purpose: the Backups card further down this same page keeps its own typed RESTORE,
+    // so a whole-page assertion would fail for the wrong reason.
+    const panel = (fixture.nativeElement as HTMLElement).querySelector('#version-panel') as HTMLElement;
+    expect(panel.textContent).not.toContain('Type RESTORE');
+    expect(page.restoreNote()).toBe('');
+
+    // Too short: nothing is sent
+    page.restoreNote.set('too short');
+    page.restore();
+    http.expectNone(r => r.method === 'POST' && r.url.endsWith('/restore'));
+
+    // Long enough: the note travels with it
+    page.restoreNote.set('swapping in the october rows');
+    page.restore();
+    const call = http.expectOne(r => r.method === 'POST' && r.url.endsWith('/restore'));
+    expect(call.request.body).toEqual({ note: 'swapping in the october rows' });
+    call.flush({ restored: 3, skipped: 0, lostValues: 0, rulesRestored: 0, requestId: null });
+  });
+
+  // The stored reason now carries the note, and the page still reads it as words
+  it('reads a saved note back off the reason', () => {
+    const fixture = setup();
+    const page = fixture.componentInstance;
+
+    expect(page.describe('Before restoring version 2 — swapping in the october rows'))
+      .toBe('Before restoring version #2 — swapping in the october rows');
+  });
+
+  // Orange flash on the way in, so the eye lands on the question. jsdom can't see the animation itself; Task 7 does.
+  it('marks the restore panel so it can glow as it opens', () => {
+    const fixture = setup();
+    const page = fixture.componentInstance;
+
+    page.askRestore(version(1));
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('#version-panel.glow')).toBeTruthy();
+
+    page.close();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('#version-panel.glow')).toBeFalsy();
+  });
+
+  it('says how old each saved copy is', () => {
+    const fixture = setup();
+    const rows = (fixture.nativeElement as HTMLElement).querySelectorAll('table.versions tbody tr');
+    expect(rows[0].textContent).toMatch(/less than an hour|hours|day/);
+  });
 });
