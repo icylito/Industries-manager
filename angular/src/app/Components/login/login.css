@@ -1,6 +1,52 @@
-/* One narrow card, left aligned under the page title like every other card, used by Sign in and Your account */
+/* One narrow card in the middle of the page, used by Sign in and Your account */
 .narrow{
     max-width: 28rem;
+    margin-inline: auto;
+}
+
+/* Room between the last box and the button, and between the button and the "No account?" line */
+form.auth-form .add-btn{
+    margin-top: 0.5rem;
+}
+
+.narrow form + .hint-line{
+    margin-top: 1rem;
+}
+
+/* The greeting's tile is tilted like a hand held up, and the hand inside waves: once when the page opens, again on hover */
+.wave-tile{
+    transform: rotate(-8deg);
+    transition: transform 0.2s;
+}
+
+.greeting:hover .wave-tile{
+    transform: rotate(0deg);
+}
+
+.wave{
+    display: inline-block;
+    transform-origin: 70% 80%;
+    animation: wave 1.6s ease-in-out 0.3s 1;
+}
+
+.greeting:hover .wave{
+    animation: wave 1.2s ease-in-out infinite;
+}
+
+@keyframes wave{
+    0%, 100% { transform: rotate(0deg); }
+    15% { transform: rotate(16deg); }
+    30% { transform: rotate(-10deg); }
+    45% { transform: rotate(16deg); }
+    60% { transform: rotate(-6deg); }
+    75% { transform: rotate(8deg); }
+}
+
+/* People who asked their system for less motion get a still hand */
+@media (prefers-reduced-motion: reduce) {
+    .wave, .greeting:hover .wave{
+        animation: none;
+    }
 }
 
 /* The shared form style is a grid of columns for the add form, these forms are one column */
