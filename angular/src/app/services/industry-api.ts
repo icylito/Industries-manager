@@ -4,7 +4,7 @@ import { MonoTypeOperatorFunction, Observable, retry, throwError, timer } from '
 import {
     Industry, CreateIndustry, UpdateIndustry, DbHealth, RuleSet, FieldRule, NewField, VersionSummary, VersionDetail,
     ImportPreview, ImportResult, RestoreResult, Retention, BackupEntry, BackupStatus, BackupRestorePreview, BackupRestoreResult, DevRequest,
-    SettingsFile, SettingsImportPreview, SettingsImportResult, AuthUser, NewUserResult, DeletedRow, FieldDeleted,
+    SettingsFile, SettingsImportPreview, SettingsImportResult, AuthUser, NewUserResult, DeletedRow, FieldDeleted, UserNote,
 } from '../models/industry';
 import { environment } from '../../environments/environment';
 
@@ -129,8 +129,23 @@ export class IndustryApi {
     resetPassword(id: number): Observable<NewUserResult> {
         return this.http.post<NewUserResult>(`${this.apiUrl}/users/${id}/reset-password`, {});
     }
-    updateUser(id: number, body: { role?: string; disabled?: boolean }): Observable<AuthUser> {
+    updateUser(id: number, body: { username?: string; role?: string; disabled?: boolean }): Observable<AuthUser> {
         return this.http.put<AuthUser>(`${this.apiUrl}/users/${id}`, body);
+    }
+    // Deleting an account for good. What History already recorded keeps the name.
+    deleteUser(id: number): Observable<{ deleted: number; username: string }> {
+        return this.http.delete<{ deleted: number; username: string }>(`${this.apiUrl}/users/${id}`);
+    }
+
+    // Notes an admin keeps about an account. They never reach the person they are about.
+    userNotes(id: number): Observable<UserNote[]> {
+        return this.http.get<UserNote[]>(`${this.apiUrl}/users/${id}/notes`);
+    }
+    addUserNote(id: number, text: string): Observable<UserNote> {
+        return this.http.post<UserNote>(`${this.apiUrl}/users/${id}/notes`, { text });
+    }
+    deleteUserNote(id: number, noteId: number): Observable<void> {
+        return this.http.delete<void>(`${this.apiUrl}/users/${id}/notes/${noteId}`);
     }
 
     // A link can't carry the sign in token, so files are fetched with it and saved from the page

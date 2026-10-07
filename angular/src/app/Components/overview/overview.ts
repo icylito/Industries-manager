@@ -273,14 +273,7 @@ export class OverviewPage implements OnInit {
   // Counts for the page: 30,001 and not 30001
   protected n = thousands;
 
-  // The label over each bar of a pair is short (2.3K) so two of them never run into each other
-  fmtPair(v: number): string {
-    if (!v) return '';
-    if (this.sel().metric !== 'count' || v < 10000) return this.fmt(v);
-    return Math.round(v / 1000) + 'K';
-  }
-
-  // Where the two numbers over a pair of bars sit: just above the taller bar
+  // Where the tooltip of a pair of bars sits: just above the taller bar
   pairAt(b: { aH: number; bH: number }): number {
     return Math.max(b.aH, b.bH);
   }
@@ -289,10 +282,6 @@ export class OverviewPage implements OnInit {
   pairTip(b: { a: number; b: number }, i: number): string[] {
     const [a, c] = this.sel().cmpKeys;
     return [this.view().periods[i].label, `A  ${a}: ${this.fmt(b.a)}`, `B  ${c}: ${this.fmt(b.b)}`];
-  }
-
-  fmtBar(v: number): string {
-    return v ? this.fmt(v) : '';
   }
 
   barAria(b: Bar, i: number): string {

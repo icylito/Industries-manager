@@ -244,6 +244,36 @@ namespace api_v2.Migrations
                         });
                 });
 
+            modelBuilder.Entity("api_v2.Model.UserNote", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserNotes");
+                });
+
             modelBuilder.Entity("api_v2.Model.Session", b =>
                 {
                     b.HasOne("api_v2.Model.User", "User")
@@ -253,6 +283,15 @@ namespace api_v2.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("api_v2.Model.UserNote", b =>
+                {
+                    b.HasOne("api_v2.Model.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

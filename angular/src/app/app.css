@@ -264,7 +264,7 @@
     gap: 8px;
 }
 
-.theme-btn{
+.theme-btn, .side .bell{
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -279,8 +279,15 @@
     cursor: pointer;
 }
 
-.theme-btn:hover, .who:hover{
+.theme-btn:hover, .who:hover, .side .bell:hover{
     background: var(--border);
+}
+
+/* The count sits on the corner, so the round bell keeps its size */
+.side .bell .badge{
+    position: absolute;
+    top: -2px;
+    right: -2px;
 }
 
 .who{
@@ -302,8 +309,16 @@
 }
 
 @media (max-width: 560px) {
+    /* Four tabs don't fit beside the brand on a phone, so they take a row of their own */
     .admin-nav{
         padding-left: 14px;
+        flex-wrap: wrap;
+    }
+
+    .tabs{
+        order: 3;
+        width: 100%;
+        justify-content: space-between;
     }
 
     .admin-nav .brand-text, .who span{

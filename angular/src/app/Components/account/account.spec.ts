@@ -4,6 +4,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { AccountPage } from './account';
 import { Auth } from '../../services/auth';
+import { routes } from '../../app.routes';
 
 // E8: the page stops a bad new password before any call is made
 describe('AccountPage', () => {
@@ -31,5 +32,26 @@ describe('AccountPage', () => {
 
     page.next.set('a new password'); page.repeat.set('a new password'); submit();
     http.expectOne(r => r.url.endsWith('/auth/password'));
+  });
+});
+
+// Parked 2026-10-08: the admin page links came off this page, the markup is commented out in account.html.
+// History and Fields are still reachable from the nav on Browse. This test pins the current state, so
+// bringing the links back is a deliberate change with a test to change, not a silent edit.
+describe('AccountPage and the parked admin links', () => {
+  const render = (role: 'admin' | 'normal') => {
+    TestBed.configureTestingModule({
+      imports: [AccountPage],
+      providers: [provideRouter(routes), provideHttpClient(), provideHttpClientTesting()],
+    });
+    TestBed.inject(Auth).user.set({ id: 1, username: 'ada', role, disabled: false, mustChangePassword: false, createdAt: '', lastLoginAt: null });
+    const fixture = TestBed.createComponent(AccountPage);
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  };
+
+  it('shows no admin page links for now, not even to an admin', () => {
+    const el = render('admin');
+    expect(el.querySelector('.admin-links')).toBeFalsy();
   });
 });

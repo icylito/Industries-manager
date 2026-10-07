@@ -56,25 +56,23 @@
                                     @if (u.id === auth.user()?.id) { <span class="tag-inline">You</span> }
                                     @if (u.disabled) { <span class="tag-inline">Turned off</span> }
                                     @if (u.mustChangePassword && !u.disabled) { <span class="tag-inline">Hasn't picked a password yet</span> }
+                                    @if (u.hasNotes) { <span class="tag-inline note-tag">Note</span> }
                                 </span>
                             </td>
                             <td class="role">{{ u.role === 'admin' ? 'Admin' : 'User' }}</td>
                             <td class="muted">{{ formatDate(u.lastLoginAt) }}</td>
                             <td class="actions">
                                 @if (u.id !== auth.user()?.id) {
-                                    @if (pending()?.user?.id === u.id) {
-                                        <span class="confirm-text">{{ pending()?.action === 'off' ? 'Are you sure you want to turn this account off? They get signed out.' : 'Are you sure you want to give them a new password?' }}</span>
-                                        <button type="button" class="edit-btn" [disabled]="busy()" (click)="pending.set(null)">Cancel</button>
-                                        <button type="button" class="remove-btn" [disabled]="busy()" (click)="confirm()">{{ pending()?.action === 'off' ? 'Turn off' : 'New password' }}</button>
-                                    } @else if (u.disabled) {
-                                        <button type="button" class="edit-btn" [disabled]="busy()" (click)="turnOn(u)">Turn on</button>
-                                    } @else {
-                                        <button type="button" class="edit-btn" [disabled]="busy()" (click)="setRole(u, u.role === 'admin' ? 'normal' : 'admin')">
-                                            {{ u.role === 'admin' ? 'Remove admin' : 'Make admin' }}
-                                        </button>
+                                    <!-- One button out in the open, everything that takes access away behind the hamburger -->
+                                    <div class="row-actions">
                                         <button type="button" class="edit-btn" [disabled]="busy()" (click)="ask(u, 'reset')">New password</button>
-                                        <button type="button" class="remove-btn" [disabled]="busy()" (click)="ask(u, 'off')">Turn off</button>
-                                    }
+                                        <div class="menu-wrap">
+                                            <button type="button" class="menu-btn" aria-haspopup="menu" [attr.aria-expanded]="menuFor()?.id === u.id"
+                                                [attr.aria-label]="'More actions for ' + u.username" (click)="toggleMenu(u, $event)">
+                                                <i class="fa-solid fa-bars" aria-hidden="true"></i>
+                                            </button>
+                                        </div>
+                                    </div>
                                 }
                             </td>
                         </tr>
@@ -117,3 +115,84 @@
         <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ addError() }}</p>
     }
 </section>
+@if (menuFor(); as person) {
+    <!-- Drawn here, outside the table: inside it the table's own scrolling box clipped the menu to a sliver -->
+    <div class="menu" role="menu" [attr.aria-label]="'More actions for ' + person.username" (keydown)="onMenuKey($event)"
+        [style.top.px]="menuAt().top" [style.right.px]="menuAt().right">
+        @if (person.disabled) {
+            <button type="button" role="menuitem" [disabled]="busy()" (click)="turnOn(person)">Turn on</button>
+        } @else {
+            <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'off')">Turn off</button>
+        }
+        @if (person.role === 'admin') {
+            <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'normal')">Remove admin</button>
+        } @else {
+            <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'admin')">Make admin</button>
+        }
+        <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'rename')">Rename</button>
+        <button type="button" role="menuitem" [disabled]="busy()" (click)="openNotes(person)">Notes@if (person.hasNotes) { <span class="note-dot" aria-hidden="true"></span> }</button>
+        <button type="button" role="menuitem" class="danger" [disabled]="busy()" (click)="ask(person, 'delete')">Delete account</button>
+    </div>
+}
+
+@if (pending()) {
+    <!-- The question sits over the page, so a big table does not bury it -->
+    <div class="confirm-backdrop" (click)="pending.set(null)" aria-hidden="true"></div>
+    <div class="confirm-wrap">
+        <div class="confirm-pop" role="alertdialog" aria-modal="true" aria-label="Please confirm">
+            <p class="confirm-q">{{ question() }}</p>
+            @if (pending()?.action === 'rename') {
+                <label class="field">
+                    <span class="field-label">New username <span class="optional">letters and digits, 3 or more</span></span>
+                    <span class="control">
+                        <i class="fa-solid fa-user" aria-hidden="true"></i>
+                        <input autocapitalize="none" spellcheck="false" [value]="renameTo()" (input)="renameTo.set($any($event.target).value)" (keydown.enter)="confirm()">
+                    </span>
+                </label>
+            }
+            <div class="confirm-actions">
+                <button type="button" class="cancel-btn" [disabled]="busy()" (click)="pending.set(null)">Cancel</button>
+                <button type="button" [class]="confirmIsRemoval() ? 'remove-btn' : 'add-btn'" [disabled]="busy()" (click)="confirm()">{{ confirmLabel() }}</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (notesFor(); as person) {
+    <!-- Notes an admin keeps about an account. The person it is about is never shown one. -->
+    <div class="confirm-backdrop" (click)="closeNotes()" aria-hidden="true"></div>
+    <div class="confirm-wrap">
+        <div class="notes-pop" role="dialog" aria-modal="true" [attr.aria-label]="'Notes about ' + person.username">
+            <h3 class="notes-title">Notes about {{ person.username }}</h3>
+            <p class="notes-hint">Only admins can see these. {{ person.username }} is never shown them.</p>
+
+            @if (notesLoading()) {
+                <p class="state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading notes</p>
+            } @else if (notes().length === 0) {
+                <p class="notes-empty">No notes yet.</p>
+            } @else {
+                <ul class="notes-list">
+                    @for (n of notes(); track n.id) {
+                        <li>
+                            <p class="note-text">{{ n.text }}</p>
+                            <p class="note-meta">
+                                <span>{{ n.createdBy }} · {{ formatNote(n.createdAt) }}</span>
+                                <button type="button" class="note-del" [disabled]="notesBusy()" (click)="removeNote(n)">Delete</button>
+                            </p>
+                        </li>
+                    }
+                </ul>
+            }
+
+            <label class="field notes-add">
+                <span class="field-label">Add a note</span>
+                <textarea rows="3" maxlength="2000" [value]="noteText()" (input)="noteText.set($any($event.target).value)"
+                    placeholder="Something another admin should know"></textarea>
+            </label>
+            <div class="confirm-actions">
+                <button type="button" class="cancel-btn" (click)="closeNotes()">Close</button>
+                <button type="button" class="add-btn" [disabled]="notesBusy() || !noteText().trim()" (click)="addNote()">Add note</button>
+            </div>
+        </div>
+    </div>
+}

@@ -1,6 +1,6 @@
 namespace api_v2.Model;
 
-// A person who can sign in. Accounts are never deleted, only turned off, so names in History stay meaningful.
+// A person who can sign in. An account can be turned off or deleted; History keeps the name either way.
 public class User
 {
     public int Id { get; set; }

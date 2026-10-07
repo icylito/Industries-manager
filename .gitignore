@@ -29,3 +29,6 @@ api_v2/appsettings.Throwaway.json
 angular/.cert/
 
 # Front-end related
+
+# The page checks in testing/ (playwright), installed there and not part of the repo
+testing/node_modules/

@@ -146,7 +146,7 @@ Requests live in the `Requests` table, `GET /requests` lists them and `GET /requ
 Anyone can look at the table. Adding, editing and deleting rows needs an account, and History, Fields, People and backups need an admin. Requests are for anyone with an account, but only an admin can mark them done.
 
 - The first start makes an account called `admin` with a random password and prints it once in the API window. Sign in with it and pick your own. If there's ever no working admin, the next start makes one again the same way.
-- Forgot an admin password? Start the API with `Auth:ResetPassword` set to that username (for example `dotnet run --launch-profile http --Auth:ResetPassword=yahya`). It prints a new password once. Take the setting out again afterwards.
+- Forgot an admin password? Start the API with `Auth:ResetPassword` set to that username (for example `dotnet run --launch-profile http --Auth:ResetPassword=admin`). It prints a new password once. Take the setting out again afterwards.
 - Admins make the other accounts on the People page. Each gets a temporary password shown once, and has to pick their own at first sign in. Nobody can sign up by themselves, and accounts are turned off, never deleted, so History keeps the names.
 - Passwords are at least 10 characters and are stored as a salted PBKDF2 hash, never as text. Signing in is limited to 5 tries a minute per address (`Auth:LoginTriesPerMinute`). A sign in lasts 12 hours after its last use, 7 days at most, and is kept in the browser.
 - `Auth:GuestCanView` set to `false` hides the table from people who aren't signed in.

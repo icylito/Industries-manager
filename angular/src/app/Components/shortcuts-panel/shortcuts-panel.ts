@@ -14,10 +14,16 @@ export class ShortcutsPanel {
   private injector = inject(Injector);
   private dialog = viewChild<ElementRef<HTMLElement>>('dialog');
   private search = viewChild<ElementRef<HTMLInputElement>>('search');
+  // The small Reset question, and the two buttons focus moves between
+  private confirmPop = viewChild<ElementRef<HTMLElement>>('confirm');
+  private confirmCancel = viewChild<ElementRef<HTMLElement>>('confirmCancel');
+  private resetBtn = viewChild<ElementRef<HTMLElement>>('resetBtn');
 
   query = signal('');
   // The key box that is open, with what was pressed and why it stopped (a key the browser keeps, or a key another function uses)
   rec = signal<{ id: string; pressed: string[]; error: string; clash: string[] } | null>(null);
+  // Reset puts every key back at once, so it asks first, the same row Users and Fields use
+  confirmReset = signal(false);
   private opener: HTMLElement | null = null;
 
   constructor() {
@@ -28,6 +34,7 @@ export class ShortcutsPanel {
         this.opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         this.query.set('');
         this.rec.set(null);
+        this.confirmReset.set(false);
         // The panel is drawn after this runs, so the search box is focused once it exists
         afterNextRender(() => this.search()?.nativeElement.focus(), { injector: this.injector });
       } else {
@@ -63,6 +70,25 @@ export class ShortcutsPanel {
 
   close() {
     this.keys.togglePanel(false);
+  }
+
+  // Asks first: a small box over the panel, with Cancel focused because that is the safer of the two keys
+  askReset() {
+    this.rec.set(null);
+    this.confirmReset.set(true);
+    afterNextRender(() => this.confirmCancel()?.nativeElement.focus(), { injector: this.injector });
+  }
+
+  // Every key goes back to its default, once the question has been answered
+  doReset() {
+    this.keys.resetAll();
+    this.cancelReset();
+  }
+
+  cancelReset() {
+    this.confirmReset.set(false);
+    // The buttons that were focused are gone with the box, so focus goes back to Reset rather than nowhere
+    afterNextRender(() => this.resetBtn()?.nativeElement.focus(), { injector: this.injector });
   }
 
   edit(id: string) {
@@ -108,6 +134,12 @@ export class ShortcutsPanel {
       this.record(e);
       return;
     }
+    // The question for Reset closes first, and the panel stays open
+    if (e.key === 'Escape' && this.confirmReset()) {
+      e.preventDefault();
+      this.confirmReset.set(false);
+      return;
+    }
     if (e.key === 'Escape' && !this.rec()) {
       e.preventDefault();
       if (this.query() && document.activeElement === this.search()?.nativeElement) this.query.set('');
@@ -119,7 +151,8 @@ export class ShortcutsPanel {
 
   // Tab stays inside the panel
   private trapTab(e: KeyboardEvent) {
-    const box = this.dialog()?.nativeElement;
+    // While the question is up it owns Tab, so focus cannot slip back onto the panel behind it
+    const box = (this.confirmReset() ? this.confirmPop()?.nativeElement : null) ?? this.dialog()?.nativeElement;
     if (!box) return;
     const focusable = [...box.querySelectorAll<HTMLElement>('button, input, [tabindex]:not([tabindex="-1"])')].filter(el => !el.hasAttribute('disabled'));
     if (!focusable.length) return;

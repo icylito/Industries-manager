@@ -1,6 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Auth } from '../../services/auth';
 import { errorText } from '../../services/industry-api';
 
@@ -8,7 +8,8 @@ type Box = 'current' | 'next' | 'repeat';
 
 @Component({
   selector: 'app-account',
-  styleUrls: ['../my-components/my-components.css', '../history/history.css', '../login/login.css'],
+  imports: [RouterLink],
+  styleUrls: ['../my-components/my-components.css', '../history/history.css', '../login/login.css', './account.css'],
   templateUrl: './account.html',
 })
 export class AccountPage {

@@ -1,0 +1,35 @@
+/* History, Fields and People left the slim nav, so an admin reaches them from here instead, see app.html */
+.admin-links{
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.admin-links-row{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.admin-links a{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.admin-links a:hover{
+    background: var(--border);
+}
+
+.admin-links a:focus-visible{
+    outline: 2px solid var(--signal);
+    outline-offset: 2px;
+}

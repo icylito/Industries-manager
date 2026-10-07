@@ -10,6 +10,7 @@ DbContext(options){
     public DbSet<AppSetting> Settings => Set<AppSetting>();
     public DbSet<User> Users => Set<User>();
     public DbSet<Session> Sessions => Set<Session>();
+    public DbSet<UserNote> UserNotes => Set<UserNote>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -24,5 +25,9 @@ DbContext(options){
         model.Entity<Session>().HasIndex(s => s.TokenHash).IsUnique();
         model.Entity<Session>().HasIndex(s => s.UserId);
         model.Entity<Session>().HasOne(s => s.User).WithMany().HasForeignKey(s => s.UserId).OnDelete(DeleteBehavior.Cascade);
+        // A note an admin keeps about an account. Deleting the account takes its notes with it, so none are left behind.
+        model.Entity<UserNote>().Property(n => n.Text).HasMaxLength(2000);
+        model.Entity<UserNote>().HasIndex(n => n.UserId);
+        model.Entity<UserNote>().HasOne<User>().WithMany().HasForeignKey(n => n.UserId).OnDelete(DeleteBehavior.Cascade);
     }
 }

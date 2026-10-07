@@ -140,4 +140,26 @@ describe('OverviewPage', () => {
     fixture.detectChanges();
     expect(el().querySelector('a.open-btn')?.textContent).toContain('Open 1,234 in Browse');
   });
+
+  // The numbers over the bars are gone: hovering or tabbing shows them instead, and a bar still says its own number
+  it('draws no numbers over the bars, and still announces each bar', () => {
+    load([row(1), row(2)]);
+    expect(el().querySelector('.bar-value')).toBeNull();
+    const hits = [...el().querySelectorAll('.bars .bar-hit')];
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0].getAttribute('aria-label')).toContain('industries');
+  });
+
+  it('draws no numbers over a pair of bars in Compare either', () => {
+    load([row(1), row(2, { sector: 'Private Sector' })]);
+    const page = fixture.componentInstance;
+    page.togglePick('Public Sector');
+    page.toggleCompare();
+    page.togglePick('Private Sector');
+    fixture.detectChanges();
+    expect(el().querySelector('.pair-values')).toBeNull();
+    const label = el().querySelector('.bars .bar-hit')?.getAttribute('aria-label');
+    expect(label).toContain('Public Sector');
+    expect(label).toContain('Private Sector');
+  });
 });

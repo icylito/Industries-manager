@@ -1,73 +1,286 @@
-/* A turned off account is greyed in the list */
-tr.dimmed td{
-    color: var(--p-muted);
-}
-
-.tag-inline{
-    display: inline-block;
-    margin-left: 0.5rem;
-    white-space: nowrap;
-    padding: 0.1rem 0.5rem;
-    border: 1px solid var(--p-border);
-    border-radius: 999px;
-    color: var(--p-text);
-    font-size: 0.68rem;
-    font-weight: 600;
-}
-
-/* The temporary password, easy to read out loud */
-.password-line{
+/* A turned off account is greyed in the list */
+tr.dimmed td{
+    color: var(--p-muted);
+}
+
+.tag-inline{
+    display: inline-block;
+    margin-left: 0.5rem;
+    white-space: nowrap;
+    padding: 0.1rem 0.5rem;
+    border: 1px solid var(--p-border);
+    border-radius: 999px;
+    color: var(--p-text);
+    font-size: 0.68rem;
+    font-weight: 600;
+}
+
+/* The temporary password, easy to read out loud */
+.password-line{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.85rem;
+}
+
+.password-line code{
+    padding: 0.5rem 0.8rem;
+    border: 1px solid var(--p-border);
+    border-radius: 8px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    user-select: all;
+}
+
+.add-person{
+    align-items: end;
+}
+
+.add-person .field{
+    flex: 1 1 14rem;
+}
+
+/* A name and its small tags wrap as whole pieces, never letter by letter */
+.what .reason{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0;
+}
+
+/* On a phone each person is a small card: the name on top, the role and last sign in under it, then the buttons */
+@media (max-width: 640px) {
+    .people tbody tr{
+        grid-template-columns: 1fr auto;
+    }
+
+    .people td.what{
+        grid-column: 1 / -1;
+    }
+
+    .people td.muted{
+        text-align: right;
+    }
+
+    .people td.actions .confirm-text{
+        flex: 1 0 100%;
+        max-width: none;
+        text-align: left;
+        white-space: normal;
+    }
+}
+
+/* One button out in the open, the rest behind the hamburger */
+.row-actions{
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.4rem;
+}
+
+.menu-wrap{
+    position: relative;
+}
+
+.menu-btn{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+}
+
+.menu-btn:hover{
+    background: var(--hover);
+}
+
+.menu{
+    position: fixed;
+    z-index: 40;
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem;
-    margin-top: 0.85rem;
-}
-
-.password-line code{
-    padding: 0.5rem 0.8rem;
-    border: 1px solid var(--p-border);
-    border-radius: 8px;
-    font-size: 1.05rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    user-select: all;
-}
-
-.add-person{
-    align-items: end;
-}
-
-.add-person .field{
-    flex: 1 1 14rem;
-}
-
-/* A name and its small tags wrap as whole pieces, never letter by letter */
-.what .reason{
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.35rem 0;
-}
-
-/* On a phone each person is a small card: the name on top, the role and last sign in under it, then the buttons */
-@media (max-width: 640px) {
-    .people tbody tr{
-        grid-template-columns: 1fr auto;
-    }
-
-    .people td.what{
-        grid-column: 1 / -1;
-    }
-
-    .people td.muted{
-        text-align: right;
-    }
-
-    .people td.actions .confirm-text{
-        flex: 1 0 100%;
-        max-width: none;
-        text-align: left;
-        white-space: normal;
-    }
+    flex-direction: column;
+    min-width: 190px;
+    padding: 4px;
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: var(--pop-shadow);
+    text-align: left;
+}
+
+.menu [role="menuitem"]{
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.menu [role="menuitem"]:hover{
+    background: var(--hover);
+}
+
+.menu [role="menuitem"].danger{
+    color: var(--danger);
+}
+
+/* The question before anything that takes access away */
+.confirm-backdrop{
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+}
+
+.confirm-wrap{
+    position: fixed;
+    inset: 0;
+    z-index: 61;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    pointer-events: none;
+}
+
+.confirm-pop{
+    width: 460px;
+    max-width: 100%;
+    padding: 1.25rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 14px;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--pop-shadow);
+    pointer-events: auto;
+}
+
+.confirm-q{
+    margin: 0 0 1rem;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.confirm-actions{
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.tag-inline.note-tag{
+    background: var(--surface-2);
+    color: var(--muted);
+}
+
+/* A small dot on the menu item when an admin has already written something */
+.note-dot{
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-left: 6px;
+    border-radius: 999px;
+    background: var(--signal);
+}
+
+/* The notes dialog. Only an admin ever sees this, and never the person it is about. */
+.notes-pop{
+    width: 520px;
+    max-width: 100%;
+    max-height: min(80vh, 640px);
+    overflow: auto;
+    padding: 1.25rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 14px;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--pop-shadow);
+    pointer-events: auto;
+    text-align: left;
+}
+
+.notes-title{
+    margin: 0 0 0.25rem;
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.notes-hint{
+    margin: 0 0 1rem;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.notes-empty{
+    margin: 0 0 1rem;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.notes-list{
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin: 0 0 1rem;
+    padding: 0;
+    list-style: none;
+}
+
+.notes-list li{
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-2);
+}
+
+.note-text{
+    margin: 0 0 0.35rem;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+.note-meta{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin: 0;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.note-del{
+    padding: 3px 8px;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--danger);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.notes-add textarea{
+    width: 100%;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    resize: vertical;
 }

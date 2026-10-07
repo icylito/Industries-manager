@@ -249,6 +249,16 @@ export interface AuthUser {
     mustChangePassword: boolean;
     createdAt: string;
     lastLoginAt: string | null;
+    // Only the admin list sets this. It says a note exists, never what it says.
+    hasNotes?: boolean;
+}
+
+// A note an admin keeps about an account. The person it is about is never shown one.
+export interface UserNote {
+    id: number;
+    text: string;
+    createdBy: string;
+    createdAt: string;
 }
 
 export interface LoginResult {

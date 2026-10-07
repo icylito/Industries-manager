@@ -56,5 +56,19 @@
         <div class="confirm-row end">
             <button type="button" class="cancel-btn" (click)="auth.logout()"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>Sign out</button>
         </div>
+
+        <!-- Parked 2026-10-08: the admin page links came off this page for now, at the user's request.
+             History and Fields are still reachable from the nav on Browse, so nothing is orphaned.
+             Uncomment the block below to bring them back, and change the test in account.spec.ts with it.
+        @if (user.role === 'admin') {
+            <div class="admin-links">
+                <p class="field-label">Admin pages</p>
+                <div class="admin-links-row">
+                    <a routerLink="/history"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>History</a>
+                    <a routerLink="/fields"><i class="fa-solid fa-sliders" aria-hidden="true"></i>Fields</a>
+                </div>
+            </div>
+        }
+        -->
     </section>
 }

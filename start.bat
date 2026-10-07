@@ -14,6 +14,8 @@ set "settings=%~dp0api_v2\appsettings.Development.json"
 set "usedocker=0"
 if not exist "%settings%" set "usedocker=1"
 if exist "%settings%" findstr /c:"Port=5433" "%settings%" >nul && set "usedocker=1"
+rem A settings file with no ApiV2 connection string also makes the API use the Docker database
+if exist "%settings%" findstr /c:"ApiV2" "%settings%" >nul || set "usedocker=1"
 if "%usedocker%"=="1" (
     echo Starting the Docker database...
     docker compose -f "%~dp0docker-compose.yml" up -d --wait || echo Docker didn't start, open Docker Desktop and run this again

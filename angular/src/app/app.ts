@@ -8,9 +8,13 @@ import { IdleTop } from './services/idle-top';
 import { Theme } from './services/theme';
 import { Toast } from './services/toast';
 import { ShortcutsPanel } from './Components/shortcuts-panel/shortcuts-panel';
+import { routes } from './app.routes';
 
-// admin is the Overview's own layout: the slim nav and no page header, the page draws its own title
+// admin is the admin layout: the slim nav and no page header, the page draws its own title
 interface PageInfo { title: string; lede: string; centered?: boolean; admin?: boolean; }
+
+// The pages that use the admin shell, read from the route table so marking a route there is the only place to change
+const adminPaths = routes.filter(r => r.data?.['admin'] === true).map(r => `/${r.path}`);
 
 @Component({
   imports: [RouterOutlet, RouterLink, RouterLinkActive, ShortcutsPanel],
@@ -35,12 +39,12 @@ export class App {
       while (route.firstChild) route = route.firstChild;
       return route.data as PageInfo;
     }),
-  // The first page is known from the address, so opening /overview directly doesn't flash the other nav before the router is done
-  ), { initialValue: { title: 'Industries', lede: 'Every change here is saved right away.', admin: location.pathname.startsWith('/overview') } as PageInfo });
+  // The first page is known from the address, so opening an admin page directly doesn't flash the other nav before the router is done
+  ), { initialValue: { title: 'Industries', lede: 'Every change here is saved right away.', admin: adminPaths.some(path => location.pathname.startsWith(path)) } as PageInfo });
 
   constructor() {
     // The bell count, checked on every page change and every 30 seconds. Only people who are signed in see requests.
-    // The Overview has its own dark colors, see styles.css (admin-layout)
+    // The admin pages have their own dark colors, see styles.css (admin-layout)
     effect(() => document.documentElement.classList.toggle('admin-layout', !!this.page().admin));
     const refresh = () => { if (this.auth.isSignedIn()) this.api.refreshRequestCount(); };
     effect(refresh);

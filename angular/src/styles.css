@@ -133,6 +133,9 @@
         --border-strong: #454545;
         --accent: #e2e2e2;
         --accent-text: #141414;
+        /* Deeper and warmer than the shared dark orange. The brighter coral blooms at 2px on near black, so the focus ring
+           stopped reading as a line. 5.5:1 on a card, 5.0:1 on the picked row, above the 3:1 a non-text indicator needs. */
+        --signal: #f2673a;
         --hover: rgba(255, 255, 255, 0.05);
         --focus: rgba(255, 255, 255, 0.2);
         --glow: rgba(255, 255, 255, 0.05);
@@ -158,6 +161,8 @@
     --border-strong: #454545;
     --accent: #e2e2e2;
     --accent-text: #141414;
+    /* Same as the system dark set above, see the note there */
+    --signal: #f2673a;
     --hover: rgba(255, 255, 255, 0.05);
     --focus: rgba(255, 255, 255, 0.2);
     --glow: rgba(255, 255, 255, 0.05);

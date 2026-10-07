@@ -267,8 +267,8 @@
                     @if (!d.cmpActive) {
                         <div class="bars">
                             @for (b of d.bars; track $index; let i = $index) {
-                                <!-- The column holds the drawing and the label, the button sits over it with only a name. Only the drawing fades when
-                                     another bar is picked, the number on it stays at full strength so it can still be read. -->
+                                <!-- The column holds the drawing, the button sits over it with only a name. A bar's number is not drawn:
+                                     hovering it or tabbing to it brings up the tooltip with the exact figure. -->
                                 <div class="bar-col" (mouseenter)="hovBar.set(i)" (mouseleave)="hovBar.set(null)">
                                     <div class="fills" [style.opacity]="barOpacity(i)">
                                         @if (!d.stacked) {
@@ -285,7 +285,6 @@
                                             <div class="layer ring-only" [class.ring]="sel().bar === i" [style.height.%]="b.allH"></div>
                                         }
                                     </div>
-                                    <span class="num bar-value" [style.bottom.%]="b.labelAt" aria-hidden="true">{{ fmtBar(b.shown) }}</span>
                                     @if (hovBar() === i) {
                                         <div role="tooltip" class="tip fade-in" [style.bottom]="'calc(' + b.labelAt + '% + 26px)'" [class.tip-left]="tipLeft(i)" [class.tip-right]="tipRight(i)">
                                             @for (line of barTip(b, i); track $index) { <div [class.first]="$index === 0">{{ line }}</div> }
@@ -307,8 +306,6 @@
                                     <div class="half">
                                         <div class="rise pair-bar b" [style.opacity]="barOpacity(i)" [style.height.%]="b.bH" [style.animation-delay.s]="i * 0.05"></div>
                                     </div>
-                                    <!-- Both numbers, one over the other, above the taller bar: A in ink, B in orange. They can't run into each other. -->
-                                    <span class="num pair-values" [style.bottom.%]="pairAt(b)" aria-hidden="true"><b class="a">{{ fmtPair(b.a) }}</b><b class="b">{{ fmtPair(b.b) }}</b></span>
                                     @if (hovBar() === i) {
                                         <div role="tooltip" class="tip fade-in" [style.bottom]="'calc(' + pairAt(b) + '% + 40px)'" [class.tip-left]="tipLeft(i)" [class.tip-right]="tipRight(i)">
                                             @for (line of pairTip(b, i); track $index) { <div [class.first]="$index === 0">{{ line }}</div> }
