@@ -1,16 +1,36 @@
 /* One narrow card in the middle of the page, used by Sign in and Your account */
 .narrow{
-    max-width: 28rem;
+    max-width: 30rem;
     margin-inline: auto;
+    padding: 2rem;
 }
 
-/* Room between the last box and the button, and between the button and the "No account?" line */
+.narrow .card-head{
+    margin-bottom: 1.75rem;
+}
+
+/* The shared form style is a grid of columns for the add form, these forms are one column with room between the boxes */
+form.auth-form{
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1.25rem;
+    padding: 0;
+}
+
+/* The button goes the full width of the card, with room above it */
 form.auth-form .add-btn{
-    margin-top: 0.5rem;
+    align-self: stretch;
+    margin-top: 0.75rem;
+    height: 3rem;
+    font-size: 0.95rem;
 }
 
+/* The "No account?" line sits under the button, in the middle, 1rem away */
 .narrow form + .hint-line{
-    margin-top: 1rem;
+    justify-content: center;
+    text-align: center;
+    margin: 1rem 0 0;
 }
 
 /* The greeting's tile is tilted like a hand held up, and the hand inside waves: once when the page opens, again on hover */
@@ -49,15 +69,15 @@ form.auth-form .add-btn{
     }
 }
 
-/* The shared form style is a grid of columns for the add form, these forms are one column */
-form.auth-form{
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 1rem;
-    padding: 0;
-}
+/* Phones: the card keeps the page's side gutter and a little less padding inside. The name and the role stay on one line, the shared phone rule stacks them */
+@media (max-width: 640px) {
+    .narrow{
+        padding: 1.5rem 1.25rem;
+    }
 
-form.auth-form .add-btn{
-    align-self: flex-start;
+    .narrow .card-head{
+        flex-direction: row;
+        align-items: center;
+        gap: 1rem;
+    }
 }

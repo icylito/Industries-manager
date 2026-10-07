@@ -110,6 +110,11 @@
     letter-spacing: -0.03em;
 }
 
+/* The sign in and account pages: title and line sit over the middle of the page, where the one card is */
+.hero.centered{
+    text-align: center;
+}
+
 .lede{
     margin: 0.5rem 0 0;
     color: var(--muted);
