@@ -23,6 +23,7 @@ if len(rows) < 300:
         assert s == 201, (s, b)
 s, rows = call("GET", "/industries"); n0 = len(rows); print("rows before backup", n0)
 s, schema = call("GET", "/schema"); v0 = schema["version"]; print("rules version before backup", v0)
+s, retention0 = call("GET", "/history/settings")
 
 # a second account and a request, both must survive the restore differently
 s, bob = call("POST", "/users", {"username": "bob", "role": "normal"}); assert s in (201, 409), (s, bob)
@@ -38,7 +39,7 @@ for r in rows[:20]:
 s, b = call("POST", "/industries", {"name": "Added After Backup", "sector": "Public Sector", "price": 1, "release": None, "extra": {}}); assert s == 201, b
 s, b = call("POST", "/schema/fields", {"label": "Ticker", "type": "text", "required": False, "maxLength": 10, "min": None, "max": None}); assert s == 200, b
 s, b = call("POST", "/requests", {"title": "Made after the backup", "details": "should vanish"}); assert s == 201, b
-s, b = call("PUT", "/history/settings", {"keepVersions": 50, "keepDays": None}); assert s == 200, b
+s, b = call("PUT", "/history/settings", {"keepVersions": 77, "keepDays": None}); assert s == 200, b
 s, carol = call("POST", "/users", {"username": "carol", "role": "admin"}); assert s in (201, 409), carol
 s, users_before = call("GET", "/users")
 s, rows_mid = call("GET", "/industries"); print("rows after changes", len(rows_mid))
@@ -56,7 +57,7 @@ s, rows_after = call("GET", "/industries"); assert len(rows_after) == n0, (len(r
 assert not any(r["name"] == "Added After Backup" for r in rows_after)
 s, schema = call("GET", "/schema"); assert schema["version"] == v0 and all(f["key"] != "ticker" for f in schema["fields"]), schema
 s, reqs = call("GET", "/requests", None); titles = [r["title"] for r in reqs]; assert "Keep me" in titles and "Made after the backup" not in titles, titles
-s, ret = call("GET", "/history/settings"); assert ret["keepVersions"] is None, ret
+s, ret = call("GET", "/history/settings"); assert ret == retention0, (ret, retention0)
 s, users_after = call("GET", "/users"); assert [u["username"] for u in users_after] == [u["username"] for u in users_before], (users_before, users_after)
 assert any(u["username"] == "carol" for u in users_after), "carol made after the backup must still exist"
 s, me = call("GET", "/auth/me"); assert s == 200, "the admin token must still work"

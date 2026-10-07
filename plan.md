@@ -17,13 +17,13 @@ The app lists industries (name, sector, price, release) from a Postgres database
 
 - [x] Commit batches 6 and 7 (`17bfc53`)
 - [ ] First `start.bat` after batch 7 applies the `AddUsersAndSessions` migration on my own database (a copy is saved first) and prints the first admin password once in the API window. Write it down, sign in, pick a new one
-- [ ] Use https before the login leaves a trusted network (passwords travel over plain http on the Wi-Fi)
+- [x] Https is built (batch 9), `start.bat https`. Still yours: run `dotnet dev-certs https --trust` once, and use it on the Wi-Fi instead of plain http
 - [ ] First `start.bat` after batch 5 adds one rules version "Sector list from config.toml" on my own database (copy saved first). Expected, it happens once
-- [ ] Point `Backup:Folder` at OneDrive or another drive, a backup on the same disk doesn't survive the disk
+- [ ] `Backup:Folder` stays local for now. Later, when there's a server, see what it can do that a PC can't
 - [x] Commit steps 5 to 7, the .gitignore cleanup, and break test batches 1 to 3 (`b92d06b`)
 - [x] Run `start.bat` so my own database updates (it already was, since 2026-10-05)
 - [ ] Decide if `ac2d450` gets rewritten (old long message and Claude co-author line). Not pushed, but `75165b4` and `9497e93` sit on top so it needs a rebase. Leaving it is fine too
-- [ ] Decide if `angular/public/dollar_sign_favicon.png` gets deleted, it's not used anymore
+- [x] `angular/public/dollar_sign_favicon.png` deleted (batch 9)
 - [x] Commit `start.bat` and Docker (`75165b4`)
 - [x] Commit steps 3 and 4 (`9497e93`)
 - [x] Docker installed, first run on my own Postgres created `collector`
@@ -82,6 +82,15 @@ The app lists industries (name, sector, price, release) from a Postgres database
 - [x] Keep old versions refuses anything that isn't a whole number of 1 or more and sends nothing
 
 How it was made: the box had no Docker daemon, so a Postgres 16 was started by hand on 5433 with the same user and password as `docker-compose.yml`, and the API built its own `main` and `collector` on first start. Every check was a small Python script against a throwaway API on 5104 (sign in, seed 300 rows, back up, change things, restore, compare), and the big table checks inserted 100,000 rows straight in SQL. The page was checked with a headless Chromium at 1280 and 390 wide and in dark mode. Then a race test: 30 rounds of three restores at once under 8 threads of adds, edits, deletes, bring backs, rules and retention saves and backups, plus 10 rounds on 20,000 rows, no errors and nothing stuck. Details in `testing/report.txt`.
+
+### 10. Https, the page's own checks, and the UI judge's list (batch 9)
+- [x] `start.bat https`: the API on https://localhost:7165 with the dev certificate, the page on https://localhost:4200, the page picks the https API from its own protocol. `Https:Required` turns the redirect from http and HSTS on, off by default. The API window warns at startup when nothing is https
+- [x] Delete says what went: "Deleted 1 row from Industries: name" on the table, "Its values were removed from N rows in Industries" on Fields
+- [x] The sign in back link only follows a page of this app, decoded too (E1). The token lives in memory when storage is blocked (E2, test). The interceptor's 401 and 403 rules have tests (E3). File names come out of Content-Disposition with filename* first and a fallback (E4). The settings file is refused on the page when it's over 1 MB, not JSON, a list or from another app (E6). The people page trims and lower cases, says to copy by hand when the clipboard is missing or refuses, and forgets the password when the page is left (E7). The account page stops a short, mismatched or reused password before any call (E8). The guest view and the guards have tests (E9, E10)
+- [x] D1 problems under their own box with aria-describedby, the summary line only for answers from the API. D2 a long name ends with ... next to the pinned Actions column on a phone. D3 phone nav labels at 0.75rem, the plus and the account link icon only so seven fit in 390px. D4 the sign in card says Welcome back and sits left like every card. D5 "300 rows" on the History cards on a phone. D6 no unit while a retention box is empty. D7 "Search by name" and "Show 10 entries" in sentence case. D8 contrast measured, dark red is #fda29b now (was 3.8:1 on amber) and disabled buttons go grey at full opacity (were 3:1). D9 "Delete <name>?" on a wide screen, the name on the button on a phone. D10 the Connected badge says what it means. D11 one focus ring in styles.css for links and everything else that had none. D12 a loading line on the Backups list
+- [x] The unused dollar sign favicon is gone
+
+How it was made: https was checked on the cloud box with the dev certificate (http answers 307 to https, https answers, the warning shows only when nothing is https). The edge cases are Vitest specs next to each file, 30 tests in 8 files. The design list was checked with `testing/contrast.py` (every pair 4.5:1 or better now) and `testing/check_design.mjs` in a headless Chromium at 390 and 1280 and in dark mode.
 
 ### Main table
 - [x] Red triangle when a value couldn't come over, black for minor things, hover lists every reason

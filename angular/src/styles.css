@@ -38,7 +38,8 @@
         --border-strong: #333333;
         --accent: #f5f5f5;
         --accent-text: #050505;
-        --danger: #f97066;
+        /* Light enough to read on an amber row too (5.4:1), #f97066 was 3.8:1 there */
+        --danger: #fda29b;
         --danger-bg: #991b1b;
         --hover: rgba(255, 255, 255, 0.04);
         --focus: rgba(255, 255, 255, 0.2);
@@ -61,7 +62,7 @@
     --border-strong: #333333;
     --accent: #f5f5f5;
     --accent-text: #050505;
-    --danger: #f97066;
+    --danger: #fda29b;
     --danger-bg: #991b1b;
     --hover: rgba(255, 255, 255, 0.04);
     --focus: rgba(255, 255, 255, 0.2);
@@ -91,6 +92,13 @@ body {
 
 *, *::before, *::after {
     box-sizing: border-box;
+}
+
+/* One keyboard focus ring for everything that can take focus. Inputs and buttons draw their own glow in the components,
+   this covers the links, the tabs, the flags and anything else that had none. */
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible{
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
 }
 
 /* Links inside hints and intros use the page colour, underlined, in both themes */

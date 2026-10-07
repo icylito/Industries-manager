@@ -25,6 +25,8 @@ I started this on September 26, 2026, and the sections below show where things a
 - Done: login with usernames and passwords. Anyone can look at the table, an account is needed to change rows, and admins also get History, Fields and People, see [Accounts and sign in](#accounts-and-sign-in).
 - Done: Export and Import settings on the History page, for how long old versions are kept and the field labels and limits.
 - Done: the last break test findings. Restore is all or nothing, damaged saved versions are marked instead of breaking History, and saving retention first says how many versions it would remove.
+- Done: the page checks its own input before anything is sent (the sign in back link, blocked storage, file names, the settings file, the people and account pages), with tests for each.
+- Done: the UI judge's list. Problems sit under their own box, the phone nav has readable labels, long names end with ... on a phone, Delete names the row, every colour pair reads at 4.5:1 or better in light and dark, one focus ring for everything, and a loading line wherever a list was blank for a moment.
 - Done: a Restore button on every backup. It puts the table, its rules, settings and requests back the way they were that night and leaves the accounts alone, see [Backups](#backups). Restores and imports of big tables got fast too, 100,000 rows in a few seconds instead of hitting the 30 second limit.
 - Next: the open items listed at the bottom, see [Not done yet](#not-done-yet).
 
@@ -83,7 +85,7 @@ This folder uses Angular mainly to replace the Swagger UI from `api_v2/`. The 2 
 
 ### The pages
 
-- **Sign in** (`/login`) and **Your account** (`/account`) are for changing your password or signing out. A new account has to pick its own password first.
+- **Sign in** (`/login`) and **Your account** (`/account`) are for changing your password or signing out. A new account has to pick its own password first. After a sign in the page goes back to where you were, as long as that's a page of this app.
 - **People** (`/users`) is where an admin makes accounts, gives someone a new password, makes someone admin or normal, or turns an account off.
 - **Industries** (`/`) is the table. Delete asks in the row, and afterwards says what went: "Deleted 1 row from Industries: Horizon Water LLC." Deleting a field on Fields says how many rows lost a value. Rows can have a triangle next to the name, hover it to see why:
   - red means a value couldn't come over from old data and shows `--`. It goes away once someone saves the row.

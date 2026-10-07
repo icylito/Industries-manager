@@ -51,10 +51,9 @@ export class MyComponents implements OnInit {
 
    submit() {
     if (this.form.invalid) {
-      if (this.form.controls.sector.hasError('required')) {
-        this.form.controls.sector.markAsDirty();
-        this.formError.set('Choose a sector');
-      }
+      // The problem shows under the box it belongs to
+      this.form.markAllAsTouched();
+      if (this.form.controls.sector.hasError('required')) this.form.controls.sector.markAsDirty();
       return;
     }
 
@@ -145,19 +144,27 @@ export class MyComponents implements OnInit {
     }
   }
 
-  // Same wording as the API's messages in api_v2/Rules/RulesService.cs
-  fieldErrors(): string[] {
-    const list: string[] = [];
-    for (const rule of this.rules()?.fields ?? []) {
-      const errors = this.form.get(rule.key)?.errors;
-      if (errors?.['maxlength']) list.push(`${rule.label} can be at most ${rule.maxLength} characters`);
-      if (errors?.['min'] || errors?.['max']) list.push(this.rangeText(rule, true));
+  // The problem with one box, in the API's own words (api_v2/Rules/RulesService.cs), or null when it's fine.
+  // Built in fields come from the form's validators, custom ones from checkValue. Nothing shows until the box was touched.
+  fieldProblem(key: string): string | null {
+    const rule = this.rules()?.fields.find(f => f.key === key);
+    const control = this.form.get(key);
+    if (control) {
+      const errors = control.errors;
+      if (!errors || !(control.dirty || control.touched)) return null;
+      const label = rule?.label ?? (key === 'name' ? 'Name' : key === 'sector' ? 'Sector' : key === 'price' ? 'Price' : key);
+      if (errors['required']) return key === 'sector' ? 'Choose a sector' : `${label} is required`;
+      if (errors['maxlength'] && rule) return `${label} can be at most ${rule.maxLength} characters`;
+      if ((errors['min'] || errors['max']) && rule) return this.rangeText(rule, true);
+      return null;
     }
-    for (const rule of this.customFields()) {
-      const problem = this.checkValue(rule, this.extraValue(rule.key));
-      if (problem && this.extraTouched().has(rule.key)) list.push(problem);
-    }
-    return list;
+    if (!rule?.custom || !this.extraTouched().has(key)) return null;
+    return this.checkValue(rule, this.extraValue(key));
+  }
+
+  // The name in the "Delete ...?" question, cut so a long one doesn't widen the Actions column
+  shortName(name: string): string {
+    return name.length > 24 ? name.slice(0, 23).trimEnd() + '…' : name;
   }
 
   // Custom fields from the Fields page, their inputs sit after the built in ones

@@ -1,7 +1,6 @@
-/* One narrow card in the middle, used by Sign in and Your account */
+/* One narrow card, left aligned under the page title like every other card, used by Sign in and Your account */
 .narrow{
     max-width: 28rem;
-    margin-inline: auto;
 }
 
 /* The shared form style is a grid of columns for the add form, these forms are one column */

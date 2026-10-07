@@ -19,6 +19,8 @@ Every script reads `API` (default `http://localhost:5104`) and `ADMIN_PASSWORD` 
 | `check_monitor.py` | History taken away under the running API: adds answer 503, `/health` says offline at once, back within 30 seconds | `python3 -I check_monitor.py` (renames the collector database and back, needs psql on 5433) |
 | `stress.py` | The race test: three restores at once each round under 8 threads of adds, edits, deletes, bring backs, rules saves, retention saves and backups. Fails on any 500, a lock wait that ran out, a pending change log entry, a scratch database left behind or two originals with one name | `python3 -I stress.py 30` for 30 rounds on 300 rows, `python3 -I stress.py 10 20000` for 10 rounds on 20,000 rows |
 | `check_page.mjs` | The Restore panel in a headless browser at 1280 and 390 wide and in dark mode, runs a restore, saves screenshots, reports console errors and sideways scroll | with the page on 4200 and the API on the address in `environment.ts`: `node check_page.mjs <folder for screenshots>` from a folder that has `playwright` in `node_modules` |
+| `check_design.mjs` | The batch 9 design checks: the nav at 390, errors under their field, the delete question, the History card on a phone, the sign in page, a disabled button in dark mode, screenshots of each | same setup as `check_page.mjs`: `node check_design.mjs <folder for screenshots>` |
+| `contrast.py` | WCAG contrast of the colour pairs the UI judge pointed at, read from `styles.css`, light and dark | `python3 -I contrast.py ../angular/src/styles.css`, every line should say ok |
 | `t.py` | The API client the others share | not run on its own |
 
 `check_restore.py` and `check_big.py` can run one after the other on the same database. `stress.py` empties the table first and leaves it with whatever the rounds made, run it last or on its own copy.
@@ -29,4 +31,5 @@ Every script reads `API` (default `http://localhost:5104`) and `ADMIN_PASSWORD` 
 - `check_big.py` ends with `BIG OK` and prints each timing
 - `check_monitor.py` ends with `MONITOR OK`
 - `stress.py` ends with `STRESS OK` and `errors: 0`
+- `check_design.mjs` prints `no sideways scroll: true` twice, a focus ring of `solid 2px`, two field problems with matching `describedBy`, and `page errors: none`
 - `check_page.mjs` prints `no sideways scroll: true` three times and `console errors: none` (blocked font and icon downloads show up as errors on a box without internet, those don't count)

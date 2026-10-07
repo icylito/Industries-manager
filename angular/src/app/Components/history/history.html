@@ -51,7 +51,7 @@
                                 </span>
                                 <span class="sub">{{ formatDate(v.createdAt) }} · {{ v.damaged ? "Can't be restored or brought back" : v.sameLayout ? 'Same table layout' : 'Other table layout' }}</span>
                             </td>
-                            <td class="num accent">{{ v.rowCount }}</td>
+                            <td class="num accent">{{ v.rowCount }}<span class="unit-word"> {{ v.rowCount === 1 ? 'row' : 'rows' }}</span></td>
                             <td class="actions">
                                 <button type="button" class="edit-btn" [disabled]="busy()" (click)="view(v)">
                                     <i class="fa-solid fa-eye" aria-hidden="true"></i>View
@@ -297,7 +297,7 @@
     <div class="settings-row">
         <label class="field">
             <span class="field-label">Keep the last</span>
-            <span class="control">
+            <span class="control" [class.empty]="keepVersionsText() === ''">
                 <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
                 <input type="number" min="1" step="1" placeholder="All" [value]="keepVersionsText()"
                     (input)="keepVersionsText.set($any($event.target).value)">
@@ -306,7 +306,7 @@
         </label>
         <label class="field">
             <span class="field-label">Remove versions older than</span>
-            <span class="control">
+            <span class="control" [class.empty]="keepDaysText() === ''">
                 <i class="fa-regular fa-calendar" aria-hidden="true"></i>
                 <input type="number" min="1" step="1" placeholder="Never" [value]="keepDaysText()"
                     (input)="keepDaysText.set($any($event.target).value)">
@@ -395,7 +395,9 @@
         <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ backupError() }}</p>
     }
 
-    @if (backupsLoaded() && backups().length === 0) {
+    @if (!backupsLoaded() && !backupError()) {
+        <p class="state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading backups</p>
+    } @else if (backupsLoaded() && backups().length === 0) {
         <p class="state"><i class="fa-solid fa-box-open" aria-hidden="true"></i>No backups yet. The first one runs a few minutes after the API starts.</p>
     } @else if (backups().length > 0) {
         <div class="table-wrap">
