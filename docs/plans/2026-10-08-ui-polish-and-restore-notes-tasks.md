@@ -145,6 +145,8 @@ Also change line 39's neighbours: keep `expect(isAdminRoute('')).toBe(false);` a
     expect(isAdminRoute('fields')).toBe(false);
 ```
 
+**One more line, because removing the flag breaks a second test.** In `angular/src/app/app.spec.ts`, the test `'is already the admin shell on the first paint, before the router has settled'` pushes the address `/history` and relies on the **real** route table for the pre-router first paint, so it fails once `/history` stops being an admin page (`expected null to be truthy`, at the `nav.admin-nav` assertion). Change that pushed address to `/overview`, which is still an admin page: the test keeps its intent — the first paint is already the admin shell — and the suite goes green. Do not touch its inline stub router.
+
 - [ ] **Step 2: Run it to watch it fail**
 
 Run from `angular/`: `node node_modules\@angular\cli\bin\ng.js test --watch=false`
@@ -295,8 +297,10 @@ In `angular/src/app/Components/history/history.spec.ts`, inside `describe('Histo
     page.askRestore(version(1));
     fixture.detectChanges();
 
-    const el = fixture.nativeElement as HTMLElement;
-    expect(el.textContent).not.toContain('Type RESTORE');
+    // Scoped to the panel on purpose: the Backups card further down this same page keeps its own typed RESTORE,
+    // so a whole-page assertion would fail for the wrong reason.
+    const panel = (fixture.nativeElement as HTMLElement).querySelector('#version-panel') as HTMLElement;
+    expect(panel.textContent).not.toContain('Type RESTORE');
     expect(page.restoreNote()).toBe('');
 
     // Too short: nothing is sent
