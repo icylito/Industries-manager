@@ -6,18 +6,17 @@ api_v2/artifacts/
 # Has the database password, copy appsettings.Development.example.json to make yours
 api_v2/appsettings.Development.json
 
-# Seed script cache
+# Seed script cache, and the local account the seed script signs in as
 scripts/__pycache__/
 testing/__pycache__/
+scripts/seeding.control.toml
 
 # Root editor settings, angular/.vscode stays shared for ng serve and ng test
 /.vscode/
 
 # Documents and notes
 report.txt
-plan.md
 HANDOFF.md
-OVERVIEW_HANDOFF.md
 
 # Copies of the database made by the nightly backup, only the root folder (api_v2/Backups is code)
 /backups/
@@ -30,4 +29,3 @@ api_v2/appsettings.Throwaway.json
 angular/.cert/
 
 # Front-end related
-.design-canvas

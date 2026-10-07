@@ -149,7 +149,7 @@ Anyone can look at the table. Adding, editing and deleting rows needs an account
 - Passwords are at least 10 characters and are stored as a salted PBKDF2 hash, never as text. Signing in is limited to 5 tries a minute per address (`Auth:LoginTriesPerMinute`). A sign in lasts 12 hours after its last use, 7 days at most, and is kept in the browser.
 - `Auth:GuestCanView` set to `false` hides the table from people who aren't signed in.
 - On plain http anyone on the same Wi-Fi who is listening could read a password at sign in. On your own PC that's fine, on a shared network start with `start.bat https` or `start.bat share`, see [Https](#https). The API window says so at startup when nothing is https.
-- The seed script needs an account now: set `SEED_USER` and `SEED_PASSWORD` before running it.
+- The seed script needs an account. Copy `scripts/seeding.control.example.toml` to `scripts/seeding.control.toml` and fill in `username` and `password` (git ignores that copy). `python scripts/seed_industries.py` reads it, signs in, and sends the rows. How many rows, and what they look like, stays in `seeding.toml`. `SEED_USER` and `SEED_PASSWORD` fill in anything left blank.
 - Numbers have to arrive as numbers. The API refuses a price sent as text, like `"5"`.
 - Restore from a backup on the History page leaves the accounts alone. Only a restore by hand with `pg_restore` of the whole database brings old accounts and passwords back.
 
@@ -229,7 +229,9 @@ Start the API first, then from the project folder run:
 python scripts/seed_industries.py
 ```
 
-When it's done it prints how many rows got in, how many had no price or release, and how many broken rows got blocked. If a broken row ever gets in, it says so and exits with an error, because that means a rule has a hole.
+That command signs in with `username` and `password` from `scripts/seeding.control.toml` (copy `seeding.control.example.toml`, git ignores the copy) and sends the rows described in `seeding.toml`. Saving either file does not start a run.
+
+When it's done it names the database the rows landed in, how many were already there, how many were added, how many were kept because a trailing space was trimmed, how many were refused, and the table total. It exits with an error when a stored value breaks a rule, or when an intended row is refused.
 
 ## Using config.toml and seeding.toml
 
