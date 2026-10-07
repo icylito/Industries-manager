@@ -807,4 +807,9 @@ Contributor: deepseek flash"
 
 **Per batch:** `node testing/check_ui.mjs <folder>` — every line `ok`, exit 0, screenshots in light and dark. A green unit suite proves almost nothing about Units 1, 4 and 5, because jsdom cannot see a blur, an animation or an opacity.
 
-**The hole:** the user's own verification loop is to be added here before any of this is called done. They said they would teach it. Until it is written down in this section, this plan is not finished being verified, however green everything looks.
+**The user's own verification loop**, given on 2026-10-08 and now closed:
+
+1. **A critic subagent judges the work, not the implementer.** It scans the repo, writes its own detailed rubric, and scores out of 10. **6 passes; below 6 loops, up to three times.**
+2. **Judgement happens in the real frontend**, driven with Playwright as a regular user: click around, change the theme, try the awkward paths. Anything off in the UI or UX is reported and **deducts points**. No claim is taken on trust — if the controller or an implementer wrote "this should pass", the critic verifies it or marks it unproven.
+3. **An implementer may consult** before starting: up to **two** advisor subagents per round, on how to approach the work well.
+4. **After three failed passes, stop.** Report what failed and why, and stop retrying.

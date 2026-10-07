@@ -195,7 +195,7 @@ Decide before starting; do not leave it implicit.
 
 - **Per task:** the failing test first, then the passing test, then `ng test`, `ng build`, and `dotnet build -c Release` wherever the API changed.
 - **Per batch:** the Unit 7 browser check, in light and dark.
-- **The user's own verification loop** — which they said they would teach — is applied here before any of this is called done. Until it is written down, this unit is incomplete by definition.
+- **The user's own verification loop**, given 2026-10-08: a critic subagent scans the repo, writes its own rubric and scores the work out of 10, where **6 passes** and below that loops up to three times; all judgement happens in the real frontend through Playwright, played as a regular user, with UI and UX problems reported and deducted and no claim taken on trust; an implementer may consult up to **two** advisor subagents per round before starting; and after three failed passes the work stops and reports what failed rather than retrying. It is applied here before any of this is called done.
 
 ---
 
