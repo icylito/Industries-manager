@@ -73,7 +73,7 @@ export class ShortcutsPanel {
   // a key the browser keeps for itself, and a key another function already uses (the person decides).
   record(e: KeyboardEvent) {
     const rec = this.rec();
-    if (!rec || e.key === 'Tab') return;
+    if (!rec) return;
     e.preventDefault();
     e.stopPropagation();
     if (e.key === 'Escape') { this.rec.set(null); return; }
@@ -102,7 +102,7 @@ export class ShortcutsPanel {
     // A key box is open but focus isn't on it yet or slipped off it (a very quick press, or a click on the blank part of the panel):
     // the key still goes to the box
     const on = e.target as HTMLElement;
-    if (this.rec() && (on === document.body || on.closest?.('.key')) && e.key !== 'Tab') {
+    if (this.rec() && (on === document.body || on.closest?.('.key'))) {
       this.record(e);
       return;
     }

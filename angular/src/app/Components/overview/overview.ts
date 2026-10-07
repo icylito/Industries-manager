@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnInit, computed, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, Injector, OnInit, afterNextRender, computed, effect, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { FieldRule, Industry } from '../../models/industry';
@@ -24,6 +24,7 @@ export class OverviewPage implements OnInit {
   protected keys = inject(Shortcuts);
   private toast = inject(Toast);
   private destroyRef = inject(DestroyRef);
+  private injector = inject(Injector);
 
   // The page can be loading, ready, or failed before it ever had numbers. Once it has numbers, a failed refresh only makes them "out of date".
   items = signal<Industry[]>([]);
@@ -250,18 +251,30 @@ export class OverviewPage implements OnInit {
     this.patch({ attns: s.attns.includes(key) ? s.attns.filter(k => k !== key) : [...s.attns, key] });
   }
 
+  // The button that had focus is gone after a chip is removed or everything is cleared, so a keyboard user would be dropped on the page.
+  // Focus goes to the next chip's remove button, or to the row of chips when there are none left.
+  private keepFocus() {
+    afterNextRender(() => {
+      if (document.activeElement && document.activeElement !== document.body) return;
+      const next = document.querySelector<HTMLElement>('.ov .chip button') ?? document.querySelector<HTMLElement>('.ov .chips');
+      next?.focus({ preventScroll: true });
+    }, { injector: this.injector });
+  }
+
   removeChip(kind: 'pick' | 'bar' | 'attn' | 'cmp', key: string) {
     const s = this.sel();
     if (kind === 'pick') this.patch({ pick: null });
     else if (kind === 'bar') this.patch({ bar: null });
     else if (kind === 'attn') this.patch({ attns: s.attns.filter(k => k !== key) });
     else this.patch({ cmpKeys: s.cmpKeys.filter(k => k !== key) });
+    this.keepFocus();
   }
 
   // The Clear all button leaves Compare mode as it is, the Esc key puts everything back
   clearAll() {
     this.patch({ pick: null, bar: null, attns: [], cmpKeys: [] });
     this.focusId.set(null);
+    this.keepFocus();
   }
 
   clearEverything() {

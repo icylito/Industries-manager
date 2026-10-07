@@ -2,19 +2,22 @@
 <main class="ov">
 
 @if (loading()) {
-    <!-- Loading: grey blocks in the shape of the page -->
+    <!-- Loading: grey blocks in the shape of the page, as tall as the real page so nothing jumps when the numbers arrive -->
     <div class="skeleton" aria-busy="true">
+        <h1 class="sr-only">Overview</h1>
         <div class="skel" style="height: 48px; width: 55%; margin-top: 12px"></div>
-        <div class="skel" style="height: 60px"></div>
+        <div class="skel" style="height: 40px"></div>
+        <div class="skel" style="height: 56px"></div>
         <div class="skel-cols">
             <div class="skel-rail">
-                <div class="skel" style="height: 120px"></div>
-                <div class="skel" style="height: 120px"></div>
-                <div class="skel" style="height: 90px"></div>
+                <div class="skel" style="height: 170px"></div>
+                <div class="skel" style="height: 190px"></div>
+                <div class="skel" style="height: 150px"></div>
+                <div class="skel" style="height: 170px"></div>
             </div>
             <div class="skel-main">
-                <div class="skel" style="height: 300px"></div>
-                <div class="skel" style="height: 250px"></div>
+                <div class="skel" style="height: 465px"></div>
+                <div class="skel" style="height: 330px"></div>
             </div>
         </div>
         <span role="status" class="skel-note">Loading industries...</span>
@@ -22,6 +25,7 @@
 } @else if (failure() !== null) {
     <!-- Couldn't load: plain words first, the technical line only behind a link -->
     <div role="alert" class="notice-card">
+        <h1 class="sr-only">Overview</h1>
         <div class="notice-top">
             <span class="notice-icon">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5M12 16.5v.5"/><path d="M10.3 3.9L2.5 17.5A2 2 0 004.2 20.5h15.6a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
@@ -43,6 +47,7 @@
 } @else if (empty()) {
     <!-- Empty table: says why there is nothing to chart, with the two ways out -->
     <div class="empty-wrap">
+        <h1 class="sr-only">Overview</h1>
         <div class="empty-card">
             <svg width="56" height="56" viewBox="0 0 56 56" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="30" width="10" height="18" rx="2"/><rect x="23" y="14" width="10" height="34" rx="2" stroke-dasharray="3 4"/><rect x="38" y="22" width="10" height="26" rx="2" stroke-dasharray="3 4"/></svg>
             <h2>No industries yet</h2>
@@ -53,7 +58,7 @@
             </div>
         </div>
         <div class="ghosts" aria-hidden="true">
-            <div class="card ghost-circle"><span class="eyebrow">SHARE OF INDUSTRIES</span><div class="ring"></div></div>
+            <div class="card ghost-circle"><span class="eyebrow">SHARE OF INDUSTRIES</span><div class="ghost-ring"></div></div>
             <div class="card ghost-bars">
                 <span class="eyebrow">BY RELEASE PERIOD</span>
                 <div class="ghost-row"><i style="height: 30%"></i><i style="height: 55%"></i><i style="height: 40%"></i><i style="height: 70%"></i><i style="height: 50%"></i></div>
@@ -82,7 +87,7 @@
     </header>
 
     <!-- The filters that are on, as chips -->
-    <div class="chips">
+    <div class="chips" tabindex="-1">
         @for (c of d.chips; track c.id) {
             <span class="chip fade-in">{{ c.label }}
                 <button type="button" (click)="removeChip(c.kind, c.key)" [attr.aria-label]="c.aria">
@@ -109,7 +114,7 @@
         </div>
     }
 
-    <div class="attn card-row">
+    <div class="attn card">
         <span class="eyebrow">NEEDS ATTENTION</span>
         <span class="attn-note">pick any, shows rows with at least one</span>
         @for (a of d.attention; track a.key) {
@@ -196,7 +201,7 @@
                 @if (!d.cmpActive) {
                     <div class="stats">
                         <div><span class="num stat">{{ statCount().toFixed(0) }}</span><span class="stat-label">Industries</span></div>
-                        <div><span class="num stat">{{ d.stats[0].sectors }}</span><span class="stat-label">Sectors</span></div>
+                        <div><span class="num stat">{{ d.stats[0].sectors }}</span><span class="stat-label">{{ d.stats[0].sectors === 1 ? 'Sector' : 'Sectors' }}</span></div>
                         <div><span class="num stat">{{ d.stats[0].avg === null ? '—' : usd(statAvg() / 100, 2) }}</span><span class="stat-label">Average price</span></div>
                         <div><span class="num stat">{{ statNulls().toFixed(0) }}</span><span class="stat-label">No price yet</span></div>
                     </div>

@@ -1,4 +1,8 @@
 import { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { Auth } from './auth';
 import { COMMANDS, Shortcuts, capsOf, comboOf, showKey } from './shortcuts';
 import { Toast } from './toast';
 
@@ -27,6 +31,7 @@ describe('Shortcuts', () => {
 
   beforeEach(() => {
     localStorage.clear();
+    TestBed.configureTestingModule({ providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });
     keys = TestBed.inject(Shortcuts);
     ran = [];
     const run: Record<string, () => void> = {};
@@ -80,7 +85,8 @@ describe('Shortcuts', () => {
 
   it('treats a key and a two key sequence that starts with it as a clash, and runs the sequence', () => {
     keys.assign('ov.find', ['G', 'F']);
-    expect(keys.check('ov.top', ['G']).conflicts.map(c => c.id)).toEqual(['ov.find']);
+    // G alone also starts Go to Overview (G then O), so it clashes with that one too
+    expect(keys.check('ov.top', ['G']).conflicts.map(c => c.id)).toEqual(['nav.overview', 'ov.find']);
     keys.onKey(press('g'), 1000);
     keys.onKey(press('f'), 1500);
     expect(ran).toEqual(['ov.find']);
@@ -110,5 +116,23 @@ describe('Shortcuts', () => {
     off();
     expect(keys.hasPage()).toBe(false);
     expect(keys.panelOpen()).toBe(false);
+  });
+
+  it('goes to the Overview with G then O for an admin anywhere, and says so when already there', () => {
+    TestBed.inject(Auth).user.set({ id: 1, username: 'sam', role: 'admin', disabled: false, mustChangePassword: false, createdAt: '', lastLoginAt: null });
+    const router = TestBed.inject(Router);
+    const go = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    keys.onKey(press('g'), 1000);
+    keys.onKey(press('o'), 1200);
+    expect(go).toHaveBeenCalledWith('/overview');
+    // With only one admin page, Previous and Next say so instead of going nowhere
+    keys.onKey(press(']'));
+    expect(TestBed.inject(Toast).message()).toBe('The Overview is the only admin page so far.');
+    expect(go).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses Tab and Shift+Tab like the other keys the browser keeps', () => {
+    expect(keys.check('ov.compare', ['Tab']).error).toContain('The browser keeps Tab');
+    expect(keys.check('ov.compare', ['Shift+Tab']).error).toContain('The browser keeps Shift+Tab');
   });
 });

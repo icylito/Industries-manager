@@ -40,6 +40,8 @@ export class App {
 
   constructor() {
     // The bell count, checked on every page change and every 30 seconds. Only people who are signed in see requests.
+    // The Overview has its own dark colors, see styles.css (admin-layout)
+    effect(() => document.documentElement.classList.toggle('admin-layout', !!this.page().admin));
     const refresh = () => { if (this.auth.isSignedIn()) this.api.refreshRequestCount(); };
     effect(refresh);
     const navs = this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(refresh);

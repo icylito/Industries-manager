@@ -116,6 +116,58 @@
     --pop-shadow: 0 18px 48px rgba(0, 0, 0, 0.7);
 }
 
+/* The Overview's own dark colors: a near black page that is not pure black, cards a touch lighter, soft off white text (the design asks for
+   about #141414 and #e2e2e2). Only that page, the other pages keep the shared dark set above. The class is set by App for the admin layout. */
+@media (prefers-color-scheme: dark) {
+    :root.admin-layout:not([data-theme="light"]) {
+        --bg: #141414;
+        --surface: #1c1c1c;
+        --surface-2: #242424;
+        --text: #e2e2e2;
+        --muted: #a3a3a3;
+        --faint: #939393;
+        --border: #2e2e2e;
+        --border-strong: #454545;
+        --accent: #e2e2e2;
+        --accent-text: #141414;
+        --hover: rgba(255, 255, 255, 0.05);
+        --focus: rgba(255, 255, 255, 0.2);
+        --glow: rgba(255, 255, 255, 0.05);
+        --nav-bg: rgba(28, 28, 28, 0.96);
+        --text-2: #bdbdbd;
+        --track: #2c2c2c;
+        --miss: #454545;
+        --skeleton-a: #1f1f1f;
+        --skeleton-b: #2a2a2a;
+        --cap-bg: #262626;
+        --cap-border: #454545;
+    }
+}
+
+:root.admin-layout[data-theme="dark"] {
+    --bg: #141414;
+    --surface: #1c1c1c;
+    --surface-2: #242424;
+    --text: #e2e2e2;
+    --muted: #a3a3a3;
+    --faint: #939393;
+    --border: #2e2e2e;
+    --border-strong: #454545;
+    --accent: #e2e2e2;
+    --accent-text: #141414;
+    --hover: rgba(255, 255, 255, 0.05);
+    --focus: rgba(255, 255, 255, 0.2);
+    --glow: rgba(255, 255, 255, 0.05);
+    --nav-bg: rgba(28, 28, 28, 0.96);
+    --text-2: #bdbdbd;
+    --track: #2c2c2c;
+    --miss: #454545;
+    --skeleton-a: #1f1f1f;
+    --skeleton-b: #2a2a2a;
+    --cap-bg: #262626;
+    --cap-border: #454545;
+}
+
 html {
     scroll-behavior: smooth;
     scroll-padding-top: 6rem;

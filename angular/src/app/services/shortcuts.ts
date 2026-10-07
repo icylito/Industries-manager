@@ -1,4 +1,6 @@
 import { Service, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
+import { Auth } from './auth';
 import { Toast } from './toast';
 
 // Customisable keyboard shortcuts, in the style of VS Code. Every key is a command that can be rebound from the Shortcuts panel.
@@ -8,8 +10,13 @@ import { Toast } from './toast';
 // global works on every admin page, the others only on their own page
 export type Scope = 'global' | 'overview';
 
+// The admin pages in menu order, for Go to and Previous / Next page. The Scratchpad joins this list when it is built.
+export const ADMIN_PAGES = [{ url: '/overview', name: 'Overview' }];
+
 export interface Command {
   id: string;
+  // Works on any page for an admin, not only while an admin page is open
+  anywhere?: boolean;
   name: string;
   desc: string;
   scope: Scope;
@@ -18,6 +25,9 @@ export interface Command {
 }
 
 export const COMMANDS: Command[] = [
+  { id: 'nav.overview', name: 'Go to Overview', desc: 'Jump to the Overview page.', scope: 'global', def: ['G', 'O'], anywhere: true },
+  { id: 'nav.prev', name: 'Previous page', desc: 'Move to the page before this one in the menu.', scope: 'global', def: ['['] },
+  { id: 'nav.next', name: 'Next page', desc: 'Move to the page after this one in the menu.', scope: 'global', def: [']'] },
   { id: 'keys.open', name: 'Show shortcuts', desc: 'Open this list. Esc closes it.', scope: 'global', def: ['?'] },
   ...[1, 2, 3, 4, 5].map(n => ({ id: 'ov.slice' + n, name: 'Split the circle', desc: 'Change what the circle is split by.', scope: 'overview' as Scope, def: [String(n)] })),
   { id: 'ov.find', name: 'Find an industry', desc: 'Jump to the search box to look up one industry.', scope: 'overview', def: ['/'] },
@@ -31,7 +41,7 @@ export const COMMANDS: Command[] = [
 export const RESERVED = [
   'Ctrl+T', 'Ctrl+W', 'Ctrl+N', 'Ctrl+Shift+T', 'Ctrl+Shift+N', 'Ctrl+Tab', 'Ctrl+PageUp', 'Ctrl+PageDown', 'Ctrl+R', 'F5', 'F11', 'F12', 'Ctrl+L', 'Ctrl+Q',
   'Alt+Left', 'Alt+Right', 'Alt+F4', 'Ctrl+F', 'Ctrl+P', 'Ctrl+S', 'Ctrl+A', 'Ctrl+C', 'Ctrl+V', 'Ctrl+X', 'Ctrl+Left', 'Ctrl+Right',
-  'Cmd+T', 'Cmd+W', 'Cmd+N', 'Cmd+Q', 'Cmd+R', 'Tab', 'Enter', 'Backspace', 'Delete', 'Space',
+  'Cmd+T', 'Cmd+W', 'Cmd+N', 'Cmd+Q', 'Cmd+R', 'Tab', 'Shift+Tab', 'Enter', 'Backspace', 'Delete', 'Space',
 ];
 
 // How long the second key of a two key shortcut can take
@@ -98,6 +108,8 @@ const STORE = 'stock-listing-shortcuts';
 @Service()
 export class Shortcuts {
   private toast = inject(Toast);
+  private router = inject(Router);
+  private auth = inject(Auth);
 
   // Only what differs from the defaults. An empty list means "no key", the function can't be run from the keyboard.
   private changed = signal<Record<string, string[]>>(load());
@@ -186,13 +198,16 @@ export class Shortcuts {
 
   // The one listener. Single plain keys never fire while someone is typing, combinations with Ctrl, Alt or Cmd do.
   onKey(e: KeyboardEvent, now = Date.now()) {
-    if (this.pages.size === 0 || this.panelOpen()) return;
+    // Keys only work on an admin page, apart from the ones that take an admin to one
+    const admin = this.auth.isAdmin();
+    if ((this.pages.size === 0 && !admin) || this.panelOpen()) return;
     const t = e.target as HTMLElement | null;
     const typing = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
     if (typing && !(e.ctrlKey || e.altKey || e.metaKey)) return;
     const combo = comboOf(e);
     if (!combo) return;
-    const live = this.commands().filter(c => c.scope === 'global' || this.pages.has(c.scope));
+    const open = this.pages.size > 0;
+    const live = this.commands().filter(c => (c.anywhere && admin) || (open && (c.scope === 'global' || this.pages.has(c.scope))));
     const keys = this.bound();
     const pending = this.pending;
     this.pending = null;
@@ -211,7 +226,22 @@ export class Shortcuts {
 
   private run(c: Command, e: KeyboardEvent) {
     if (c.id === 'keys.open') this.togglePanel();
+    else if (c.id.startsWith('nav.')) this.go(c.id);
     else this.pages.get(c.scope)?.[c.id]?.(e);
+  }
+
+  // Go to Overview, and Previous / Next page through ADMIN_PAGES (they wrap around)
+  private go(id: string) {
+    const here = ADMIN_PAGES.findIndex(p => this.router.url.split(/[?#]/)[0] === p.url);
+    if (id === 'nav.overview') {
+      if (here >= 0 && ADMIN_PAGES[here].url === '/overview') this.toast.say('You are already on the Overview.');
+      else this.router.navigateByUrl('/overview');
+      return;
+    }
+    if (ADMIN_PAGES.length < 2) { this.toast.say('The Overview is the only admin page so far.'); return; }
+    const step = id === 'nav.next' ? 1 : -1;
+    const next = ADMIN_PAGES[(Math.max(here, 0) + step + ADMIN_PAGES.length) % ADMIN_PAGES.length];
+    this.router.navigateByUrl(next.url);
   }
 }
 

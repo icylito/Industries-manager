@@ -2,7 +2,7 @@ import { Component, signal, computed, inject, OnInit, HostListener, DestroyRef }
 import { Industry, CreateIndustry, DbHealth, FieldRule, RuleSet } from '../../models/industry';
 import { Auth } from '../../services/auth';
 import { IndustryApi } from '../../services/industry-api';
-import { ActivatedRoute, ParamMap, RouterLink } from '@angular/router';
+import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
 
@@ -27,6 +27,7 @@ export class MyComponents implements OnInit {
   protected auth = inject(Auth);
   private fb = inject(FormBuilder);
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
 
   // General Table logic 
 
@@ -436,6 +437,20 @@ export class MyComponents implements OnInit {
     this.releaseTo.set(null);
     this.flagFilter.set(new Set());
     this.page.set(1);
+    // The address that seeded the filters goes too, or a reload would bring them straight back
+    this.dropFromAddress(this.addressKeys);
+  }
+
+  private readonly addressKeys = ['q', 'sector', 'minPrice', 'maxPrice', 'releaseFrom', 'releaseTo', 'flags', 'edit'];
+
+  // Takes these words out of the address (same page, no new history entry) when they are in it
+  private dropFromAddress(keys: string[]) {
+    const have = this.route.snapshot.queryParamMap;
+    if (!keys.some(k => have.has(k))) return;
+    this.router.navigate([], {
+      relativeTo: this.route, replaceUrl: true, preserveFragment: true, queryParamsHandling: 'merge',
+      queryParams: Object.fromEntries(keys.map(k => [k, null])),
+    });
   }
 
   // The Overview page opens Browse with filters in the address, like /?sector=Private%20Sector&flags=duplicate,lost
@@ -486,6 +501,8 @@ export class MyComponents implements OnInit {
       const row = this.industries().find(i => i.id === this.pendingEdit);
       this.pendingEdit = null;
       if (row && this.auth.isSignedIn()) this.edit(row);
+      // Opened once, so reloading the page doesn't open the form again
+      this.dropFromAddress(['edit']);
     }
   }
 
