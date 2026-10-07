@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { convertToParamMap, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { MyComponents } from './my-components';
@@ -66,5 +66,87 @@ describe('MyComponents', () => {
     expect(component.confirmingId()).toBeNull();
     expect(component.deletingId()).toBeNull();
     expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
+  // The Overview opens Browse with filters in the address. The count has to match what the Overview showed.
+  describe('filters from the address', () => {
+    const row = (id: number, over: object = {}) => ({ id, name: 'Row ' + id, sector: 'Public Sector', price: 1, release: '2012-06-01', duplicateOf: null, importedFrom: null, lostFields: null, extra: null, ...over });
+    const open = (params: Record<string, string>, rows: object[]) => {
+      const page = component as any;
+      page.seedFromAddress(convertToParamMap(params));
+      component.industries.set(rows as any);
+      component.loading.set(false);
+      page.finishSeeding();
+    };
+    const ids = () => component.filtered().map(i => i.id);
+
+    it('reads the sector, the prices and the dates', () => {
+      open({ sector: 'Private Sector', minPrice: '2.5', maxPrice: '4.9999', releaseFrom: '2010-01-01', releaseTo: '2014-12-31' }, [
+        row(1, { sector: 'Private Sector', price: 2.5, release: '2014-12-31' }),
+        row(2, { sector: 'Private Sector', price: 2.4999, release: '2014-12-31' }),
+        row(3, { sector: 'Private Sector', price: 5, release: '2014-12-31' }),
+        row(4, { sector: 'Private Sector', price: 3, release: '2015-01-01' }),
+        row(5, { sector: 'Private Sector', price: 3, release: null }),
+        row(6, { sector: 'Public Sector', price: 3, release: '2012-01-01' }),
+        row(7, { sector: 'Private Sector', price: null, release: '2012-01-01' }),
+        row(8, { sector: 'Private Sector', price: 4.9999, release: '2010-01-01' }),
+      ]);
+      expect(ids()).toEqual([1, 8]);
+      expect(component.hasFilters()).toBe(true);
+    });
+
+    it('counts several flags as OR, and the flags together as one term next to the other filters', () => {
+      const rows = [
+        row(1, { sector: 'Private Sector', duplicateOf: 9 }),
+        row(2, { sector: 'Private Sector', lostFields: ['price'] }),
+        row(3, { sector: 'Private Sector' }),
+        row(4, { sector: 'Public Sector', duplicateOf: 9 }),
+        row(5, { sector: 'Private Sector', price: null }),
+      ];
+      open({ sector: 'Private Sector', flags: 'duplicate,lost' }, rows);
+      expect(ids()).toEqual([1, 2]);
+      component.clearFilters();
+      component.toggleFlag('noprice');
+      component.toggleFlag('nodate');
+      expect(ids()).toEqual([5]);
+    });
+
+    it('ignores what it does not know and still shows the table', () => {
+      open({ sector: 'Nope', flags: 'banana,lost', minPrice: 'abc', releaseFrom: '2010-13-45', releaseTo: 'soon' }, [row(1), row(2, { lostFields: ['name'] })]);
+      expect(component.sectorFilter()).toBe('');
+      expect(component.minPrice()).toBeNull();
+      expect(component.releaseFrom()).toBeNull();
+      expect(component.releaseTo()).toBeNull();
+      expect([...component.flagFilter()]).toEqual(['lost']);
+      expect(ids()).toEqual([2]);
+      // A flag it doesn't know on its own leaves the table whole
+      component.clearFilters();
+      open({ flags: 'banana' }, [row(1)]);
+      expect(ids()).toEqual([1]);
+    });
+
+    it('shows the whole table with no address at all, and clearing leaves nothing behind', () => {
+      open({}, [row(1), row(2)]);
+      expect(ids()).toEqual([1, 2]);
+      expect(component.hasFilters()).toBe(false);
+      open({ q: 'Row 2', releaseFrom: '2012-01-01', flags: 'duplicate' }, [row(1), row(2, { duplicateOf: 1 })]);
+      expect(ids()).toEqual([2]);
+      component.clearFilters();
+      expect(component.hasFilters()).toBe(false);
+      expect(component.releaseFrom()).toBeNull();
+      expect(component.flagFilter().size).toBe(0);
+    });
+
+    it('opens one row ready to edit for a person who is signed in, and ignores an id that is not there', () => {
+      // jsdom has no scrollIntoView, the form scrolls into view in a real browser
+      Element.prototype.scrollIntoView = () => {};
+      TestBed.inject(Auth).user.set({ id: 1, username: 'sam', role: 'admin', disabled: false, mustChangePassword: false, createdAt: '', lastLoginAt: null });
+      open({ edit: '2' }, [row(1), row(2, { name: 'Second' })]);
+      expect(component.editingId()).toBe(2);
+      expect(component.form.controls.name.value).toBe('Second');
+      component.cancelEdit();
+      open({ edit: '99' }, [row(1)]);
+      expect(component.editingId()).toBeNull();
+    });
   });
 });

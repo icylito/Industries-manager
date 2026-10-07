@@ -2,6 +2,7 @@
 // the History card on a phone, the sign in page, a disabled button in dark mode. Saves screenshots to the folder given.
 // node check_design.mjs <folder for screenshots>, with the page on 4200 and the API on the address in environment.ts.
 import { chromium } from 'playwright';
+if (!process.env.ADMIN_PASSWORD) { console.error('Set ADMIN_PASSWORD first, see testing/README.md'); process.exit(1); }
 const out = process.argv[2] ?? '.';
 const browser = await chromium.launch();
 const errors = [];
@@ -12,7 +13,7 @@ async function ctx(width, dark = false) {
   page.on('pageerror', e => errors.push(e.message));
   await page.goto('http://localhost:4200/login');
   await page.fill('input[autocomplete="username"]', 'admin');
-  await page.fill('input[type="password"]', process.env.ADMIN_PASSWORD ?? 'Admin-pass-2026!');
+  await page.fill('input[type="password"]', process.env.ADMIN_PASSWORD);
   await page.click('button[type="submit"]');
   await page.waitForURL(u => !u.pathname.includes('/login'), { timeout: 15000 });
   return { c, page };

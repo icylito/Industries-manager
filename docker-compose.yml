@@ -7,7 +7,9 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres   # Local only, never use this password on a real server
     ports:
-      - "5433:5432"   # 5433 so it doesn't clash with a Postgres already installed on 5432
+      # 5433 so it doesn't clash with a Postgres already installed on 5432.
+      # This PC only by default. start.bat share db sets DB_BIND=0.0.0.0, which opens it to the network
+      - "${DB_BIND:-127.0.0.1}:5433:5432"
     volumes:
       - stock-listing-data:/var/lib/postgresql/data   # Data survives restarts, `docker compose down -v` wipes it
     healthcheck:

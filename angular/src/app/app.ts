@@ -5,11 +5,15 @@ import { filter, map } from 'rxjs';
 import { IndustryApi } from './services/industry-api';
 import { Auth } from './services/auth';
 import { IdleTop } from './services/idle-top';
+import { Theme } from './services/theme';
+import { Toast } from './services/toast';
+import { ShortcutsPanel } from './Components/shortcuts-panel/shortcuts-panel';
 
-interface PageInfo { title: string; lede: string; centered?: boolean; }
+// admin is the Overview's own layout: the slim nav and no page header, the page draws its own title
+interface PageInfo { title: string; lede: string; centered?: boolean; admin?: boolean; }
 
 @Component({
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ShortcutsPanel],
   selector: 'app-root',
   styleUrl: './app.css',
   templateUrl: './app.html',
@@ -18,6 +22,8 @@ export class App {
   private router = inject(Router);
   protected api = inject(IndustryApi);
   protected auth = inject(Auth);
+  protected theme = inject(Theme);
+  protected toast = inject(Toast);
   // A page left alone for a while starts from the top when the person comes back, see services/idle-top.ts
   private idleTop = inject(IdleTop);
 
@@ -29,10 +35,13 @@ export class App {
       while (route.firstChild) route = route.firstChild;
       return route.data as PageInfo;
     }),
-  ), { initialValue: { title: 'Industries', lede: 'Every change here is saved right away.' } as PageInfo });
+  // The first page is known from the address, so opening /overview directly doesn't flash the other nav before the router is done
+  ), { initialValue: { title: 'Industries', lede: 'Every change here is saved right away.', admin: location.pathname.startsWith('/overview') } as PageInfo });
 
   constructor() {
     // The bell count, checked on every page change and every 30 seconds. Only people who are signed in see requests.
+    // The Overview has its own dark colors, see styles.css (admin-layout)
+    effect(() => document.documentElement.classList.toggle('admin-layout', !!this.page().admin));
     const refresh = () => { if (this.auth.isSignedIn()) this.api.refreshRequestCount(); };
     effect(refresh);
     const navs = this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(refresh);

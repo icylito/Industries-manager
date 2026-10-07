@@ -250,6 +250,34 @@
         </div>
     </div>
 
+    <!-- Release dates and rows that need a look. The Overview page opens this table with these set, see seedFromAddress. -->
+    <div class="filters more">
+        <label class="filter">
+            <span class="filter-label">Released from</span>
+            <span class="control">
+                <i class="fa-regular fa-calendar" aria-hidden="true"></i>
+                <input type="date" [value]="releaseFrom() ?? ''"
+                    (input)="releaseFrom.set($any($event.target).value || null); page.set(1)">
+            </span>
+        </label>
+        <label class="filter">
+            <span class="filter-label">Released to</span>
+            <span class="control">
+                <i class="fa-regular fa-calendar" aria-hidden="true"></i>
+                <input type="date" [value]="releaseTo() ?? ''"
+                    (input)="releaseTo.set($any($event.target).value || null); page.set(1)">
+            </span>
+        </label>
+        <div class="filter" role="group" aria-label="Needs attention">
+            <span class="filter-label">Needs attention <em>(rows with any of these)</em></span>
+            <span class="flag-chips">
+                @for (choice of flagChoices; track choice.key) {
+                    <button type="button" class="flag-chip" [attr.aria-pressed]="flagFilter().has(choice.key)" (click)="toggleFlag(choice.key)">{{ choice.label }}</button>
+                }
+            </span>
+        </div>
+    </div>
+
     <!-- Search and page size -->
     <div class="toolbar">
         <span class="control search">

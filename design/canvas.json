@@ -1,0 +1,66 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "C-Signal.dc.html": {
+      "expand": "fill",
+      "h": 1300,
+      "is_interactive": true,
+      "title": "C  Dark, not yet upgraded",
+      "w": 1200,
+      "x": 1280,
+      "y": 0
+    },
+    "C-Signal-Light.dc.html": {
+      "expand": "fill",
+      "h": 1700,
+      "is_interactive": true,
+      "title": "C  Overview, light and dark",
+      "w": 1200,
+      "x": 2560,
+      "y": 0
+    },
+    "Scratchpad-Light.dc.html": {
+      "expand": "fill",
+      "h": 1100,
+      "is_interactive": true,
+      "title": "Scratchpad prototype, light",
+      "w": 1200,
+      "x": 3840,
+      "y": 0
+    },
+    "Main.dc.html": {
+      "h": 1500,
+      "title": "Read-out: what the code allows",
+      "w": 1200,
+      "x": 0,
+      "y": 0
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-10-07T12:00:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "notes": {
+    "dirs": {
+      "kind": "title1",
+      "maxW": 3760,
+      "text": "Admin Overview, direction C: the upgraded Overview with a light and dark switch in the nav, and the scratchpad prototype. Everything is live.",
+      "w": 240,
+      "x": 1280,
+      "y": -300
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "C-Signal.dc.html",
+    "C-Signal-Light.dc.html",
+    "Scratchpad-Light.dc.html"
+  ],
+  "pages": [],
+  "title": "Admin Dashboard Redesign"
+}

@@ -3,6 +3,7 @@ import { Router, provideRouter } from '@angular/router';
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Auth } from './auth';
+import { Toast } from './toast';
 import { authInterceptor } from './auth.interceptor';
 import { adminGuard, signedInGuard } from '../guards';
 import { AuthUser } from '../models/industry';
@@ -135,5 +136,47 @@ describe('Auth', () => {
     auth.user.set(user('normal', true));
     expect(String(run(signedInGuard, '/requests'))).toBe('/account');
     expect(run(signedInGuard, '/account')).toBe(true);
+  });
+
+  // The API is down when the page is reloaded: nobody is sent to Sign in for that
+  it('keeps the sign in when the API cannot be reached, opens the guarded page, and asks again later', async () => {
+    localStorage.setItem('stock-listing-token', 'abc');
+    const first = auth.init();
+    http.expectOne(`${environment.apiUrl}/auth/me`).error(new ProgressEvent('error'), { status: 0 });
+    await first;
+    expect(auth.isSignedIn()).toBe(false);
+    expect(auth.unreachable()).toBe(true);
+    expect(auth.token()).toBe('abc');
+    const run = (guard: typeof adminGuard, url: string) => TestBed.runInInjectionContext(() => guard({} as never, { url } as never));
+    expect(run(adminGuard, '/overview')).toBe(true);
+    expect(run(signedInGuard, '/requests')).toBe(true);
+
+    // The API is back: asking again says who it is
+    auth.recheck();
+    http.expectOne(`${environment.apiUrl}/auth/me`).flush(user('admin'));
+    await new Promise(r => setTimeout(r));
+    expect(auth.isAdmin()).toBe(true);
+    expect(auth.unreachable()).toBe(false);
+  });
+
+  it('still sends a guest, and a saved sign in the API says is over, to Sign in', async () => {
+    // No saved sign in: a guest, even if the API is down
+    expect(String(TestBed.runInInjectionContext(() => adminGuard({} as never, { url: '/overview' } as never)))).toContain('/login');
+    // A 401 is not "can't reach it", the interceptor ends the sign in
+    localStorage.setItem('stock-listing-token', 'old');
+    vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const first = auth.init();
+    http.expectOne(`${environment.apiUrl}/auth/me`).flush({}, { status: 401, statusText: 'Unauthorized' });
+    await first;
+    expect(auth.unreachable()).toBe(false);
+    expect(auth.token()).toBeNull();
+  });
+
+  it('tells someone with an account but no admin rights why they landed on the table', () => {
+    auth.user.set(user('normal'));
+    const toast = TestBed.inject(Toast);
+    const result = TestBed.runInInjectionContext(() => adminGuard({} as never, { url: '/overview' } as never));
+    expect(String(result)).toBe('/');
+    expect(toast.message()).toBe('That page is for admins.');
   });
 });

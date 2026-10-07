@@ -598,6 +598,44 @@ select.placeholder option{
     min-width: 9rem;
 }
 
+/* The second filter row: two dates and the needs attention chips */
+.filters.more{
+    grid-template-columns: 1fr 1fr 2.4fr;
+    margin-top: -0.25rem;
+}
+
+.filter-label em{
+    font-style: normal;
+    font-weight: 400;
+}
+
+.flag-chips{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.flag-chip{
+    height: 2.25rem;
+    padding: 0 0.85rem;
+    border: 1px solid var(--p-border);
+    border-radius: 999px;
+    background: var(--p-field);
+    color: var(--p-text);
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.flag-chip:hover{
+    border-color: var(--border-strong);
+}
+
+.flag-chip[aria-pressed="true"]{
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-text);
+}
+
 .toolbar{
     display: flex;
     align-items: center;
@@ -945,6 +983,18 @@ input.bad{
     }
 
     .filter:first-child{
+        grid-column: 1 / -1;
+    }
+
+    .filters.more{
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .filters.more .filter:first-child{
+        grid-column: auto;
+    }
+
+    .filters.more .filter:last-child{
         grid-column: 1 / -1;
     }
 

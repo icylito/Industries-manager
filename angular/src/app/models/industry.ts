@@ -53,6 +53,11 @@ export interface DbHealth {
     appliedMigrations: string[];
     updatedAt: string;
     history?: { ready: boolean; message: string };
+    // Host, port, and database name. Optional so an older health body still loads.
+    databases?: {
+        live: { host: string; port: number; database: string };
+        history: { host: string; port: number; database: string };
+    };
 }
 
 // What GET /schema returns, the rules in use, see api_v2/Rules/FieldRule.cs

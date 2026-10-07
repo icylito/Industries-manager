@@ -26,4 +26,22 @@ public record DatabaseConnections(string Main, string Collector, bool UsingDocke
 
         return new DatabaseConnections(main!, collector, usingDefault);
     }
+
+    // Host, port, and database name for /health. The password stays in the connection string.
+    public object PublicView() => new
+    {
+        live = Describe(Main),
+        history = Describe(Collector)
+    };
+
+    private static object Describe(string connectionString)
+    {
+        var builder = new NpgsqlConnectionStringBuilder(connectionString);
+        return new
+        {
+            host = string.IsNullOrEmpty(builder.Host) ? "localhost" : builder.Host,
+            port = builder.Port,
+            database = builder.Database
+        };
+    }
 }

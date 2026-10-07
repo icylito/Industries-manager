@@ -2,10 +2,12 @@ import argparse
 import json
 import os
 import random
+import re
 import sys
 import threading
 import time
 import tomllib
+import unicodedata
 import urllib.error
 import urllib.request
 from collections import Counter
@@ -13,18 +15,63 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from pathlib import Path
 
-DEFAULT_CONFIG = Path(__file__).with_name("config.toml")
+DEFAULT_CONFIG = Path(__file__).with_name("config.toml")    # the main config, what the values can be
+DEFAULT_SEEDING = Path(__file__).with_name("seeding.toml")  # how the seed script makes and sends rows
+CONTROL_FILE = Path(__file__).with_name("seeding.control.toml")  # local account, git ignores it
 BAD_ROW_KINDS = {"name_too_long", "empty_name", "price_out_of_range", "duplicate_name"}
+SIGN_IN_MISSING = (
+    "The API needs a sign in. Copy scripts/seeding.control.example.toml to "
+    "scripts/seeding.control.toml and fill in username and password "
+    "(an account from the People page), or set SEED_USER and SEED_PASSWORD, and run again"
+)
 
 
-def load_config(path: Path) -> dict:
+def control_text(value: object, key: str) -> str:
+    # A missing value falls through. A number or a list is a broken file, so stop before any row is sent.
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        sys.exit(f"seeding.control.toml {key} must be text")
+    return value
+
+
+def resolve_login(
+    file_user: object,
+    file_password: object,
+    env_user: str | None,
+    env_password: str | None,
+) -> tuple[str, str]:
+    # A filled field in the control file wins, so a leftover variable in the window cannot replace it.
+    # The username is stripped. The password is not, so a space in it survives.
+    user = control_text(file_user, "username").strip() or (env_user or "").strip()
+    password = control_text(file_password, "password") or (env_password or "")
+    return user, password
+
+
+def load_control_account() -> tuple[object, object]:
+    # Missing file means no account here. read_toml would exit, and the env variables can still fill in.
+    if not CONTROL_FILE.exists():
+        return "", ""
+    data = read_toml(CONTROL_FILE)
+    return data.get("username", ""), data.get("password", "")
+
+
+def read_toml(path: Path) -> dict:
     try:
         # utf-8-sig drops the BOM that some Windows editors add, tomllib rejects it otherwise
-        config = tomllib.loads(path.read_text(encoding="utf-8-sig"))
+        return tomllib.loads(path.read_text(encoding="utf-8-sig"))
     except FileNotFoundError:
         sys.exit(f"Config file not found: {path}")
     except tomllib.TOMLDecodeError as e:
         sys.exit(f"Config file {path} is not valid TOML: {e}")
+
+
+def load_config(path: Path, seeding_path: Path) -> dict:
+    # [fields] comes from the main config, everything else from seeding.toml
+    main, seeding = read_toml(path), read_toml(seeding_path)
+    if "fields" not in main:
+        sys.exit(f"Config file {path} is missing the [fields] section")
+    config = {**seeding, "fields": main["fields"]}
 
     # Catch bad values here with a clear message, before any row is sent
     try:
@@ -51,10 +98,26 @@ def load_config(path: Path) -> dict:
         if a["workers"] < 1:
             problems.append("api.workers must be 1 or more")
     except KeyError as e:
-        sys.exit(f"Config file {path} is missing the setting {e}")
+        sys.exit(f"The setting {e} is missing, [fields] goes in {path.name} and the rest in {seeding_path.name}")
     if problems:
         sys.exit("Config problems:\n  " + "\n  ".join(problems))
     return config
+
+
+def stored_name(name: str | None) -> str:
+    # Same cleanup as Names.Clean: the length the API stores, not the text that was sent.
+    if not name:
+        return ""
+    normalized = unicodedata.normalize("NFKC", name)
+    chars: list[str] = []
+    for ch in normalized:
+        if ch.isspace():
+            chars.append(" ")
+            continue
+        if unicodedata.category(ch) in ("Cf", "Cc"):
+            continue
+        chars.append(ch)
+    return re.sub(r"\s+", " ", "".join(chars)).strip()
 
 
 class Seeder:
@@ -70,6 +133,13 @@ class Seeder:
         self.used_names: set[str] = set()
         self.accepted_names: list[str] = []
         self.stats: Counter = Counter()
+        self.databases: dict | None = None
+        self.started = 0
+        self.target = 0
+        self.kept_sent = 0
+        self.kept_stored = 0
+        self.progress_every = 2000
+        self.next_progress = 2000
 
     # Row generation
 
@@ -86,7 +156,7 @@ class Seeder:
                     return name
 
     def maybe_null(self, value):
-        # Each row draws its own rate between the min and max in config.toml
+        # Each row draws its own rate between the min and max in seeding.toml
         rate = random.uniform(self.gen["null_rate_min"], self.gen["null_rate_max"])
         return None if random.random() < rate else value
 
@@ -110,7 +180,11 @@ class Seeder:
                 kinds.remove("duplicate_name")
         kind = random.choice(kinds)
         if kind == "name_too_long":
-            row["name"] = ((row["name"] + " ") * 10)[: random.randint(f["name_max_length"] + 1, f["name_max_length"] + 30)]
+            # Letters only past the limit, so a trailing space cannot trim the name back into range.
+            limit = f["name_max_length"]
+            target = random.randint(limit + 1, limit + 30)
+            base = stored_name(row["name"]) or "Name"
+            row["name"] = (base + ("x" * target))[:target]
         elif kind == "empty_name":
             row["name"] = ""
         elif kind == "price_out_of_range":
@@ -136,7 +210,7 @@ class Seeder:
                 return resp.status, resp.read().decode()
         except urllib.error.HTTPError as e:
             if e.code == 401 and not self.token:
-                sys.exit("The API needs a sign in. Set SEED_USER and SEED_PASSWORD (an account from the Users page) and run again")
+                sys.exit(SIGN_IN_MISSING)
             return e.code, e.read().decode()
 
     def post_with_retry(self, row: dict) -> tuple[int, str]:
@@ -163,6 +237,15 @@ class Seeder:
                 health = json.loads(body)
                 if health["state"] == "ready":
                     print(f"API ready: {health['message']}")
+                    databases = health.get("databases") or {}
+                    live, history = databases.get("live"), databases.get("history")
+                    if not live or not history:
+                        sys.exit("The health check does not name the live database and the history database")
+                    self.databases = databases
+                    print(
+                        f"Writing to {live['database']} on {live['host']} port {live['port']}. "
+                        f"History is {history['database']} on {history['host']} port {history['port']}."
+                    )
                     return
                 if health["state"] == "failed":
                     sys.exit(f"API reports a failed database: {health['message']}")
@@ -192,12 +275,21 @@ class Seeder:
                 if status in (400, 409):
                     self.stats[f"blocked_{kind}"] += 1
                 elif status == 201:
-                    # The API let a broken row in, the rules have a hole
-                    self.stats["bad_accepted"] += 1
-                    print(f"  BROKEN ROW ACCEPTED ({kind}): {row}")
+                    stored = stored_name(row["name"])
+                    limit = self.fields["name_max_length"]
+                    # A trimmed name that fits is legal. Anything else that was stored broke a rule.
+                    if kind == "trimmed_space" and len(stored) <= limit:
+                        self.stats["kept"] += 1
+                        self.kept_sent = len(row["name"])
+                        self.kept_stored = len(stored)
+                    else:
+                        self.stats["holes"] += 1
+                        print(f"  A stored {kind} broke the rule: {row}")
                 else:
                     self.stats["bad_other"] += 1
                     print(f"  broken row got {status} ({kind}): {body[:200]}")
+            if kind == "valid" and status == 201:
+                self.note_progress()
 
     def load_rules(self) -> None:
         # The API's rules win over config.toml, so the broken rows stay broken after a rules change
@@ -223,11 +315,13 @@ class Seeder:
     def load_existing_names(self) -> None:
         # Real rows are off limits for new names, and give the duplicate test something to hit
         status, body = self.request("GET", "/industries")
-        if status == 200:
-            names = [row["name"] for row in json.loads(body)]
-            self.used_names.update(names)
-            self.accepted_names.extend(names)
-            print(f"Found {len(names)} existing rows")
+        if status != 200:
+            sys.exit(f"Couldn't read the existing rows ({status})")
+        names = [row["name"] for row in json.loads(body)]
+        self.used_names.update(names)
+        self.accepted_names.extend(names)
+        self.started = len(names)
+        print(f"Found {len(names)} existing rows")
 
     def bad_rows_for(self, valid_count: int) -> int:
         if not self.bad_kinds or self.gen["bad_row_rate"] == 0:
@@ -235,20 +329,90 @@ class Seeder:
         return max(1, round(valid_count * self.gen["bad_row_rate"]))
 
     def sign_in(self) -> None:
-        user, password = os.environ.get("SEED_USER"), os.environ.get("SEED_PASSWORD")
+        file_user, file_password = load_control_account()
+        user, password = resolve_login(
+            file_user, file_password, os.environ.get("SEED_USER"), os.environ.get("SEED_PASSWORD")
+        )
         if not user or not password:
-            return
+            sys.exit(SIGN_IN_MISSING)
         status, body = self.request("POST", "/auth/login", {"username": user, "password": password})
         if status != 200:
             sys.exit(f"Couldn't sign in as {user}: {json.loads(body).get('detail', body)}")
-        self.token = json.loads(body)["token"]
+        payload = json.loads(body)
+        self.token = payload["token"]
+        account = payload.get("user") or {}
+        if account.get("mustChangePassword"):
+            sys.exit(
+                f"{user} still has to pick a new password on Your account. "
+                "This command will not add rows until then."
+            )
         print(f"Signed in as {user}")
 
+    def place(self) -> str:
+        live = self.databases["live"]
+        return f"{live['database']} on {live['host']} port {live['port']}"
+
+    def history_place(self) -> str:
+        history = self.databases["history"]
+        return f"{history['database']} on {history['host']} port {history['port']}"
+
+    def count_line(self) -> str:
+        added = self.stats["accepted"]
+        kept = self.stats["kept"]
+        refused = sum(v for k, v in self.stats.items() if k.startswith("blocked_"))
+        total = self.started + added + kept
+        limit = self.fields["name_max_length"]
+        if kept:
+            kept_bit = (
+                f"Kept {kept}. Sent {self.kept_sent} characters, stored {self.kept_stored} "
+                f"after the space was trimmed, and {limit} is allowed."
+            )
+        else:
+            kept_bit = "Kept 0."
+        return (
+            f"Started at {self.started} in {self.place()}. Added {added}. {kept_bit} "
+            f"Refused {refused}. The table now has {total}."
+        )
+
+    def note_progress(self) -> None:
+        # The lock is already held. The finishing line is printed once, from report.
+        added = self.stats["accepted"]
+        while added >= self.next_progress:
+            milestone = self.next_progress
+            self.next_progress += self.progress_every
+            if self.target and milestone >= self.target:
+                return
+            print(self.count_line(), flush=True)
+
+    def send_known(self) -> None:
+        # One name the API trims back to the limit, and one the limit still refuses.
+        limit = self.fields["name_max_length"]
+        stamp = str(time.time_ns())
+        stored = ("Trim" + stamp)[:limit].ljust(limit, "x")
+        space_name = stored + " "
+        letter = (("Long" + stamp) + ("y" * (limit + 1)))[: limit + 1]
+        if not letter[-1].isalpha():
+            letter = letter[:-1] + "y"
+        sector = self.fields["sectors"][0]
+        self.used_names.add(stored)
+        self.send("trimmed_space", {"name": space_name, "sector": sector, "price": 1, "release": None})
+        if self.stats["kept"] < 1 or self.stats["holes"]:
+            sys.exit(
+                f"The trailing-space name was not kept as a legal {limit}-character name "
+                f"(sent {len(space_name)} characters)"
+            )
+        self.send("name_too_long", {"name": letter, "sector": sector, "price": 1, "release": None})
+        if self.stats["holes"]:
+            sys.exit("The letter-ending name was stored, and it is over the limit")
+
     def run(self, count: int) -> int:
+        self.target = count
+        self.next_progress = self.progress_every
         self.wait_until_ready()
         self.sign_in()
         self.load_rules()
         self.load_existing_names()
+        self.send_known()
         started = time.time()
         with ThreadPoolExecutor(max_workers=self.api["workers"]) as pool:
             # Send in rounds until enough valid rows got in, a rejected valid row gets replaced next round
@@ -262,38 +426,44 @@ class Seeder:
                     print("Too many valid rows rejected, check that config.toml [fields] matches the API rules")
                     break
         self.report(time.time() - started)
-        return 1 if self.stats["bad_accepted"] or self.stats["valid_rejected"] else 0
+        return 1 if self.stats["holes"] or self.stats["valid_rejected"] else 0
 
     def report(self, seconds: float) -> None:
         s = self.stats
         blocked = {k.removeprefix("blocked_"): v for k, v in s.items() if k.startswith("blocked_")}
+        added = s["accepted"]
         print()
         print(f"Done in {seconds:.1f}s")
-        print(f"  accepted rows          {s['accepted']}")
-        print(f"    with no price        {s['null_price']} ({s['null_price'] / max(1, s['accepted']):.1%})")
-        print(f"    with no release      {s['null_release']} ({s['null_release'] / max(1, s['accepted']):.1%})")
-        print(f"  broken rows blocked    {sum(blocked.values())}  {dict(sorted(blocked.items()))}")
-        print(f"  broken rows accepted   {s['bad_accepted']}")
-        print(f"  valid rows rejected    {s['valid_rejected']}")
-        print(f"  retries                {s['retries']}")
+        print(f"{self.count_line()} History is {self.history_place()}.")
+        if blocked:
+            print(f"Refused by kind: {dict(sorted(blocked.items()))}")
+        print(f"Of the added rows, {s['null_price']} have no price ({s['null_price'] / max(1, added):.1%}).")
+        print(f"Of the added rows, {s['null_release']} have no release ({s['null_release'] / max(1, added):.1%}).")
+        if s["valid_rejected"]:
+            print(f"Intended rows rejected: {s['valid_rejected']}")
+        if s["holes"]:
+            print(f"Stored values that broke a rule: {s['holes']}")
+        if s["retries"]:
+            print(f"Retries: {s['retries']}")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Seed synthetic industries through the API")
-    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG, help="settings file (default scripts/config.toml)")
+    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG, help="main config with [fields] (default scripts/config.toml)")
+    parser.add_argument("--seeding", type=Path, default=DEFAULT_SEEDING, help="seed settings (default scripts/seeding.toml)")
     parser.add_argument("--count", type=int, help="override generation.count")
     parser.add_argument("--seed", type=int, help="override generation.seed")
     parser.add_argument("--dry-run", action="store_true", help="print sample rows, send nothing")
     args = parser.parse_args()
 
-    config = load_config(args.config)
+    config = load_config(args.config, args.seeding)
     count = args.count if args.count is not None else config["generation"]["count"]
     seed = args.seed if args.seed is not None else config["generation"]["seed"]
     if seed:
         random.seed(seed)
 
     seeder = Seeder(config)
-    print(f"Config: {args.config.name}, {count} rows, {config['generation']['bad_row_rate']:.0%} broken, "
+    print(f"Config: {args.config.name} and {args.seeding.name}, {count} rows, {config['generation']['bad_row_rate']:.0%} broken, "
           f"empty rate {config['generation']['null_rate_min']:.0%} to {config['generation']['null_rate_max']:.0%}")
 
     if args.dry_run:

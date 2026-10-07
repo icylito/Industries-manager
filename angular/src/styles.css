@@ -14,6 +14,7 @@
     --accent: #0a0a0a;
     --accent-text: #ffffff;
     --danger: #b42318;
+    --danger-on: #ffffff;
     --danger-bg: #991b1b;
     --hover: rgba(0, 0, 0, 0.035);
     --focus: rgba(0, 0, 0, 0.12);
@@ -22,6 +23,22 @@
     /* Similar rows from an import, the one color in the black and white design */
     --similar-bg: rgba(245, 158, 11, 0.3);
     --similar-edge: #d97706;
+    /* Admin Overview. One signal color that only ever means "this is selected". The design's #d9481a was 4.3:1 with white text,
+       this one is 5.1:1. Charts draw in --text and step lighter with opacity, so they flip with the theme by themselves. */
+    --signal: #c63f12;
+    --signal-text: #ffffff;
+    --text-2: #3a3a3a;
+    --track: #ececec;
+    --miss: #d4d4d4;
+    --skeleton-a: #f1f1f1;
+    --skeleton-b: #e4e4e4;
+    --danger-soft: #fdecea;
+    --warn-soft: #fff7f6;
+    --warn-soft-border: #f6d6d2;
+    --warn-soft-text: #8a1c12;
+    --cap-bg: #f7f7f7;
+    --cap-border: #cfcfcf;
+    --pop-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
 }
 
 /* Dark mode follows the OS setting, no toggle needed */
@@ -40,6 +57,7 @@
         --accent-text: #050505;
         /* Light enough to read on an amber row too (5.4:1), #f97066 was 3.8:1 there */
         --danger: #fda29b;
+        --danger-on: #2a0a07;
         --danger-bg: #991b1b;
         --hover: rgba(255, 255, 255, 0.04);
         --focus: rgba(255, 255, 255, 0.2);
@@ -47,6 +65,20 @@
         --nav-bg: rgba(14, 14, 14, 0.96);
         --similar-bg: rgba(251, 191, 36, 0.3);
         --similar-edge: #fbbf24;
+        --signal: #ff7a4d;
+        --signal-text: #1a0a04;
+        --text-2: #c8c8c8;
+        --track: #232323;
+        --miss: #3a3a3a;
+        --skeleton-a: #161616;
+        --skeleton-b: #232323;
+        --danger-soft: rgba(253, 162, 155, 0.14);
+        --warn-soft: rgba(253, 162, 155, 0.08);
+        --warn-soft-border: rgba(253, 162, 155, 0.28);
+        --warn-soft-text: #fda29b;
+        --cap-bg: #1c1c1c;
+        --cap-border: #3a3a3a;
+        --pop-shadow: 0 18px 48px rgba(0, 0, 0, 0.7);
     }
 }
 
@@ -63,6 +95,7 @@
     --accent: #f5f5f5;
     --accent-text: #050505;
     --danger: #fda29b;
+    --danger-on: #2a0a07;
     --danger-bg: #991b1b;
     --hover: rgba(255, 255, 255, 0.04);
     --focus: rgba(255, 255, 255, 0.2);
@@ -70,6 +103,84 @@
     --nav-bg: rgba(14, 14, 14, 0.96);
     --similar-bg: rgba(251, 191, 36, 0.3);
     --similar-edge: #fbbf24;
+    --signal: #ff7a4d;
+    --signal-text: #1a0a04;
+    --text-2: #c8c8c8;
+    --track: #232323;
+    --miss: #3a3a3a;
+    --skeleton-a: #161616;
+    --skeleton-b: #232323;
+    --danger-soft: rgba(253, 162, 155, 0.14);
+    --warn-soft: rgba(253, 162, 155, 0.08);
+    --warn-soft-border: rgba(253, 162, 155, 0.28);
+    --warn-soft-text: #fda29b;
+    --cap-bg: #1c1c1c;
+    --cap-border: #3a3a3a;
+    --pop-shadow: 0 18px 48px rgba(0, 0, 0, 0.7);
+}
+
+/* The Overview's own dark colors: a near black page that is not pure black, cards a touch lighter, soft off white text (the design asks for
+   about #141414 and #e2e2e2). Only that page, the other pages keep the shared dark set above. The class is set by App for the admin layout. */
+@media (prefers-color-scheme: dark) {
+    :root.admin-layout:not([data-theme="light"]) {
+        --bg: #141414;
+        --surface: #1c1c1c;
+        --surface-2: #242424;
+        --text: #e2e2e2;
+        --muted: #a3a3a3;
+        --faint: #9c9c9c;
+        --border: #2e2e2e;
+        --border-strong: #454545;
+        --accent: #e2e2e2;
+        --accent-text: #141414;
+        --hover: rgba(255, 255, 255, 0.05);
+        --focus: rgba(255, 255, 255, 0.2);
+        --glow: rgba(255, 255, 255, 0.05);
+        --nav-bg: rgba(28, 28, 28, 0.96);
+        --text-2: #bdbdbd;
+        --track: #2c2c2c;
+        --miss: #454545;
+        --skeleton-a: #1f1f1f;
+        --skeleton-b: #2a2a2a;
+        --cap-bg: #262626;
+        --cap-border: #454545;
+    }
+}
+
+:root.admin-layout[data-theme="dark"] {
+    --bg: #141414;
+    --surface: #1c1c1c;
+    --surface-2: #242424;
+    --text: #e2e2e2;
+    --muted: #a3a3a3;
+    --faint: #9c9c9c;
+    --border: #2e2e2e;
+    --border-strong: #454545;
+    --accent: #e2e2e2;
+    --accent-text: #141414;
+    --hover: rgba(255, 255, 255, 0.05);
+    --focus: rgba(255, 255, 255, 0.2);
+    --glow: rgba(255, 255, 255, 0.05);
+    --nav-bg: rgba(28, 28, 28, 0.96);
+    --text-2: #bdbdbd;
+    --track: #2c2c2c;
+    --miss: #454545;
+    --skeleton-a: #1f1f1f;
+    --skeleton-b: #2a2a2a;
+    --cap-bg: #262626;
+    --cap-border: #454545;
+}
+
+/* The Overview in light: the small grey notes and key hints get 5:1 or better (the shared grey is 4.5:1).
+   Light is either the chosen light or, with no choice, a light system, so dark from the system setting is left alone. */
+:root.admin-layout[data-theme="light"] {
+    --faint: #686868;
+}
+
+@media (prefers-color-scheme: light) {
+    :root.admin-layout:not([data-theme="dark"]) {
+        --faint: #686868;
+    }
 }
 
 html {
@@ -106,4 +217,30 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
     color: var(--text);
     text-decoration: underline;
     text-underline-offset: 0.15em;
+}
+
+/* The Shortcuts panel and the theme button, see app.html. The page steps aside so the panel sits clean in the middle. */
+.app{
+    transform-origin: 50% 0;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+html.shortcuts-open .app{
+    opacity: 0.6;
+    transform: translateX(-3%) scale(0.95);
+}
+
+/* Switching light and dark fades the colors for a moment, nothing moves. The class is only there while it fades. */
+html.theme-fade, html.theme-fade *, html.theme-fade *::before, html.theme-fade *::after{
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, fill 0.3s ease, stroke 0.3s ease !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app{
+        transition: none;
+    }
+
+    html.theme-fade, html.theme-fade *, html.theme-fade *::before, html.theme-fade *::after{
+        transition: none !important;
+    }
 }

@@ -105,11 +105,20 @@ app.UseExceptionHandler(errors =>
     });
 });
 
+// start.bat share puts the page server in front of the API. It says who the real caller is, so the sign in limit counts each
+// device on its own. Only trusted from this PC (loopback), the default for ForwardedHeaders.
+app.UseForwardedHeaders(new ForwardedHeadersOptions { ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor });
 app.UseCors("Angular");
 app.UseRateLimiter();
 
-// Always 200 so the frontend can read the state, the body says if the database is usable
-app.MapGet("/health", (DatabaseStatus status) => Results.Ok(status.Snapshot()));
+// Always 200 so the frontend can read the state, the body says if the database is usable.
+// databases names the live table and the history database. The old fields stay as they are.
+app.MapGet("/health", (DatabaseStatus status, DatabaseConnections connections) =>
+{
+    var body = System.Text.Json.JsonSerializer.SerializeToNode(status.Snapshot())!.AsObject();
+    body["databases"] = System.Text.Json.JsonSerializer.SerializeToNode(connections.PublicView());
+    return Results.Json(body);
+});
 app.MapAuth();
 app.MapUsers();
 app.MapIndustries();

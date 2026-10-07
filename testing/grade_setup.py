@@ -30,7 +30,7 @@ while len(rows) > 300:
 print("rows", len(rows), "amber", sum(1 for r in rows if r["duplicateOf"] is not None), "with ticker", sum(1 for r in rows if (r.get("extra") or {}).get("ticker")))
 s, bk = call("POST", "/backups", {}); assert s == 200, bk; print("backup", bk["id"], "rows", bk["rowCount"])
 # another layout
-folder = "/var/tmp/apitest/backups"; other = os.path.join(folder, bk["id"][:-7] + "_nightly" if bk["id"].endswith("_manual") else bk["id"].replace("_nightly", "_manual"))
+folder = t.BACKUPS; other = os.path.join(folder, bk["id"][:-7] + "_nightly" if bk["id"].endswith("_manual") else bk["id"].replace("_nightly", "_manual"))
 shutil.copytree(os.path.join(folder, bk["id"]), other)
 j = json.load(open(os.path.join(other, "backup.json"))); j["migrations"] = j["migrations"][:-1]; j["createdAt"] = "2026-10-01T02:00:00+00:00"; json.dump(j, open(os.path.join(other, "backup.json"), "w"))
 # 20 rows gone after the backup, none of them the long one, the amber ones or the ticker ones
@@ -40,5 +40,5 @@ for r in rows:
     if r["duplicateOf"] is None and r["name"].startswith("Seed Company 2") and not (r.get("extra") or {}).get("ticker"):
         s, b = call("DELETE", f"/industries/{r['id']}"); assert s == 200, b; gone += 1
 s, rows = call("GET", "/industries"); print("rows now", len(rows))
-json.dump({"backup": bk["id"], "other": os.path.basename(other), "long": "Horizon Water and Desalination Holdings LLC"}, open("/var/tmp/apitest/grade.json", "w"))
+json.dump({"backup": bk["id"], "other": os.path.basename(other), "long": "Horizon Water and Desalination Holdings LLC"}, open(os.path.join(t.BACKUPS, "grade.json"), "w"))
 print("SETUP OK")

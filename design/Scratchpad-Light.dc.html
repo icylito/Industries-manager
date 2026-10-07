@@ -1,0 +1,1826 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scratchpad, light</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&family=Montserrat:wght@400;700&family=Work+Sans:wght@400;700&family=DM+Sans:wght@400;700&family=Nunito:wght@400;700&family=Lato:wght@400;700&family=Open+Sans:wght@400;700&family=Raleway:wght@400;700&family=Playfair+Display:wght@400;700&family=Merriweather:wght@400;700&family=Lora:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Cormorant+Garamond:wght@400;700&family=Source+Serif+4:wght@400;700&family=JetBrains+Mono:wght@400;700&family=IBM+Plex+Mono:wght@400;700&family=Space+Mono:wght@400;700&family=Oswald:wght@400;700&family=Bebas+Neue&family=Abril+Fatface&family=Lobster&family=Caveat:wght@400;700&family=Pacifico&family=Shadows+Into+Light&family=Permanent+Marker&family=Dancing+Script:wght@400;700&family=Indie+Flower&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#ffffff}
+button{font-family:inherit;color:inherit;cursor:pointer}
+button:disabled{cursor:not-allowed;opacity:.4}
+input,textarea{font-family:inherit}
+.num{font-family:ui-monospace,SFMono-Regular,Consolas,'Liberation Mono',monospace;font-variant-numeric:tabular-nums}
+.rail-btn:hover{background:rgba(0,0,0,.04)}
+.tool:hover{background:rgba(0,0,0,.05)}
+.paper{box-shadow:0 1px 2px rgba(0,0,0,.08),0 8px 20px rgba(0,0,0,.08)}
+.toss{animation:toss .45s cubic-bezier(.2,.9,.3,1.2) both}
+@keyframes toss{from{opacity:0;margin-top:-70px;margin-left:-50px;scale:1.25}to{opacity:1;margin-top:0;margin-left:0;scale:1}}
+.fade-in{animation:fadein .25s ease both}
+@keyframes fadein{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+textarea{field-sizing:content}
+a{color:inherit;text-decoration:none}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #d9481a;outline-offset:2px}
+.cap{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:22px;padding:0 6px;box-sizing:border-box;border:1px solid #cfcfcf;border-bottom-width:2px;border-radius:5px;background:#f7f7f7;font-family:ui-monospace,SFMono-Regular,Consolas,'Liberation Mono',monospace;font-size:12px;font-weight:600;color:#0a0a0a}
+.then{font-size:11px;color:#767676;margin:0 2px}
+.kb-row:hover{background:#fafafa}
+.kb-row.sel{background:#f2f2f2;box-shadow:inset 3px 0 0 #0a0a0a}
+.kb-key{display:flex;align-items:center;gap:4px;flex-wrap:wrap;min-width:0;min-height:34px;box-sizing:border-box;padding:4px 8px;margin-left:-8px;border:1px solid transparent;border-radius:8px;background:transparent;cursor:pointer;text-align:left;color:inherit}
+.kb-key:hover{border-color:#bdbdbd;background:#ffffff}
+.kb-key:disabled{cursor:default;opacity:1}
+.kb-key:disabled:hover{border-color:transparent;background:transparent}
+.kb-pop{animation:kbpop .28s cubic-bezier(.2,.8,.2,1) both}
+@keyframes kbpop{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+.app-dim{transform-origin:50% 0;transition:opacity .3s ease,transform .3s ease,filter .3s ease}
+.bf{-webkit-text-stroke:0.55px currentColor}
+[data-board] textarea{user-select:text}
+path[role="button"]:focus-visible{stroke:#d9481a;stroke-opacity:.35}
+.seg-on{background:#0a0a0a;color:#ffffff}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{animation:spin .8s linear infinite}
+textarea::selection{background:rgba(217,72,26,.28);color:transparent}
+@media (prefers-reduced-motion: reduce){.toss,.fade-in,.kb-pop,.spin{animation:none}.app-dim{transition:none}}
+</style>
+</helmet>
+<div id="sp-root" tabIndex="-1" onKeyDown="{{onKey}}" onPaste="{{onPaste}}" onPointerDownCapture="{{rootDownCap}}" onDragEnter="{{rootEnter}}" onDragLeave="{{rootLeave}}" onDragOver="{{rootOver}}" onDrop="{{rootDrop}}" onPointerMove="{{rootMove}}" style="outline: none; transition: background .3s ease; background: {{rootBg}}; color: #0a0a0a; font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; min-height: 1100px">
+<div class="app-dim" style="filter: {{themeFilter}}; opacity: {{appOpacity}}; transform: {{appTransform}}; max-width: {{maxW}}; margin: 0 auto; padding: 16px 16px 64px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 14px; border: 1px solid #e8e8e8; border-radius: 14px; background: #fafafa; font-size: 12px">
+<span style="font-weight: 700; letter-spacing: 0.1em; color: #6b6b6b">PROTOTYPE</span>
+<sc-for list="{{reviewGroups}}" as="g" hint-placeholder-count="4">
+<span style="display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px">
+<span style="color: #6b6b6b; margin-right: 2px">{{g.label}}</span>
+<sc-for list="{{g.opts}}" as="o" hint-placeholder-count="2">
+<button type="button" class="tool" onClick="{{o.go}}" aria-pressed="{{o.active}}" style="border: 1px solid #d0d0d0; border-radius: 999px; background: {{o.bg}}; color: {{o.fg}}; padding: 4px 10px; font-size: 12px; font-weight: 700">{{o.label}}</button>
+</sc-for>
+</span>
+</sc-for>
+<span style="flex: 1 1 100%; color: #767676">Controls for review only, not part of the page.</span>
+</div>
+
+<nav style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px 10px 20px; border: 1px solid #e8e8e8; border-radius: {{navRad}}; background: #ffffff">
+<a href="#" style="display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: -0.02em; font-size: 17px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="11" width="4.5" height="10" rx="1"/><rect x="9.75" y="3" width="4.5" height="18" rx="1"/><rect x="16.5" y="8" width="4.5" height="13" rx="1"/></svg>
+Stock Listing</a>
+<div style="display: flex; align-items: center; gap: 2px; font-size: 15px; font-weight: 500; color: #6b6b6b">
+<a href="C-Signal-Light.dc.html" id="nav-overview" style="padding: 9px 18px; border-radius: 999px">Overview</a>
+<a href="#" id="nav-scratchpad" aria-current="page" style="padding: 9px 18px; border-radius: 999px; background: #f2f2f2; color: #0a0a0a; font-weight: 600">Scratchpad</a>
+</div>
+<div style="display: flex; align-items: center; gap: 8px">
+<button type="button" onClick="{{toggleTheme}}" aria-label="{{themeAria}}" title="{{themeAria}}" style="width: 40px; height: 40px; flex: 0 0 40px; padding: 0; border: 0; border-radius: 999px; background: #f2f2f2; color: #0a0a0a; display: inline-flex; align-items: center; justify-content: center">
+<sc-if value="{{isLight}}" hint-placeholder-val="{{true}}">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5.3 5.3l1.7 1.7M17 17l1.7 1.7M5.3 18.7L7 17M17 7l1.7-1.7"/></svg>
+</sc-if>
+<sc-if value="{{isDark}}" hint-placeholder-val="{{false}}">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.2A8.4 8.4 0 019.8 3.5a8.4 8.4 0 1010.7 10.7z"/></svg>
+</sc-if>
+</button>
+<a href="#" aria-label="Your account, admin" style="display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px; background: #f2f2f2; font-size: 15px; font-weight: 600">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4.2"/><path d="M4 21c.6-4.2 4-6.2 8-6.2s7.4 2 8 6.2z"/></svg>admin</a>
+</div>
+</nav>
+
+<header style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 20px 4px 0">
+<h1 style="margin: 0; font-size: 40px; line-height: 1.02; font-weight: 800; letter-spacing: -0.04em">Think with your industries.</h1>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<button type="button" onClick="{{toggleKeys}}" aria-expanded="{{showKeys}}" class="tool" style="display: inline-flex; align-items: center; gap: 8px; border: 1px solid #d0d0d0; background: #ffffff; border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 700; color: #0a0a0a">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M7 14h10"/></svg>Shortcuts</button>
+<span role="status" style="display: inline-flex; align-items: center; gap: 8px; border: 1px solid {{saveBd}}; border-radius: 999px; padding: 8px 14px; font-size: 13px; color: {{saveFg}}">
+<sc-if value="{{saveOk}}" hint-placeholder-val="{{true}}">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+</sc-if>
+<sc-if value="{{saveBusy}}" hint-placeholder-val="{{false}}">
+<svg class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3a9 9 0 019 9"/></svg>
+</sc-if>
+<sc-if value="{{saveBad}}" hint-placeholder-val="{{false}}">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 7v6M12 17h.01"/><circle cx="12" cy="12" r="9.5"/></svg>
+</sc-if>
+{{saveText}}
+<sc-if value="{{saveBad}}" hint-placeholder-val="{{false}}">
+<button type="button" onClick="{{saveRetry}}" style="border: 0; background: #b42318; color: #ffffff; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700">Try again</button>
+</sc-if>
+</span>
+</div>
+</header>
+
+<section style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+
+<aside style="flex: {{asideFlex}}; min-width: 240px; background: #ffffff; border: 1px solid #e8e8e8; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label for="tfind" style="font-size: 12px; font-weight: 600; letter-spacing: 0.1em; color: #6b6b6b">COMPANIES</label>
+<div style="display: flex; align-items: center; gap: 8px; border: 1px solid #d0d0d0; border-radius: 12px; padding: 0 12px">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" style="color: #6b6b6b"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+<input id="tfind" type="text" value="{{q}}" onChange="{{onFind}}" placeholder="Search the table" autocomplete="off" style="flex: 1 1 auto; min-width: 0; border: 0; outline: 0; background: transparent; padding: 10px 0; font-size: 14px; color: #0a0a0a">
+</div>
+<span style="font-size: 12px; color: #6b6b6b">{{trayNote}}</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<sc-for list="{{tray}}" as="c" hint-placeholder-count="6">
+<div draggable="true" onDragStart="{{c.dragStart}}" style="display: flex; align-items: center; gap: 8px; border: 1px solid {{c.bd}}; border-radius: 12px; padding: 8px 8px 8px 12px; cursor: grab; background: #ffffff; opacity: {{c.op}}">
+<span style="display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto">
+<span style="font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{c.name}}</span>
+<span style="font-size: 11px; color: #6b6b6b">{{c.sector}}</span>
+</span>
+<span class="num" style="font-size: 13px; font-weight: 700">{{c.price}}</span>
+<button type="button" onClick="{{c.add}}" aria-label="Add {{c.name}} to the board" disabled="{{c.onBoard}}" class="tool" style="width: 28px; height: 28px; border: 1px solid #d0d0d0; border-radius: 999px; background: #ffffff; padding: 0; display: inline-flex; align-items: center; justify-content: center">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+</div>
+</sc-for>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #e8e8e8; padding-top: 14px">
+<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.1em; color: #6b6b6b">PAPER</span>
+<div style="display: flex; gap: 8px">
+<button type="button" onClick="{{addSticky}}" class="tool" style="flex: 1 1 0; border: 1px solid #d0d0d0; background: #ffffff; border-radius: 12px; padding: 10px 8px; font-size: 13px; font-weight: 700; color: #0a0a0a">+ Sticky note</button>
+<button type="button" onClick="{{addText}}" class="tool" style="flex: 1 1 0; border: 1px solid #d0d0d0; background: #ffffff; border-radius: 12px; padding: 10px 8px; font-size: 13px; font-weight: 700; color: #0a0a0a">+ Text box</button>
+</div>
+<button id="sp-file-btn" type="button" onClick="{{pickFile}}" onDragEnter="{{btnEnter}}" onDragOver="{{btnOver}}" onDragLeave="{{btnLeave}}" onDrop="{{btnDrop}}" class="tool" style="width: 100%; box-sizing: border-box; border: 1px {{fileBs}} {{fileBc}}; background: {{fileBg}}; border-radius: 12px; padding: 10px 8px; font-size: 13px; font-weight: 700; color: #0a0a0a; box-shadow: {{fileSh}}; transition: background .15s ease, border-color .15s ease, box-shadow .15s ease">{{fileLabel}}</button>
+<span style="font-size: 12px; line-height: 1.45; color: #6b6b6b">Or drop it on the board, or paste a picture. Images, GIFs, video, PDF and more, up to {{maxMb}} MB each. Word, PowerPoint and Excel files can't go on the board.</span>
+<input id="sp-file" type="file" multiple onChange="{{onPick}}" aria-label="Choose files to put on the board" style="display: none">
+</div>
+<span class="num" style="font-size: 11px; line-height: 1.6; color: #767676">{{keysNote}}</span>
+</aside>
+
+<div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border: 1px solid #e8e8e8; border-radius: 16px; padding: 8px 10px">
+<div role="group" aria-label="Tools" style="display: inline-flex; padding: 3px; border: 1px solid #e8e8e8; border-radius: 999px; gap: 2px">
+<sc-for list="{{tools}}" as="t" hint-placeholder-count="4">
+<button type="button" class="tool" onClick="{{t.go}}" aria-pressed="{{t.active}}" style="border: 0; border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 700; background: {{t.bg}}; color: {{t.fg}}">{{t.label}}</button>
+</sc-for>
+</div>
+<span style="font-size: 12px; color: #6b6b6b; flex: 1 1 200px; min-width: 0">{{hint}}</span>
+<div style="display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px">
+<button type="button" class="tool" onClick="{{undo}}" disabled="{{noUndo}}" aria-label="Undo" style="display: inline-flex; align-items: center; gap: 6px; border: 1px solid #d0d0d0; background: #ffffff; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 700; color: #0a0a0a"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg>Undo</button>
+<button type="button" class="tool" onClick="{{redo}}" disabled="{{noRedo}}" aria-label="Redo" style="display: inline-flex; align-items: center; gap: 6px; border: 1px solid #d0d0d0; background: #ffffff; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 700; color: #0a0a0a">Redo<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 000 12h3"/></svg></button>
+<button type="button" class="tool" onClick="{{zoomOut}}" aria-label="Zoom out" style="width: 30px; height: 30px; border: 1px solid #d0d0d0; background: #ffffff; border-radius: 999px; padding: 0; font-size: 16px; font-weight: 700; color: #0a0a0a">−</button>
+<button type="button" class="tool num" onClick="{{zoomReset}}" aria-label="Reset zoom" style="min-width: 52px; height: 30px; border: 0; background: transparent; border-radius: 999px; font-size: 12px; font-weight: 700; color: #0a0a0a">{{zoomLabel}}</button>
+<button type="button" class="tool" onClick="{{zoomIn}}" aria-label="Zoom in" style="width: 30px; height: 30px; border: 1px solid #d0d0d0; background: #ffffff; border-radius: 999px; padding: 0; font-size: 16px; font-weight: 700; color: #0a0a0a">+</button>
+<button type="button" class="tool" onClick="{{zoomFit}}" aria-label="Fit everything on screen" style="height: 30px; border: 1px solid #d0d0d0; background: #ffffff; border-radius: 999px; padding: 0 12px; font-size: 12px; font-weight: 700; color: #0a0a0a">Fit</button>
+<button type="button" class="tool" onClick="{{zoomSel}}" disabled="{{noZoomSel}}" aria-label="Zoom to the selection" style="height: 30px; border: 1px solid #d0d0d0; background: #ffffff; border-radius: 999px; padding: 0 12px; font-size: 12px; font-weight: 700; color: #0a0a0a">Selection</button>
+</div>
+</div>
+
+<div style="min-height: 56px; display: flex; flex-direction: column; position: relative; z-index: 20">
+<sc-if value="{{showNone}}" hint-placeholder-val="{{true}}">
+<div style="display: flex; align-items: center; min-height: 54px; box-sizing: border-box; border: 1px dashed #d0d0d0; border-radius: 16px; padding: 8px 14px; font-size: 13px; color: #767676">Select a card, a note or a line to see its tools here.</div>
+</sc-if>
+<sc-if value="{{showFmt}}" hint-placeholder-val="{{false}}">
+<div class="fade-in" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border: 1px solid #0a0a0a; border-radius: 16px; padding: 8px 10px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #6b6b6b; margin-right: 4px">TEXT</span>
+<div role="group" aria-label="Text style" style="display: inline-flex; gap: 2px">
+<sc-for list="{{fmtStyle}}" as="f" hint-placeholder-count="4">
+<button type="button" class="tool" onMouseDown="{{f.keep}}" onClick="{{f.go}}" aria-pressed="{{f.active}}" aria-label="{{f.aria}}" style="min-width: 36px; height: 34px; border: 0; border-radius: 10px; padding: 0 10px; font-size: 14px; font-weight: 800; background: {{f.bg}}; color: {{f.fg}}">{{f.label}}</button>
+</sc-for>
+</div>
+<span style="width: 1px; height: 22px; background: #e0e0e0"></span>
+<div role="group" aria-label="Alignment" style="display: inline-flex; gap: 2px">
+<button type="button" class="tool" onClick="{{alignLeft}}" aria-pressed="{{aL.active}}" aria-label="Align left" style="width: 36px; height: 34px; border: 0; border-radius: 10px; padding: 0; background: {{aL.bg}}; display: inline-flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="{{aL.fg}}" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/></svg></button>
+<button type="button" class="tool" onClick="{{alignCenter}}" aria-pressed="{{aC.active}}" aria-label="Centre" style="width: 36px; height: 34px; border: 0; border-radius: 10px; padding: 0; background: {{aC.bg}}; display: inline-flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="{{aC.fg}}" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M5.5 18h13"/></svg></button>
+<button type="button" class="tool" onClick="{{alignRight}}" aria-pressed="{{aR.active}}" aria-label="Align right" style="width: 36px; height: 34px; border: 0; border-radius: 10px; padding: 0; background: {{aR.bg}}; display: inline-flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="{{aR.fg}}" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M10 12h10M7 18h13"/></svg></button>
+</div>
+<span style="width: 1px; height: 22px; background: #e0e0e0"></span>
+<div data-fontpop="1" style="position: relative">
+<button type="button" onMouseDown="{{keepFont}}" onClick="{{toggleFont}}" aria-haspopup="listbox" aria-expanded="{{fontOpen}}" aria-label="Font, {{fontName}}" class="tool" style="display: inline-flex; align-items: center; gap: 8px; min-width: 150px; max-width: 200px; height: 34px; box-sizing: border-box; border: 1px solid #d0d0d0; background: #ffffff; border-radius: 10px; padding: 0 10px; color: #0a0a0a">
+<span style="flex: 1 1 auto; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: {{fontCssSel}}; font-size: 15px">{{fontName}}</span>
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: 0 0 auto"><path d="M6 9l6 6 6-6"/></svg>
+</button>
+<sc-if value="{{fontOpen}}" hint-placeholder-val="{{false}}">
+<div role="listbox" aria-label="Fonts" class="fade-in" style="position: absolute; left: 0; top: 100%; margin-top: 8px; z-index: 70; width: 300px; max-height: min(340px, 50vh); overflow: auto; box-sizing: border-box; background: #ffffff; border: 1px solid #0a0a0a; border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 6px">
+<sc-for list="{{fontRows}}" as="r" hint-placeholder-count="8">
+<div>
+<sc-if value="{{r.isHead}}" hint-placeholder-val="{{false}}">
+<div class="num" style="padding: 10px 10px 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #6b6b6b">{{r.label}}</div>
+</sc-if>
+<sc-if value="{{r.isFont}}" hint-placeholder-val="{{true}}">
+<button type="button" role="option" aria-selected="{{r.active}}" onMouseDown="{{keepFont}}" onClick="{{r.go}}" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; box-sizing: border-box; border: 0; border-radius: 10px; padding: 7px 10px; background: {{r.bg}}; color: {{r.fg}}; text-align: left; font-size: 18px; line-height: 1.25; font-family: {{r.css}}"><span>{{r.name}}</span><span style="font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 700; opacity: 0.8">{{r.tick}}</span></button>
+</sc-if>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+<sc-if value="{{showTone}}" hint-placeholder-val="{{false}}">
+<span style="width: 1px; height: 22px; background: #e0e0e0"></span>
+<div role="group" aria-label="Paper colour" style="display: inline-flex; align-items: center; gap: 6px">
+<sc-for list="{{toneList}}" as="p" hint-placeholder-count="4">
+<button type="button" onClick="{{p.go}}" aria-pressed="{{p.active}}" aria-label="{{p.label}} paper" style="width: 28px; height: 28px; border-radius: 999px; background: {{p.bg}}; border: 2px solid {{p.bd}}; padding: 0; box-shadow: {{p.ring}}"></button>
+</sc-for>
+</div>
+</sc-if>
+<button type="button" onClick="{{deleteSel}}" class="tool" style="margin-left: auto; border: 1px solid #d0d0d0; background: #ffffff; border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 700; color: #b42318">Delete</button>
+</div>
+</sc-if>
+
+<sc-if value="{{showMulti}}" hint-placeholder-val="{{false}}">
+<div class="fade-in" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border: 1px solid #0a0a0a; border-radius: 16px; padding: 8px 10px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #6b6b6b; margin-right: 4px">SELECTION</span>
+<span style="font-size: 13px; color: #3a3a3a">{{multiCount}} selected. Drag one to move all.</span>
+<sc-if value="{{showMultiTone}}" hint-placeholder-val="{{false}}">
+<span style="width: 1px; height: 22px; background: #e0e0e0"></span>
+<div role="group" aria-label="Paper colour for the selected notes" style="display: inline-flex; align-items: center; gap: 6px">
+<sc-for list="{{multiToneList}}" as="mt" hint-placeholder-count="4">
+<button type="button" onClick="{{mt.go}}" aria-pressed="{{mt.active}}" aria-label="{{mt.label}} paper" style="width: 28px; height: 28px; border-radius: 999px; background: {{mt.bg}}; border: 2px solid {{mt.bd}}; padding: 0; box-shadow: {{mt.ring}}"></button>
+</sc-for>
+</div>
+</sc-if>
+<button type="button" onClick="{{makeGroup}}" class="tool" style="margin-left: auto; border: 0; background: #0a0a0a; border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 700; color: #ffffff">Group under a name</button>
+<button type="button" onClick="{{deleteSel}}" class="tool" style="border: 1px solid #d0d0d0; background: #ffffff; border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 700; color: #b42318">Delete all</button>
+</div>
+</sc-if>
+
+<sc-if value="{{showLine}}" hint-placeholder-val="{{false}}">
+<div class="fade-in" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border: 1px solid #0a0a0a; border-radius: 16px; padding: 8px 10px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #6b6b6b; margin-right: 4px">LINE</span>
+<label for="sp-line-label" style="font-size: 12px; color: #3a3a3a">Label</label>
+<input id="sp-line-label" type="text" value="{{lineLabel}}" onChange="{{onLineLabel}}" onFocus="{{selAll}}" maxlength="40" placeholder="Say what it means" autocomplete="off" style="flex: 1 1 130px; min-width: 110px; max-width: 220px; border: 1px solid #d0d0d0; border-radius: 999px; padding: 7px 12px; font-size: 13px; background: #ffffff; color: #0a0a0a; outline: 0">
+<div role="group" aria-label="Arrowhead" style="display: inline-flex; padding: 2px; border: 1px solid #e8e8e8; border-radius: 999px; gap: 2px">
+<sc-for list="{{lineHeads}}" as="h" hint-placeholder-count="3">
+<button type="button" class="tool" onClick="{{h.go}}" aria-pressed="{{h.active}}" style="border: 0; border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: 700; background: {{h.bg}}; color: {{h.fg}}">{{h.label}}</button>
+</sc-for>
+</div>
+<div role="group" aria-label="Shape" style="display: inline-flex; padding: 2px; border: 1px solid #e8e8e8; border-radius: 999px; gap: 2px">
+<sc-for list="{{lineShapes}}" as="h" hint-placeholder-count="2">
+<button type="button" class="tool" onClick="{{h.go}}" aria-pressed="{{h.active}}" style="border: 0; border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: 700; background: {{h.bg}}; color: {{h.fg}}">{{h.label}}</button>
+</sc-for>
+</div>
+<button type="button" onClick="{{flipLine}}" class="tool" style="display: {{flipDisp}}; border: 1px solid #d0d0d0; background: #ffffff; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 700; color: #0a0a0a">Flip curve</button>
+<button type="button" onClick="{{deleteSel}}" class="tool" style="margin-left: auto; border: 1px solid #d0d0d0; background: #ffffff; border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 700; color: #b42318">Delete line</button>
+</div>
+</sc-if>
+
+<sc-if value="{{showGroup}}" hint-placeholder-val="{{false}}">
+<div class="fade-in" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border: 1px solid #0a0a0a; border-radius: 16px; padding: 8px 10px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #6b6b6b; margin-right: 4px">GROUP</span>
+<label for="sp-group-name" style="font-size: 12px; color: #3a3a3a">Name</label>
+<input id="sp-group-name" type="text" value="{{groupName}}" onChange="{{onGroupName}}" onFocus="{{selAll}}" maxlength="40" placeholder="Name this group" autocomplete="off" style="flex: 0 1 220px; min-width: 120px; border: 1px solid #d0d0d0; border-radius: 999px; padding: 7px 12px; font-size: 13px; background: #ffffff; color: #0a0a0a; outline: 0">
+<span style="font-size: 13px; color: #3a3a3a">{{groupCount}} things move together.</span>
+<button type="button" onClick="{{ungroup}}" class="tool" style="border: 1px solid #d0d0d0; background: #ffffff; border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 700; color: #0a0a0a">Ungroup</button>
+<button type="button" onClick="{{deleteSel}}" class="tool" style="margin-left: auto; border: 1px solid #d0d0d0; background: #ffffff; border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 700; color: #b42318">Delete group and cards</button>
+</div>
+</sc-if>
+
+<sc-if value="{{showSnap}}" hint-placeholder-val="{{false}}">
+<div class="fade-in" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border: 1px solid #0a0a0a; border-radius: 16px; padding: 8px 10px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #6b6b6b; margin-right: 4px">SNAPSHOT</span>
+<span style="font-size: 13px; color: #3a3a3a">Frozen on {{snapWhen}}. It does not change when the table changes.</span>
+<!-- OPUS: "Open in Overview" is a dead link in the prototype. In the app it opens the Overview with the same slice and selection the snapshot was taken from. -->
+<a href="#" class="tool" style="margin-left: auto; border: 1px solid #d0d0d0; background: #ffffff; border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 700; color: #0a0a0a">Open in Overview</a>
+<button type="button" onClick="{{deleteSel}}" class="tool" style="border: 1px solid #d0d0d0; background: #ffffff; border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 700; color: #b42318">Remove from board</button>
+</div>
+</sc-if>
+
+<sc-if value="{{showFile}}" hint-placeholder-val="{{false}}">
+<div class="fade-in" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border: 1px solid #0a0a0a; border-radius: 16px; padding: 8px 10px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #6b6b6b; margin-right: 4px">FILE</span>
+<span style="font-size: 13px; color: #3a3a3a; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 360px">{{fileName}}, {{fileMeta}}</span>
+<!-- OPUS: "Open" is a dead link in the prototype. In the app it opens or downloads the stored file. -->
+<a href="#" class="tool" style="margin-left: auto; border: 1px solid #d0d0d0; background: #ffffff; border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 700; color: #0a0a0a">Open</a>
+<button type="button" onClick="{{deleteSel}}" class="tool" style="border: 1px solid #d0d0d0; background: #ffffff; border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 700; color: #b42318">Remove from board</button>
+</div>
+</sc-if>
+
+<sc-if value="{{showCompany}}" hint-placeholder-val="{{false}}">
+<div class="fade-in" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border: 1px solid #0a0a0a; border-radius: 16px; padding: 8px 10px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #6b6b6b; margin-right: 4px">COMPANY</span>
+<span style="font-size: 13px; color: #3a3a3a">Drag it by the card. Use Line to join it to a note.</span>
+<button type="button" onClick="{{deleteSel}}" class="tool" style="margin-left: auto; border: 1px solid #d0d0d0; background: #ffffff; border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 700; color: #b42318">Remove from board</button>
+</div>
+</sc-if>
+</div>
+
+<div id="sp-board" data-board="1" onPointerDown="{{boardDown}}" onPointerMove="{{boardMove}}" onPointerUp="{{boardUp}}" onDragOver="{{onDragOver}}" onDragEnter="{{onDragEnter}}" onDragLeave="{{onDragLeave}}" onDrop="{{onDrop}}" style="position: relative; height: 700px; overflow: hidden; border: 1px solid #e8e8e8; border-radius: 16px; background-color: #fbfbfb; background-image: radial-gradient(#d4d4d4 1.2px, transparent 1.2px); background-size: {{bgSize}} {{bgSize}}; background-position: {{bgPos}}; touch-action: none; user-select: none; cursor: {{boardCursor}}">
+<div style="position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; transform: translate({{view.x}}px, {{view.y}}px) scale({{view.z}})">
+<div aria-hidden="true" style="position: absolute; left: {{bx.x}}px; top: {{bx.y}}px; width: {{bx.w}}px; height: {{bx.h}}px; display: {{bx.disp}}; border: 1.5px dashed #d9481a; background: rgba(217,72,26,0.07); pointer-events: none; z-index: 60"></div>
+
+<div style="position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none">
+<sc-for list="{{groupList}}" as="g" hint-placeholder-count="0">
+<div>
+<div aria-hidden="true" style="position: absolute; left: {{g.x}}px; top: {{g.y}}px; width: {{g.w}}px; height: {{g.h}}px; box-sizing: border-box; border: 1.5px {{g.bs}} {{g.bc}}; border-radius: 18px; background: {{g.bg}}; pointer-events: none"></div>
+<button type="button" onPointerDown="{{g.down}}" onPointerMove="{{g.move}}" onPointerUp="{{g.up}}" aria-label="{{g.aria}}" style="position: absolute; left: {{g.x}}px; top: {{g.y}}px; transform: translateY(calc(-100% - 6px)); height: 24px; max-width: 260px; padding: 0 10px; box-sizing: border-box; border: 1px solid {{g.lbd}}; border-radius: 999px; background: {{g.lbg}}; color: {{g.lfg}}; font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: grab; touch-action: none; pointer-events: {{itemPE}}">{{g.name}}</button>
+</div>
+</sc-for>
+</div>
+
+<div style="position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 1">
+<svg width="1" height="1" style="position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none">
+<sc-for list="{{lineList}}" as="l" hint-placeholder-count="0">
+<g>
+<path d="{{l.d}}" fill="none" stroke="transparent" stroke-width="18" tabIndex="0" role="button" aria-label="{{l.aria}}" onClick="{{l.pick}}" onKeyDown="{{l.key}}" style="pointer-events: {{lineHit}}; cursor: pointer; outline: none"></path>
+<path d="{{l.d}}" fill="none" stroke="{{l.col}}" stroke-width="{{l.th}}" stroke-linecap="round" style="pointer-events: none"></path>
+<polygon points="{{l.h1}}" fill="{{l.col}}" style="pointer-events: none"></polygon>
+<polygon points="{{l.h2}}" fill="{{l.col}}" style="pointer-events: none"></polygon>
+</g>
+</sc-for>
+</svg>
+</div>
+
+<div style="position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: {{itemPE}}">
+<sc-for list="{{items}}" as="it" hint-placeholder-count="3">
+<div id="spi-{{it.iid}}" class="{{it.cls}}" style="position: absolute; left: {{it.x}}px; top: {{it.y}}px; width: {{it.w}}px; z-index: {{it.z}}; rotate: {{it.tilt}}deg">
+
+<sc-if value="{{it.isCompany}}" hint-placeholder-val="{{false}}">
+<div onPointerDown="{{it.down}}" onPointerMove="{{it.move}}" onPointerUp="{{it.up}}" style="box-sizing: border-box; background: #ffffff; border: 1px solid #d0d0d0; border-radius: 14px; padding: 12px 14px; cursor: grab; touch-action: none; box-shadow: {{it.ring}}, 0 6px 16px rgba(0,0,0,.07)">
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px">
+<span class="num" style="font-size: 12px; font-weight: 700; color: #d9481a">#{{it.rank}}</span>
+<span class="num" style="font-size: 18px; font-weight: 700">{{it.price}}</span>
+</div>
+<div style="font-size: 16px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; margin-top: 2px">{{it.name}}</div>
+<div style="font-size: 12px; color: #6b6b6b; margin-top: 2px">{{it.sector}}</div>
+</div>
+</sc-if>
+
+<sc-if value="{{it.isPaper}}" hint-placeholder-val="{{false}}">
+<div class="{{it.paperCls}}" style="box-sizing: border-box; background: {{it.bg}}; color: {{it.fg}}; border: 1px solid {{it.bd}}; border-radius: {{it.rad}}; box-shadow: {{it.ring}}">
+<div onPointerDown="{{it.down}}" onPointerMove="{{it.move}}" onPointerUp="{{it.up}}" aria-label="Move this note" style="height: 22px; display: flex; align-items: center; justify-content: center; cursor: grab; touch-action: none; gap: 4px; opacity: 0.55">
+<span style="width: 4px; height: 4px; border-radius: 999px; background: {{it.fg}}"></span><span style="width: 4px; height: 4px; border-radius: 999px; background: {{it.fg}}"></span><span style="width: 4px; height: 4px; border-radius: 999px; background: {{it.fg}}"></span>
+</div>
+<div style="padding: 0 14px 14px; display: flex; flex-direction: column; gap: 2px">
+<sc-for list="{{it.paras}}" as="p" hint-placeholder-count="2">
+<div style="display: flex; align-items: flex-start; gap: 6px">
+<span class="num" style="flex: 0 0 {{p.markW}}; width: {{p.markW}}; overflow: hidden; text-align: right; font-size: 14px; line-height: 22px; font-weight: 700">{{p.marker}}</span>
+<div style="position: relative; flex: 1 1 auto; min-width: 0">
+<sc-if value="{{p.showFmt}}" hint-placeholder-val="{{false}}">
+<div class="fade-in" role="toolbar" aria-label="Format the selected words" style="position: absolute; left: 0; bottom: 100%; margin-bottom: 8px; z-index: 90; display: inline-flex; gap: 2px; padding: 3px; background: #0a0a0a; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.25)">
+<button type="button" onMouseDown="{{p.keepFocus}}" onClick="{{p.fmtBold}}" aria-pressed="{{p.boldOn}}" aria-label="Bold" style="min-width: 32px; height: 30px; border: 0; border-radius: 8px; background: {{p.boldBg}}; color: #ffffff; font-size: 14px; font-weight: 800; padding: 0 8px">B</button>
+<button type="button" onMouseDown="{{p.keepFocus}}" onClick="{{p.fmtHl}}" aria-pressed="{{p.hlOn}}" aria-label="Highlight" style="height: 30px; border: 0; border-radius: 8px; background: {{p.hlBg}}; color: #ffffff; font-size: 12px; font-weight: 700; padding: 0 10px">Highlight</button>
+</div>
+</sc-if>
+<div aria-hidden="true" style="font-family: {{p.fam}}; white-space: pre-wrap; overflow-wrap: anywhere; padding: 0 4px; font-size: 14px; line-height: 22px; font-weight: 500; text-align: {{p.align}}; min-height: 22px; pointer-events: none"><sc-for list="{{p.runs}}" as="r" hint-placeholder-count="1"><span class="{{r.cls}}" style="background: {{r.bg}}; border-radius: 3px">{{r.t}}</span></sc-for></div>
+<textarea data-pid="{{p.id}}" rows="1" value="{{p.text}}" onChange="{{p.onText}}" onKeyDown="{{p.onKey}}" onFocus="{{p.onFocus}}" onSelect="{{p.onSel}}" onKeyUp="{{p.onSel}}" onMouseUp="{{p.onSel}}" onBlur="{{p.onBlur}}" autoFocus="{{p.autoFocus}}" aria-label="Note text" placeholder="Write here" style="position: absolute; inset: 0; width: 100%; height: 100%; field-sizing: fixed; box-sizing: border-box; resize: none; border: 0; outline: 0; padding: 0 4px; border-radius: 4px; background: transparent; color: transparent; caret-color: {{p.caret}}; font-family: {{p.fam}}; font-size: 14px; line-height: 22px; font-weight: 500; text-align: {{p.align}}; overflow: hidden"></textarea>
+</div>
+</div>
+</sc-for>
+</div>
+<span onPointerDown="{{it.rDown}}" onPointerMove="{{it.rMove}}" onPointerUp="{{it.rUp}}" aria-hidden="true" style="position: absolute; right: 2px; bottom: 2px; width: 14px; height: 14px; cursor: nwse-resize; touch-action: none; opacity: 0.5; background: linear-gradient(135deg, transparent 50%, {{it.fg}} 50%, {{it.fg}} 58%, transparent 58%, transparent 74%, {{it.fg}} 74%, {{it.fg}} 82%, transparent 82%)"></span>
+</div>
+</sc-if>
+
+<sc-if value="{{it.isSnap}}" hint-placeholder-val="{{false}}">
+<div onPointerDown="{{it.down}}" onPointerMove="{{it.move}}" onPointerUp="{{it.up}}" style="box-sizing: border-box; height: 236px; background: #ffffff; border: 1px solid #d0d0d0; border-radius: 14px; padding: 12px 14px; cursor: grab; touch-action: none; display: flex; flex-direction: column; gap: 8px; box-shadow: {{it.ring}}, 0 6px 16px rgba(0,0,0,.07)">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
+<span class="num" style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #6b6b6b">SNAPSHOT</span>
+<span style="display: inline-flex; align-items: center; gap: 4px; border: 1px solid #d0d0d0; border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 600; color: #3a3a3a"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>Frozen</span>
+</div>
+<div style="font-size: 14px; font-weight: 800; line-height: 1.25; letter-spacing: -0.01em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden">{{it.title}}</div>
+<div style="flex: 1 1 auto; min-height: 0; display: flex; align-items: center; gap: 14px">
+<sc-if value="{{it.snapDonut}}" hint-placeholder-val="{{false}}">
+<span aria-hidden="true" style="flex: 0 0 92px; width: 92px; height: 92px; border-radius: 999px; background: {{it.conic}}; display: inline-flex; align-items: center; justify-content: center"><span style="width: 54px; height: 54px; border-radius: 999px; background: #ffffff"></span></span>
+</sc-if>
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 5px">
+<sc-for list="{{it.legend}}" as="lg" hint-placeholder-count="2">
+<span style="display: flex; align-items: flex-start; gap: 6px; font-size: 12px; min-width: 0"><span style="flex: 0 0 auto; width: 10px; height: 10px; border-radius: 3px; margin-top: 3px; background: {{lg.c}}; display: {{lg.sw}}"></span><span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: {{lg.dir}}; justify-content: space-between; gap: {{lg.gap}}; align-items: {{lg.ai}}"><span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: {{lg.fw}}">{{lg.l}}</span><span class="num" style="flex: 0 0 auto; font-weight: 700; color: {{lg.vc}}">{{lg.v}}</span></span></span>
+</sc-for>
+</div>
+</div>
+<div style="font-size: 11px; color: #767676">From the Overview, {{it.when}}</div>
+</div>
+</sc-if>
+
+<sc-if value="{{it.isFile}}" hint-placeholder-val="{{false}}">
+<div onPointerDown="{{it.down}}" onPointerMove="{{it.move}}" onPointerUp="{{it.up}}" style="box-sizing: border-box; height: {{it.h}}px; background: #ffffff; border: 1px solid #d0d0d0; border-radius: 14px; overflow: hidden; cursor: grab; touch-action: none; display: flex; flex-direction: {{it.dir}}; box-shadow: {{it.ring}}, 0 6px 16px rgba(0,0,0,.07)">
+<sc-if value="{{it.isImage}}" hint-placeholder-val="{{false}}">
+<img src="{{it.url}}" alt="{{it.name}}" draggable="false" style="flex: 0 0 150px; width: 100%; height: 150px; object-fit: cover; display: block; background: #f2f2f2">
+</sc-if>
+<sc-if value="{{it.notImage}}" hint-placeholder-val="{{true}}">
+<span aria-hidden="true" style="flex: 0 0 76px; align-self: stretch; background: #f2f2f2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #3a3a3a"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h8.5L19 7v14.5H6z"/><path d="M14.5 2.5V7H19"/></svg><span class="num" style="font-size: 10px; font-weight: 700; letter-spacing: 0.06em">{{it.ext}}</span></span>
+</sc-if>
+<div style="flex: 1 1 auto; min-width: 0; box-sizing: border-box; padding: 10px 12px; display: flex; flex-direction: column; justify-content: center; gap: 3px">
+<span style="font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{it.name}}</span>
+<span style="font-size: 11px; color: {{it.metaFg}}">{{it.meta}}</span>
+<sc-if value="{{it.uploading}}" hint-placeholder-val="{{false}}">
+<span aria-hidden="true" style="display: block; height: 4px; border-radius: 999px; background: #e8e8e8; overflow: hidden"><span style="display: block; height: 4px; width: {{it.pct}}%; background: #d9481a"></span></span>
+</sc-if>
+<sc-if value="{{it.failed}}" hint-placeholder-val="{{false}}">
+<button type="button" onPointerDown="{{it.stop}}" onClick="{{it.retry}}" style="align-self: flex-start; border: 0; background: #b42318; color: #ffffff; border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 700">Try again</button>
+</sc-if>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{it.linkOn}}" hint-placeholder-val="{{false}}">
+<button type="button" onClick="{{it.link}}" aria-label="{{it.linkAria}}" style="position: absolute; inset: 0; border: 2px dashed {{it.linkBd}}; border-radius: 14px; background: rgba(217,72,26,{{it.linkFill}}); padding: 0; cursor: crosshair"></button>
+</sc-if>
+</div>
+</sc-for>
+</div>
+
+<div style="position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 45">
+<sc-for list="{{lineList}}" as="l" hint-placeholder-count="0">
+<button type="button" tabIndex="-1" onClick="{{l.pick}}" aria-label="{{l.aria}}" style="position: absolute; left: {{l.lx}}px; top: {{l.ly}}px; transform: translate(-50%, -50%); display: {{l.labelDisp}}; max-width: 170px; box-sizing: border-box; padding: 2px 9px; border: 1px solid {{l.lbd}}; border-radius: 999px; background: #ffffff; color: #0a0a0a; font-size: 12px; font-weight: 600; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; pointer-events: {{linePE}}">{{l.label}}</button>
+</sc-for>
+</div>
+
+<svg width="1" height="1" aria-hidden="true" style="position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 40">
+<path d="{{markD}}" fill="none" stroke="rgba(217,72,26,0.32)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="{{penD}}" fill="none" stroke="#0a0a0a" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+</div>
+<sc-if value="{{showEmpty}}" hint-placeholder-val="{{false}}">
+<div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; pointer-events: none">
+<div style="text-align: center; max-width: 400px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 18px; font-weight: 800; letter-spacing: -0.02em">Nothing on the board yet</span>
+<span style="font-size: 13px; line-height: 1.5; color: #6b6b6b">Drag a company from the list, drop a file or an image here, paste a picture, or add a note. Undo takes back anything.</span>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{showDrop}}" hint-placeholder-val="{{false}}">
+<div aria-hidden="true" style="position: absolute; inset: 0; z-index: 80; box-sizing: border-box; border: 2px dashed #d9481a; border-radius: 16px; background: rgba(217,72,26,0.06); display: flex; align-items: center; justify-content: center; pointer-events: none">
+<span style="background: #ffffff; border: 1px solid #d9481a; border-radius: 999px; padding: 10px 18px; font-size: 14px; font-weight: 700; color: #0a0a0a">Drop to put it on the board</span>
+</div>
+</sc-if>
+<sc-if value="{{hasNotice}}" hint-placeholder-val="{{false}}">
+<div role="alert" class="fade-in" style="position: absolute; left: 16px; right: 16px; margin: 0 auto; top: 12px; z-index: 90; width: fit-content; max-width: 520px; box-sizing: border-box; display: flex; align-items: flex-start; gap: 12px; background: #0a0a0a; color: #ffffff; border-radius: 14px; padding: 10px 10px 10px 16px; font-size: 13px; line-height: 1.45; box-shadow: 0 8px 24px rgba(0,0,0,.2)">
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+<sc-for list="{{noticeLines}}" as="n" hint-placeholder-count="1"><span>{{n.t}}</span></sc-for>
+</span>
+<button type="button" onClick="{{dismissNotice}}" aria-label="Dismiss this message" style="flex: 0 0 auto; width: 24px; height: 24px; border: 0; border-radius: 999px; background: rgba(255,255,255,.16); color: #ffffff; padding: 0; display: inline-flex; align-items: center; justify-content: center"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</div>
+</sc-if>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; border: 1px solid #e8e8e8; border-radius: 16px; padding: 10px 12px; min-height: 60px; box-sizing: border-box; background: #ffffff">
+<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.1em; color: #6b6b6b">CARRY TRAY</span>
+<sc-if value="{{carryEmpty}}" hint-placeholder-val="{{false}}">
+<span style="font-size: 13px; color: #767676; flex: 1 1 240px">Nothing carried yet. On the Overview, press Carry the circle or Carry the list, then drag it from here onto the board.</span>
+</sc-if>
+<sc-for list="{{carryChips}}" as="c" hint-placeholder-count="2">
+<div draggable="true" onDragStart="{{c.dragStart}}" style="display: flex; align-items: center; gap: 6px; border: 1px solid #d0d0d0; border-radius: 12px; padding: 6px 6px 6px 12px; background: #ffffff; cursor: grab; max-width: 360px; min-width: 0">
+<span style="min-width: 0; display: flex; flex-direction: column"><span style="font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{c.title}}</span><span style="font-size: 11px; color: #6b6b6b">{{c.sub}}</span></span>
+<button type="button" onClick="{{c.add}}" aria-label="Put {{c.title}} on the board" class="tool" style="flex: 0 0 auto; width: 28px; height: 28px; border: 1px solid #d0d0d0; border-radius: 999px; background: #ffffff; padding: 0; display: inline-flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+<button type="button" onClick="{{c.drop}}" aria-label="Take {{c.title}} out of the tray" class="tool" style="flex: 0 0 auto; width: 28px; height: 28px; border: 0; border-radius: 999px; background: transparent; padding: 0; display: inline-flex; align-items: center; justify-content: center; color: #6b6b6b"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</div>
+</sc-for>
+</div>
+
+<span style="font-size: 12px; color: #767676; text-align: center">Sample companies come from the same generated rows as the Overview. In this prototype dropped files stay in this browser tab; in the app they are stored on the server.</span>
+</div>
+</section>
+
+</div>
+
+<sc-if value="{{showKeys}}" hint-placeholder-val="{{false}}">
+<div onClick="{{toggleKeys}}" aria-hidden="true" style="position: fixed; inset: 0; z-index: 40"></div>
+<div style="position: fixed; inset: 0; z-index: 41; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; pointer-events: none">
+<div class="kb-pop" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" style="filter: {{themeFilter}}; pointer-events: auto; width: 860px; max-width: 100%; max-height: min(700px, calc(100vh - 48px)); box-sizing: border-box; background: #ffffff; border: 1px solid #0a0a0a; border-radius: 14px; box-shadow: 0 18px 48px rgba(0,0,0,.18); overflow: hidden; display: flex; flex-direction: column; text-align: left; font-size: 13px">
+<div style="display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px 20px">
+<span style="font-size: 16px; font-weight: 800; letter-spacing: -0.01em">Keyboard shortcuts</span>
+<button type="button" onClick="{{toggleKeys}}" aria-label="Close shortcuts" style="margin-left: auto; width: 28px; height: 28px; border: 0; border-radius: 999px; background: #f2f2f2; padding: 0; display: inline-flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; padding: 0 20px 14px">
+<div style="flex: 1 1 auto; display: flex; align-items: center; gap: 8px; border: 1px solid #d0d0d0; border-radius: 999px; padding: 0 14px">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" style="color: #6b6b6b"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+<input id="kbq" type="text" value="{{kbQ}}" onChange="{{onKbQ}}" placeholder="Search by name, what it does, or the key" autocomplete="off" style="flex: 1 1 auto; min-width: 0; border: 0; outline: 0; background: transparent; padding: 10px 0; font-size: 14px; color: #0a0a0a">
+</div>
+<button type="button" onClick="{{resetAll}}" class="chip-btn" style="flex: 0 0 auto; border: 1px solid #d0d0d0; background: #ffffff; color: #0a0a0a; border-radius: 999px; padding: 9px 16px; font-size: 13px; font-weight: 700">Reset</button>
+</div>
+<div style="display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 2fr) minmax(0, 1.15fr); padding: 8px 0 8px 20px; border-top: 1px solid #e8e8e8; border-bottom: 1px solid #e8e8e8; background: #f7f7f7; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #6b6b6b">
+<span>FUNCTION</span><span>WHAT IT DOES</span><span>KEY</span>
+</div>
+<div style="flex: 1 1 auto; min-height: 120px; overflow: auto">
+<sc-for list="{{kbRows}}" as="r" hint-placeholder-count="6">
+<div>
+<div class="{{r.rowCls}}" style="display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 2fr) minmax(0, 1.15fr); align-items: center; min-height: 48px; padding-left: 20px; border-top: 1px solid #efefef">
+<span style="font-size: 14px; line-height: 1.35; font-weight: 600; color: #0a0a0a; padding: 10px 10px 10px 0; min-width: 0">{{r.name}}</span>
+<span style="font-size: 13px; line-height: 1.4; color: #3a3a3a; padding-right: 12px">{{r.desc}}</span>
+<span style="display: flex; align-items: center; min-width: 0; padding-right: 10px">
+<sc-if value="{{r.editing}}" hint-placeholder-val="{{false}}">
+<span style="display: flex; align-items: center; gap: 4px; flex: 1 1 auto; min-width: 0; border: 1px solid #0a0a0a; border-radius: 6px; padding: 3px 6px; background: #ffffff">
+<sc-for list="{{r.caps}}" as="k" hint-placeholder-count="0"><span class="{{k.cls}}">{{k.t}}</span></sc-for>
+<input readonly autoFocus="{{r.editing}}" onKeyDown="{{r.recKey}}" aria-label="Press the new key" placeholder="{{r.recHint}}" style="flex: 1 1 60px; min-width: 60px; border: 0; outline: 0; background: transparent; font-size: 12px; color: #0a0a0a; padding: 2px 0">
+</span>
+</sc-if>
+<sc-if value="{{r.notEditing}}" hint-placeholder-val="{{true}}">
+<button type="button" class="kb-key" onClick="{{r.edit}}" disabled="{{r.locked}}" aria-label="{{r.keyAria}}" title="Click to change this key">
+<sc-for list="{{r.caps}}" as="k" hint-placeholder-count="1"><span class="{{k.cls}}">{{k.t}}</span></sc-for>
+<span style="display: {{r.noKeysDisp}}; font-size: 12px; color: #767676">Click to set a key</span>
+<span title="This key is also used by another function" style="display: {{r.warnDisp}}; margin-left: 4px; color: #b42318; font-size: 11px; font-weight: 700">CONFLICT</span>
+</button>
+</sc-if>
+</span>
+</div>
+<sc-if value="{{r.hasMsg}}" hint-placeholder-val="{{false}}">
+<div class="fade-in" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 14px 12px 20px; background: #fff7f6; border-top: 1px solid #f6d6d2; font-size: 12px; color: #8a1c12">
+<span style="flex: 1 1 240px">{{r.msg}}</span>
+<button type="button" onClick="{{r.take}}" style="display: {{r.takeDisp}}; border: 0; background: #0a0a0a; color: #ffffff; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 700">Take it over</button>
+<button type="button" onClick="{{r.cancel}}" style="border: 1px solid #d0d0d0; background: #ffffff; color: #0a0a0a; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 700">Cancel</button>
+</div>
+</sc-if>
+</div>
+</sc-for>
+<sc-if value="{{kbNone}}" hint-placeholder-val="{{false}}">
+<div style="border-top: 1px solid #efefef; padding: 22px 20px; font-size: 14px; color: #6b6b6b">Nothing matches your search.</div>
+</sc-if>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{false}}">
+<div role="status" class="fade-in" style="filter: {{themeFilter}}; position: fixed; left: 0; right: 0; margin: 0 auto; width: max-content; bottom: 24px; z-index: 60; max-width: calc(100vw - 32px); background: #0a0a0a; color: #ffffff; border-radius: 999px; padding: 10px 18px; font-size: 13px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,.2)">{{toast}}</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":1100}}'>
+class Component extends DCLogic {
+  // Prototype only: the tab is a link to the other board. Clicking it from a key does the same. In the app this is the router.
+  goPage(linkId, fallback) {
+    const a = document.getElementById(linkId);
+    if (a) a.click(); else this.say(fallback);
+  }
+
+  rows() {
+    if (this._rows) return this._rows;
+    let a = 11;
+    const r = () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    const P = ['Northwind','Blue Harbor','Al Noor','Desert Star','Summit','Crescent','Oasis','Falcon','Silverline','Red Dune','Muscat','Sohar','Nizwa','Salalah','Coastal','Granite','Horizon','Atlas','Meridian','Pearl','Cedar','Ironwood','Bright Path','Old Port','Greenfield'];
+    const C = ['Logistics','Energy','Foods','Systems','Mining','Telecom','Pharma','Shipping','Textiles','Cement','Water','Aviation','Robotics','Analytics','Steel','Agritech','Fisheries','Petrochemicals','Ports','Insurance','Retail','Construction','Solar','Healthcare','Finance'];
+    const S = ['Group','Holdings','Co','Industries','Partners','Works','LLC','SAOG','International',''];
+    const seen = new Set(); const out = [];
+    while (out.length < 268) {
+      const name = [P[r() * P.length | 0], C[r() * C.length | 0], S[r() * S.length | 0]].filter(Boolean).join(' ');
+      if (seen.has(name)) continue;
+      seen.add(name);
+      const sector = r() < 0.54 ? 'Private Sector' : 'Public Sector';
+      const price = r() < 0.06 ? null : Math.round(r() * 10000) / 1000;
+      const year = r() < 0.06 ? null : 1995 + Math.floor(31 * Math.pow(r(), 0.75));
+      out.push({ name, sector, price, year });
+    }
+    const ranked = out.filter(x => x.price !== null).sort((x, y) => y.price - x.price);
+    ranked.forEach((x, i) => { x.rank = i + 1; });
+    return (this._rows = out);
+  }
+
+  para(text, o) { return Object.assign({ id: this.nid(), text, list: 'none', align: 'left', hl: false, bold: false }, o || {}); }
+  nid() { this._id = (this._id || 100) + 1; return this._id; }
+
+  seed() {
+    if (this._seed) return this._seed;
+    const top = this.rows().filter(x => x.price !== null).sort((x, y) => y.price - x.price).slice(0, 3);
+    const co = (x, i, px, py) => ({ id: i, type: 'company', x: px, y: py, w: 236, name: x.name, sector: x.sector, price: '$' + x.price.toFixed(3), rank: x.rank });
+    const items = [
+      co(top[0], 1, 40, 56), co(top[1], 2, 40, 206), co(top[2], 3, 40, 356),
+      { id: 4, type: 'sticky', x: 360, y: 70, w: 250, tilt: -2, tone: 'orange', paras: [
+        this.para('To check', { bold: true }),
+        this.para('Why is #1 so far ahead?', { list: 'bullet' }),
+        this.para('Is #3 a duplicate?', { list: 'bullet', hl: true }),
+        this.para('Who owns the price field?', { list: 'bullet' })] },
+      { id: 5, type: 'text', x: 360, y: 300, w: 270, tilt: 0, tone: 'white', paras: [
+        this.para('Next steps', { bold: true }),
+        this.para('Ask finance for the real prices', { list: 'number' }),
+        this.para('Merge the duplicates', { list: 'number' }),
+        this.para('Re-run the Overview on Monday', { list: 'number' })] },
+      { id: 6, type: 'sticky', x: 690, y: 120, w: 210, tilt: 3, tone: 'white', paras: [
+        this.para('Public vs Private', { bold: true, align: 'center' }),
+        this.para('Same average, very different top end.', { align: 'center' })] }
+    ];
+    const lines = [{ id: 7, a: 1, b: 4, head: 'end', bend: 0, label: 'why so far ahead' }, { id: 8, a: 3, b: 4, head: 'end', bend: 0, label: 'maybe a duplicate' }, { id: 9, a: 4, b: 6, head: 'none', bend: 1, label: '' }];
+    const groups = [{ id: 10, name: 'Top three', ids: [1, 2, 3] }];
+    const strokes = [{ kind: 'mark', pts: [[376, 118], [420, 124], [470, 118], [520, 124], [566, 119]] }];
+    return (this._seed = { items, lines, strokes, groups });
+  }
+
+  // When the button that had focus disappears (adding a company removes its + button), the browser drops focus on the page body and
+  // key presses, including Ctrl+Z, stop reaching the page. Take focus back so undo keeps working. In the app a document level listener does this.
+  componentDidUpdate() {
+    const d = typeof document !== 'undefined' ? document : null;
+    // Something new that wants typing straight away (a group's name, a line's label)
+    const fid = this._focusId;
+    this._focusId = null;
+    if (fid && d) { const fe = d.getElementById(fid); if (fe) { try { fe.focus({ preventScroll: true }); fe.select(); } catch (err) { /* it went away */ } } }
+    const ae = d && d.activeElement;
+    // a button that became disabled keeps focus but no longer receives keys, so treat it like focus lost
+    if (this._keepSel) {
+      const k = this._keepSel;
+      this._keepSel = null;
+      const ta = d && d.querySelector('textarea[data-pid="' + k.para + '"]');
+      if (ta) { try { ta.focus({ preventScroll: true }); ta.setSelectionRange(k.s, k.e); } catch (e) { /* the note was removed */ } }
+    }
+    this.attachWheel();
+    this.measure();
+    if (!d || (ae && ae !== d.body && !ae.disabled)) return;
+    const el = d.getElementById('sp-root');
+    if (el) el.focus({ preventScroll: true });
+  }
+
+  // OPUS: lines and group outlines need the real size of each card. The board reads it from the page after every draw and draws again only when
+  // something changed. In the app use whatever the framework gives for element sizes (a resize observer), the idea is the same.
+  measure() {
+    const d = typeof document !== 'undefined' ? document : null;
+    if (!d) return;
+    const hs = this._hs || (this._hs = {});
+    let changed = false;
+    d.querySelectorAll('[id^="spi-"]').forEach(n => {
+      const id = n.id.slice(4);
+      const h = n.offsetHeight;
+      if (h && Math.abs((hs[id] || 0) - h) > 1) { hs[id] = h; changed = true; }
+    });
+    if (changed) this.setState({ hv: ((this.state || {}).hv || 0) + 1 });
+  }
+
+  effective(cmds, bind) {
+    const m = {};
+    cmds.forEach(c => { m[c.id] = Object.prototype.hasOwnProperty.call(bind, c.id) ? bind[c.id] : c.def; });
+    return m;
+  }
+
+  // One key press as text, like "Ctrl+Z", "G" or "Esc". Letters are upper case, symbols are as typed.
+  combo(e) {
+    const k = e.key;
+    if (k === 'Control' || k === 'Shift' || k === 'Alt' || k === 'Meta') return null;
+    const names = { Escape: 'Esc', ArrowLeft: 'Left', ArrowRight: 'Right', ArrowUp: 'Up', ArrowDown: 'Down', ' ': 'Space', '+': 'Plus' };
+    const name = names[k] || (k.length === 1 ? k.toUpperCase() : k);
+    const letter = k.length === 1 && /[a-z]/i.test(k);
+    const mods = [];
+    if (e.ctrlKey) mods.push('Ctrl');
+    if (e.altKey) mods.push('Alt');
+    if (e.shiftKey && (letter || k.length > 1)) mods.push('Shift');
+    if (e.metaKey) mods.push('Cmd');
+    return mods.concat([name]).join('+');
+  }
+
+  show(c) {
+    const sym = { Left: '←', Right: '→', Up: '↑', Down: '↓', Plus: '+' };
+    return c.split('+').map(p => sym[p] || p).join('+');
+  }
+
+  capsOf(keys) {
+    const sym = { Left: '←', Right: '→', Up: '↑', Down: '↓', Plus: '+' };
+    const out = [];
+    (keys || []).forEach((k, i) => {
+      if (i) out.push({ t: 'then', sep: true });
+      k.split('+').forEach(p => out.push({ t: sym[p] || p, sep: false }));
+    });
+    return out;
+  }
+
+  // Keys the browser or the system keeps for itself, a page can never use these reliably
+  reservedKeys() {
+    return ['Ctrl+T', 'Ctrl+W', 'Ctrl+N', 'Ctrl+Shift+T', 'Ctrl+Shift+N', 'Ctrl+Tab', 'Ctrl+PageUp', 'Ctrl+PageDown', 'Ctrl+R', 'F5', 'F11', 'F12', 'Ctrl+L', 'Ctrl+Q',
+      'Alt+Left', 'Alt+Right', 'Alt+F4', 'Ctrl+F', 'Ctrl+P', 'Ctrl+S', 'Ctrl+A', 'Ctrl+C', 'Ctrl+V', 'Ctrl+X', 'Ctrl+Left', 'Ctrl+Right',
+      'Cmd+T', 'Cmd+W', 'Cmd+N', 'Cmd+Q', 'Cmd+R', 'Tab', 'Enter', 'Backspace', 'Delete', 'Space'];
+  }
+
+  overlap(a, b) { return a.scope === 'global' || b.scope === 'global' || a.scope === b.scope; }
+
+  // Commands that would fight over these keys: the same keys, or one is the first half of the other's two key sequence
+  conflicts(cmds, B, target, keys) {
+    if (!keys || !keys.length) return [];
+    return cmds.filter(c => {
+      if (c.id === target.id || !this.overlap(c, target)) return false;
+      const o = B[c.id];
+      if (!o || !o.length) return false;
+      const same = o.join(' ') === keys.join(' ');
+      const prefix = (o.length === 1 && keys.length === 2 && keys[0] === o[0]) || (keys.length === 1 && o.length === 2 && o[0] === keys[0]);
+      return same || prefix;
+    });
+  }
+
+  say(text) {
+    this.setState({ toast: text });
+    clearTimeout(this._tt);
+    this._tt = setTimeout(() => this.setState({ toast: null }), 2400);
+  }
+
+  // Light or dark. The board always opens in light so reviews start the same way. The real app should start from the system setting.
+  isDark() {
+    return !!((this.state || {}).dark);
+  }
+
+  startRec(id) { this._rk = []; this.setState({ rec: { id, keys: [], error: '', conflict: '', canTake: false }, kbSel: id }); }
+
+  checkRec(rec, keys) {
+    const kb = this.kb;
+    const cmds = this.cmds(kb.views);
+    const B = this.effective(cmds, kb.bind);
+    const target = cmds.find(c => c.id === rec.id) || { id: rec.id, scope: 'overview' };
+    const bad = keys.filter(k => this.reservedKeys().indexOf(k) >= 0)[0];
+    const confl = bad ? [] : this.conflicts(cmds, B, target, keys);
+    return Object.assign({}, rec, {
+      keys,
+      error: bad ? 'The browser keeps ' + this.show(bad) + ' for itself, so a web page cannot use it. Press a different key.' : '',
+      conflict: confl.length ? (confl[0].name || confl[0].label) : ''
+    });
+  }
+
+  // The key box: the first key pressed is the new key and it is applied at once, no Enter and no Save.
+  // Only two things stop it: a key the browser keeps for itself, and a key another function already uses (the person decides).
+  recKey(e) {
+    e.stopPropagation();
+    const rec = (this.state || {}).rec;
+    if (!rec) return;
+    const k = e.key;
+    if (k === 'Tab') return;
+    e.preventDefault();
+    if (k === 'Escape') { this._rk = null; this.setState({ rec: null }); return; }
+    const c = this.combo(e);
+    if (!c) return;
+    const next = this.checkRec(rec, [c]);
+    if (next.error || next.conflict) { this.setState({ rec: next }); return; }
+    this.confirmRec(false, next);
+  }
+
+  confirmRec(force, recArg) {
+    const rec = recArg || (this.state || {}).rec;
+    if (!rec || !rec.keys.length || rec.error) return;
+    if (rec.conflict && !force) return;
+    this._rk = null;
+    const kb = this.kb;
+    const cmds = this.cmds(kb.views);
+    const B = this.effective(cmds, kb.bind);
+    const target = cmds.find(c => c.id === rec.id);
+    const bind = Object.assign({}, kb.bind);
+    // Take it over: the other function gives the key up and has no shortcut until the person sets a new one
+    if (rec.conflict) this.conflicts(cmds, B, target, rec.keys).forEach(c => { bind[c.id] = []; });
+    bind[rec.id] = rec.keys;
+    this.saveBind(bind);
+    this.setState({ bind, rec: null });
+    this.say((target.name || target.label) + ' now uses ' + rec.keys.map(k => this.show(k)).join(' then ') + (rec.conflict ? '. ' + rec.conflict + ' has no key now.' : ''));
+  }
+
+  get S() {
+    const s = this.state || {};
+    const sd = this.seed();
+    return {
+      items: s.items || sd.items, lines: s.lines || sd.lines, strokes: s.strokes || sd.strokes, groups: s.groups || sd.groups, draft: s.draft || null,
+      view: s.view || this.loadView(), tool: s.tool || 'select', sel: s.sel || null, multi: s.multi || [], box: s.box || null, tsel: s.tsel || null, linkFrom: s.linkFrom || null,
+      fp: s.fp || null, q: s.q || ''
+    };
+  }
+
+  // The real height of a card, read from the page after it is drawn. The guess below is only used until then.
+  est(it) {
+    const m = this._hs && this._hs[it.id];
+    if (m) return m;
+    if (it.type === 'company') return 82;
+    if (it.type === 'snap') return 236;
+    if (it.type === 'file') return this.isImg(it) ? 214 : 92;
+    const w = Math.max(60, it.w - 64);
+    return 22 + 14 + it.paras.reduce((sum, p) => sum + Math.max(1, Math.ceil(((p.text || ' ').length * 7.6) / w)) * 22 + 2, 0);
+  }
+
+  scaleOf(el) {
+    const b = el.closest('[data-board]');
+    const r = b.getBoundingClientRect();
+    return b.offsetWidth ? r.width / b.offsetWidth : 1;
+  }
+
+  world(e, el) {
+    const b = el.closest ? (el.closest('[data-board]') || el) : el;
+    const r = b.getBoundingClientRect();
+    const sc = b.offsetWidth ? r.width / b.offsetWidth : 1;
+    const v = this.S.view;
+    return [((e.clientX - r.left) / sc - v.x) / v.z, ((e.clientY - r.top) / sc - v.y) / v.z];
+  }
+
+  setItems(items) { this.setState({ items }); }
+  patchItem(id, patch) { this.setItems(this.S.items.map(i => i.id === id ? Object.assign({}, i, patch) : i)); }
+  patchPara(itemId, paraId, patch) {
+    this.setItems(this.S.items.map(i => i.id !== itemId ? i : Object.assign({}, i, { paras: i.paras.map(p => p.id === paraId ? Object.assign({}, p, patch) : p) })));
+  }
+
+  // History. Every change that should be undoable calls mark() first, so the picture before it is kept.
+  snap() { const S = this.S; return { items: S.items, lines: S.lines, strokes: S.strokes, groups: S.groups }; }
+  mark() {
+    const past = this._past || (this._past = []);
+    past.push(this.snap());
+    if (past.length > 80) past.shift();
+    this._future = [];
+    this._typeKey = null;
+    // Every change is saved on its own. The prototype only shows the small status, in the app this is the save call.
+    this.setState({ hist: [past.length, 0], saving: true });
+    clearTimeout(this._svt);
+    this._svt = setTimeout(() => this.setState({ saving: false }), 700);
+  }
+  // Typing in one paragraph counts as a single step until you pause or move on
+  markTyping(key) {
+    const now = Date.now();
+    if (this._typeKey !== key || now - (this._typeAt || 0) > 900) this.mark();
+    this._typeKey = key;
+    this._typeAt = now;
+  }
+  // OPUS: undo is essential here, see the note in onKey below. The history shape in this prototype is only a sketch, rebuild it as you see fit.
+  undo() {
+    const past = this._past || [];
+    if (!past.length) return;
+    const fut = this._future || (this._future = []);
+    fut.push(this.snap());
+    const s = past.pop();
+    this._typeKey = null;
+    this.setState({ items: this.fixUp(s.items), lines: s.lines, strokes: s.strokes, groups: s.groups, sel: null, multi: [], tsel: null, fp: null, draft: null, hist: [past.length, fut.length] });
+  }
+  redo() {
+    const fut = this._future || [];
+    if (!fut.length) return;
+    const past = this._past || (this._past = []);
+    past.push(this.snap());
+    const s = fut.pop();
+    this._typeKey = null;
+    this.setState({ items: this.fixUp(s.items), lines: s.lines, strokes: s.strokes, groups: s.groups, sel: null, multi: [], tsel: null, fp: null, draft: null, hist: [past.length, fut.length] });
+  }
+
+  // The nearest empty spot in what you can see, so a new item never lands on top of another
+  freeSpot(w, h, extra) {
+    const S = this.S, z = S.view.z;
+    const x0 = -S.view.x / z, y0 = -S.view.y / z, VW = 840 / z, VH = 640 / z;
+    const boxes = S.items.map(i => ({ x: i.x - 12, y: i.y - 12, w: i.w + 24, h: this.est(i) + 24 })).concat(extra || []);
+    const cx = x0 + VW / 2 - w / 2, cy = y0 + VH / 2 - h / 2;
+    const cands = [];
+    for (let px = x0 + 20; px <= x0 + VW - w - 20; px += 30) for (let py = y0 + 20; py <= y0 + VH - h - 20; py += 30) cands.push([px, py]);
+    cands.sort((a, b) => Math.hypot(a[0] - cx, a[1] - cy) - Math.hypot(b[0] - cx, b[1] - cy));
+    const hit = c => boxes.some(b => c[0] < b.x + b.w && c[0] + w > b.x && c[1] < b.y + b.h && c[1] + h > b.y);
+    return cands.find(c => !hit(c)) || [cx, cy];
+  }
+
+  addCompany(name, at) {
+    const S = this.S;
+    const ex = S.items.find(i => i.type === 'company' && i.name === name);
+    if (ex) { this.setState({ sel: { type: 'item', id: ex.id } }); return; }
+    const x = this.rows().find(r => r.name === name);
+    if (!x) return;
+    const spot = at ? [at[0] - 118, at[1] - 40] : this.freeSpot(236, 82);
+    const id = this.nid();
+    this.mark();
+    this.setState({
+      items: S.items.concat([{ id, type: 'company', x: spot[0], y: spot[1], w: 236, name: x.name, sector: x.sector, price: x.price === null ? 'no price' : '$' + x.price.toFixed(3), rank: x.rank || '–', fresh: true }]),
+      sel: { type: 'item', id }, multi: []
+    });
+  }
+
+  addPaper(type) {
+    const S = this.S;
+    const n = S.items.length;
+    const id = this.nid();
+    const p = this.para('');
+    const spot = this.freeSpot(220, 90);
+    this.mark();
+    this.setState({
+      items: S.items.concat([{ id, type, x: spot[0], y: spot[1], w: 220, tilt: type === 'sticky' ? (((n * 37) % 9) - 4) * 0.8 : 0, tone: 'white', paras: [p], fresh: true }]),
+      sel: { type: 'item', id }, multi: [], fp: { item: id, id: p.id, fresh: true }
+    });
+  }
+
+  fmt(fn) {
+    const S = this.S;
+    if (!S.sel || S.sel.type !== 'item') return;
+    this.mark();
+    this.setItems(S.items.map(i => {
+      if (i.id !== S.sel.id || !i.paras) return i;
+      const target = S.fp && S.fp.item === i.id ? [S.fp.id] : i.paras.map(p => p.id);
+      return Object.assign({}, i, { paras: i.paras.map(p => target.indexOf(p.id) >= 0 ? fn(p, target.length) : p) });
+    }));
+  }
+
+  // ---- fonts: 27 Google fonts, one font per note. ----
+  // OPUS: the board keeps the font on the whole note, not on single words, because the text is drawn twice (a styled copy under a see through
+  // text box) and two different fonts would not line up. With a real rich text editor the font belongs on the text span like bold and
+  // highlight do, so one note can mix fonts. The list and the look of the picker are the design, the rest is yours.
+  fontList() {
+    return [
+      ['Inter', 'Sans serif', 'sans-serif'], ['Poppins', 'Sans serif', 'sans-serif'], ['Montserrat', 'Sans serif', 'sans-serif'], ['Work Sans', 'Sans serif', 'sans-serif'], ['DM Sans', 'Sans serif', 'sans-serif'],
+      ['Nunito', 'Sans serif', 'sans-serif'], ['Lato', 'Sans serif', 'sans-serif'], ['Open Sans', 'Sans serif', 'sans-serif'], ['Raleway', 'Sans serif', 'sans-serif'],
+      ['Playfair Display', 'Serif', 'serif'], ['Merriweather', 'Serif', 'serif'], ['Lora', 'Serif', 'serif'], ['Libre Baskerville', 'Serif', 'serif'], ['Cormorant Garamond', 'Serif', 'serif'], ['Source Serif 4', 'Serif', 'serif'],
+      ['JetBrains Mono', 'Monospace', 'monospace'], ['IBM Plex Mono', 'Monospace', 'monospace'], ['Space Mono', 'Monospace', 'monospace'],
+      ['Oswald', 'Display', 'sans-serif'], ['Bebas Neue', 'Display', 'sans-serif'], ['Abril Fatface', 'Display', 'serif'], ['Lobster', 'Display', 'cursive'],
+      ['Caveat', 'Handwriting', 'cursive'], ['Pacifico', 'Handwriting', 'cursive'], ['Shadows Into Light', 'Handwriting', 'cursive'], ['Permanent Marker', 'Handwriting', 'cursive'], ['Dancing Script', 'Handwriting', 'cursive'], ['Indie Flower', 'Handwriting', 'cursive']
+    ].map(f => ({ name: f[0], cat: f[1], css: "'" + f[0] + "', " + f[2] }));
+  }
+  fontCss(name) { const f = this.fontList().find(x => x.name === name); return f ? f.css : "'Inter', 'Segoe UI', system-ui, sans-serif"; }
+
+  // ---- text spans: a note's text is a list of runs {t, b, h}. Bold and highlight belong to the characters, not to the paragraph. ----
+  runsOf(p) { if (p.runs) return p.runs; return p.text ? [{ t: p.text, b: !!p.bold, h: !!p.hl }] : []; }
+  textOf(runs) { return runs.map(r => r.t).join(''); }
+  mergeRuns(runs) {
+    const out = [];
+    runs.forEach(r => {
+      if (!r.t) return;
+      const last = out[out.length - 1];
+      if (last && !!last.b === !!r.b && !!last.h === !!r.h) out[out.length - 1] = { t: last.t + r.t, b: !!r.b, h: !!r.h };
+      else out.push({ t: r.t, b: !!r.b, h: !!r.h });
+    });
+    return out;
+  }
+  sliceRuns(runs, s, e) {
+    const out = [];
+    let pos = 0;
+    runs.forEach(r => {
+      const a = Math.max(s, pos), b = Math.min(e, pos + r.t.length);
+      if (b > a) out.push({ t: r.t.slice(a - pos, b - pos), b: r.b, h: r.h });
+      pos += r.t.length;
+    });
+    return out;
+  }
+  // key is 'b' (bold) or 'h' (highlight). True when every character in the range has it.
+  allHave(runs, s, e, key) { const mid = this.sliceRuns(runs, s, e); return mid.length > 0 && mid.every(r => !!r[key]); }
+  applyRange(runs, s, e, key, on) {
+    const len = this.textOf(runs).length;
+    const mid = this.sliceRuns(runs, s, e).map(r => Object.assign({}, r, { [key]: on }));
+    return this.mergeRuns(this.sliceRuns(runs, 0, s).concat(mid, this.sliceRuns(runs, e, len)));
+  }
+  // Typing: what did not change keeps its formatting, new characters take the formatting of the character before them
+  editRuns(runs, nt) {
+    const ot = this.textOf(runs);
+    let p = 0;
+    const m = Math.min(ot.length, nt.length);
+    while (p < m && ot[p] === nt[p]) p++;
+    let q = 0;
+    while (q < m - p && ot[ot.length - 1 - q] === nt[nt.length - 1 - q]) q++;
+    const left = this.sliceRuns(runs, 0, p), right = this.sliceRuns(runs, ot.length - q, ot.length);
+    const ref = left.length ? left[left.length - 1] : (right[0] || { b: false, h: false });
+    return this.mergeRuns(left.concat([{ t: nt.slice(p, nt.length - q), b: !!ref.b, h: !!ref.h }], right));
+  }
+  curPara(itemId, paraId) {
+    const it = this.S.items.find(i => i.id === itemId);
+    return it && it.paras ? it.paras.find(q => q.id === paraId) : null;
+  }
+  // The words a format button works on: the selected words, or when nothing is selected, all the text of the note
+  spanTargets(item) {
+    if (!item || !item.paras) return [];
+    const t = this.S.tsel;
+    let out;
+    if (t && t.item === item.id && t.s !== t.e) { const p = item.paras.find(q => q.id === t.para); out = p ? [{ p, s: t.s, e: t.e }] : []; }
+    else out = item.paras.map(p => ({ p, s: 0, e: (p.text || '').length }));
+    return out.filter(x => x.e > x.s);
+  }
+  applySpan(itemId, key) {
+    const S = this.S;
+    const item = S.items.find(i => i.id === itemId);
+    const targets = this.spanTargets(item);
+    if (!targets.length) return;
+    const on = !targets.every(x => this.allHave(this.runsOf(x.p), x.s, x.e, key));
+    const t = S.tsel;
+    this.mark();
+    this.setItems(S.items.map(i => i.id !== itemId ? i : Object.assign({}, i, {
+      paras: i.paras.map(p => {
+        const x = targets.find(y => y.p.id === p.id);
+        if (!x) return p;
+        const runs = this.applyRange(this.runsOf(p), x.s, x.e, key, on);
+        return Object.assign({}, p, { runs, text: this.textOf(runs), bold: false, hl: false });
+      })
+    })));
+    if (t && t.item === itemId && t.s !== t.e) this._keepSel = { para: t.para, s: t.s, e: t.e };
+  }
+
+  // ---- the endless board: pan, zoom, fit, and the view is remembered ----
+  boardEl() { const d = typeof document !== 'undefined' ? document : null; return d ? d.getElementById('sp-board') : null; }
+  persistView(v) { try { window.localStorage.setItem('sp-view-v1', JSON.stringify(v)); } catch (e) { /* storage can be blocked, the view is simply not remembered */ } }
+  loadView() {
+    if (this._v0) return this._v0;
+    let v = { x: 0, y: 0, z: 1 };
+    try { const j = JSON.parse(window.localStorage.getItem('sp-view-v1')); if (j && isFinite(j.x) && isFinite(j.y) && isFinite(j.z)) v = j; } catch (e) { /* none saved */ }
+    return (this._v0 = v);
+  }
+  setView(v) { this.setState({ view: v }); this.persistView(v); }
+  boardSize() { const b = this.boardEl(); return { w: b ? b.offsetWidth : 840, h: b ? b.offsetHeight : 700 }; }
+  // Zoom keeping the point (cx, cy) of the board still, so it feels like zooming at the cursor
+  zoomAt(nz, cx, cy) {
+    const v = this.S.view;
+    const z = Math.max(0.1, Math.min(4, nz));
+    const wx = (cx - v.x) / v.z, wy = (cy - v.y) / v.z;
+    this.setView({ x: cx - wx * z, y: cy - wy * z, z });
+  }
+  fitBoxes(boxes, maxZ) {
+    if (!boxes.length) { this.setView({ x: 0, y: 0, z: 1 }); return; }
+    const x0 = Math.min(...boxes.map(b => b.x)), y0 = Math.min(...boxes.map(b => b.y));
+    const x1 = Math.max(...boxes.map(b => b.x + b.w)), y1 = Math.max(...boxes.map(b => b.y + b.h));
+    const sz = this.boardSize();
+    const pad = 48;
+    const z = Math.max(0.1, Math.min((sz.w - pad * 2) / Math.max(1, x1 - x0), (sz.h - pad * 2) / Math.max(1, y1 - y0), maxZ));
+    this.setView({ x: sz.w / 2 - (x0 + x1) / 2 * z, y: sz.h / 2 - (y0 + y1) / 2 * z, z });
+  }
+  itemBoxes(ids) { return this.S.items.filter(i => !ids || ids.indexOf(i.id) >= 0).map(i => ({ x: i.x, y: i.y, w: i.w, h: this.est(i) })); }
+  // Scrolling with two fingers pans, Ctrl + scroll or a pinch zooms. It needs a listener that may cancel the page's own scroll and zoom.
+  attachWheel() {
+    const b = this.boardEl();
+    if (!b || b._wl) return;
+    b._wl = true;
+    b.addEventListener('wheel', e => {
+      e.preventDefault();
+      const r = b.getBoundingClientRect();
+      const sc = b.offsetWidth ? r.width / b.offsetWidth : 1;
+      const v = this.S.view;
+      if (e.ctrlKey || e.metaKey) this.zoomAt(v.z * Math.exp(-e.deltaY * 0.01), (e.clientX - r.left) / sc, (e.clientY - r.top) / sc);
+      else this.setView({ x: v.x - e.deltaX / sc, y: v.y - e.deltaY / sc, z: v.z });
+    }, { passive: false });
+  }
+
+  // ---- keyboard: the same commands as the Overview, read from the same changes ----
+  defaultBind() { return { 'view.v1': ['Alt+1'] }; }
+  loadBind() {
+    let stored = {};
+    try { stored = JSON.parse(window.localStorage.getItem('sl-kb-bind')) || {}; } catch (e) { /* none saved */ }
+    return Object.assign(this.defaultBind(), stored);
+  }
+  saveBind(bind) { try { window.localStorage.setItem('sl-kb-bind', JSON.stringify(bind)); } catch (e) { /* storage can be blocked */ } }
+  get kb() { return { bind: (this.state || {}).bind || this.loadBind(), views: [] }; }
+
+  cmds() {
+    const out = [
+      { id: 'nav.overview', label: 'Go to Overview', name: 'Go to Overview', desc: 'Jump to the Overview page.', scope: 'global', def: ['G', 'O'] },
+      { id: 'nav.scratchpad', label: 'Go to Scratchpad', name: 'Go to Scratchpad', desc: 'Jump to the Scratchpad page.', scope: 'global', def: ['G', 'S'] },
+      { id: 'nav.prev', label: 'Previous admin page', name: 'Previous page', desc: 'Move to the page before this one in the menu.', scope: 'global', def: ['['] },
+      { id: 'nav.next', label: 'Next admin page', name: 'Next page', desc: 'Move to the page after this one in the menu.', scope: 'global', def: [']'] },
+      { id: 'keys.open', label: 'Show keyboard shortcuts', name: 'Show shortcuts', desc: 'Open this list. Esc closes it.', scope: 'global', def: ['?'] },
+      { id: 'sp.select', label: 'Scratchpad: Select tool', name: 'Select tool', desc: 'On the Scratchpad, pick up and move things.', scope: 'scratchpad', def: ['V'] },
+      { id: 'sp.line', label: 'Scratchpad: Line tool', name: 'Line tool', desc: 'On the Scratchpad, draw a line between two things.', scope: 'scratchpad', def: ['L'] },
+      { id: 'sp.pen', label: 'Scratchpad: Pen tool', name: 'Pen tool', desc: 'On the Scratchpad, draw freehand.', scope: 'scratchpad', def: ['P'] },
+      { id: 'sp.marker', label: 'Scratchpad: Marker tool', name: 'Marker tool', desc: 'On the Scratchpad, highlight with a marker.', scope: 'scratchpad', def: ['M'] },
+      { id: 'sp.sticky', label: 'Scratchpad: New sticky note', name: 'New sticky note', desc: 'On the Scratchpad, add a sticky note.', scope: 'scratchpad', def: ['N'] },
+      { id: 'sp.text', label: 'Scratchpad: New text box', name: 'New text box', desc: 'On the Scratchpad, add a text box.', scope: 'scratchpad', def: ['T'] },
+      { id: 'sp.undo', label: 'Scratchpad: Undo', name: 'Undo', desc: 'On the Scratchpad, take back the last change.', scope: 'scratchpad', def: ['Ctrl+Z'] },
+      { id: 'sp.redo', label: 'Scratchpad: Redo', name: 'Redo', desc: 'On the Scratchpad, bring back what you undid.', scope: 'scratchpad', def: ['Ctrl+Y'] },
+      { id: 'ov.slice1', label: 'Overview: Split the circle by Sector', name: 'Split by Sector', desc: 'Change what the circle is split by.', scope: 'overview', def: ['1'] },
+      { id: 'ov.slice2', label: 'Overview: Split the circle by Price band', name: 'Split by Price band', desc: 'Change what the circle is split by.', scope: 'overview', def: ['2'] },
+      { id: 'ov.slice3', label: 'Overview: Split the circle by Release era', name: 'Split by Release era', desc: 'Change what the circle is split by.', scope: 'overview', def: ['3'] },
+      { id: 'ov.slice4', label: 'Overview: Split the circle by Region', name: 'Split by Region', desc: 'Change what the circle is split by.', scope: 'overview', def: ['4'] },
+      { id: 'ov.slice5', label: 'Overview: Split the circle by Stage', name: 'Split by Stage', desc: 'Change what the circle is split by.', scope: 'overview', def: ['5'] },
+      { id: 'ov.find', label: 'Overview: Find an industry', name: 'Find an industry', desc: 'Jump to the search box to look up one industry.', scope: 'overview', def: ['/'] },
+      { id: 'ov.compare', label: 'Overview: Turn Compare on or off', name: 'Compare', desc: 'Turn Compare on or off to set two slices side by side.', scope: 'overview', def: ['C'] },
+      { id: 'ov.metric', label: 'Overview: Switch bars between Count and Average price', name: 'Count or Average price', desc: 'Switch the bars between how many industries and their average price.', scope: 'overview', def: ['M'] },
+      { id: 'ov.top', label: 'Overview: Cycle Top 3, Top 10 and Cheapest 3', name: 'Switch the top list', desc: 'Cycle through Top 3, Top 10 and Cheapest 3.', scope: 'overview', def: ['T'] },
+      { id: 'ov.clear', label: 'Overview: Clear every filter', name: 'Clear filters', desc: 'Remove every filter at once.', scope: 'overview', def: ['Esc'] }
+    ];
+    return out;
+  }
+
+  resetAll() {
+    const kb = this.kb;
+    const bind = {};
+    Object.keys(kb.bind).forEach(k => { if (k.indexOf('view.') === 0) bind[k] = kb.bind[k]; });
+    this.saveBind(bind);
+    this.setState({ bind, rec: null });
+    this.say('Every shortcut is back to its default.');
+  }
+
+  // What a key does here. Overview commands do nothing on this page.
+  runSp(id, e) {
+    const s = this.state || {};
+    if (id === 'sp.select') this.setState({ tool: 'select', linkFrom: null });
+    else if (id === 'sp.line') this.setState({ tool: 'line', linkFrom: null });
+    else if (id === 'sp.pen') this.setState({ tool: 'pen', linkFrom: null });
+    else if (id === 'sp.marker') this.setState({ tool: 'mark', linkFrom: null });
+    else if (id === 'sp.sticky') this.addPaper('sticky');
+    else if (id === 'sp.text') this.addPaper('text');
+    else if (id === 'sp.undo') this.undo();
+    else if (id === 'sp.redo') this.redo();
+    else if (id === 'keys.open') this.setState({ keys: !s.keys, rec: null });
+    else if (id === 'nav.scratchpad') this.say('Go to Scratchpad. You are already here.');
+    else if (id === 'nav.overview') this.goPage('nav-overview', 'Go to Overview. In the app this switches the page.');
+    else if (id === 'nav.next' || id === 'nav.prev') this.goPage('nav-overview', (id === 'nav.next' ? 'Next' : 'Previous') + ' admin page: Overview. In the app this switches the page.');
+  }
+
+  fmtTop(key) { const S = this.S; if (S.sel && S.sel.type === 'item') this.applySpan(S.sel.id, key); }
+
+  remove() {
+    const S = this.S;
+    const gsel = S.sel && S.sel.type === 'group' ? S.groups.find(g => g.id === S.sel.id) : null;
+    const gone = gsel ? gsel.ids : (S.multi.length > 1 ? S.multi : (S.sel && S.sel.type === 'item' ? [S.sel.id] : null));
+    if (gone) {
+      this.mark();
+      const items = S.items.filter(i => gone.indexOf(i.id) < 0);
+      this.setState({ items, lines: S.lines.filter(l => gone.indexOf(l.a) < 0 && gone.indexOf(l.b) < 0), groups: this.cleanGroups(items, S.groups), sel: null, multi: [], fp: null, tsel: null });
+      return;
+    }
+    if (S.sel && S.sel.type === 'line') { this.mark(); this.setState({ lines: S.lines.filter(l => l.id !== S.sel.id), sel: null }); }
+  }
+
+  // ---- c) groups: a name and a list of item ids. No nesting, an item belongs to at most one group. ----
+  // OPUS: the group is only a name plus the ids. The outline is drawn from the members' boxes, so it grows and shrinks as they move.
+  groupOf(id) { return this.S.groups.find(g => g.ids.indexOf(id) >= 0) || null; }
+  // A group with fewer than two things left stops existing
+  cleanGroups(items, groups) {
+    const have = {};
+    items.forEach(i => { have[i.id] = true; });
+    return groups.map(g => Object.assign({}, g, { ids: g.ids.filter(x => have[x]) })).filter(g => g.ids.length > 1);
+  }
+  makeGroup() {
+    const S = this.S;
+    if (S.multi.length < 2) return;
+    const id = this.nid();
+    const taken = S.multi.slice();
+    this.mark();
+    // taking a card into a new group lets it leave the old one
+    const groups = S.groups.map(g => Object.assign({}, g, { ids: g.ids.filter(x => taken.indexOf(x) < 0) })).filter(g => g.ids.length > 1).concat([{ id, name: 'Group', ids: taken }]);
+    this._focusId = 'sp-group-name';
+    this.setState({ groups, sel: { type: 'group', id }, multi: [], fp: null, tsel: null });
+  }
+  // Ungroup gives the cards back exactly where they are, and keeps them selected
+  ungroup() {
+    const S = this.S;
+    const g = S.sel && S.sel.type === 'group' ? S.groups.find(x => x.id === S.sel.id) : null;
+    if (!g) return;
+    this.mark();
+    this.setState({ groups: S.groups.filter(x => x.id !== g.id), sel: null, multi: g.ids.slice() });
+  }
+  dragMove(e) {
+    const d = this._drag;
+    if (!d) return;
+    const z = this.S.view.z;
+    if (!d.marked && (Math.abs(e.clientX - d.sx) > 2 || Math.abs(e.clientY - d.sy) > 2)) { this.mark(); d.marked = true; }
+    const dx = (e.clientX - d.sx) / (d.sc * z), dy = (e.clientY - d.sy) / (d.sc * z);
+    this.setItems(this.S.items.map(i => d.starts[i.id] ? Object.assign({}, i, { x: d.starts[i.id][0] + dx, y: d.starts[i.id][1] + dy }) : i));
+  }
+  dragUp() { this._drag = null; }
+  // Grabbing the group's label picks the whole group up
+  startGroupDrag(g, e) {
+    if (this.S.tool !== 'select') return;
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const S2 = this.S;
+    const starts = {};
+    g.ids.forEach(id => { const q = S2.items.find(i => i.id === id); if (q) starts[id] = [q.x, q.y]; });
+    this._drag = { ids: g.ids, starts, sx: e.clientX, sy: e.clientY, sc: this.scaleOf(e.currentTarget) };
+    this.setState({ sel: { type: 'group', id: g.id }, multi: [], fp: null, tsel: null });
+  }
+
+  // ---- f) lines: a label, an arrowhead at either end, and a gentle curve ----
+  patchLine(id, patch) { this.setState({ lines: this.S.lines.map(l => l.id === id ? Object.assign({}, l, patch) : l) }); }
+
+  // ---- e) things dragged in: files from the computer, pasted pictures, snapshots from the carry tray ----
+  // OPUS: in this prototype a file never leaves the browser tab. In the app each file is uploaded to the server (size limit, endpoint and table
+  // need the user's confirmation, see the handoff) and the card keeps the file's id, not a local address.
+  maxMb() { return 25; }
+  extOf(name) { return /\./.test(name || '') ? String(name).split('.').pop().toLowerCase() : ''; }
+  isImgFile(f) { return /^image\/(?!svg)/.test(f.type || '') || /^(png|jpe?g|gif|webp|bmp|avif)$/.test(this.extOf(f.name)); }
+  isImg(it) { return !!it.url && /^image\//.test(it.mime || ''); }
+  isOffice(f) {
+    const bad = ['doc', 'docx', 'docm', 'dot', 'dotx', 'dotm', 'ppt', 'pptx', 'pptm', 'pps', 'ppsx', 'ppsm', 'pot', 'potx', 'potm', 'xls', 'xlsx', 'xlsm', 'xlsb', 'xlt', 'xltx', 'xltm'];
+    const t = f.type || '';
+    return bad.indexOf(this.extOf(f.name)) >= 0 || t === 'application/msword' || t.indexOf('application/vnd.ms-') === 0 || t.indexOf('application/vnd.openxmlformats-officedocument.') === 0;
+  }
+  fmtSize(b) { return b < 1024 ? b + ' B' : (b < 1048576 ? Math.round(b / 1024) + ' KB' : (b / 1048576).toFixed(1) + ' MB'); }
+  setNotice(lines) {
+    this.setState({ notice: lines });
+    clearTimeout(this._nt);
+    this._nt = setTimeout(() => this.setState({ notice: null }), 9000);
+  }
+  handleFiles(list, at) {
+    const files = Array.prototype.slice.call(list || []);
+    if (!files.length) return;
+    const limit = this.maxMb() * 1048576;
+    const office = [], big = [], ok = [];
+    files.forEach(f => { if (this.isOffice(f)) office.push(f.name); else if (f.size > limit) big.push(f.name); else ok.push(f); });
+    const lines = [];
+    if (office.length) lines.push("Word, PowerPoint and Excel files can't go on the board (" + office.slice(0, 2).join(', ') + (office.length > 2 ? ' and more' : '') + ').');
+    if (big.length) lines.push(big.slice(0, 2).join(', ') + (big.length > 2 ? ' and more are' : ' is') + ' bigger than ' + this.maxMb() + ' MB.');
+    if (lines.length) this.setNotice(lines);
+    if (!ok.length) return;
+    const S = this.S;
+    const extra = [];
+    const added = ok.map((f, i) => {
+      const img = this.isImgFile(f);
+      const h = img ? 214 : 92;
+      const spot = at ? [at[0] - 110 + i * 26, at[1] - 60 + i * 26] : this.freeSpot(220, h, extra);
+      extra.push({ x: spot[0] - 12, y: spot[1] - 12, w: 244, h: h + 24 });
+      return { id: this.nid(), type: 'file', x: spot[0], y: spot[1], w: 220, name: f.name || 'File', size: f.size, mime: img ? (f.type || 'image/' + this.extOf(f.name)) : (f.type || ''), url: img ? URL.createObjectURL(f) : null, up: 0, fresh: true };
+    });
+    this.mark();
+    this.setState({ items: S.items.concat(added), sel: added.length === 1 ? { type: 'item', id: added[0].id } : null, multi: added.length > 1 ? added.map(a => a.id) : [], fp: null, tsel: null });
+    added.forEach(a => this.sim(a.id));
+  }
+  // Pretend upload, so the card shows its progress. In the app this is the real upload.
+  sim(id) {
+    const t = setInterval(() => {
+      const it = this.S.items.find(i => i.id === id);
+      if (!it || it.type !== 'file' || it.up < 0 || it.up >= 100) { clearInterval(t); return; }
+      const up = Math.min(100, it.up + 14 + Math.random() * 10);
+      this.setItems(this.S.items.map(i => i.id === id ? Object.assign({}, i, { up }) : i));
+    }, 150);
+  }
+  retryUpload(id) { this.setItems(this.S.items.map(i => i.id === id ? Object.assign({}, i, { up: 0 }) : i)); this.sim(id); }
+  addFailed() {
+    const S = this.S;
+    const spot = this.freeSpot(220, 92);
+    this.mark();
+    this.setState({ items: S.items.concat([{ id: this.nid(), type: 'file', x: spot[0], y: spot[1], w: 220, name: 'site-photo.jpg', size: 3355443, mime: 'image/jpeg', url: null, up: -1, fresh: true }]) });
+  }
+  // Going back in time must not leave a card stuck half way through an upload
+  fixUp(items) { return items.map(i => i.type === 'file' && i.up >= 0 && i.up < 100 ? Object.assign({}, i, { up: 100 }) : i); }
+
+  // The carry tray: snapshots picked up on other pages. In the prototype it is kept in browser storage so the Overview can fill it too.
+  sampleCarry() {
+    const rows = this.rows();
+    const tot = rows.length;
+    const priv = rows.filter(r => r.sector === 'Private Sector').length;
+    const pp = Math.round(priv / tot * 100);
+    const top = rows.filter(x => x.price !== null).sort((a, b) => b.price - a.price).slice(0, 3);
+    return [
+      { id: 'c1', kind: 'donut', title: 'Circle split by Sector, Private Sector selected', when: '7 Oct, 14:02', slices: [{ l: 'Private Sector', n: priv, p: pp, picked: true }, { l: 'Public Sector', n: tot - priv, p: 100 - pp, picked: false }] },
+      { id: 'c2', kind: 'list', title: 'Top 3 most expensive', when: '7 Oct, 14:05', rowsL: top.map(x => ({ n: x.name, v: '$' + x.price.toFixed(3) })) }
+    ];
+  }
+  loadCarryNow() { return this.loadCarry(); }
+  // The tray lives in browser storage here so the Overview board can fill it. It is read again on every draw, so a change made on the other
+  // page shows up. In the app it is a small list kept per person on the server.
+  loadCarry() {
+    let raw = null;
+    try { raw = window.localStorage.getItem('sl-carry-v1'); } catch (e) { /* storage can be blocked */ }
+    if (raw === null) return this._carry0 || (this._carry0 = this.sampleCarry());
+    if (raw === this._carryRaw && this._carry0) return this._carry0;
+    this._carryRaw = raw;
+    try { const j = JSON.parse(raw); if (Array.isArray(j)) return (this._carry0 = j); } catch (e) { /* damaged, fall back */ }
+    return this._carry0 || (this._carry0 = this.sampleCarry());
+  }
+  setCarry(list) {
+    this._carry0 = list;
+    try { const raw = JSON.stringify(list); window.localStorage.setItem('sl-carry-v1', raw); this._carryRaw = raw; } catch (e) { /* storage can be blocked */ }
+    this.setState({ cv: ((this.state || {}).cv || 0) + 1 });
+  }
+  addSnapshot(c, at) {
+    const S = this.S;
+    const spot = at ? [at[0] - 135, at[1] - 60] : this.freeSpot(270, 236);
+    const id = this.nid();
+    this.mark();
+    this.setState({ items: S.items.concat([{ id, type: 'snap', x: spot[0], y: spot[1], w: 270, snap: c, fresh: true }]), sel: { type: 'item', id }, multi: [], fp: null, tsel: null });
+  }
+
+  // Review controls only: sample files, because a review tool cannot drop real ones. This is the same path a dropped, picked or pasted file takes.
+  addSampleFile(kind) {
+    if (kind === 'picture') {
+      const c = document.createElement('canvas');
+      c.width = 600; c.height = 400;
+      const g = c.getContext('2d');
+      const gr = g.createLinearGradient(0, 0, 600, 400);
+      gr.addColorStop(0, '#ffd9cb'); gr.addColorStop(1, '#d9481a');
+      g.fillStyle = gr; g.fillRect(0, 0, 600, 400);
+      g.fillStyle = '#0a0a0a'; g.font = '700 34px sans-serif'; g.fillText('Sample picture', 32, 64);
+      c.toBlob(b => this.handleFiles([new File([b], 'warehouse-photo.png', { type: 'image/png' })], null), 'image/png');
+    } else if (kind === 'pdf') this.handleFiles([new File(['%PDF-1.4 sample'], 'Q3 price review.pdf', { type: 'application/pdf' })], null);
+    else this.handleFiles([new File([new ArrayBuffer(27 * 1048576)], 'site-walkthrough.mov', { type: 'video/quicktime' })], null);
+  }
+  loadSample() {
+    const sd = this.seed();
+    this.mark();
+    this.setState({ items: sd.items, lines: sd.lines, strokes: sd.strokes, groups: sd.groups, sel: null, multi: [], fp: null, tsel: null, linkFrom: null });
+  }
+  clearBoard() {
+    this.mark();
+    this.setState({ items: [], lines: [], strokes: [], groups: [], sel: null, multi: [], fp: null, tsel: null, linkFrom: null });
+  }
+  // A file coming in from outside: true only for files, not for a snapshot from the tray
+  filesDrag(e) {
+    const t = e.dataTransfer && e.dataTransfer.types;
+    return !!t && Array.prototype.indexOf.call(t, 'Files') >= 0;
+  }
+  fileDrag(e) {
+    const t = e.dataTransfer && e.dataTransfer.types;
+    return !!t && (Array.prototype.indexOf.call(t, 'Files') >= 0 || Array.prototype.indexOf.call(t, 'application/x-sl-snap') >= 0);
+  }
+
+  renderVals() {
+    const ACC = '#d9481a', INK = '#0a0a0a';
+    const S = this.S;
+    const st = this.state || {};
+    if (!this._wlq) { this._wlq = true; setTimeout(() => { this.attachWheel(); this.measure(); try { if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', () => this.measure()); } catch (e) { /* older browsers */ } }, 60); }
+    const draw = S.tool === 'pen' || S.tool === 'mark';
+    const linkMode = S.tool === 'line';
+    const handMode = S.tool === 'hand';
+    const groupSel = S.sel && S.sel.type === 'group' ? S.groups.find(g => g.id === S.sel.id) || null : null;
+    const selIds = groupSel ? groupSel.ids : (S.multi.length > 1 ? S.multi : (S.sel && S.sel.type === 'item' ? [S.sel.id] : []));
+    // a selected group shows its own outline, so the cards inside do not each get a ring
+    const isSelId = id => !groupSel && selIds.indexOf(id) >= 0;
+    const selItem = (groupSel || S.multi.length > 1) ? null : (S.sel && S.sel.type === 'item' ? S.items.find(i => i.id === S.sel.id) : null);
+    const selLine = S.sel && S.sel.type === 'line' ? S.lines.find(l => l.id === S.sel.id) : null;
+    const isPaper = !!selItem && (selItem.type === 'sticky' || selItem.type === 'text');
+    const showMulti = S.multi.length > 1;
+    const multiStickies = showMulti ? S.items.filter(i => S.multi.indexOf(i.id) >= 0 && i.type === 'sticky') : [];
+    const rows = this.rows();
+    const kb = this.kb;
+    const allCmds = this.cmds();
+    const BE = this.effective(allCmds, kb.bind);
+    const kbOpen = !!st.keys;
+    const dark = !!st.dark;
+
+    const toneOf = t => ({
+      white: { bg: '#ffffff', fg: INK, bd: '#e0e0e0', hl: 'rgba(217,72,26,0.28)' },
+      gray: { bg: '#ececec', fg: INK, bd: '#d0d0d0', hl: 'rgba(217,72,26,0.28)' },
+      ink: { bg: INK, fg: '#ffffff', bd: INK, hl: 'rgba(217,72,26,0.75)' },
+      orange: { bg: '#ffd9cb', fg: INK, bd: '#f2b9a3', hl: 'rgba(255,255,255,0.75)' }
+    })[t] || { bg: '#ffffff', fg: INK, bd: '#e0e0e0', hl: 'rgba(217,72,26,0.28)' };
+
+    const items = S.items.map((it, idx) => {
+      const isSel = isSelId(it.id);
+      const paper = it.type === 'sticky' || it.type === 'text';
+      const sn = it.type === 'snap' ? (it.snap || {}) : {};
+      const shades = ['#0a0a0a', '#3d3d3d', '#6e6e6e', '#a0a0a0', '#cfcfcf'];
+      let accp = 0;
+      const stops = [], legend = [];
+      if (sn.kind === 'donut') (sn.slices || []).forEach((sl, k) => { const col = sl.picked ? ACC : shades[Math.min(k, 4)]; stops.push(col + ' ' + accp + '% ' + (accp + sl.p) + '%'); accp += sl.p; legend.push({ c: col, l: sl.l, v: sl.n + ' · ' + sl.p + '%', sw: 'block', fw: sl.picked ? '700' : '500', dir: 'column', gap: '0', ai: 'flex-start', vc: '#6b6b6b' }); });
+      if (sn.kind === 'list') (sn.rowsL || []).forEach(r => legend.push({ c: 'transparent', l: r.n, v: r.v, sw: 'none', fw: '600', dir: 'row', gap: '8px', ai: 'baseline', vc: '#0a0a0a' }));
+      const isFile = it.type === 'file', img = isFile && this.isImg(it);
+      const failed = isFile && it.up < 0, uploading = isFile && it.up >= 0 && it.up < 100;
+      const pct = Math.round(Math.max(0, it.up || 0));
+      const ext = isFile ? (this.extOf(it.name) || 'file').toUpperCase().slice(0, 4) : '';
+      const kindWord = img ? 'Image' : (/^video\//.test(it.mime || '') ? 'Video' : (ext === 'PDF' ? 'PDF' : 'File'));
+      const tn = it.type === 'text' ? { bg: 'transparent', fg: INK, bd: isSel ? INK : 'transparent', hl: 'rgba(217,72,26,0.28)' } : toneOf(it.tone);
+      let n = 0;
+      const famCss = this.fontCss(it.font);
+      const paras = (it.paras || []).map(p => {
+        if (p.list === 'number') n++; else n = 0;
+        const fresh = S.fp && S.fp.id === p.id && S.fp.fresh;
+        const ts = S.tsel;
+        const showFmt = !!(ts && ts.para === p.id && ts.s !== ts.e);
+        const runs = this.runsOf(p);
+        const track = e => {
+          const a = e.target.selectionStart, b = e.target.selectionEnd;
+          const cur = this.S.tsel;
+          if (cur && cur.para === p.id && cur.item === it.id && cur.s === a && cur.e === b) return;
+          this.setState({ tsel: { item: it.id, para: p.id, s: a, e: b } });
+        };
+        return {
+          id: p.id, text: p.text, align: p.align, caret: tn.fg, fam: famCss,
+          runs: runs.map(r => ({ t: r.t, cls: r.b ? 'bf' : '', bg: r.h ? tn.hl : 'transparent' })).concat([{ t: '​', cls: '', bg: 'transparent' }]),
+          marker: p.list === 'bullet' ? '•' : (p.list === 'number' ? n + '.' : ''), markW: p.list === 'none' ? '0px' : '22px',
+          autoFocus: !!fresh,
+          showFmt,
+          boldOn: showFmt && this.allHave(runs, ts.s, ts.e, 'b'), hlOn: showFmt && this.allHave(runs, ts.s, ts.e, 'h'),
+          boldBg: showFmt && this.allHave(runs, ts.s, ts.e, 'b') ? ACC : 'transparent', hlBg: showFmt && this.allHave(runs, ts.s, ts.e, 'h') ? ACC : 'transparent',
+          keepFocus: e => e.preventDefault(),
+          fmtBold: () => this.applySpan(it.id, 'b'), fmtHl: () => this.applySpan(it.id, 'h'),
+          onSel: track, onBlur: () => { if (this.S.tsel && this.S.tsel.para === p.id) this.setState({ tsel: null }); },
+          onText: e => {
+            this.markTyping(p.id);
+            const cp = this.curPara(it.id, p.id) || p;
+            const runs2 = this.editRuns(this.runsOf(cp), e.target.value);
+            this.patchPara(it.id, p.id, { runs: runs2, text: e.target.value, bold: false, hl: false });
+          },
+          onFocus: () => this.setState({ fp: { item: it.id, id: p.id, fresh: false }, sel: { type: 'item', id: it.id }, multi: [] }),
+          onKey: e => {
+            const val = e.target.value;
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              this.mark();
+              if (p.list !== 'none' && val === '') { this.patchPara(it.id, p.id, { list: 'none' }); return; }
+              const pos = e.target.selectionStart;
+              const cp = this.curPara(it.id, p.id) || p;
+              const rr = this.runsOf(cp);
+              const tl = this.textOf(rr).length;
+              const lr = this.mergeRuns(this.sliceRuns(rr, 0, pos)), rr2 = this.mergeRuns(this.sliceRuns(rr, pos, tl));
+              const np = this.para(val.slice(pos), { list: p.list, align: p.align, runs: rr2 });
+              const cur = this.S.items.find(i => i.id === it.id);
+              const out = [];
+              cur.paras.forEach(q2 => { if (q2.id === p.id) { out.push(Object.assign({}, q2, { runs: lr, text: val.slice(0, pos), bold: false, hl: false })); out.push(np); } else out.push(q2); });
+              this.setState({ items: this.S.items.map(i => i.id === it.id ? Object.assign({}, i, { paras: out }) : i), fp: { item: it.id, id: np.id, fresh: true } });
+            } else if (e.key === 'Backspace' && val === '' && it.paras.length > 1) {
+              e.preventDefault();
+              this.mark();
+              const at = it.paras.findIndex(q2 => q2.id === p.id);
+              const prev = it.paras[Math.max(0, at - 1)];
+              this.setState({ items: this.S.items.map(i => i.id === it.id ? Object.assign({}, i, { paras: i.paras.filter(q2 => q2.id !== p.id) }) : i), fp: { item: it.id, id: prev.id === p.id ? it.paras[1].id : prev.id, fresh: false } });
+            }
+          }
+        };
+      });
+      return {
+        iid: it.id, x: it.x, y: it.y, w: it.w, z: isSel ? 30 : 2 + idx, tilt: it.tilt || 0,
+        cls: it.fresh ? 'toss' : '', isCompany: it.type === 'company', isPaper: paper, linkOn: linkMode,
+        isSnap: it.type === 'snap', snapDonut: sn.kind === 'donut', title: sn.title || '', conic: stops.length ? 'conic-gradient(' + stops.join(', ') + ')' : '#e8e8e8', legend, when: sn.when || '',
+        isFile, isImage: img, notImage: isFile && !img, url: it.url || '', ext, pct, uploading, failed, dir: img ? 'column' : 'row', h: this.est(it),
+        meta: failed ? "Couldn't upload" : (uploading ? 'Uploading ' + pct + '%' : this.fmtSize(it.size || 0) + ' · ' + kindWord), metaFg: failed ? '#b42318' : '#6b6b6b',
+        stop: e => e.stopPropagation(), retry: () => this.retryUpload(it.id),
+        paperCls: it.type === 'sticky' ? 'paper' : '',
+        bg: tn.bg, fg: tn.fg, bd: tn.bd, rad: it.type === 'sticky' ? '4px 4px 14px 4px' : '8px',
+        ring: isSel ? '0 0 0 2px ' + ACC : '0 0 0 0 transparent',
+        name: it.name, sector: (it.sector || '').replace(' Sector', ''), price: it.price, rank: it.rank,
+        paras,
+        down: e => {
+          if (this.S.tool !== 'select') return;
+          e.stopPropagation();
+          const S2 = this.S;
+          // Shift + click adds the item to the selection, or takes it out
+          if (e.shiftKey) {
+            const cur = S2.multi.length > 1 ? S2.multi : (S2.sel && S2.sel.type === 'item' ? [S2.sel.id] : []);
+            const next = cur.indexOf(it.id) >= 0 ? cur.filter(x => x !== it.id) : cur.concat([it.id]);
+            this.setState({ multi: next.length > 1 ? next : [], sel: next.length === 1 ? { type: 'item', id: next[0] } : null, fp: null, tsel: null });
+            return;
+          }
+          e.currentTarget.setPointerCapture(e.pointerId);
+          const multiDrag = S2.multi.length > 1 && S2.multi.indexOf(it.id) >= 0;
+          const g = multiDrag ? null : this.groupOf(it.id);
+          const ids = multiDrag ? S2.multi : (g ? g.ids : [it.id]);
+          const starts = {};
+          ids.forEach(id => { const q = S2.items.find(i => i.id === id); if (q) starts[id] = [q.x, q.y]; });
+          this._drag = { ids, starts, sx: e.clientX, sy: e.clientY, sc: this.scaleOf(e.currentTarget) };
+          // a grouped card picks up its whole group
+          if (g) this.setState({ sel: { type: 'group', id: g.id }, multi: [], fp: null, tsel: null });
+          else if (!multiDrag) this.setState({ sel: { type: 'item', id: it.id }, multi: [] });
+        },
+        move: e => this.dragMove(e),
+        up: () => this.dragUp(),
+        rDown: e => {
+          e.stopPropagation();
+          e.currentTarget.setPointerCapture(e.pointerId);
+          this._rs = { id: it.id, sx: e.clientX, w: it.w, sc: this.scaleOf(e.currentTarget) };
+        },
+        rMove: e => {
+          const d = this._rs;
+          if (!d) return;
+          if (!d.marked && Math.abs(e.clientX - d.sx) > 2) { this.mark(); d.marked = true; }
+          this.patchItem(d.id, { w: Math.max(150, Math.min(520, d.w + (e.clientX - d.sx) / (d.sc * this.S.view.z))) });
+        },
+        rUp: () => { this._rs = null; },
+        link: () => {
+          const s = this.S;
+          if (!s.linkFrom) this.setState({ linkFrom: it.id, sel: { type: 'item', id: it.id } });
+          else if (s.linkFrom !== it.id) {
+            const exists = s.lines.some(l => (l.a === s.linkFrom && l.b === it.id) || (l.a === it.id && l.b === s.linkFrom));
+            if (!exists) this.mark();
+            const nl = { id: this.nid(), a: s.linkFrom, b: it.id, head: 'end', bend: 0, label: '' };
+            // the new line is selected and its label box is ready, so the person can say what the line means straight away
+            if (!exists) this._focusId = 'sp-line-label';
+            this.setState({ lines: exists ? s.lines : s.lines.concat([nl]), linkFrom: null, sel: exists ? s.sel : { type: 'line', id: nl.id } });
+          }
+        },
+        linkAria: (S.linkFrom ? 'Join to ' : 'Start a line from ') + (it.name || 'this note'),
+        linkBd: S.linkFrom === it.id ? ACC : 'rgba(217,72,26,0.45)', linkFill: S.linkFrom === it.id ? '0.14' : '0.04'
+      };
+    });
+
+    // Lines, glued to the item boxes: recomputed from the item positions on every render.
+    // A curved line bends to one side through a control point, and its ends are cut where it meets the cards.
+    // OPUS: the bend here is a fixed side and a fixed amount, which the person can flip. The intent is that curves keep lines from cutting
+    // through other cards, so in the app pick the side that crosses fewer cards. A good result matters more than the exact method.
+    const box = it => { const h = this.est(it); return { cx: it.x + it.w / 2, cy: it.y + h / 2, hw: it.w / 2 + 4, hh: h / 2 + 4 }; };
+    const edge = (a, t) => {
+      const dx = t.cx - a.cx, dy = t.cy - a.cy;
+      if (!dx && !dy) return [a.cx, a.cy];
+      const k = Math.min(dx ? a.hw / Math.abs(dx) : Infinity, dy ? a.hh / Math.abs(dy) : Infinity);
+      return [a.cx + dx * k, a.cy + dy * k];
+    };
+    const tri = (tip, from) => {
+      const dx = tip[0] - from[0], dy = tip[1] - from[1], L = Math.hypot(dx, dy) || 1;
+      const ux = dx / L, uy = dy / L, bx = tip[0] - ux * 13, by = tip[1] - uy * 13;
+      return tip[0].toFixed(1) + ',' + tip[1].toFixed(1) + ' ' + (bx - uy * 6).toFixed(1) + ',' + (by + ux * 6).toFixed(1) + ' ' + (bx + uy * 6).toFixed(1) + ',' + (by - ux * 6).toFixed(1);
+    };
+    const f1 = n => n.toFixed(1);
+    const lineList = S.lines.map(l => {
+      const A = S.items.find(i => i.id === l.a), B = S.items.find(i => i.id === l.b);
+      if (!A || !B) return null;
+      const ba = box(A), bb = box(B);
+      const dist = Math.hypot(bb.cx - ba.cx, bb.cy - ba.cy) || 1;
+      let ctrl = null;
+      if (l.bend) {
+        const off = Math.max(36, Math.min(140, dist * 0.3)) * l.bend;
+        ctrl = { cx: (ba.cx + bb.cx) / 2 - (bb.cy - ba.cy) / dist * off, cy: (ba.cy + bb.cy) / 2 + (bb.cx - ba.cx) / dist * off };
+      }
+      const p1 = edge(ba, ctrl || bb), p2 = edge(bb, ctrl || ba);
+      const c = ctrl ? [ctrl.cx, ctrl.cy] : null;
+      const d = c ? 'M' + f1(p1[0]) + ' ' + f1(p1[1]) + ' Q' + f1(c[0]) + ' ' + f1(c[1]) + ' ' + f1(p2[0]) + ' ' + f1(p2[1]) : 'M' + f1(p1[0]) + ' ' + f1(p1[1]) + ' L' + f1(p2[0]) + ' ' + f1(p2[1]);
+      const mid = c ? [0.25 * p1[0] + 0.5 * c[0] + 0.25 * p2[0], 0.25 * p1[1] + 0.5 * c[1] + 0.25 * p2[1]] : [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
+      const head = l.head || 'none';
+      const on = !!S.sel && S.sel.type === 'line' && S.sel.id === l.id;
+      const pick = () => this.setState({ sel: { type: 'line', id: l.id }, multi: [] });
+      return {
+        d, col: on ? ACC : INK, th: on ? '3' : '2',
+        h1: head === 'end' || head === 'both' ? tri(p2, c || p1) : '', h2: head === 'both' ? tri(p1, c || p2) : '',
+        lx: mid[0], ly: mid[1], label: l.label || '', labelDisp: l.label ? 'inline-block' : 'none', lbd: on ? ACC : '#d0d0d0',
+        aria: 'Line from ' + (A.name || 'note') + ' to ' + (B.name || 'note') + (l.label ? ', ' + l.label : ''),
+        pick, key: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); pick(); } }
+      };
+    }).filter(Boolean);
+
+    const groupList = S.groups.map(g => {
+      const mem = S.items.filter(i => g.ids.indexOf(i.id) >= 0);
+      if (!mem.length) return null;
+      const x0 = Math.min(...mem.map(i => i.x)) - 16, y0 = Math.min(...mem.map(i => i.y)) - 16;
+      const x1 = Math.max(...mem.map(i => i.x + i.w)) + 16, y1 = Math.max(...mem.map(i => i.y + this.est(i))) + 16;
+      const on = !!groupSel && groupSel.id === g.id;
+      return {
+        x: x0, y: y0, w: x1 - x0, h: y1 - y0, bs: on ? 'solid' : 'dashed', bc: on ? ACC : '#bdbdbd', bg: on ? 'rgba(217,72,26,0.05)' : 'rgba(0,0,0,0.018)',
+        name: g.name || 'Group', aria: 'Group ' + (g.name || '') + '. Drag to move all of it.', lbd: on ? ACC : '#bdbdbd', lbg: on ? ACC : '#ffffff', lfg: on ? '#ffffff' : '#3a3a3a',
+        down: e => this.startGroupDrag(g, e), move: e => this.dragMove(e), up: () => this.dragUp()
+      };
+    }).filter(Boolean);
+
+    const pathOf = kind => S.strokes.concat(S.draft ? [S.draft] : []).filter(s => s.kind === kind).map(s => {
+      const pts = s.pts.length === 1 ? [s.pts[0], s.pts[0]] : s.pts;
+      return pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    }).join(' ');
+
+    // Toolbar state
+    const para = (selItem && isPaper) ? (S.fp && S.fp.item === selItem.id ? selItem.paras.find(p => p.id === S.fp.id) : selItem.paras[0]) : null;
+    const on = (b) => ({ bg: b ? INK : 'transparent', fg: b ? '#ffffff' : INK });
+    const al = a => Object.assign({ active: !!para && para.align === a }, on(!!para && para.align === a));
+    const tones = ['white', 'gray', 'ink', 'orange'];
+    const spanOn = key => { const t = this.spanTargets(selItem); return t.length > 0 && t.every(x => this.allHave(this.runsOf(x.p), x.s, x.e, key)); };
+    const hints = {
+      select: 'Drag a box on empty space to select several things, then group them. Shift + click adds one. Drag a card, or the grip of a note, to move it.',
+      hand: 'Drag to move around the board. Scrolling also moves it, Ctrl + scroll zooms.',
+      line: S.linkFrom ? 'Now click the item to join it to.' : 'Click an item, then another. The line follows when either moves.',
+      pen: 'Draw with the pen. Esc to stop.', mark: 'Highlight anything with the marker. Esc to stop.'
+    };
+    const z = S.view.z;
+    const keyText = id => (BE[id] || []).map(k => this.show(k)).join(' then ');
+    const keysNote = 'Keys: ' + [['sp.select', 'select'], ['sp.line', 'line'], ['sp.pen', 'pen'], ['sp.marker', 'marker'], ['sp.sticky', 'new sticky'], ['sp.text', 'new text box']]
+      .filter(x => keyText(x[0])).map(x => keyText(x[0]) + ' ' + x[1]).join(', ') + '. Esc goes back to select, Delete removes what is selected.';
+    const bx = S.box ? { x: Math.min(S.box.x0, S.box.x1), y: Math.min(S.box.y0, S.box.y1), w: Math.abs(S.box.x1 - S.box.x0), h: Math.abs(S.box.y1 - S.box.y0), disp: 'block' } : { x: 0, y: 0, w: 0, h: 0, disp: 'none' };
+
+    // Shortcuts panel rows
+    let kbRows = [];
+    if (kbOpen) {
+      const rec = st.rec || null;
+      const kbSel = st.kbSel || null;
+      const kbQ = (st.kbQ || '').toLowerCase();
+      const clash = {};
+      allCmds.forEach(a => this.conflicts(allCmds, BE, a, BE[a.id]).forEach(b => { clash[a.id] = true; clash[b.id] = true; }));
+      const order = { scratchpad: 0, global: 1, overview: 3 };
+      const built = allCmds.map(c => {
+        const keys = BE[c.id] || [];
+        const editing = !!rec && rec.id === c.id;
+        const caps = this.capsOf(editing ? rec.keys : keys).map(k => ({ t: k.t, cls: k.sep ? 'then' : 'cap' }));
+        const msg = editing ? (rec.error || (rec.conflict ? '"' + rec.conflict + '" already uses this key. Take it over, or press a different key.' : '')) : '';
+        return {
+          ord: order[c.scope], id: c.id, name: c.name, desc: c.desc, locked: false, caps, editing, notEditing: !editing,
+          noKeysDisp: keys.length === 0 ? 'inline' : 'none', warnDisp: clash[c.id] && keys.length > 0 ? 'inline' : 'none',
+          recHint: 'Press the new key', keyAria: 'Change the key for ' + c.name,
+          rowCls: kbSel === c.id || editing ? 'kb-row sel' : 'kb-row',
+          hasMsg: !!msg, msg, takeDisp: editing && rec.conflict && !rec.error ? 'inline-block' : 'none',
+          select: () => this.setState({ kbSel: c.id }), edit: () => this.startRec(c.id),
+          recKey: e => this.recKey(e), take: () => this.confirmRec(true), cancel: () => this.setState({ rec: null })
+        };
+      });
+      const mouse = [
+        ['m1', 'Select several', 'Drag a box on empty space. Everything it touches is selected.', ['Drag']],
+        ['m2', 'Add to selection', 'Hold Shift and click an item. Click it again to take it out.', ['Shift', '+', 'click']],
+        ['m3', 'Zoom', 'Hold Ctrl and scroll, or pinch on a trackpad.', ['Ctrl', '+', 'scroll']],
+        ['m4', 'Move around', 'Scroll with two fingers, or pick the Hand tool and drag.', ['Scroll']]
+      ].map(m => ({
+        ord: 2, id: m[0], name: 'Mouse: ' + m[1], desc: m[2], locked: true,
+        caps: m[3].map(t => ({ t, cls: t === '+' ? 'then' : 'cap' })), editing: false, notEditing: true, noKeysDisp: 'none', warnDisp: 'none',
+        recHint: '', keyAria: m[1], rowCls: 'kb-row', hasMsg: false, msg: '', takeDisp: 'none',
+        select: () => {}, edit: () => {}, recKey: () => {}, take: () => {}, cancel: () => {}
+      }));
+      const all = built.concat(mouse).sort((x, y) => x.ord - y.ord);
+      kbRows = all.filter(r => r.editing || !kbQ || (r.name + ' ' + r.desc + ' ' + r.caps.map(k => k.t).join(' ')).toLowerCase().indexOf(kbQ) >= 0);
+    }
+
+    const carry = this.loadCarry();
+    const mk = (label, active, go) => ({ label, active, go, bg: active ? INK : 'transparent', fg: active ? '#ffffff' : INK });
+    const emptyBoard = S.items.length === 0;
+    const fileState = (st.overBtn || st.dropPrev === 'field') ? 'over' : ((st.dragAny || st.dropPrev) ? 'page' : 'normal');
+    const saveKind = st.saveForce || (st.saving ? 'saving' : 'saved');
+    return {
+      maxW: st.phone ? '390px' : '1200px', asideFlex: st.phone ? '1 1 100%' : '0 1 270px', navRad: st.phone ? '28px' : '999px',
+      reviewGroups: [
+        { label: 'Width', opts: [mk('Desktop', !st.phone, () => this.setState({ phone: false })), mk('Phone', !!st.phone, () => this.setState({ phone: true }))] },
+        { label: 'Saving', opts: [mk('Saved', saveKind === 'saved', () => this.setState({ saveForce: null })), mk('Saving', st.saveForce === 'saving', () => this.setState({ saveForce: 'saving' })), mk("Couldn't save", st.saveForce === 'failed', () => this.setState({ saveForce: 'failed' }))] },
+        { label: 'Board', opts: [mk('Sample', !emptyBoard, () => this.loadSample()), mk('Empty', emptyBoard, () => this.clearBoard())] },
+        { label: 'Tray', opts: [mk('Two carried', carry.length > 0, () => this.setCarry(this.sampleCarry())), mk('Empty', carry.length === 0, () => this.setCarry([]))] },
+        { label: 'Dragging a file', opts: [mk('Over the page', st.dropPrev === 'page', () => this.setState({ dropPrev: st.dropPrev === 'page' ? null : 'page' })), mk('Over the field', st.dropPrev === 'field', () => this.setState({ dropPrev: st.dropPrev === 'field' ? null : 'field' })), mk('Over the board', st.dropPrev === 'board', () => this.setState({ dropPrev: st.dropPrev === 'board' ? null : 'board' }))] },
+        { label: 'Files', opts: [mk('Add a picture', false, () => this.addSampleFile('picture')), mk('Add a PDF', false, () => this.addSampleFile('pdf')), mk('File too big', false, () => this.addSampleFile('big')), mk('Refuse a Word file', false, () => this.handleFiles([new File(['x'], 'Quarterly report.docx')], null)), mk('Failed upload', false, () => this.addFailed())] }
+      ],
+      saveOk: saveKind === 'saved', saveBusy: saveKind === 'saving', saveBad: saveKind === 'failed',
+      saveText: { saved: 'Saved to your account', saving: 'Saving', failed: "Couldn't save. Your changes are kept on this page." }[saveKind],
+      saveBd: saveKind === 'failed' ? '#f0b4ae' : '#e8e8e8', saveFg: saveKind === 'failed' ? '#b42318' : '#3a3a3a',
+      saveRetry: () => this.setState({ saveForce: null }),
+      maxMb: this.maxMb(),
+      fileBs: fileState === 'normal' ? 'solid' : 'dashed', fileBc: fileState === 'normal' ? '#d0d0d0' : ACC,
+      fileBg: fileState === 'over' ? 'rgba(217,72,26,0.14)' : (fileState === 'page' ? 'rgba(217,72,26,0.05)' : '#ffffff'),
+      fileSh: fileState === 'over' ? '0 0 0 3px rgba(217,72,26,0.22)' : 'none',
+      fileLabel: fileState === 'over' ? 'Release to add it' : (fileState === 'page' ? 'Drop files here' : '+ File or image'),
+      pickFile: () => { const el = document.getElementById('sp-file'); if (el) el.click(); },
+      onPick: e => { this.handleFiles(e.target.files, null); e.target.value = ''; },
+      showEmpty: emptyBoard, showDrop: !!(st.dropOver || st.dropPrev === 'board'),
+      hasNotice: !!(st.notice && st.notice.length), noticeLines: (st.notice || []).map(t => ({ t })), dismissNotice: () => this.setState({ notice: null }),
+      carryEmpty: carry.length === 0,
+      carryChips: carry.map(c => ({
+        title: c.title, sub: (c.kind === 'donut' ? 'Circle' : 'List') + ', ' + c.when,
+        dragStart: e => { e.dataTransfer.setData('application/x-sl-snap', String(c.id)); e.dataTransfer.effectAllowed = 'copy'; },
+        add: () => this.addSnapshot(c, null), drop: () => this.setCarry(carry.filter(x => x.id !== c.id))
+      })),
+      themeFilter: dark ? 'invert(0.92) hue-rotate(180deg)' : 'none', rootBg: dark ? '#141414' : '#ffffff', isDark: dark, isLight: !dark, themeAria: dark ? 'Switch to light mode' : 'Switch to dark mode', toggleTheme: () => this.setState({ dark: !dark }),
+      appOpacity: kbOpen ? '0.6' : '1', appTransform: kbOpen ? 'translateX(-3%) scale(0.95)' : 'none',
+      showKeys: kbOpen, toggleKeys: () => this.setState({ keys: !kbOpen, rec: null }),
+      kbQ: st.kbQ || '', onKbQ: e => this.setState({ kbQ: e.target.value }), kbRows, kbNone: kbOpen && kbRows.length === 0, resetAll: () => this.resetAll(),
+      hasToast: !!st.toast, toast: st.toast || '',
+      keysNote,
+      q: S.q, onFind: e => this.setState({ q: e.target.value }),
+      trayNote: S.q.trim().length >= 2 ? 'Matches in the whole table' : 'Most expensive first. Drag onto the board, or press +.',
+      tray: (S.q.trim().length >= 2
+        ? rows.filter(x => x.name.toLowerCase().includes(S.q.trim().toLowerCase())).slice(0, 8)
+        : rows.filter(x => x.price !== null).sort((x, y) => y.price - x.price).slice(0, 9)
+      ).map(x => {
+        const onBoard = S.items.some(i => i.type === 'company' && i.name === x.name);
+        return {
+          name: x.name, sector: x.sector, price: x.price === null ? '—' : '$' + x.price.toFixed(3), onBoard, bd: onBoard ? '#0a0a0a' : '#e8e8e8', op: onBoard ? 0.55 : 1,
+          dragStart: e => { e.dataTransfer.setData('text/plain', x.name); e.dataTransfer.effectAllowed = 'copy'; },
+          add: () => this.addCompany(x.name, null)
+        };
+      }),
+      addSticky: () => this.addPaper('sticky'), addText: () => this.addPaper('text'),
+      tools: [['select', 'Select'], ['hand', 'Hand'], ['line', 'Line'], ['pen', 'Pen'], ['mark', 'Marker']].map(t => Object.assign({ label: t[1], active: S.tool === t[0], go: () => this.setState({ tool: t[0], linkFrom: null }) }, on(S.tool === t[0]))),
+      hint: hints[S.tool],
+      undo: () => this.undo(), redo: () => this.redo(),
+      noUndo: !(this._past && this._past.length), noRedo: !(this._future && this._future.length),
+      showNone: !selItem && !selLine && !showMulti && !groupSel,
+      zoomIn: () => { const s = this.boardSize(); this.zoomAt(z * 1.25, s.w / 2, s.h / 2); },
+      zoomOut: () => { const s = this.boardSize(); this.zoomAt(z / 1.25, s.w / 2, s.h / 2); },
+      zoomReset: () => { const s = this.boardSize(); this.zoomAt(1, s.w / 2, s.h / 2); }, zoomLabel: Math.round(z * 100) + '%',
+      zoomFit: () => this.fitBoxes(this.itemBoxes(null), 2),
+      zoomSel: () => { if (selIds.length) this.fitBoxes(this.itemBoxes(selIds), 2); }, noZoomSel: selIds.length === 0,
+      fontName: isPaper ? (selItem.font || 'Inter') : 'Inter', fontCssSel: isPaper ? this.fontCss(selItem.font) : this.fontCss('Inter'),
+      fontOpen: !!isPaper && !!st.fontFor && st.fontFor === selItem.id,
+      keepFont: e => e.preventDefault(),
+      toggleFont: () => { if (isPaper) this.setState({ fontFor: st.fontFor === selItem.id ? null : selItem.id }); },
+      closeFont: () => this.setState({ fontFor: null }),
+      fontRows: (() => {
+        if (!isPaper) return [];
+        const cur = selItem.font || 'Inter';
+        const out = [];
+        let last = '';
+        this.fontList().forEach(f => {
+          if (f.cat !== last) { out.push({ isHead: true, isFont: false, label: f.cat.toUpperCase() }); last = f.cat; }
+          const on = f.name === cur;
+          out.push({ isHead: false, isFont: true, name: f.name, css: f.css, active: on, bg: on ? INK : 'transparent', fg: on ? '#ffffff' : INK, tick: on ? 'In use' : '', go: () => { this.mark(); this.patchItem(selItem.id, { font: f.name }); } });
+        });
+        return out;
+      })(),
+      showFmt: !!isPaper, showLine: !!selLine, showCompany: !!selItem && selItem.type === 'company', showSnap: !!selItem && selItem.type === 'snap', showFile: !!selItem && selItem.type === 'file', showGroup: !!groupSel,
+      showTone: !!selItem && selItem.type === 'sticky',
+      showMulti, multiCount: S.multi.length, showMultiTone: multiStickies.length > 0,
+      fmtStyle: [
+        { label: 'B', aria: 'Bold', active: !!isPaper && spanOn('b'), go: () => this.fmtTop('b') },
+        { label: 'Highlight', aria: 'Highlighter', active: !!isPaper && spanOn('h'), go: () => this.fmtTop('h') },
+        { label: '• List', aria: 'Bullet list', active: !!para && para.list === 'bullet', go: () => this.fmt(p => Object.assign({}, p, { list: p.list === 'bullet' ? 'none' : 'bullet' })) },
+        { label: '1. List', aria: 'Numbered list', active: !!para && para.list === 'number', go: () => this.fmt(p => Object.assign({}, p, { list: p.list === 'number' ? 'none' : 'number' })) }
+      ].map(f => Object.assign(f, on(f.active), { keep: e => e.preventDefault() })),
+      aL: al('left'), aC: al('center'), aR: al('right'),
+      alignLeft: () => this.fmt(p => Object.assign({}, p, { align: 'left' })),
+      alignCenter: () => this.fmt(p => Object.assign({}, p, { align: 'center' })),
+      alignRight: () => this.fmt(p => Object.assign({}, p, { align: 'right' })),
+      toneList: tones.map(t => ({ label: t, bg: toneOf(t).bg, bd: toneOf(t).bd, active: !!selItem && selItem.tone === t, ring: selItem && selItem.tone === t ? '0 0 0 2px #ffffff, 0 0 0 4px ' + ACC : 'none', go: () => { if (selItem) { this.mark(); this.patchItem(selItem.id, { tone: t }); } } })),
+      multiToneList: tones.map(t => ({ label: t, bg: toneOf(t).bg, bd: toneOf(t).bd, active: multiStickies.length > 0 && multiStickies.every(i => i.tone === t), ring: multiStickies.length > 0 && multiStickies.every(i => i.tone === t) ? '0 0 0 2px #ffffff, 0 0 0 4px ' + ACC : 'none',
+        go: () => { const ids = multiStickies.map(i => i.id); if (!ids.length) return; this.mark(); this.setItems(this.S.items.map(i => ids.indexOf(i.id) >= 0 ? Object.assign({}, i, { tone: t }) : i)); } })),
+      deleteSel: () => this.remove(),
+      lineLabel: selLine ? (selLine.label || '') : '',
+      onLineLabel: e => { if (!selLine) return; this.markTyping('l' + selLine.id); this.patchLine(selLine.id, { label: e.target.value }); },
+      lineHeads: [['none', 'None'], ['end', 'One end'], ['both', 'Both ends']].map(h => Object.assign({ label: h[1], active: !!selLine && (selLine.head || 'none') === h[0], go: () => { if (selLine) { this.mark(); this.patchLine(selLine.id, { head: h[0] }); } } }, on(!!selLine && (selLine.head || 'none') === h[0]))),
+      lineShapes: [[0, 'Straight'], [1, 'Curved']].map(h => Object.assign({ label: h[1], active: !!selLine && !!selLine.bend === !!h[0], go: () => { if (selLine) { this.mark(); this.patchLine(selLine.id, { bend: h[0] ? (selLine.bend || 1) : 0 }); } } }, on(!!selLine && !!selLine.bend === !!h[0]))),
+      flipDisp: selLine && selLine.bend ? 'inline-block' : 'none', flipLine: () => { if (selLine && selLine.bend) { this.mark(); this.patchLine(selLine.id, { bend: -selLine.bend }); } },
+      groupName: groupSel ? groupSel.name : '', groupCount: groupSel ? groupSel.ids.length : 0,
+      onGroupName: e => { if (!groupSel) return; this.markTyping('g' + groupSel.id); this.setState({ groups: this.S.groups.map(g => g.id === groupSel.id ? Object.assign({}, g, { name: e.target.value }) : g) }); },
+      selAll: e => { try { e.target.select(); } catch (err) { /* not a text box */ } },
+      makeGroup: () => this.makeGroup(), ungroup: () => this.ungroup(),
+      snapWhen: selItem && selItem.type === 'snap' && selItem.snap ? selItem.snap.when : '',
+      fileName: selItem && selItem.type === 'file' ? selItem.name : '', fileMeta: selItem && selItem.type === 'file' ? this.fmtSize(selItem.size || 0) : '',
+      view: { x: S.view.x, y: S.view.y, z: S.view.z }, bgSize: (24 * z) + 'px', bgPos: S.view.x + 'px ' + S.view.y + 'px',
+      boardCursor: draw ? 'crosshair' : (handMode ? 'grab' : (linkMode ? 'default' : 'default')),
+      itemPE: draw || handMode ? 'none' : 'auto', linePE: draw || handMode ? 'none' : 'auto', lineHit: draw || handMode ? 'none' : 'stroke', linkMode, groupList,
+      items, lineList, penD: pathOf('pen'), markD: pathOf('mark'), bx,
+      boardDown: e => {
+        const s = this.S;
+        const onControl = !!(e.target.closest && e.target.closest('button, textarea, input'));
+        if (s.tool === 'pen' || s.tool === 'mark') {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          this._mode = 'draw';
+          this.setState({ draft: { kind: s.tool, pts: [this.world(e, e.currentTarget)] } });
+        } else if (s.tool === 'hand') {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          this._mode = 'pan';
+          this._pan = { sx: e.clientX, sy: e.clientY, ox: s.view.x, oy: s.view.y, sc: this.scaleOf(e.currentTarget) };
+        } else if (s.tool === 'select') {
+          if (onControl) { this._mode = null; return; }
+          e.currentTarget.setPointerCapture(e.pointerId);
+          this._mode = 'box';
+          const w = this.world(e, e.currentTarget);
+          this._boxStart = { shift: e.shiftKey, prev: s.multi.length > 1 ? s.multi : (s.sel && s.sel.type === 'item' ? [s.sel.id] : []) };
+          const patch = { box: { x0: w[0], y0: w[1], x1: w[0], y1: w[1] } };
+          if (!e.shiftKey) Object.assign(patch, { sel: null, multi: [], fp: null, tsel: null });
+          this.setState(patch);
+        } else {
+          this._mode = null;
+          if (!onControl) this.setState({ linkFrom: null });
+        }
+      },
+      boardMove: e => {
+        if (this._mode === 'draw') {
+          const d = this.S.draft;
+          if (d) this.setState({ draft: { kind: d.kind, pts: d.pts.concat([this.world(e, e.currentTarget)]) } });
+        } else if (this._mode === 'pan' && this._pan) {
+          const p = this._pan;
+          this.setView(Object.assign({}, this.S.view, { x: p.ox + (e.clientX - p.sx) / p.sc, y: p.oy + (e.clientY - p.sy) / p.sc }));
+        } else if (this._mode === 'box' && this.S.box) {
+          const w = this.world(e, e.currentTarget);
+          this.setState({ box: Object.assign({}, this.S.box, { x1: w[0], y1: w[1] }) });
+        }
+      },
+      boardUp: () => {
+        if (this._mode === 'draw') {
+          const s = this.S;
+          if (s.draft) this.mark();
+          this.setState({ strokes: s.draft ? s.strokes.concat([s.draft]) : s.strokes, draft: null });
+        } else if (this._mode === 'box') {
+          const s = this.S;
+          const b = s.box;
+          if (b) {
+            const x0 = Math.min(b.x0, b.x1), x1 = Math.max(b.x0, b.x1), y0 = Math.min(b.y0, b.y1), y1 = Math.max(b.y0, b.y1);
+            const moved = (x1 - x0) > 3 || (y1 - y0) > 3;
+            let ids = moved ? s.items.filter(i => { const h = this.est(i); return i.x < x1 && i.x + i.w > x0 && i.y < y1 && i.y + h > y0; }).map(i => i.id) : [];
+            const bs = this._boxStart || { shift: false, prev: [] };
+            if (bs.shift) ids = bs.prev.concat(ids.filter(id => bs.prev.indexOf(id) < 0));
+            if (moved || bs.shift) this.setState({ box: null, multi: ids.length > 1 ? ids : [], sel: ids.length === 1 ? { type: 'item', id: ids[0] } : null });
+            else this.setState({ box: null });
+          }
+        }
+        this._mode = null; this._pan = null; this._boxStart = null;
+      },
+      onDragOver: e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; },
+      onDragEnter: e => { if (this.fileDrag(e)) { this._dc = (this._dc || 0) + 1; if (!this.state.dropOver) this.setState({ dropOver: true }); } },
+      onDragLeave: e => { if (this.fileDrag(e)) { this._dc = Math.max(0, (this._dc || 0) - 1); if (!this._dc) this.setState({ dropOver: false }); } },
+      onDrop: e => {
+        e.preventDefault();
+        this._dc = 0;
+        if (this.state.dropOver) this.setState({ dropOver: false });
+        const dt = e.dataTransfer;
+        const at = this.world(e, e.currentTarget);
+        const snapId = dt.getData('application/x-sl-snap');
+        if (snapId) { const c = this.loadCarryNow().find(x => String(x.id) === snapId); if (c) this.addSnapshot(c, at); }
+        else if (dt.files && dt.files.length) this.handleFiles(dt.files, at);
+        else { const name = dt.getData('text/plain'); if (name) this.addCompany(name, at); }
+      },
+      // Anywhere on the page: a file in the air turns the file field into a drop target. Dropping outside a target does nothing
+      // (and the browser must not open the file), so these always cancel the default.
+      // The font list closes when the person presses anywhere outside it
+      rootDownCap: e => { if (this.state.fontFor && !(e.target.closest && e.target.closest('[data-fontpop]'))) this.setState({ fontFor: null }); },
+      rootEnter: e => { if (this.filesDrag(e)) { this._rc = (this._rc || 0) + 1; if (!this.state.dragAny) this.setState({ dragAny: true }); } },
+      rootLeave: e => { if (this.filesDrag(e)) { this._rc = Math.max(0, (this._rc || 0) - 1); if (!this._rc) this.setState({ dragAny: false, overBtn: false, dropOver: false }); } },
+      rootOver: e => { if (this.filesDrag(e)) e.preventDefault(); },
+      rootDrop: e => { if (this.filesDrag(e)) e.preventDefault(); this._rc = 0; this._dc = 0; if (this.state.dragAny || this.state.overBtn || this.state.dropOver) this.setState({ dragAny: false, overBtn: false, dropOver: false }); },
+      // a mouse move while nothing is being dragged means a drag ended somewhere we did not hear about
+      rootMove: () => {
+        let raw = null;
+        try { raw = window.localStorage.getItem('sl-carry-v1'); } catch (e) { /* blocked */ }
+        if (raw !== null && raw !== this._carryRaw) this.setState({ cv: ((this.state || {}).cv || 0) + 1 });
+        if (this.state.dragAny && !this.state.dropPrev) { this._rc = 0; this._dc = 0; this.setState({ dragAny: false, overBtn: false, dropOver: false }); } },
+      btnEnter: e => { if (this.filesDrag(e)) { e.preventDefault(); if (!this.state.overBtn) this.setState({ overBtn: true }); } },
+      btnOver: e => { if (this.filesDrag(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; if (!this.state.overBtn) this.setState({ overBtn: true }); } },
+      btnLeave: e => { if (this.filesDrag(e) && this.state.overBtn) this.setState({ overBtn: false }); },
+      btnDrop: e => {
+        e.preventDefault();
+        e.stopPropagation();
+        this._rc = 0;
+        this.setState({ dragAny: false, overBtn: false, dropOver: false });
+        if (e.dataTransfer.files && e.dataTransfer.files.length) this.handleFiles(e.dataTransfer.files, null);
+      },
+      onPaste: e => {
+        if ((this.state || {}).keys) return;
+        const cd = e.clipboardData;
+        if (!cd || !cd.files || !cd.files.length) return;
+        e.preventDefault();
+        const list = Array.prototype.slice.call(cd.files).map(f => (!f.name || f.name === 'image.png') ? new File([f], 'Pasted image.png', { type: f.type }) : f);
+        this.handleFiles(list, null);
+      },
+      onKey: e => {
+        const t = e.target;
+        const tag = t && t.tagName;
+        const s0 = this.state || {};
+        // OPUS: Ctrl+Z (undo) and Ctrl+Y or Ctrl+Shift+Z (redo) are ESSENTIAL on this page, do not ship the Scratchpad without them.
+        // People will drag, delete and draw freely because they trust they can take it back. Every change must be undoable:
+        // moving, resizing, deleting (cards, notes, lines, drawings), typing in a note, formatting, and group edits once those exist.
+        // Keep the undo buttons in the toolbar too, and make Ctrl+Z work even while a note is focused. Cmd on Mac. See OVERVIEW_HANDOFF.md.
+        // While the Shortcuts panel is open it owns the keyboard, Esc closes it
+        if (s0.keys) {
+          if (e.key === 'Escape' && !s0.rec) {
+            if (t && t.id === 'kbq' && s0.kbQ) this.setState({ kbQ: '' }); else this.setState({ keys: false });
+          }
+          return;
+        }
+        const typing = tag === 'INPUT' || tag === 'TEXTAREA';
+        // Ctrl+Shift+Z also redoes, whatever the key list says
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'z' || e.key === 'Z') && !(t && t.id === 'tfind')) { e.preventDefault(); this.redo(); return; }
+        if (typing) {
+          if (e.key === 'Escape') { t.blur(); return; }
+          if (!(e.ctrlKey || e.altKey || e.metaKey)) return;
+          if (t.id === 'tfind') return;
+        }
+        const c = this.combo(e);
+        if (!c) return;
+        const act = allCmds.filter(x => x.scope !== 'overview');
+        const pend = this._pend;
+        this._pend = null;
+        if (pend && Date.now() - pend.t < 1200) {
+          const hit = act.find(x => BE[x.id].length === 2 && BE[x.id][0] === pend.c && BE[x.id][1] === c);
+          if (hit) { e.preventDefault(); this.runSp(hit.id, e); return; }
+        }
+        const single = act.find(x => BE[x.id].length === 1 && BE[x.id][0] === c);
+        if (single) { e.preventDefault(); this.runSp(single.id, e); return; }
+        if (act.some(x => BE[x.id].length === 2 && BE[x.id][0] === c)) {
+          e.preventDefault();
+          this._pend = { c, t: Date.now() };
+          this.say(this.show(c) + ' then...');
+          return;
+        }
+        if (typing) return;
+        if (e.key === 'Escape') this.setState({ tool: 'select', sel: null, multi: [], linkFrom: null, draft: null, box: null });
+        else if (e.key === 'Delete' || e.key === 'Backspace') this.remove();
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>
