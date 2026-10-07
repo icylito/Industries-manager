@@ -68,6 +68,9 @@ public record NewField(string Label, string Type, bool Required, int? MaxLength,
 // What POST /schema/fields/many takes. BasedOn is the rules version the page was looking at.
 public record NewFields(int? BasedOn, List<NewField>? Fields);
 
+// What DELETE /schema/fields/{key} gives back: the rules now, how many rows lost a value, how many open requests were closed
+public record FieldDeleted(RuleSet Rules, int RowsChanged, int RequestsClosed);
+
 // The rules in use, what GET /schema returns
 public record RuleSet(int Version, DateTimeOffset CreatedAt, string ChangedBy, string? Note, IReadOnlyList<FieldRule> Fields);
 

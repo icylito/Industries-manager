@@ -14,6 +14,21 @@ export interface Industry {
     extra: Record<string, string | number | null> | null;
 }
 
+// What DELETE /industries/{id} gives back, so the page can say what went and from where
+export interface DeletedRow {
+    deleted: number;
+    table: string;
+    id: number;
+    name: string;
+}
+
+// What DELETE /schema/fields/{key} gives back
+export interface FieldDeleted {
+    rules: RuleSet;
+    rowsChanged: number;
+    requestsClosed: number;
+}
+
 export interface CreateIndustry{
     name: string;
     sector: string | null;

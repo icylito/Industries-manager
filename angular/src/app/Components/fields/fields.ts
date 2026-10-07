@@ -221,9 +221,12 @@ export class FieldsPage implements OnInit {
       next: r => {
         this.deleteBusy.set(false);
         this.deleting.set(null);
-        this.deleteMsg.set(`Deleted ${field.label}.`);
-        this.setRules(r, true);
+        const rows = `${r.rowsChanged} ${r.rowsChanged === 1 ? 'row' : 'rows'}`;
+        const requests = r.requestsClosed ? ` ${r.requestsClosed} open ${r.requestsClosed === 1 ? 'request' : 'requests'} about it ${r.requestsClosed === 1 ? 'was' : 'were'} closed.` : '';
+        this.deleteMsg.set(`Deleted ${field.label}. Its values were removed from ${rows} in Industries.${requests}`);
+        this.setRules(r.rules, true);
         this.loadVersions();
+        if (r.requestsClosed) this.api.refreshRequestCount();
       },
       error: (err: HttpErrorResponse) => { this.deleteBusy.set(false); this.deleteError.set(errorText(err)); },
     });

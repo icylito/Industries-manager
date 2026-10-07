@@ -1029,6 +1029,16 @@ input.bad{
     }
 }
 
+/* What the last delete did, above the table */
+.result.deleted{
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0 0 1rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
 /* A problem with what was typed sits right above the button that is waiting on it */
 .form-problem{
     grid-column: 1 / -1;

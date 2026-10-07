@@ -266,6 +266,10 @@
         </label>
     </div>
 
+    @if (deleted()) {
+        <p class="result small deleted" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ deleted() }}</p>
+    }
+
     @if (loading()){
         <p class="state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
             {{ dbState() === 'migrating' ? dbMessage() : 'Loading industries' }}</p>

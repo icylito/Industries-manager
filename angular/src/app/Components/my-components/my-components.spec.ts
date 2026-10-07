@@ -36,9 +36,10 @@ describe('MyComponents', () => {
 
     component.remove(1);
     expect(component.deletingId()).toBe(1);
-    http.expectOne(r => r.method === 'DELETE' && r.url.endsWith('/industries/1')).flush('The row has been deleted');
+    http.expectOne(r => r.method === 'DELETE' && r.url.endsWith('/industries/1')).flush({ deleted: 1, table: 'Industries', id: 1, name: 'Alpha' });
 
     expect(component.industries().map(i => i.id)).toEqual([2]);
+    expect(component.deleted()).toBe('Deleted 1 row from Industries: Alpha.');
     expect(component.confirmingId()).toBeNull();
     expect(component.deletingId()).toBeNull();
     expect(confirmSpy).not.toHaveBeenCalled();

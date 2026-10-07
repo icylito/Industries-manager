@@ -70,6 +70,7 @@ export class MyComponents implements OnInit {
 
     this.saving.set(true);
     this.formError.set('');
+    this.deleted.set('');
 
     const id = this.editingId();
 
@@ -310,15 +311,19 @@ export class MyComponents implements OnInit {
   // The row that is asking "Delete this row?", and the one being deleted
   confirmingId = signal<number | null>(null);
   deletingId = signal<number | null>(null);
+  // What the last delete did, so a delete is never silent. Cleared by the next add or edit.
+  deleted = signal('');
 
   remove(id: number){
     this.deletingId.set(id);
+    this.deleted.set('');
     this.api.delete(id).subscribe({
-      next: () => {
+      next: gone => {
         this.deletingId.set(null);
         this.confirmingId.set(null);
         this.industries.update(list => list.filter(i => i.id !== id));
         if (this.editingId() === id) this.cancelEdit();
+        this.deleted.set(`Deleted ${gone.deleted} ${gone.deleted === 1 ? 'row' : 'rows'} from ${gone.table}: ${gone.name}.`);
       },
       // Delete logic if id found
       error: err => {

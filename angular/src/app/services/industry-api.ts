@@ -4,7 +4,7 @@ import { MonoTypeOperatorFunction, Observable, retry, throwError, timer } from '
 import {
     Industry, CreateIndustry, UpdateIndustry, DbHealth, RuleSet, FieldRule, NewField, VersionSummary, VersionDetail,
     ImportPreview, ImportResult, RestoreResult, Retention, BackupEntry, BackupStatus, BackupRestorePreview, BackupRestoreResult, DevRequest,
-    SettingsFile, SettingsImportPreview, SettingsImportResult, AuthUser, NewUserResult,
+    SettingsFile, SettingsImportPreview, SettingsImportResult, AuthUser, NewUserResult, DeletedRow, FieldDeleted,
 } from '../models/industry';
 import { environment } from '../../environments/environment';
 
@@ -39,8 +39,9 @@ export class IndustryApi {
         update(id: number, body: UpdateIndustry): Observable<void>{
             return this.http.put<void>(`${this.baseUrl}/update/${id}`, body);
         }
-        delete(id: number): Observable<string>{
-            return this.http.delete(`${this.baseUrl}/${id}`, { responseType: 'text'})
+        // The API says what went: 1 row from Industries, with its name
+        delete(id: number): Observable<DeletedRow>{
+            return this.http.delete<DeletedRow>(`${this.baseUrl}/${id}`);
         }
 
     // Rules and custom fields
@@ -53,8 +54,8 @@ export class IndustryApi {
     addFields(fields: NewField[], basedOn: number | null): Observable<RuleSet> {
         return this.http.post<RuleSet>(`${this.apiUrl}/schema/fields/many`, { basedOn, fields });
     }
-    deleteField(key: string, basedOn: number): Observable<RuleSet> {
-        return this.http.delete<RuleSet>(`${this.apiUrl}/schema/fields/${encodeURIComponent(key)}`, { params: { basedOn } });
+    deleteField(key: string, basedOn: number): Observable<FieldDeleted> {
+        return this.http.delete<FieldDeleted>(`${this.apiUrl}/schema/fields/${encodeURIComponent(key)}`, { params: { basedOn } });
     }
     ruleVersions(): Observable<RuleSet[]> {
         return this.http.get<RuleSet[]>(`${this.apiUrl}/schema/versions`).pipe(this.retryTransient());

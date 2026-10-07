@@ -56,7 +56,7 @@ And that should be all to get started.
 
 ## Running it
 
-Double click `start.bat` in the project folder, or run `.\start.bat`. It starts the Docker database if the API uses it (no settings file, or settings pointing at port 5433), then opens 2 windows, one for the API at http://localhost:5005 and one for the page at http://localhost:4200. Closing a window stops that one.
+Double click `start.bat` in the project folder, or run `.\start.bat`. It starts the Docker database if the API uses it (no settings file, or settings pointing at port 5433), then opens 2 windows, one for the API at http://localhost:5005 and one for the page at http://localhost:4200. Closing a window stops that one. `.\start.bat https` does the same over https, see [Https](#https).
 
 On a fresh clone the tables start empty, nobody's data comes with the repo. The API creates 2 databases on its first run: `main` with the `Industries` table and `collector`, which keeps the saved copies and the change log. If you want fake rows to test with, see [Seeding synthetic data](#seeding-synthetic-data).
 
@@ -85,7 +85,7 @@ This folder uses Angular mainly to replace the Swagger UI from `api_v2/`. The 2 
 
 - **Sign in** (`/login`) and **Your account** (`/account`) are for changing your password or signing out. A new account has to pick its own password first.
 - **People** (`/users`) is where an admin makes accounts, gives someone a new password, makes someone admin or normal, or turns an account off.
-- **Industries** (`/`) is the table. Rows can have a triangle next to the name, hover it to see why:
+- **Industries** (`/`) is the table. Delete asks in the row, and afterwards says what went: "Deleted 1 row from Industries: Horizon Water LLC." Deleting a field on Fields says how many rows lost a value. Rows can have a triangle next to the name, hover it to see why:
   - red means a value couldn't come over from old data and shows `--`. It goes away once someone saves the row.
   - black is minor, like a value that breaks today's rules or a similar row.
   - Similar rows also get an amber background. That only happens through import, adding a name that's taken by hand still says it exists.
@@ -145,10 +145,29 @@ Anyone can look at the table. Adding, editing and deleting rows needs an account
 - Admins make the other accounts on the People page. Each gets a temporary password shown once, and has to pick their own at first sign in. Nobody can sign up by themselves, and accounts are turned off, never deleted, so History keeps the names.
 - Passwords are at least 10 characters and are stored as a salted PBKDF2 hash, never as text. Signing in is limited to 5 tries a minute per address (`Auth:LoginTriesPerMinute`). A sign in lasts 12 hours after its last use, 7 days at most, and is kept in the browser.
 - `Auth:GuestCanView` set to `false` hides the table from people who aren't signed in.
-- Everything here travels over plain http on your network, so anyone on the same Wi-Fi who is listening could read a password. Use https before this leaves a trusted network.
+- On plain http anyone on the same Wi-Fi who is listening could read a password at sign in. On your own PC that's fine, on a shared network start with `start.bat https`, see [Https](#https). The API window says so at startup when nothing is https.
 - The seed script needs an account now: set `SEED_USER` and `SEED_PASSWORD` before running it.
 - Numbers have to arrive as numbers. The API refuses a price sent as text, like `"5"`.
-- Restoring an old copy of the main database brings back its old accounts and passwords too.
+- Restore from a backup on the History page leaves the accounts alone. Only a restore by hand with `pg_restore` of the whole database brings old accounts and passwords back.
+
+### Https
+
+`start.bat https` runs the API on https://localhost:7165 and the page on https://localhost:4200, and the page talks to the https API by itself (it picks the address from its own protocol, see `angular/src/environments/environment.ts`). Plain http on 5005 then answers with a redirect to https, and the API sends the HSTS header so browsers keep using https (not on localhost, ASP.NET leaves that one out on purpose).
+
+Two things to do once:
+
+- Make and trust the development certificate for the API: `dotnet dev-certs https --trust`. Windows asks once.
+- The page's dev server makes its own certificate. The browser shows a warning the first time, accept it.
+
+That certificate is only trusted on the PC that made it. Another PC on the Wi-Fi that opens the page gets a warning, which is the honest state of a self signed certificate. For a certificate everyone trusts, point Kestrel at it in `appsettings.Development.json`:
+
+```
+"Kestrel": {
+  "Certificates": { "Default": { "Path": "C:\\certs\\stock-listing.pfx", "Password": "..." } }
+}
+```
+
+By hand it's `dotnet run --launch-profile https --Https:Required=true` and `ng serve --ssl`. `Https:Required` is what turns the redirect and HSTS on, it's off by default so a fresh clone runs with no certificate. `Https:Port` is the port the redirect goes to, 7165 unless you change the profile. The page addresses the API accepts (`Cors:Origins` in `appsettings.json`) list both http and https for 4200.
 
 The address the page uses for the API is in `angular/src/environments/environment.ts`. The page addresses the API accepts are `Cors:Origins` in `appsettings.json`.
 
