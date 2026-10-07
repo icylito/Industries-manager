@@ -58,7 +58,7 @@ And that should be all to get started.
 
 ## Running it
 
-Double click `start.bat` in the project folder, or run `.\start.bat`. It starts the Docker database if the API uses it (no settings file, or settings pointing at port 5433), then opens 2 windows, one for the API at http://localhost:5005 and one for the page at http://localhost:4200. Closing a window stops that one. `.\start.bat https` does the same over https, see [Https](#https).
+Double click `start.bat` in the project folder, or run `.\start.bat`. It starts the Docker database if the API uses it (no settings file, or settings pointing at port 5433), then opens 2 windows, one for the API at http://localhost:5005 and one for the page at http://localhost:4200. Closing a window stops that one. `.\start.bat https` does the same over https, see [Https](#https). `.\start.bat share` opens the page to a phone or another PC on the same Wi-Fi, see [Sharing on the Wi-Fi](#sharing-on-the-wi-fi).
 
 On a fresh clone the tables start empty, nobody's data comes with the repo. The API creates 2 databases on its first run: `main` with the `Industries` table and `collector`, which keeps the saved copies and the change log. If you want fake rows to test with, see [Seeding synthetic data](#seeding-synthetic-data).
 
@@ -148,7 +148,7 @@ Anyone can look at the table. Adding, editing and deleting rows needs an account
 - Admins make the other accounts on the People page. Each gets a temporary password shown once, and has to pick their own at first sign in. Nobody can sign up by themselves, and accounts are turned off, never deleted, so History keeps the names.
 - Passwords are at least 10 characters and are stored as a salted PBKDF2 hash, never as text. Signing in is limited to 5 tries a minute per address (`Auth:LoginTriesPerMinute`). A sign in lasts 12 hours after its last use, 7 days at most, and is kept in the browser.
 - `Auth:GuestCanView` set to `false` hides the table from people who aren't signed in.
-- On plain http anyone on the same Wi-Fi who is listening could read a password at sign in. On your own PC that's fine, on a shared network start with `start.bat https`, see [Https](#https). The API window says so at startup when nothing is https.
+- On plain http anyone on the same Wi-Fi who is listening could read a password at sign in. On your own PC that's fine, on a shared network start with `start.bat https` or `start.bat share`, see [Https](#https). The API window says so at startup when nothing is https.
 - The seed script needs an account now: set `SEED_USER` and `SEED_PASSWORD` before running it.
 - Numbers have to arrive as numbers. The API refuses a price sent as text, like `"5"`.
 - Restore from a backup on the History page leaves the accounts alone. Only a restore by hand with `pg_restore` of the whole database brings old accounts and passwords back.
@@ -157,12 +157,15 @@ Anyone can look at the table. Adding, editing and deleting rows needs an account
 
 `start.bat https` runs the API on https://localhost:7165 and the page on https://localhost:4200, and the page talks to the https API by itself (it picks the address from its own protocol, see `angular/src/environments/environment.ts`). Plain http on 5005 then answers with a redirect to https, and the API sends the HSTS header so browsers keep using https (not on localhost, ASP.NET leaves that one out on purpose).
 
+Make sure when you run any script commands in this case `start.bat` make sure its running from the work/home directory
+
 Two things to do once:
 
-- Make and trust the development certificate for the API: `dotnet dev-certs https --trust`. Windows asks once.
-- The page's dev server makes its own certificate. The browser shows a warning the first time, accept it.
+- Make and trust the development certificate: `dotnet dev-certs https --trust`. Windows asks once.
 
-That certificate is only trusted on the PC that made it. Another PC on the Wi-Fi that opens the page gets a warning, which is the honest state of a self signed certificate. For a certificate everyone trusts, point Kestrel at it in `appsettings.Development.json`:
+`start.bat` copies that certificate to `angular/.cert` (git ignores it) the first time, and the page uses it too, so this PC opens both with no warning.
+
+That certificate is only trusted on the PC that made it, and only for the name `localhost`. Another PC on the Wi-Fi that opens the page gets a warning, which is the honest state of a self signed certificate. For a certificate everyone trusts, point Kestrel at it in `appsettings.Development.json`:
 
 ```
 "Kestrel": {
@@ -170,9 +173,19 @@ That certificate is only trusted on the PC that made it. Another PC on the Wi-Fi
 }
 ```
 
-By hand it's `dotnet run --launch-profile https --Https:Required=true` and `ng serve --ssl`. `Https:Required` is what turns the redirect and HSTS on, it's off by default so a fresh clone runs with no certificate. `Https:Port` is the port the redirect goes to, 7165 unless you change the profile. The page addresses the API accepts (`Cors:Origins` in `appsettings.json`) list both http and https for 4200.
+By hand it's `dotnet run --launch-profile https --Https:Required=true` and `ng serve --ssl --ssl-cert .cert/localhost.pem --ssl-key .cert/localhost.key`. `Https:Required` is what turns the redirect and HSTS on, it's off by default so a fresh clone runs with no certificate. `Https:Port` is the port the redirect goes to, 7165 unless you change the profile. The page addresses the API accepts (`Cors:Origins` in `appsettings.json`) list both http and https for 4200.
 
 The address the page uses for the API is in `angular/src/environments/environment.ts`. The page addresses the API accepts are `Cors:Origins` in `appsettings.json`.
+
+### Sharing on the Wi-Fi
+
+`start.bat share` opens the page to other devices on the same network, over https. The window prints the address, for example `https://192.168.1.45:4200`. Open it on the phone or the other PC.
+
+- Only the page is open. The API and the database stay on this PC. The page server passes `/api` on to the API (`angular/proxy.share.json`), and the page uses `/api` by itself when it's opened from another device.
+- The other device shows a certificate warning the first time, because the certificate is for `localhost` and not this PC's address. Continue past it.
+- Windows asks about the firewall the first time Node listens on the network. Allow private networks. If the Wi-Fi is set to Public in Windows, other devices can't get in, so switch that network to Private in Windows Settings, under Network & internet, Wi-Fi, the network's properties.
+- Sign in limits still count per device, the API reads the real address from the page server.
+- `start.bat share db` also opens the database to the network on 5433 (user and password `postgres`), for a teammate's database tool. Anyone on the Wi-Fi can then reach every table without signing in, past roles, History and the locks, so only do it on a network you trust and go back to plain `start.bat` after. Every other way of starting keeps the database on this PC only.
 
 ### Backups
 
@@ -218,14 +231,19 @@ python scripts/seed_industries.py
 
 When it's done it prints how many rows got in, how many had no price or release, and how many broken rows got blocked. If a broken row ever gets in, it says so and exits with an error, because that means a rule has a hole.
 
-## Using config.toml
+## Using config.toml and seeding.toml
 
-Everything the script does is controlled from `scripts/config.toml`, so you don't touch the Python file. Open it, change a number, save, and run the script again. Each part is split by a comment that says what it's for:
+The settings are split in two files in `scripts/`, so you don't touch the Python file. Open one, change a value, save, and run the script again.
+
+`config.toml` is the main config, what the table's values can be:
+
+- `[fields]` has the sectors list, the price range, how many decimals, the date range for release, and the longest name. The sectors list is also what the API uses, so this is the place to change them. The longest name, the price range and the sectors get replaced by the API's rules from `/schema` when the script runs, so they always match.
+
+`seeding.toml` is only for the seed script, how it makes and sends rows:
 
 - `[generation]` is the main one. `count` is how many rows you want in the database, so set it to `50` if you want 50. `bad_row_rate` is how many broken rows get mixed in, `0.10` means 10 for every 100, and `0` turns them off. `seed` gives you the same data every run if you set it to any number, `0` means random every time. `null_rate_min` and `null_rate_max` are how often price and release are left empty, right now that's somewhere between 5% and 7%.
-- `[fields]` is what each value can be. The sectors list, the price range, how many decimals, the date range for release, and the longest name. The longest name, the price range and the sectors get replaced by the API's rules from `/schema` when the script runs, so they always match. The sectors list here is also what the API uses, so this is the place to change them.
 - `[broken_rows]` is which rules to test. Remove one from the list and it stops sending that kind.
-- `[names]` is the word lists the company names are built from. A name is one word from each list, like `Nizwa Retail Group`. Add your own words if you want different names.
+- `[names]` is the word lists the company names are built from. A name is one prefix, one core and one suffix, like `Nizwa Retail Group`. The `""` in suffixes means some names have none, like `Meridian Energy`. Add your own words if you want different names.
 - `[api]` is where the API is and how hard to push it. `workers` is how many rows get sent at the same time, and `max_retries` is how many times it tries again when the connection drops.
 
 A few things to know when editing it:
@@ -236,14 +254,15 @@ A few things to know when editing it:
 
 ## Flags
 
-Flags change one run without editing the file, and they win over what's in `config.toml`:
+Flags change one run without editing the files, and they win over what's in them:
 
 | Flag | What it does | Example |
 |---|---|---|
 | `--count` | How many rows to get in for this run | `--count 50` |
 | `--seed` | Same number gives the same data every time | `--seed 7` |
 | `--dry-run` | Prints sample rows and sends nothing, good for checking your config | `--dry-run` |
-| `--config` | Use a different settings file | `--config scripts/big.toml` |
+| `--config` | Use a different main config | `--config scripts/other.toml` |
+| `--seeding` | Use a different seed settings file | `--seeding scripts/big.toml` |
 
 For example, to see what 50 rows would look like before sending anything:
 

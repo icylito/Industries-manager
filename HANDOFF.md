@@ -34,18 +34,21 @@ Angular 22 page (`angular/`) and .NET 10 minimal API (`api_v2/`) over Postgres. 
 
 ## Waiting on the user
 
-1. **Mark PR #2 ready and merge it.**
-2. **Docker on the work Wi-Fi.** `docker-compose.yml` publishes `"5433:5432"`, so Postgres (`postgres`/`postgres`) listens on every network connection, not just this PC. The user likes teammates reaching the database but wants to control it. The proposal, which the user hasn't answered yet:
-   - change the line to `"${DB_BIND:-127.0.0.1}:5433:5432"`, so it's this PC only by default
-   - `start.bat share` sets `DB_BIND=0.0.0.0` before `docker compose up`, which opens it to the network
-   - the long-term recommendation is to share the app over `start.bat https` instead of the raw database, because direct database access skips login, roles, History and the locks. That needs the API to listen on the network, which is a bigger change.
-3. **Commit footer.** `plan.md` says messages end with `Contributor: coder bot opus 5.5`. The last session wrote `Contributor: coder bot`, because model names aren't allowed in commits. The user hasn't said whether to keep it that way.
-4. **First-time https setup.** `dotnet dev-certs https --trust` is run once, on the user's PC.
+1. **Merge PR #2.** On 2026-10-07 the local session merged it into local `main` (a fast-forward) but couldn't push `main`. The user pushes it or merges the PR on GitHub. The user also took the branch ruleset off GitHub for now and will put it back later.
+
+2. **Admin overview page (waiting on a design).** The user wants a page for admins with numbers from the table: a pie chart of how the rows split across sectors, the biggest markets, and the top 3 most expensive stocks. Claude Design is making the design and the user will share it, so don't build it before that.
+
+## Done on 2026-10-07 (local session)
+
+- **Docker on the Wi-Fi.** The database listens on this PC only by default (`"${DB_BIND:-127.0.0.1}:5433:5432"`). `start.bat share` opens only the page, over https. The page server passes `/api` on to the API (`angular/proxy.share.json`), the API and the database stay on this PC. `start.bat share db` also opens the database. The API reads `X-Forwarded-For` from loopback, so sign in limits count per device. See README, Sharing on the Wi-Fi.
+- **Checked:** page, `/api` and sign in from the PC's Wi-Fi address (192.168.1.45). The API on 7165 and the database on 5433 refuse from that address. A real phone or coworker PC wasn't tried by Claude. The Wi-Fi was set to **Public** in Windows, which blocks other devices until the user switches it to Private.
+- **Commit footer.** Settled: `Contributor: opus 5.5`, as `plan.md` says.
+- **Https.** The dev certificate was already trusted on the user's PC. `start.bat https` and `share` now copy it to `angular/.cert` (git ignored) and the page uses it, so `https://localhost:4200` opens with no warning. Other devices still get a warning, the certificate is for `localhost`.
 
 ## How the user works
 
 - **Messages to the user.** Plain words, short. Push back with facts when they're wrong. Say what you verified separately from what you assumed. If something fails or times out, stop and say so, don't quietly retry.
-- **Commits.** One plain lowercase line describing what changed, then `Contributor: coder bot` (see item 3 above). No co-author line.
+- **Commits.** One plain lowercase line describing what changed, then `Contributor: opus 5.5`. No co-author line.
 - **Wording on the page.** Plain words, no technical terms. Colours only from the CSS variables in `angular/src/styles.css`.
 - **Line endings.** Files in `angular/src` use Windows line endings (CRLF). Keep them.
 - **Branch and merge rules.** Work on `claude/nice-franklin-mckat2`, push it, open a draft PR into `main`. The user merges, or asks you to.

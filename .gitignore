@@ -15,6 +15,9 @@ testing/__pycache__/
 
 # Documents and notes
 report.txt
+plan.md
+HANDOFF.md
+OVERVIEW_HANDOFF.md
 
 # Copies of the database made by the nightly backup, only the root folder (api_v2/Backups is code)
 /backups/
@@ -22,3 +25,9 @@ report.txt
 # The checks in testing/: the throwaway API's settings and its backups
 api_v2/appsettings.Throwaway.json
 /testing/throwaway-backups/
+
+# The page's copy of the https development certificate, start.bat https and share make it
+angular/.cert/
+
+# Front-end related
+.design-canvas

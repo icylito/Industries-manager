@@ -58,7 +58,7 @@
                                     @if (u.mustChangePassword && !u.disabled) { <span class="tag-inline">Hasn't picked a password yet</span> }
                                 </span>
                             </td>
-                            <td class="role">{{ u.role === 'admin' ? 'Admin' : 'Normal' }}</td>
+                            <td class="role">{{ u.role === 'admin' ? 'Admin' : 'User' }}</td>
                             <td class="muted">{{ formatDate(u.lastLoginAt) }}</td>
                             <td class="actions">
                                 @if (u.id !== auth.user()?.id) {
@@ -103,7 +103,7 @@
             <span class="control">
                 <i class="fa-solid fa-user-shield" aria-hidden="true"></i>
                 <select [value]="newRole()" (change)="newRole.set($any($event.target).value)">
-                    <option value="normal">Normal, can edit rows</option>
+                    <option value="normal">User, can edit rows</option>
                     <option value="admin">Admin</option>
                 </select>
             </span>

@@ -13,18 +13,27 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from pathlib import Path
 
-DEFAULT_CONFIG = Path(__file__).with_name("config.toml")
+DEFAULT_CONFIG = Path(__file__).with_name("config.toml")    # the main config, what the values can be
+DEFAULT_SEEDING = Path(__file__).with_name("seeding.toml")  # how the seed script makes and sends rows
 BAD_ROW_KINDS = {"name_too_long", "empty_name", "price_out_of_range", "duplicate_name"}
 
 
-def load_config(path: Path) -> dict:
+def read_toml(path: Path) -> dict:
     try:
         # utf-8-sig drops the BOM that some Windows editors add, tomllib rejects it otherwise
-        config = tomllib.loads(path.read_text(encoding="utf-8-sig"))
+        return tomllib.loads(path.read_text(encoding="utf-8-sig"))
     except FileNotFoundError:
         sys.exit(f"Config file not found: {path}")
     except tomllib.TOMLDecodeError as e:
         sys.exit(f"Config file {path} is not valid TOML: {e}")
+
+
+def load_config(path: Path, seeding_path: Path) -> dict:
+    # [fields] comes from the main config, everything else from seeding.toml
+    main, seeding = read_toml(path), read_toml(seeding_path)
+    if "fields" not in main:
+        sys.exit(f"Config file {path} is missing the [fields] section")
+    config = {**seeding, "fields": main["fields"]}
 
     # Catch bad values here with a clear message, before any row is sent
     try:
@@ -51,7 +60,7 @@ def load_config(path: Path) -> dict:
         if a["workers"] < 1:
             problems.append("api.workers must be 1 or more")
     except KeyError as e:
-        sys.exit(f"Config file {path} is missing the setting {e}")
+        sys.exit(f"The setting {e} is missing, [fields] goes in {path.name} and the rest in {seeding_path.name}")
     if problems:
         sys.exit("Config problems:\n  " + "\n  ".join(problems))
     return config
@@ -86,7 +95,7 @@ class Seeder:
                     return name
 
     def maybe_null(self, value):
-        # Each row draws its own rate between the min and max in config.toml
+        # Each row draws its own rate between the min and max in seeding.toml
         rate = random.uniform(self.gen["null_rate_min"], self.gen["null_rate_max"])
         return None if random.random() < rate else value
 
@@ -280,20 +289,21 @@ class Seeder:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Seed synthetic industries through the API")
-    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG, help="settings file (default scripts/config.toml)")
+    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG, help="main config with [fields] (default scripts/config.toml)")
+    parser.add_argument("--seeding", type=Path, default=DEFAULT_SEEDING, help="seed settings (default scripts/seeding.toml)")
     parser.add_argument("--count", type=int, help="override generation.count")
     parser.add_argument("--seed", type=int, help="override generation.seed")
     parser.add_argument("--dry-run", action="store_true", help="print sample rows, send nothing")
     args = parser.parse_args()
 
-    config = load_config(args.config)
+    config = load_config(args.config, args.seeding)
     count = args.count if args.count is not None else config["generation"]["count"]
     seed = args.seed if args.seed is not None else config["generation"]["seed"]
     if seed:
         random.seed(seed)
 
     seeder = Seeder(config)
-    print(f"Config: {args.config.name}, {count} rows, {config['generation']['bad_row_rate']:.0%} broken, "
+    print(f"Config: {args.config.name} and {args.seeding.name}, {count} rows, {config['generation']['bad_row_rate']:.0%} broken, "
           f"empty rate {config['generation']['null_rate_min']:.0%} to {config['generation']['null_rate_max']:.0%}")
 
     if args.dry_run:

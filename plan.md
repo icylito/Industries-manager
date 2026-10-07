@@ -222,4 +222,4 @@ How it was made: https was checked on the cloud box with the dev certificate (ht
 - The scratch connection doesn't pool and gets a 10 minute command timeout. Pooled connections to a database that gets dropped with FORCE come back dead
 
 ### Commits
-- Only I commit and push. Claude writes the message: one plain line plus `Contributor: coder bot opus 5.5`, no co-author line
+- Only I commit and push. Claude writes the message: one plain line plus `Contributor: opus 5.5`, no co-author line

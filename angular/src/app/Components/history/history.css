@@ -45,6 +45,14 @@ td.actions{
     white-space: nowrap;
 }
 
+/* The buttons column is only as wide as its buttons, so the line before it sits halfway between Rows and the buttons.
+   Phones lay the row out differently, see the 640px block. */
+@media (min-width: 641px) {
+    .versions td.actions, .versions th.actions-col{
+        width: 1%;
+    }
+}
+
 td.notes{
     min-width: 16rem;
     color: var(--p-muted);

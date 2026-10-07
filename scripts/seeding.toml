@@ -1,0 +1,35 @@
+# Settings for the seed script only (seed_industries.py). What the values can be is in config.toml
+[generation]
+count = 50000           # Rows that need to get accepted by the API
+bad_row_rate = 0.15   # Broken rows mixed in to test the rules, 0 turns them off
+seed = 120            # Same number gives the same data, 0 is random every run
+null_rate_min = 0.05  # Chance price or release is left empty, each row picks between min and max
+null_rate_max = 0.07
+
+# Broken rows to send, remove one from the list to stop testing it
+# name_too_long, empty_name, price_out_of_range, duplicate_name
+[broken_rows]
+kinds = ["name_too_long", "empty_name", "price_out_of_range", "duplicate_name"]
+
+# Name is prefix + core + suffix like "Nizwa Retail Group", "" means no suffix
+[names]
+prefixes = [
+    "Northwind", "Blue Harbor", "Al Noor", "Desert Star", "Summit", "Crescent", "Oasis", "Falcon",
+    "Silverline", "Red Dune", "Muscat", "Sohar", "Nizwa", "Salalah", "Coastal", "Granite", "Horizon",
+    "Atlas", "Meridian", "Pearl", "Cedar", "Ironwood", "Bright Path", "Old Port", "Greenfield", "Mabela",
+]
+cores = [
+    "Logistics", "Energy", "Foods", "Systems", "Mining", "Telecom", "Pharma", "Shipping", "Textiles",
+    "Cement", "Water", "Aviation", "Robotics", "Analytics", "Steel", "Agritech", "Fisheries",
+    "Petrochemicals", "Ports", "Insurance", "Retail", "Construction", "Solar", "Healthcare", "Finance", "Tech",
+]
+suffixes = ["Group", "Holdings", "Co", "Industries", "Partners", "Works", "LLC", "SAOG", "International", "Local", ""]
+
+# API connection
+[api]
+base_url = "http://localhost:5005"
+workers = 8                  # Requests sent at the same time
+request_timeout_seconds = 10
+max_retries = 3              # Only for dropped connections and 5xx, never 400 or 409
+retry_delay_seconds = 0.5    # Doubles every retry
+ready_timeout_seconds = 90   # How long to wait for /health to say ready

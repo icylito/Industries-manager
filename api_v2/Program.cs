@@ -105,6 +105,9 @@ app.UseExceptionHandler(errors =>
     });
 });
 
+// start.bat share puts the page server in front of the API. It says who the real caller is, so the sign in limit counts each
+// device on its own. Only trusted from this PC (loopback), the default for ForwardedHeaders.
+app.UseForwardedHeaders(new ForwardedHeadersOptions { ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor });
 app.UseCors("Angular");
 app.UseRateLimiter();
 
