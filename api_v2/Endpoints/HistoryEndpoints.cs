@@ -12,7 +12,7 @@ using Npgsql;
 namespace api_v2.Endpoints;
 
 public record PinBody(bool Pinned);
-public record RestoreBody(string? Confirm);
+public record RestoreBody(string? Note);
 // SkipDuplicates leaves out rows whose name is already in the table, or shows up twice in the import
 public record ImportBody(bool Confirm, bool SkipDuplicates = false);
 
@@ -102,9 +102,10 @@ public static class HistoryEndpoints
             TableWriter writer, RulesService rules, AppDbContext db, DatabaseStatus status, ICurrentUser user,
             ILogger<TableWriter> log, AppLocks locks, CancellationToken ct) =>
         {
-            if (body.Confirm != "RESTORE")
+            var note = body.Note?.Trim();
+            if (note is null || note.Length < 10)
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["confirm"] = ["Type RESTORE to confirm"] });
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["note"] = ["Write a few words about why, at least 10 characters"] });
             }
             await using var tableLock = await locks.TakeAsync(AppLock.Table, ct);
             await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);
@@ -120,7 +121,7 @@ public static class HistoryEndpoints
             long? copyId;
             try
             {
-                copyId = await collector.SaveVersionAsync($"Before restoring version {id}", user.Name, ct, applyRetention: false);
+                copyId = await collector.SaveVersionAsync($"Before restoring version {id} — {note}", user.Name, ct, applyRetention: false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

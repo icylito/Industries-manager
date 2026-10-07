@@ -75,7 +75,7 @@ for rnd_no in range(1, ROUNDS + 1):
     def restore_backup(key):
         t0 = time.time(); s, b = call("POST", f"/backups/{bk['id']}/restore", {"confirm": "RESTORE"}); results[key] = (s, b, time.time() - t0)
     def restore_history(key):
-        t0 = time.time(); s, b = call("POST", f"/history/versions/{base_version}/restore", {"confirm": "RESTORE"}); results[key] = (s, b, time.time() - t0)
+        t0 = time.time(); s, b = call("POST", f"/history/versions/{base_version}/restore", {"note": "restoring the version while the load runs"}); results[key] = (s, b, time.time() - t0)
     rs = [threading.Thread(target=restore_backup, args=("b1",)), threading.Thread(target=restore_history, args=("h1",)), threading.Thread(target=restore_backup, args=("b2",))]
     for r in rs: r.start()
     for r in rs: r.join()

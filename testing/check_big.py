@@ -20,7 +20,7 @@ s, versions = call("GET", "/history/versions"); big = versions[0]; print("versio
 
 # change the table so the restore has work to do, then restore the big version
 sql('DELETE FROM "Industries" WHERE "Id" % 3 = 0')
-t0 = time.time(); s, res = call("POST", f"/history/versions/{big['id']}/restore", {"confirm": "RESTORE"}); dt = time.time()-t0
+t0 = time.time(); s, res = call("POST", f"/history/versions/{big['id']}/restore", {"note": "restoring every row to check the count"}); dt = time.time()-t0
 print(f"restore of {N} rows from history: {s} {dt:.1f}s", res if s != 200 else res["restored"]); assert s == 200
 assert int(sql('SELECT count(*) FROM "Industries"')) == big["rowCount"]
 
