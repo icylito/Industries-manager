@@ -187,6 +187,11 @@ textarea::placeholder{
     }
 }
 
+/* The chevron points up while the drafted code is open */
+.code-head .link-btn.open i{
+    transform: rotate(180deg);
+}
+
 /* A button that reads as a link, for "See the open ones" */
 .link-btn{
     height: auto;

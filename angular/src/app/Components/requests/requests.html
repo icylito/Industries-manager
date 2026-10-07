@@ -92,8 +92,8 @@
                     }
                     @if (r.draftedCode) {
                         <div class="code-head">
-                            <button type="button" class="link-btn" [attr.aria-expanded]="expanded().has(r.id)" (click)="toggleCode(r.id)">
-                                <i [class]="expanded().has(r.id) ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" aria-hidden="true"></i>
+                            <button type="button" class="link-btn" [class.open]="expanded().has(r.id)" [attr.aria-expanded]="expanded().has(r.id)" (click)="toggleCode(r.id)">
+                                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
                                 {{ expanded().has(r.id) ? 'Hide the drafted code' : 'Show the drafted code' }}
                             </button>
                             @if (expanded().has(r.id)) {
