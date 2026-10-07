@@ -1,5 +1,7 @@
-// Where the page finds the API. Change it here when the API runs somewhere else,
-// and add the page's own address to Cors:Origins in api_v2/appsettings.json.
+// Where the API is. The page on https (start.bat https) talks to the https profile of the API, otherwise the plain http one.
+// Change the ports here if the API runs somewhere else.
+const secure = typeof location !== 'undefined' && location.protocol === 'https:';
+
 export const environment = {
-  apiUrl: 'http://localhost:5005',
+  apiUrl: secure ? 'https://localhost:7165' : 'http://localhost:5005',
 };

@@ -41,6 +41,7 @@ public static class HistoryEndpoints
             {
                 var log = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(HistoryEndpoints));
                 log.LogError(ex, "History database failed");
+                context.HttpContext.RequestServices.GetRequiredService<CollectorStore>().NoteFailure(ex);
                 return Results.Problem(
                     "History isn't available right now, nothing was changed. Try again in a moment",
                     statusCode: StatusCodes.Status503ServiceUnavailable, title: "History not available");

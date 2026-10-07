@@ -428,7 +428,8 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
     }
 
     // Removes a custom field, its values, and closes requests that were waiting on it. The caller saved a table copy first.
-    public async Task<RuleSet> DeleteFieldAsync(AppDbContext db, string key, string label, string changedBy, CancellationToken ct)
+    // Says how many rows lost a value and how many open requests were closed, so the page can say what happened.
+    public async Task<FieldDeleted> DeleteFieldAsync(AppDbContext db, string key, string label, string changedBy, CancellationToken ct)
     {
         var strategy = db.Database.CreateExecutionStrategy();
         return await strategy.ExecuteAsync(async () =>
@@ -436,7 +437,7 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
             await using var tx = await db.Database.BeginTransactionAsync(ct);
             try
             {
-                await db.Database.ExecuteSqlInterpolatedAsync($$"""
+                var rowsChanged = await db.Database.ExecuteSqlInterpolatedAsync($$"""
                     UPDATE "Industries"
                     SET "Extra" = NULLIF("Extra" - {{key}}, '{}'::jsonb)
                     WHERE jsonb_exists("Extra", {{key}})
@@ -465,7 +466,7 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
                 var kept = Current.Fields.Where(f => f.Key != key).ToList();
                 var saved = await SaveAsync(db, kept, $"Deleted the field {label}", changedBy, ct, copyFirst: false);
                 await tx.CommitAsync(ct);
-                return saved;
+                return new FieldDeleted(saved, rowsChanged, open.Count);
             }
             catch
             {

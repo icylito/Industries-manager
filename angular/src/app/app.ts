@@ -4,8 +4,9 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter, map } from 'rxjs';
 import { IndustryApi } from './services/industry-api';
 import { Auth } from './services/auth';
+import { IdleTop } from './services/idle-top';
 
-interface PageInfo { title: string; lede: string; }
+interface PageInfo { title: string; lede: string; centered?: boolean; }
 
 @Component({
   imports: [RouterOutlet, RouterLink, RouterLinkActive],
@@ -17,6 +18,8 @@ export class App {
   private router = inject(Router);
   protected api = inject(IndustryApi);
   protected auth = inject(Auth);
+  // A page left alone for a while starts from the top when the person comes back, see services/idle-top.ts
+  private idleTop = inject(IdleTop);
 
   // Page header text comes from the route's data in app.routes.ts
   protected page = toSignal(this.router.events.pipe(
@@ -26,7 +29,7 @@ export class App {
       while (route.firstChild) route = route.firstChild;
       return route.data as PageInfo;
     }),
-  ), { initialValue: { title: 'Industries', lede: 'Every change here is saved right away.' } });
+  ), { initialValue: { title: 'Industries', lede: 'Every change here is saved right away.' } as PageInfo });
 
   constructor() {
     // The bell count, checked on every page change and every 30 seconds. Only people who are signed in see requests.

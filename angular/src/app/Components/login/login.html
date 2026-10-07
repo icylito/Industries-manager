@@ -1,7 +1,8 @@
 <!-- Sign in. Anyone can look at the table without it, an account is needed to change anything. -->
 <section class="card narrow">
     <header class="card-head">
-        <h2><span class="title-icon"><i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i></span>Sign in</h2>
+        <!-- A hand that waves once when the page opens and again when the title is hovered. The tile is tilted a touch, like a hand held up. -->
+        <h2 class="greeting"><span class="title-icon wave-tile"><i class="fa-solid fa-hand wave" aria-hidden="true"></i></span>Welcome back</h2>
     </header>
 
     @if (auth.expired()) {

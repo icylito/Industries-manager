@@ -103,7 +103,7 @@
 
                     @if (deleting()?.key === f.key) {
                         <div class="ask">
-                            <p><i class="fa-solid fa-circle-question" aria-hidden="true"></i>Delete {{ f.label }}? Its values are removed from every row. A copy of the table is saved first, so you can bring it back from History.</p>
+                            <p><i class="fa-solid fa-circle-question" aria-hidden="true"></i>Are you sure you want to delete {{ f.label }}? Its values are removed from every row. A copy of the table is saved first, so you can bring it back from History.</p>
                             <div class="confirm-row end">
                                 <button type="button" class="cancel-btn" [disabled]="deleteBusy()" (click)="deleting.set(null)">Cancel</button>
                                 <button type="button" class="add-btn danger" [disabled]="deleteBusy()" (click)="confirmDelete()">

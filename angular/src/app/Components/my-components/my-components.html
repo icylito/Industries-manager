@@ -48,18 +48,20 @@
     }
 
     <form [formGroup]="form" (ngSubmit)="submit()" (input)="formError.set('')" (change)="formError.set('')">
+        <!-- Each problem sits under its own box, aria-describedby ties them together for screen readers -->
         <label class="field">
             <span class="field-label">Name</span>
             <span class="control">
                 <i class="fa-solid fa-font" aria-hidden="true"></i>
-                <input formControlName="name" placeholder="Aerospace">
+                <input formControlName="name" placeholder="Aerospace" [attr.aria-describedby]="fieldProblem('name') ? 'problem-name' : null" [attr.aria-invalid]="fieldProblem('name') ? true : null">
             </span>
+            @if (fieldProblem('name'); as p) { <span class="field-error inline" id="problem-name"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ p }}</span> }
         </label>
         <label class="field">
             <span class="field-label">Sector</span>
             <span class="control">
                 <i class="fa-solid fa-industry" aria-hidden="true"></i>
-                <select formControlName="sector" [class.placeholder]="!form.controls.sector.value">
+                <select formControlName="sector" [class.placeholder]="!form.controls.sector.value" [attr.aria-describedby]="fieldProblem('sector') ? 'problem-sector' : null" [attr.aria-invalid]="fieldProblem('sector') ? true : null">
                     <option value="">Choose a sector</option>
                     @for (choice of sectorChoices; track choice) {
                         <option [value]="choice">{{ choice }}</option>
@@ -71,13 +73,15 @@
                 </select>
                 <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
             </span>
+            @if (fieldProblem('sector'); as p) { <span class="field-error inline" id="problem-sector"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ p }}</span> }
         </label>
         <label class="field">
             <span class="field-label">Price</span>
             <span class="control">
                 <i class="fa-solid fa-dollar-sign" aria-hidden="true"></i>
-                <input formControlName="price" placeholder="0.331" type="number" step="any">
+                <input formControlName="price" placeholder="0.331" type="number" step="any" [attr.aria-describedby]="fieldProblem('price') ? 'problem-price' : null" [attr.aria-invalid]="fieldProblem('price') ? true : null">
             </span>
+            @if (fieldProblem('price'); as p) { <span class="field-error inline" id="problem-price"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ p }}</span> }
         </label>
 
         <!-- Custom fields from the Fields page -->
@@ -88,8 +92,10 @@
                     <i [class]="f.type === 'number' ? 'fa-solid fa-hashtag' : f.type === 'date' ? 'fa-regular fa-calendar' : 'fa-solid fa-pen-nib'" aria-hidden="true"></i>
                     <input [type]="f.type === 'text' ? 'text' : f.type" [attr.step]="f.type === 'number' ? 'any' : null"
                         [value]="extraValue(f.key)" (input)="setExtra(f.key, $any($event.target).value)"
-                        [class.bad]="extraTouched().has(f.key) && checkValue(f, extraValue(f.key))">
+                        [class.bad]="extraTouched().has(f.key) && checkValue(f, extraValue(f.key))"
+                        [attr.aria-describedby]="fieldProblem(f.key) ? 'problem-' + f.key : null" [attr.aria-invalid]="fieldProblem(f.key) ? true : null">
                 </span>
+                @if (fieldProblem(f.key); as p) { <span class="field-error inline" [id]="'problem-' + f.key"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ p }}</span> }
             </label>
         }
 
@@ -135,11 +141,9 @@
             }
         </div>
 
+        <!-- Only problems that belong to no field end up here, like an answer from the API -->
         @if (formError()){
-            <p class="field-error form-problem"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ formError() }}</p>
-        }
-        @for (msg of fieldErrors(); track msg) {
-            <p class="field-error form-problem"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ msg }}</p>
+            <p class="field-error form-problem" role="alert"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ formError() }}</p>
         }
 
         <div class="form-actions">
@@ -148,7 +152,8 @@
                     <i class="fa-solid fa-xmark" aria-hidden="true"></i>Cancel
                 </button>
             }
-            <button type="submit" class="add-btn" [disabled]="form.invalid || customInvalid() || saving()">
+            <!-- Always pressable: pressing it with a problem shows the problem under its box instead of doing nothing -->
+            <button type="submit" class="add-btn" [disabled]="saving()">
                 @if (saving()) {
                     <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Saving
                 } @else if (editingId() === null) {
@@ -174,7 +179,7 @@
             <!-- Database state from GET /health -->
             <span class="db-status"
                 [attr.data-state]="dbState() === 'ready' && historyHealth()?.ready === false ? 'failed' : dbState()"
-                [attr.title]="dbState() === 'ready' && historyHealth()?.ready === false ? historyHealth()?.message : dbMessage()">
+                [attr.title]="dbState() === 'ready' && historyHealth()?.ready === false ? historyHealth()?.message : dbState() === 'ready' ? 'The page can reach the database' : dbMessage()">
                 @if (dbState() === 'ready' && historyHealth()?.ready === false) {
                     <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>History offline
                 } @else {
@@ -249,7 +254,7 @@
     <div class="toolbar">
         <span class="control search">
             <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-            <input type="search" placeholder="Try searching by name" aria-label="Search by name"
+            <input type="search" placeholder="Search by name" aria-label="Search by name"
                 [value]="search()" (input)="search.set($any($event.target).value); page.set(1)">
         </span>
         <label class="entries">
@@ -265,6 +270,10 @@
             entries
         </label>
     </div>
+
+    @if (deleted()) {
+        <p class="result small deleted" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ deleted() }}</p>
+    }
 
     @if (loading()){
         <p class="state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
@@ -321,9 +330,10 @@
                             @if (auth.isSignedIn()) {
                             <td class="actions">
                                 @if (confirmingId() === item.id) {
-                                    <span class="confirm-text">Delete for good?</span>
+                                    <!-- The question names the row on a wide screen, the narrow cell on a phone keeps it short and the button carries the name -->
+                                    <span class="confirm-text"><span class="long">Are you sure you want to delete {{ shortName(item.name) }}?</span><span class="short">Are you sure you want to delete it?</span></span>
                                     <button type="button" class="edit-btn" [disabled]="deletingId() === item.id" (click)="confirmingId.set(null)" aria-label="Cancel"><i class="fa-solid fa-xmark" aria-hidden="true"></i><span class="btn-text">Cancel</span></button>
-                                    <button type="button" class="remove-btn confirming" aria-label="Delete this row" [disabled]="deletingId() === item.id" (click)="remove(item.id)">
+                                    <button type="button" class="remove-btn confirming" [attr.aria-label]="'Delete ' + item.name" [attr.title]="'Delete ' + item.name" [disabled]="deletingId() === item.id" (click)="remove(item.id)">
                                         @if (deletingId() === item.id) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i><span class="btn-text">Deleting...</span> }
                                         @else { <i class="fa-solid fa-trash" aria-hidden="true"></i><span class="btn-text">Delete</span> }
                                     </button>

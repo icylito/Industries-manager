@@ -20,9 +20,51 @@ public record VersionColumn(string Name, string Type, bool Nullable);
 // versions      one row per full copy, taken before the structure or the rules change
 // version_rows  the rows of that copy, each one as JSON so old structures stay readable
 // row_changes   a small log of every add, edit and delete, before and after
-public class CollectorStore(DatabaseConnections connections, SettingsService settings, ILogger<CollectorStore> log)
+public class CollectorStore(DatabaseConnections connections, SettingsService settings, DatabaseStatus status, ILogger<CollectorStore> log)
 {
     private const string Table = "Industries";
+
+    public const string UnreachableMessage = "The history database (collector) isn't reachable";
+
+    // Looks at a failure from any collector call. A connection, database or password problem means history is down,
+    // and the badge should say so right away instead of waiting for the next check. Returns true when it was one of those.
+    public bool NoteFailure(Exception ex)
+    {
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            var down = current switch
+            {
+                PostgresException pg => pg.SqlState is PostgresErrorCodes.InvalidCatalogName or PostgresErrorCodes.UndefinedTable
+                    or PostgresErrorCodes.AdminShutdown or PostgresErrorCodes.CrashShutdown or PostgresErrorCodes.CannotConnectNow
+                    or PostgresErrorCodes.InvalidPassword or PostgresErrorCodes.InvalidAuthorizationSpecification
+                    or PostgresErrorCodes.TooManyConnections,
+                NpgsqlException => true,
+                System.Net.Sockets.SocketException or IOException or TimeoutException => true,
+                _ => false
+            };
+            if (!down) continue;
+            if (status.HistoryWasReady && status.HistoryReady) status.SetHistory(false, UnreachableMessage);
+            return true;
+        }
+        return false;
+    }
+
+    // A quick look at the collector, true when it answers and its tables are there
+    public async Task<bool> PingAsync(CancellationToken ct)
+    {
+        try
+        {
+            await using var conn = new NpgsqlConnection(connections.Collector);
+            await conn.OpenAsync(ct);
+            await using var cmd = new NpgsqlCommand("SELECT 1 FROM versions LIMIT 1", conn) { CommandTimeout = 10 };
+            await cmd.ExecuteScalarAsync(ct);
+            return true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return false;
+        }
+    }
 
     public async Task EnsureSchemaAsync(CancellationToken ct)
     {
@@ -403,10 +445,26 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
         return gone;
     }
 
-    private static async Task<NpgsqlConnection> OpenAsync(string connectionString, CancellationToken ct)
+    // Opening the collector and failing marks history as down right away, so the page's badge doesn't wait for the monitor
+    private async Task<NpgsqlConnection> OpenAsync(string connectionString, CancellationToken ct)
     {
         var conn = new NpgsqlConnection(connectionString);
-        await conn.OpenAsync(ct);
+        try
+        {
+            await conn.OpenAsync(ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException && connectionString == connections.Collector)
+        {
+            // Refused, gone, or a wrong password, history can't be used either way until it answers again
+            NoteFailure(ex);
+            await conn.DisposeAsync();
+            throw;
+        }
+        catch
+        {
+            await conn.DisposeAsync();
+            throw;
+        }
         return conn;
     }
 

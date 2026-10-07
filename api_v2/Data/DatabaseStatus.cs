@@ -15,6 +15,8 @@ public class DatabaseStatus
     public DateTimeOffset UpdatedAt { get; private set; } = DateTimeOffset.UtcNow;
     public bool HistoryReady { get; private set; }
     public string HistoryMessage { get; private set; } = "";
+    // True once history was set up at least once. Before that, startup owns the history state, not the monitor.
+    public bool HistoryWasReady { get; private set; }
 
     public void Set(DatabaseState state, string message, int attempts, IReadOnlyList<string>? applied = null)
     {
@@ -33,6 +35,7 @@ public class DatabaseStatus
         lock (_lock)
         {
             HistoryReady = ready;
+            if (ready) HistoryWasReady = true;
             HistoryMessage = message;
             UpdatedAt = DateTimeOffset.UtcNow;
         }

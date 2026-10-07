@@ -25,6 +25,9 @@ I started this on September 26, 2026, and the sections below show where things a
 - Done: login with usernames and passwords. Anyone can look at the table, an account is needed to change rows, and admins also get History, Fields and People, see [Accounts and sign in](#accounts-and-sign-in).
 - Done: Export and Import settings on the History page, for how long old versions are kept and the field labels and limits.
 - Done: the last break test findings. Restore is all or nothing, damaged saved versions are marked instead of breaking History, and saving retention first says how many versions it would remove.
+- Done: the page checks its own input before anything is sent (the sign in back link, blocked storage, file names, the settings file, the people and account pages), with tests for each.
+- Done: the UI judge's list. Problems sit under their own box, the phone nav has readable labels, long names end with ... on a phone, Delete names the row, every colour pair reads at 4.5:1 or better in light and dark, one focus ring for everything, and a loading line wherever a list was blank for a moment.
+- Done: a Restore button on every backup. It puts the table, its rules, settings and requests back the way they were that night and leaves the accounts alone, see [Backups](#backups). Restores and imports of big tables got fast too, 100,000 rows in a few seconds instead of hitting the 30 second limit.
 - Next: the open items listed at the bottom, see [Not done yet](#not-done-yet).
 
 # Starting
@@ -55,7 +58,7 @@ And that should be all to get started.
 
 ## Running it
 
-Double click `start.bat` in the project folder, or run `.\start.bat`. It starts the Docker database if the API uses it (no settings file, or settings pointing at port 5433), then opens 2 windows, one for the API at http://localhost:5005 and one for the page at http://localhost:4200. Closing a window stops that one.
+Double click `start.bat` in the project folder, or run `.\start.bat`. It starts the Docker database if the API uses it (no settings file, or settings pointing at port 5433), then opens 2 windows, one for the API at http://localhost:5005 and one for the page at http://localhost:4200. Closing a window stops that one. `.\start.bat https` does the same over https, see [Https](#https).
 
 On a fresh clone the tables start empty, nobody's data comes with the repo. The API creates 2 databases on its first run: `main` with the `Industries` table and `collector`, which keeps the saved copies and the change log. If you want fake rows to test with, see [Seeding synthetic data](#seeding-synthetic-data).
 
@@ -82,9 +85,10 @@ This folder uses Angular mainly to replace the Swagger UI from `api_v2/`. The 2 
 
 ### The pages
 
-- **Sign in** (`/login`) and **Your account** (`/account`) are for changing your password or signing out. A new account has to pick its own password first.
+- Any page left alone for 5 minutes starts from the top when you come back to it (the tab becomes visible again, the window gets focus, or you click or type), in one jump, so nobody lands halfway down a table they don't remember scrolling. The time is `IdleAfterMs` in `angular/src/app/services/idle-top.ts`.
+- **Sign in** (`/login`) and **Your account** (`/account`) are one card in the middle of the page with the title over it. They are for signing in, changing your password or signing out. A new account has to pick its own password first. After a sign in the page goes back to where you were, as long as that's a page of this app.
 - **People** (`/users`) is where an admin makes accounts, gives someone a new password, makes someone admin or normal, or turns an account off.
-- **Industries** (`/`) is the table. Rows can have a triangle next to the name, hover it to see why:
+- **Industries** (`/`) is the table. Delete asks in the row, and afterwards says what went: "Deleted 1 row from Industries: Horizon Water LLC." Deleting a field on Fields says how many rows lost a value. Rows can have a triangle next to the name, hover it to see why:
   - red means a value couldn't come over from old data and shows `--`. It goes away once someone saves the row.
   - black is minor, like a value that breaks today's rules or a similar row.
   - Similar rows also get an amber background. That only happens through import, adding a name that's taken by hand still says it exists.
@@ -97,6 +101,7 @@ This folder uses Angular mainly to replace the Swagger UI from `api_v2/`. The 2 
   - Keep old versions sets how many to keep or after how many days to remove them. Empty means keep everything. Saving asks first when it would remove saved versions, and says how many.
   - Settings file: Export settings saves the retention and the field labels and limits to a file, Import settings loads one. It says what would change before it does anything, leaves out fields the table doesn't have, and saves a copy of the table first.
   - A saved version with a value that can't be read shows a Damaged tag and can't be restored or brought back.
+  - Backups at the bottom: Back up now, a download for each one, and Restore, see [Backups](#backups).
 - **Fields** (`/fields`) is where the team changes labels and limits, adds custom fields, and hides custom fields they don't want anymore. Hiding keeps the data. Every save is a new rules version and a copy of the table gets saved first. Changing a field's type or making it a real column goes to a developer from here. If someone else saved while you had the page open, your save gets stopped and asks you to reload, and what you typed stays there.
   - Add field puts the field in a list, nothing is saved yet. Add as many as you want, take one out with the x, then Send fields saves them all as one version.
   - Delete is on the fields made from the page, the built in ones (Name, Sector, Price, Release) live in code so they can't be deleted. It takes the values off every row, but a copy of the table is saved first so History can bring it back. Hide is still there if you only want it off the page.
@@ -143,28 +148,53 @@ Anyone can look at the table. Adding, editing and deleting rows needs an account
 - Admins make the other accounts on the People page. Each gets a temporary password shown once, and has to pick their own at first sign in. Nobody can sign up by themselves, and accounts are turned off, never deleted, so History keeps the names.
 - Passwords are at least 10 characters and are stored as a salted PBKDF2 hash, never as text. Signing in is limited to 5 tries a minute per address (`Auth:LoginTriesPerMinute`). A sign in lasts 12 hours after its last use, 7 days at most, and is kept in the browser.
 - `Auth:GuestCanView` set to `false` hides the table from people who aren't signed in.
-- Everything here travels over plain http on your network, so anyone on the same Wi-Fi who is listening could read a password. Use https before this leaves a trusted network.
+- On plain http anyone on the same Wi-Fi who is listening could read a password at sign in. On your own PC that's fine, on a shared network start with `start.bat https`, see [Https](#https). The API window says so at startup when nothing is https.
 - The seed script needs an account now: set `SEED_USER` and `SEED_PASSWORD` before running it.
 - Numbers have to arrive as numbers. The API refuses a price sent as text, like `"5"`.
-- Restoring an old copy of the main database brings back its old accounts and passwords too.
+- Restore from a backup on the History page leaves the accounts alone. Only a restore by hand with `pg_restore` of the whole database brings old accounts and passwords back.
+
+### Https
+
+`start.bat https` runs the API on https://localhost:7165 and the page on https://localhost:4200, and the page talks to the https API by itself (it picks the address from its own protocol, see `angular/src/environments/environment.ts`). Plain http on 5005 then answers with a redirect to https, and the API sends the HSTS header so browsers keep using https (not on localhost, ASP.NET leaves that one out on purpose).
+
+Two things to do once:
+
+- Make and trust the development certificate for the API: `dotnet dev-certs https --trust`. Windows asks once.
+- The page's dev server makes its own certificate. The browser shows a warning the first time, accept it.
+
+That certificate is only trusted on the PC that made it. Another PC on the Wi-Fi that opens the page gets a warning, which is the honest state of a self signed certificate. For a certificate everyone trusts, point Kestrel at it in `appsettings.Development.json`:
+
+```
+"Kestrel": {
+  "Certificates": { "Default": { "Path": "C:\\certs\\stock-listing.pfx", "Password": "..." } }
+}
+```
+
+By hand it's `dotnet run --launch-profile https --Https:Required=true` and `ng serve --ssl`. `Https:Required` is what turns the redirect and HSTS on, it's off by default so a fresh clone runs with no certificate. `Https:Port` is the port the redirect goes to, 7165 unless you change the profile. The page addresses the API accepts (`Cors:Origins` in `appsettings.json`) list both http and https for 4200.
 
 The address the page uses for the API is in `angular/src/environments/environment.ts`. The page addresses the API accepts are `Cors:Origins` in `appsettings.json`.
 
 ### Backups
 
-Every night at 2:00 AM the API saves a full copy of both databases with `pg_dump`, and keeps them for 14 days. The newest one never gets deleted, even if it's older than that. If the PC was off at 2:00, it makes one a few minutes after the API starts instead. On the History page there's a Back up now button and a list where you can download each one. Excel gives you the table as it was at that time, it opens straight in Excel. Main and History are the `.dump` files, those are for restoring.
+Every night at 2:00 AM the API saves a full copy of both databases with `pg_dump`, and keeps them for 14 days. The newest one never gets deleted, even if it's older than that. If the PC was off at 2:00, it makes one a few minutes after the API starts instead. On the History page there's a Back up now button and a list where you can download each one. Excel gives you the table as it was at that time, it opens straight in Excel. Main and History are the `.dump` files, those are what Restore reads.
 
 They go in `backups/` in the project folder, which is git ignored. That's fine for mistakes, but if the disk dies the backups die with it, so point `Backup:Folder` in `appsettings.Development.json` at OneDrive or another drive. `Backup:Time` and `Backup:KeepDays` change the time and how long they stay.
 
 It needs `pg_dump`, which comes with Postgres. The API finds it in `C:\Program Files\PostgreSQL` by itself, or you can set `Backup:PgDump` to its path.
 
-There's no restore button yet. When it's built it has to leave the accounts alone, so for now it's by hand, stop the API first and run:
+Restore is next to each backup, for admins. After you type `RESTORE` it puts the table, its rules, how long old versions are kept, and the requests back the way they were in that backup. Accounts and sign ins are left as they are now, so nobody gets an old password back and nobody gets signed out. The table as it is now is saved to History first, so the restore itself can be undone from the same page.
+
+How it works: the dump is loaded into a scratch database on the same server first, so a damaged file never touches the live one. Then the four tables are swapped in one transaction, either all of it goes in or nothing changes. It needs `pg_restore`, which sits next to `pg_dump`, and the API finds it the same way. A backup made when the table had other columns shows "Other table layout" and its Restore button is off, that one needs a developer.
+
+The history database isn't restored from the page, it only ever grows and restoring it would throw away the versions saved since. If you ever need to, stop the API and run:
 
 ```
-pg_restore --clean --if-exists --no-owner -h localhost -p 5432 -U postgres -d api_v2 main.dump
+pg_restore --clean --if-exists --no-owner -h localhost -p 5432 -U postgres -d collector collector.dump
 ```
 
-Use `-d collector` with `collector.dump` for the history one, and `-p 5433 -d main` if you're on Docker.
+Use `-p 5433` if you're on Docker.
+
+If the history database goes away while the API is running, the badge on the main page says History offline within half a minute, adding and editing rows stops with a plain message until it's back, and everything clears by itself once it answers again.
 
 ### Changing the table
 
@@ -224,5 +254,5 @@ python scripts/seed_industries.py --count 50 --dry-run
 # Not done yet
 
 - Restore brings back the rows and rules of a version but not its columns. If the table had different columns back then, a developer has to bring them back in code since the API moves the database forward on every start. The request it makes says how.
-- Backups can only be restored by hand for now. A button has to skip the accounts and sign ins, or restoring an old backup would bring back old passwords.
+- Restore from a backup needs the backup to have today's table layout. One from before a database update shows "Other table layout" and needs a developer, the same as an old saved version.
 - After the accounts update, every older saved version says "Different columns back then", and restoring one asks a developer about the layout. The accounts were added as new tables, the Industries table itself didn't change.

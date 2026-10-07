@@ -27,6 +27,9 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
     // Columns that aren't data, they're handled on their own
     private static readonly HashSet<string> SystemColumns = ["Id", "DuplicateOf", "ImportedFrom", "LostFields", "Extra"];
 
+    // Restores and imports of big tables take longer than the 30 seconds a query normally gets
+    private static readonly TimeSpan LongTimeout = TimeSpan.FromMinutes(10);
+
     // When a column gets renamed, a developer adds old name -> new name here so imports from older versions still land.
     // A request on the Requests page says when one is needed.
     public static readonly Dictionary<string, string> ColumnRenames = new(StringComparer.OrdinalIgnoreCase)
@@ -194,6 +197,8 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
 
     // Adds the planned rows as new rows with new ids. Returns the new ids per planned row.
     // Snapshot is the row as it was saved, for the collector log.
+    // The ids are taken from the sequence up front, so the rows can go in with one COPY and a row that
+    // shares a name with an earlier row in the same import can still point at it.
     public async Task<List<(PlannedRow Row, int NewId, JsonElement Snapshot)>> ImportAsync(ImportPlan plan, CancellationToken ct)
     {
         await using var conn = new NpgsqlConnection(connections.Main);
@@ -209,23 +214,55 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
             while (await reader.ReadAsync(ct)) owners.TryAdd(reader.GetString(1), reader.GetInt32(0));
         }
 
-        var keys = await Names.KeysAsync(conn, tx,
-            plan.Rows.Where(r => r.Skip is null && !string.IsNullOrEmpty(r.Name)).Select(r => r.Name!), ct);
-        var added = new List<(PlannedRow, int, JsonElement)>();
-        foreach (var row in plan.Rows.Where(r => r.Skip is null))
+        var rows = plan.Rows.Where(r => r.Skip is null).ToList();
+        if (rows.Count == 0)
         {
+            await tx.CommitAsync(ct);
+            return [];
+        }
+        var keys = await Names.KeysAsync(conn, tx, rows.Where(r => !string.IsNullOrEmpty(r.Name)).Select(r => r.Name!), ct);
+        var ids = await NextIdsAsync(conn, tx, rows.Count, ct);
+
+        var planned = new List<(PlannedRow Row, int Id, int? DuplicateOf, int? ImportedFrom)>(rows.Count);
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var row = rows[i];
             var normal = keys[row.Name!];
             int? duplicateOf = owners.TryGetValue(normal, out var owner) ? owner : null;
-            var id = await InsertAsync(conn, tx, columns, row, id: null, duplicateOf, (int)plan.VersionId, ct);
-            if (duplicateOf is null) owners[normal] = id;
+            if (duplicateOf is null) owners[normal] = ids[i];
+            planned.Add((row, ids[i], duplicateOf, (int)plan.VersionId));
+        }
+        await CopyRowsAsync(conn, columns, planned, ct);
 
-            await using var read = new NpgsqlCommand($"""SELECT row_to_json(t)::text FROM "{Table}" t WHERE "Id" = @id""", conn, tx);
-            read.Parameters.AddWithValue("id", id);
-            var snapshot = JsonDocument.Parse((string)(await read.ExecuteScalarAsync(ct))!).RootElement.Clone();
-            added.Add((row, id, snapshot));
+        // The rows as they were saved, for the collector log
+        var snapshots = new Dictionary<int, JsonElement>(rows.Count);
+        await using (var read = new NpgsqlCommand($"""SELECT "Id", row_to_json(t)::text FROM "{Table}" t WHERE "Id" = ANY(@ids)""", conn, tx)
+        {
+            CommandTimeout = (int)LongTimeout.TotalSeconds
+        })
+        {
+            read.Parameters.AddWithValue("ids", ids.ToArray());
+            await using var reader = await read.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                snapshots[reader.GetInt32(0)] = JsonDocument.Parse(reader.GetString(1)).RootElement.Clone();
+            }
         }
         await tx.CommitAsync(ct);
-        return added;
+        return planned.Select(p => (p.Row, p.Id, snapshots[p.Id])).ToList();
+    }
+
+    // Takes the next n ids from the table's sequence, in order
+    private static async Task<List<int>> NextIdsAsync(NpgsqlConnection conn, NpgsqlTransaction tx, int n, CancellationToken ct)
+    {
+        await using var cmd = new NpgsqlCommand($"""
+            SELECT nextval(pg_get_serial_sequence('"{Table}"', 'Id'))::int FROM generate_series(1, @n)
+            """, conn, tx);
+        cmd.Parameters.AddWithValue("n", n);
+        var ids = new List<int>(n);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct)) ids.Add(reader.GetInt32(0));
+        return ids;
     }
 
     // True when two rows that would be restored as originals share a name, the unique index would refuse that.
@@ -244,21 +281,21 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
 
     // Swaps every row in the table for the version's rows, keeping their old ids.
     // The caller owns the transaction, so the rules and the request can join it and it is all or nothing.
+    // The rows go in with one COPY, so a table of 100,000 rows takes seconds instead of a round trip per row.
     public async Task<int> RestoreAsync(ImportPlan plan, NpgsqlConnection conn, NpgsqlTransaction tx, CancellationToken ct)
     {
         var columns = await CurrentColumnsAsync(conn, ct);
 
-        await using (var clear = new NpgsqlCommand($"""DELETE FROM "{Table}" """, conn, tx))
+        await using (var clear = new NpgsqlCommand($"""DELETE FROM "{Table}" """, conn, tx) { CommandTimeout = (int)LongTimeout.TotalSeconds })
         {
             await clear.ExecuteNonQueryAsync(ct);
         }
 
-        var count = 0;
-        foreach (var row in plan.Rows.Where(r => r.Skip is null))
-        {
-            await InsertAsync(conn, tx, columns, row, row.OldId, row.KeepDuplicateOf, row.KeepImportedFrom, ct);
-            count++;
-        }
+        // A saved row with no id (it shouldn't happen, but a hand edited copy could) gets one after the highest old id
+        var rows = plan.Rows.Where(r => r.Skip is null).ToList();
+        var next = rows.Count == 0 ? 1 : rows.Max(r => r.OldId ?? 0) + 1;
+        var planned = rows.Select(r => (r, r.OldId ?? next++, r.KeepDuplicateOf, r.KeepImportedFrom)).ToList();
+        await CopyRowsAsync(conn, columns, planned, ct);
 
         // New rows carry on after the highest restored id
         await using (var seq = new NpgsqlCommand($"""
@@ -267,36 +304,44 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
         {
             await seq.ExecuteScalarAsync(ct);
         }
-        return count;
+        return planned.Count;
     }
 
-    private static async Task<int> InsertAsync(NpgsqlConnection conn, NpgsqlTransaction tx, Dictionary<string, string> columns,
-        PlannedRow row, int? id, int? duplicateOf, int? importedFrom, CancellationToken ct)
+    // Writes rows with a binary COPY, inside whatever transaction the connection has open
+    private static async Task CopyRowsAsync(NpgsqlConnection conn, Dictionary<string, string> columns,
+        List<(PlannedRow Row, int Id, int? DuplicateOf, int? ImportedFrom)> rows, CancellationToken ct)
     {
-        var names = new List<string>();
-        var cmd = new NpgsqlCommand { Connection = conn, Transaction = tx };
-        void Add(string column, object? value, NpgsqlDbType type)
-        {
-            names.Add(column);
-            cmd.Parameters.Add(new NpgsqlParameter($"p{names.Count}", type) { Value = value ?? DBNull.Value });
-        }
-
-        if (id is not null) Add("Id", id, NpgsqlDbType.Integer);
-        foreach (var (column, value) in row.Columns)
-        {
-            Add(column, value is string s && column == "Name" ? s.Trim() : value, DbType(columns[column]));
-        }
-        Add("DuplicateOf", duplicateOf, NpgsqlDbType.Integer);
-        Add("ImportedFrom", importedFrom, NpgsqlDbType.Integer);
-        Add("LostFields", row.Lost.Count > 0 ? row.Lost.Distinct().ToArray() : null, NpgsqlDbType.Array | NpgsqlDbType.Text);
-        Add("Extra", row.Extra?.ToJsonString(), NpgsqlDbType.Jsonb);
-
+        if (rows.Count == 0) return;
+        var data = rows[0].Row.Columns.Keys.ToList();
+        var names = new List<string> { "Id" };
+        names.AddRange(data);
+        names.AddRange(["DuplicateOf", "ImportedFrom", "LostFields", "Extra"]);
         var list = string.Join(", ", names.Select(n => $"\"{n}\""));
-        var parameters = string.Join(", ", names.Select((_, i) => $"@p{i + 1}"));
-        cmd.CommandText = $"""INSERT INTO "{Table}" ({list}) VALUES ({parameters}) RETURNING "Id" """;
-        await using (cmd)
+
+        await using var copy = await conn.BeginBinaryImportAsync($"""COPY "{Table}" ({list}) FROM STDIN (FORMAT BINARY)""", ct);
+        copy.Timeout = LongTimeout;
+        foreach (var (row, id, duplicateOf, importedFrom) in rows)
         {
-            return (int)(await cmd.ExecuteScalarAsync(ct))!;
+            await copy.StartRowAsync(ct);
+            await copy.WriteAsync(id, NpgsqlDbType.Integer, ct);
+            foreach (var column in data)
+            {
+                var value = row.Columns[column];
+                if (value is string s && column == "Name") value = s.Trim();
+                if (value is null) await copy.WriteNullAsync(ct);
+                else await copy.WriteAsync(value, DbType(columns[column]), ct);
+            }
+            await Write(copy, duplicateOf, NpgsqlDbType.Integer, ct);
+            await Write(copy, importedFrom, NpgsqlDbType.Integer, ct);
+            await Write(copy, row.Lost.Count > 0 ? row.Lost.Distinct().ToArray() : null, NpgsqlDbType.Array | NpgsqlDbType.Text, ct);
+            await Write(copy, row.Extra?.ToJsonString(), NpgsqlDbType.Jsonb, ct);
+        }
+        await copy.CompleteAsync(ct);
+
+        static async Task Write(NpgsqlBinaryImporter copy, object? value, NpgsqlDbType type, CancellationToken ct)
+        {
+            if (value is null) await copy.WriteNullAsync(ct);
+            else await copy.WriteAsync(value, type, ct);
         }
     }
 

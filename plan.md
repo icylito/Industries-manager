@@ -1,13 +1,13 @@
 # Stock Listing plan and handoff
 
-Project is in `Desktop/testing`. Last updated 2026-10-06 (batches 6 and 7).
+Project is in `Desktop/testing`. Last updated 2026-10-07 (batch 8, restore from a backup).
 
 The app lists industries (name, sector, price, release) from a Postgres database. Angular 22 page in `angular/`, .NET 10 API in `api_v2/`. Everything on the page saves to the database, and since today the team can change rules, add fields, go back to old versions, and ask a developer for help all from the page.
 
 ## Where things are right now
 
-- Steps 1 to 7 are built, plus backups (batch 4). Step 8 (login) is built in batch 7.
-- Last commit is `5d7ff11` (batches 4 and 5 are in it). Batches 6 and 7 (the break test fixes left over, Settings export and import, and the login, see `testing/report.txt`) are done and checked but not committed.
+- Steps 1 to 7 are built, plus backups (batch 4). Step 8 (login) is built in batch 7. Restore from a backup is built in batch 8.
+- Last commit on main is `1e6118f`, batches 1 to 7 are all in. Batch 8 is on its own branch, see `testing/report.txt`.
 - My own Postgres (port 5432, database `api_v2`) is up to date. The `AddHistoryFieldsRequests` migration ran on 2026-10-05 at 12:12 with its copy saved first, 301 rows, nothing changed.
 - The Docker database (port 5433, databases `main` and `collector`) has test data only: a fake old version #4, a custom field Ticker, a few imported rows, and some requests. Safe to wipe with `docker compose down -v`.
 - Nothing of Claude's is running. Run `start.bat` to bring the API and the page up. The first start after batch 4 makes a backup in `testing/backups` a few seconds after the API is ready.
@@ -15,15 +15,15 @@ The app lists industries (name, sector, price, release) from a Postgres database
 
 ## Waiting on me
 
-- [ ] Commit batches 6 and 7, the notes are in `testing/report.txt`
+- [x] Commit batches 6 and 7 (`17bfc53`)
 - [ ] First `start.bat` after batch 7 applies the `AddUsersAndSessions` migration on my own database (a copy is saved first) and prints the first admin password once in the API window. Write it down, sign in, pick a new one
-- [ ] Use https before the login leaves a trusted network (passwords travel over plain http on the Wi-Fi)
+- [x] Https is built (batch 9), `start.bat https`. Still yours: run `dotnet dev-certs https --trust` once, and use it on the Wi-Fi instead of plain http
 - [ ] First `start.bat` after batch 5 adds one rules version "Sector list from config.toml" on my own database (copy saved first). Expected, it happens once
-- [ ] Point `Backup:Folder` at OneDrive or another drive, a backup on the same disk doesn't survive the disk
+- [ ] `Backup:Folder` stays local for now. Later, when there's a server, see what it can do that a PC can't
 - [x] Commit steps 5 to 7, the .gitignore cleanup, and break test batches 1 to 3 (`b92d06b`)
 - [x] Run `start.bat` so my own database updates (it already was, since 2026-10-05)
 - [ ] Decide if `ac2d450` gets rewritten (old long message and Claude co-author line). Not pushed, but `75165b4` and `9497e93` sit on top so it needs a rebase. Leaving it is fine too
-- [ ] Decide if `angular/public/dollar_sign_favicon.png` gets deleted, it's not used anymore
+- [x] `angular/public/dollar_sign_favicon.png` deleted (batch 9)
 - [x] Commit `start.bat` and Docker (`75165b4`)
 - [x] Commit steps 3 and 4 (`9497e93`)
 - [x] Docker installed, first run on my own Postgres created `collector`
@@ -71,6 +71,32 @@ The app lists industries (name, sector, price, release) from a Postgres database
 - [x] Each one has the code drafted, with Show and Copy. Done, Dismiss, Reopen
 - [x] The same open request never gets made twice
 
+### 9. Restore from a backup (batch 8)
+- [x] Restore next to every backup on History, admins only, type `RESTORE`. Rows, rules, retention and requests go back to that night, accounts and sign ins stay
+- [x] The dump goes into a scratch database first (`main_restore_scratch`), then the four tables are swapped in one transaction with a binary COPY. A failed read never touches the live database, a failed swap rolls back
+- [x] A backup from another table layout is refused before anything changes, its button is off with "Other table layout". `backup.json` records the migrations and the row count now
+- [x] History page: the row count under each backup, the ask panel with the typed word, the result line, the "Before restoring the backup from ..." reason on the saved copy
+- [x] Restore and Bring back from History write with one COPY, 10 minute limit. 100,000 rows in about 4 seconds
+- [x] "History offline" after startup: every failed collector call marks it down at once, `HistoryMonitor` checks every 30 seconds and brings it back, the main page asks `/health` every 30 seconds
+- [x] Failed backups and restores only show this code's own sentences (`BackupFailedException`), everything else goes to the log
+- [x] Keep old versions refuses anything that isn't a whole number of 1 or more and sends nothing
+
+How it was made: the box had no Docker daemon, so a Postgres 16 was started by hand on 5433 with the same user and password as `docker-compose.yml`, and the API built its own `main` and `collector` on first start. Every check was a small Python script against a throwaway API on 5104 (sign in, seed 300 rows, back up, change things, restore, compare), and the big table checks inserted 100,000 rows straight in SQL. The page was checked with a headless Chromium at 1280 and 390 wide and in dark mode. Then a race test: 30 rounds of three restores at once under 8 threads of adds, edits, deletes, bring backs, rules and retention saves and backups, plus 10 rounds on 20,000 rows, no errors and nothing stuck. Details in `testing/report.txt`.
+
+### 10. Https, the page's own checks, and the UI judge's list (batch 9)
+- [x] `start.bat https`: the API on https://localhost:7165 with the dev certificate, the page on https://localhost:4200, the page picks the https API from its own protocol. `Https:Required` turns the redirect from http and HSTS on, off by default. The API window warns at startup when nothing is https
+- [x] Delete says what went: "Deleted 1 row from Industries: name" on the table, "Its values were removed from N rows in Industries" on Fields
+- [x] The sign in back link only follows a page of this app, decoded too (E1). The token lives in memory when storage is blocked (E2, test). The interceptor's 401 and 403 rules have tests (E3). File names come out of Content-Disposition with filename* first and a fallback (E4). The settings file is refused on the page when it's over 1 MB, not JSON, a list or from another app (E6). The people page trims and lower cases, says to copy by hand when the clipboard is missing or refuses, and forgets the password when the page is left (E7). The account page stops a short, mismatched or reused password before any call (E8). The guest view and the guards have tests (E9, E10)
+- [x] D1 problems under their own box with aria-describedby, the summary line only for answers from the API. D2 a long name ends with ... next to the pinned Actions column on a phone. D3 phone nav labels at 0.75rem, the plus and the account link icon only so seven fit in 390px. D4 the sign in card says Welcome back and sits in the middle of the page (rubric line updated to match, see the line below). D5 "300 rows" on the History cards on a phone. D6 no unit while a retention box is empty. D7 "Search by name" and "Show 10 entries" in sentence case. D8 contrast measured, dark red is #fda29b now (was 3.8:1 on amber) and disabled buttons go grey at full opacity (were 3:1). D9 "Delete <name>?" on a wide screen, the name on the button on a phone. D10 the Connected badge says what it means. D11 one focus ring in styles.css for links and everything else that had none. D12 a loading line on the Backups list
+- [x] The unused dollar sign favicon is gone
+- [x] No small label is in capitals anymore, and the questions before a delete or a turn off read "Are you sure you want to ...?"
+- [x] The sign in and account pages are one card in the middle: the page title and its line are centred over it (`centered: true` in the route data, `.hero.centered` in app.css), the card is 30rem wide with 2rem inside, 1.25rem between the boxes, a full width button with room above it, and the "No account?" line centred 1rem under it. The hand on "Welcome back" waves once on load and on hover. On a phone the card keeps the page gutter, the name and the role stay on one line
+- [x] A page left alone for 5 minutes starts from the top when the person comes back (`services/idle-top.ts`, a tab becoming visible, the window getting focus, or the first click, key or touch after the quiet spell), one jump, no animation
+
+Graded against `testing/rubric_batches_8_9.md` (written by an Opus 5.5 critic, 10 criteria, pass at 7) from headless browser captures scored by a second critic: round 1 was 6 of 10 (one real defect on the account page, three capture gaps), round 2 was 9 of 10, a pass. Details in `testing/report.txt`.
+
+How it was made: https was checked on the cloud box with the dev certificate (http answers 307 to https, https answers, the warning shows only when nothing is https). The edge cases are Vitest specs next to each file, 30 tests in 8 files. The design list was checked with `testing/contrast.py` (every pair 4.5:1 or better now) and `testing/check_design.mjs` in a headless Chromium at 390 and 1280 and in dark mode.
+
 ### Main table
 - [x] Red triangle when a value couldn't come over, black for minor things, hover lists every reason
 - [x] Amber row for similar rows, wrench on a column header when a developer was asked about it
@@ -100,6 +126,9 @@ The app lists industries (name, sector, price, release) from a Postgres database
 - **PowerShell 5.1 adds a BOM** when saving, `config.toml` reading handles it.
 - **The browser extension freezes on `confirm()` popups**, so Delete is never clicked during checks. Also why the custom delete popup is on the leftovers list.
 - **History being down took the whole app down.** The collector was set up before the main database, so one unreachable collector meant no rows at all. Main comes first now, and only a waiting migration still needs the collector first.
+- **"History offline" only knew about outages at startup.** Nothing set the flag back to false once it was true, so a collector that died mid run left the badge green. Every failed collector call marks it down now and a check every 30 seconds brings it back.
+- **The restore scratch database came back dead the second time.** Npgsql pooled the connection to it, the forced drop killed that connection, and the next restore pulled the dead one out of the pool. The scratch connection doesn't pool anymore.
+- **Restores of big tables hit the 30 second limit.** One INSERT per row, 100,000 rows meant 100,000 round trips. Restore and Bring back write with one binary COPY now, 100,000 rows take about 4 seconds.
 
 ## Still open
 
@@ -107,7 +136,7 @@ The app lists industries (name, sector, price, release) from a Postgres database
 - [x] `ICurrentUser` and `.RequireAdmin()` in `Auth/CurrentUser.cs`, used on rules, history and request status
 - [x] Typed confirmation on Restore
 - [x] Login with usernames and passwords (batch 7): People page for admins, bearer token sign ins, first admin made on first start, `Auth:ResetPassword` for a forgotten password, 5 tries a minute
-- [ ] Restore from a backup button, admin only. It has to skip the Users and Sessions tables or old passwords come back
+- [x] Restore from a backup button, admin only (batch 8). It leaves Users and Sessions alone, loads the dump into a scratch database first, and swaps the four tables in one transaction. A backup from another layout is refused
 - [x] Sector list from `config.toml` into the rules, and the API refuses other sectors (batch 5)
 - [x] Settings Export and Import on the History page (batch 7), retention and the field labels and limits
 
@@ -137,6 +166,8 @@ The app lists industries (name, sector, price, release) from a Postgres database
 | History, requests, schema endpoints | `api_v2/Endpoints/` |
 | Drafted code for requests | `api_v2/Requests/Drafts.cs` |
 | Login, sessions, roles | `api_v2/Auth/` (`CurrentUser.cs`, `UserService.cs`, `PasswordHasher.cs`), `api_v2/Endpoints/AuthEndpoints.cs`, `UserEndpoints.cs`, page side `angular/src/app/services/auth.ts` |
+| Backups and restoring one | `api_v2/Backups/BackupService.cs` (pg_dump, the list, pruning), `BackupRestore.cs` (pg_restore into a scratch database, the swap), `api_v2/Endpoints/BackupEndpoints.cs` |
+| History going offline and back | `api_v2/Data/HistoryMonitor.cs`, `CollectorStore.NoteFailure` |
 | Pages | `angular/src/app/Components/` (my-components is the table, plus history, fields, requests) |
 | Colors, including the amber | `angular/src/styles.css` |
 | Team setup | `README.md`, `docker_setup.md`, `Desktop/server.md` for sharing my Docker server on Wi-Fi |
@@ -181,6 +212,13 @@ The app lists industries (name, sector, price, release) from a Postgres database
 
 ### Wording
 - Everything the team sees is plain words, no technical terms
+
+### Restore from a backup
+- Scratch database first, never pg_restore straight into the live one. pg_restore runs as its own program with its own connection, so it can't join a transaction. Loading into a scratch copy and then moving rows over from our own connection is what makes the swap all or nothing
+- Only Industries, RuleVersions, Requests and Settings come back. Users and Sessions are left alone on purpose, a restore must never hand out an old password or sign everyone out. The history database isn't restored from the page either, it only grows and restoring it would drop the versions saved since
+- The dump's own `__EFMigrationsHistory` decides if the layout matches, `backup.json` is only the quick check that turns the button off. A different layout is refused, the same rule as an old saved version
+- A copy of the table goes to History before the swap and is deleted again if the swap fails, the same as Restore from a version
+- The scratch connection doesn't pool and gets a 10 minute command timeout. Pooled connections to a database that gets dropped with FORCE come back dead
 
 ### Commits
 - Only I commit and push. Claude writes the message: one plain line plus `Contributor: coder bot opus 5.5`, no co-author line

@@ -50,11 +50,11 @@ export class MyComponents implements OnInit {
   formError = signal('');
 
    submit() {
-    if (this.form.invalid) {
-      if (this.form.controls.sector.hasError('required')) {
-        this.form.controls.sector.markAsDirty();
-        this.formError.set('Choose a sector');
-      }
+    if (this.form.invalid || this.customInvalid()) {
+      // The problems show under the boxes they belong to
+      this.form.markAllAsTouched();
+      if (this.form.controls.sector.hasError('required')) this.form.controls.sector.markAsDirty();
+      this.extraTouched.set(new Set(this.customFields().map(f => f.key)));
       return;
     }
 
@@ -70,6 +70,7 @@ export class MyComponents implements OnInit {
 
     this.saving.set(true);
     this.formError.set('');
+    this.deleted.set('');
 
     const id = this.editingId();
 
@@ -144,19 +145,27 @@ export class MyComponents implements OnInit {
     }
   }
 
-  // Same wording as the API's messages in api_v2/Rules/RulesService.cs
-  fieldErrors(): string[] {
-    const list: string[] = [];
-    for (const rule of this.rules()?.fields ?? []) {
-      const errors = this.form.get(rule.key)?.errors;
-      if (errors?.['maxlength']) list.push(`${rule.label} can be at most ${rule.maxLength} characters`);
-      if (errors?.['min'] || errors?.['max']) list.push(this.rangeText(rule, true));
+  // The problem with one box, in the API's own words (api_v2/Rules/RulesService.cs), or null when it's fine.
+  // Built in fields come from the form's validators, custom ones from checkValue. Nothing shows until the box was touched.
+  fieldProblem(key: string): string | null {
+    const rule = this.rules()?.fields.find(f => f.key === key);
+    const control = this.form.get(key);
+    if (control) {
+      const errors = control.errors;
+      if (!errors || !(control.dirty || control.touched)) return null;
+      const label = rule?.label ?? (key === 'name' ? 'Name' : key === 'sector' ? 'Sector' : key === 'price' ? 'Price' : key);
+      if (errors['required']) return key === 'sector' ? 'Choose a sector' : `${label} is required`;
+      if (errors['maxlength'] && rule) return `${label} can be at most ${rule.maxLength} characters`;
+      if ((errors['min'] || errors['max']) && rule) return this.rangeText(rule, true);
+      return null;
     }
-    for (const rule of this.customFields()) {
-      const problem = this.checkValue(rule, this.extraValue(rule.key));
-      if (problem && this.extraTouched().has(rule.key)) list.push(problem);
-    }
-    return list;
+    if (!rule?.custom || !this.extraTouched().has(key)) return null;
+    return this.checkValue(rule, this.extraValue(key));
+  }
+
+  // The name in the "Delete ...?" question, cut so a long one doesn't widen the Actions column
+  shortName(name: string): string {
+    return name.length > 24 ? name.slice(0, 23).trimEnd() + '…' : name;
   }
 
   // Custom fields from the Fields page, their inputs sit after the built in ones
@@ -253,13 +262,15 @@ export class MyComponents implements OnInit {
   }
   private left = false;
 
-  // History comes up after the main database, so keep asking until it's there and the pill clears by itself
+  // Keeps the badge honest while the page is open: every 5 seconds while History is offline so it clears as soon
+  // as it's back, every 30 seconds otherwise so an outage after startup shows up too
   private watchHistory() {
-    if (this.left || this.historyHealth()?.ready !== false) return;
+    if (this.left) return;
+    const every = this.historyHealth()?.ready === false ? 5000 : 30000;
     this.historyTimer = setTimeout(() => this.api.health().subscribe({
       next: health => { this.historyHealth.set(health.history); this.watchHistory(); },
       error: () => this.watchHistory(),
-    }), 5000);
+    }), every);
   }
 
   // Wait for the API's auto migration to finish before loading rows
@@ -308,15 +319,19 @@ export class MyComponents implements OnInit {
   // The row that is asking "Delete this row?", and the one being deleted
   confirmingId = signal<number | null>(null);
   deletingId = signal<number | null>(null);
+  // What the last delete did, so a delete is never silent. Cleared by the next add or edit.
+  deleted = signal('');
 
   remove(id: number){
     this.deletingId.set(id);
+    this.deleted.set('');
     this.api.delete(id).subscribe({
-      next: () => {
+      next: gone => {
         this.deletingId.set(null);
         this.confirmingId.set(null);
         this.industries.update(list => list.filter(i => i.id !== id));
         if (this.editingId() === id) this.cancelEdit();
+        this.deleted.set(`Deleted ${gone.deleted} ${gone.deleted === 1 ? 'row' : 'rows'} from ${gone.table}: ${gone.name}.`);
       },
       // Delete logic if id found
       error: err => {

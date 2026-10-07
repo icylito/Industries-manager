@@ -3,8 +3,8 @@ import { HttpClient, HttpErrorResponse, HttpResponse } from '@angular/common/htt
 import { MonoTypeOperatorFunction, Observable, retry, throwError, timer } from 'rxjs';
 import {
     Industry, CreateIndustry, UpdateIndustry, DbHealth, RuleSet, FieldRule, NewField, VersionSummary, VersionDetail,
-    ImportPreview, ImportResult, RestoreResult, Retention, BackupEntry, BackupStatus, DevRequest,
-    SettingsFile, SettingsImportPreview, SettingsImportResult, AuthUser, NewUserResult,
+    ImportPreview, ImportResult, RestoreResult, Retention, BackupEntry, BackupStatus, BackupRestorePreview, BackupRestoreResult, DevRequest,
+    SettingsFile, SettingsImportPreview, SettingsImportResult, AuthUser, NewUserResult, DeletedRow, FieldDeleted,
 } from '../models/industry';
 import { environment } from '../../environments/environment';
 
@@ -39,8 +39,9 @@ export class IndustryApi {
         update(id: number, body: UpdateIndustry): Observable<void>{
             return this.http.put<void>(`${this.baseUrl}/update/${id}`, body);
         }
-        delete(id: number): Observable<string>{
-            return this.http.delete(`${this.baseUrl}/${id}`, { responseType: 'text'})
+        // The API says what went: 1 row from Industries, with its name
+        delete(id: number): Observable<DeletedRow>{
+            return this.http.delete<DeletedRow>(`${this.baseUrl}/${id}`);
         }
 
     // Rules and custom fields
@@ -53,8 +54,8 @@ export class IndustryApi {
     addFields(fields: NewField[], basedOn: number | null): Observable<RuleSet> {
         return this.http.post<RuleSet>(`${this.apiUrl}/schema/fields/many`, { basedOn, fields });
     }
-    deleteField(key: string, basedOn: number): Observable<RuleSet> {
-        return this.http.delete<RuleSet>(`${this.apiUrl}/schema/fields/${encodeURIComponent(key)}`, { params: { basedOn } });
+    deleteField(key: string, basedOn: number): Observable<FieldDeleted> {
+        return this.http.delete<FieldDeleted>(`${this.apiUrl}/schema/fields/${encodeURIComponent(key)}`, { params: { basedOn } });
     }
     ruleVersions(): Observable<RuleSet[]> {
         return this.http.get<RuleSet[]>(`${this.apiUrl}/schema/versions`).pipe(this.retryTransient());
@@ -110,6 +111,13 @@ export class IndustryApi {
     backupDownloadUrl(id: string, file: 'main' | 'collector' | 'excel'): string {
         return `${this.apiUrl}/backups/${id}/${file}`;
     }
+    // Restoring a backup. The preview changes nothing, the restore wants the word RESTORE like History does.
+    backupRestorePreview(id: string): Observable<BackupRestorePreview> {
+        return this.http.get<BackupRestorePreview>(`${this.apiUrl}/backups/${id}/restore/preview`);
+    }
+    restoreBackup(id: string, confirm: string): Observable<BackupRestoreResult> {
+        return this.http.post<BackupRestoreResult>(`${this.apiUrl}/backups/${id}/restore`, { confirm });
+    }
 
     // People, admins only
     users(): Observable<AuthUser[]> {
@@ -130,12 +138,10 @@ export class IndustryApi {
         return new Observable<void>(subscriber => {
             this.http.get(url, { responseType: 'blob', observe: 'response' }).subscribe({
                 next: (res: HttpResponse<Blob>) => {
-                    const disposition = res.headers.get('Content-Disposition') ?? '';
-                    const named = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition)?.[1];
                     const link = document.createElement('a');
                     const href = URL.createObjectURL(res.body as Blob);
                     link.href = href;
-                    link.download = named ? decodeURIComponent(named) : fallbackName;
+                    link.download = fileNameFrom(res.headers.get('Content-Disposition'), fallbackName);
                     document.body.appendChild(link);
                     link.click();
                     link.remove();
@@ -171,6 +177,22 @@ export class IndustryApi {
     }
     setRequestStatus(id: number, status: 'open' | 'done' | 'dismissed'): Observable<DevRequest> {
         return this.http.put<DevRequest>(`${this.apiUrl}/requests/${id}/status`, { status });
+    }
+}
+
+// The file name out of a Content-Disposition header. filename* (percent encoded, any language) wins over filename,
+// quotes come off, a name that can't be decoded or that isn't there at all falls back to the given one.
+export function fileNameFrom(disposition: string | null, fallbackName: string): string {
+    const text = disposition ?? '';
+    const star = /filename\*\s*=\s*(?:[\w-]*'[\w-]*')?"?([^";]+)"?/i.exec(text)?.[1];
+    const plain = /(?:^|;)\s*filename\s*=\s*(?:"([^"]*)"|([^;]+))/i.exec(text);
+    const raw = (star ?? plain?.[1] ?? plain?.[2] ?? '').trim();
+    if (!raw) return fallbackName;
+    try {
+        const name = (star ? decodeURIComponent(raw) : raw).replace(/[\\/]/g, '_').trim();
+        return name || fallbackName;
+    } catch {
+        return fallbackName;
     }
 }
 

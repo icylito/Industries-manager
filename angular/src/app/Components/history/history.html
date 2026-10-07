@@ -51,7 +51,7 @@
                                 </span>
                                 <span class="sub">{{ formatDate(v.createdAt) }} · {{ v.damaged ? "Can't be restored or brought back" : v.sameLayout ? 'Same table layout' : 'Other table layout' }}</span>
                             </td>
-                            <td class="num accent">{{ v.rowCount }}</td>
+                            <td class="num accent">{{ v.rowCount }}<span class="unit-word"> {{ v.rowCount === 1 ? 'row' : 'rows' }}</span></td>
                             <td class="actions">
                                 <button type="button" class="edit-btn" [disabled]="busy()" (click)="view(v)">
                                     <i class="fa-solid fa-eye" aria-hidden="true"></i>View
@@ -297,19 +297,19 @@
     <div class="settings-row">
         <label class="field">
             <span class="field-label">Keep the last</span>
-            <span class="control">
+            <span class="control" [class.empty]="keepVersionsText() === ''">
                 <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
-                <input type="number" min="1" step="1" placeholder="All" [value]="keepVersions() ?? ''"
-                    (input)="keepVersions.set(toNumber($any($event.target).value))">
+                <input type="number" min="1" step="1" placeholder="All" [value]="keepVersionsText()"
+                    (input)="keepVersionsText.set($any($event.target).value)">
                 <span class="unit">versions</span>
             </span>
         </label>
         <label class="field">
             <span class="field-label">Remove versions older than</span>
-            <span class="control">
+            <span class="control" [class.empty]="keepDaysText() === ''">
                 <i class="fa-regular fa-calendar" aria-hidden="true"></i>
-                <input type="number" min="1" step="1" placeholder="Never" [value]="keepDays() ?? ''"
-                    (input)="keepDays.set(toNumber($any($event.target).value))">
+                <input type="number" min="1" step="1" placeholder="Never" [value]="keepDaysText()"
+                    (input)="keepDaysText.set($any($event.target).value)">
                 <span class="unit">days</span>
             </span>
         </label>
@@ -382,7 +382,8 @@
     <header class="card-head">
         <h2><span class="title-icon"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i></span>Backups</h2>
     </header>
-    <p class="intro">{{ backupIntro() }}</p>
+    <p class="intro">{{ backupIntro() }}
+        <strong>Restore</strong> puts the table, its rules, settings and requests back the way they were in that backup. Accounts and sign ins stay as they are now.</p>
     <button type="button" class="add-btn" [disabled]="backingUp()" (click)="backupNow()">
         @if (backingUp()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Backing up... }
         @else { <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>Back up now }
@@ -394,7 +395,9 @@
         <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ backupError() }}</p>
     }
 
-    @if (backupsLoaded() && backups().length === 0) {
+    @if (!backupsLoaded() && !backupError()) {
+        <p class="state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading backups</p>
+    } @else if (backupsLoaded() && backups().length === 0) {
         <p class="state"><i class="fa-solid fa-box-open" aria-hidden="true"></i>No backups yet. The first one runs a few minutes after the API starts.</p>
     } @else if (backups().length > 0) {
         <div class="table-wrap">
@@ -403,7 +406,7 @@
                     <tr>
                         <th><span class="th">When</span></th>
                         <th class="num"><span class="th">Size</span></th>
-                        <th class="actions-col"><span class="sr-only">Downloads</span></th>
+                        <th class="actions-col"><span class="sr-only">Downloads and restore</span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -411,7 +414,7 @@
                         <tr>
                             <td class="what">
                                 <span class="reason">{{ formatDate(b.createdAt) }}</span>
-                                <span class="sub">{{ kindLabel(b.kind) }}</span>
+                                <span class="sub">{{ kindLabel(b.kind) }}{{ b.rowCount === null ? '' : ' · ' + b.rowCount + (b.rowCount === 1 ? ' row' : ' rows') }}{{ b.sameLayout === false ? ' · Other table layout' : '' }}</span>
                             </td>
                             <td class="num accent">{{ kb(b.mainSize + b.collectorSize) }}</td>
                             <td class="actions">
@@ -420,12 +423,50 @@
                                 }
                                 <button type="button" class="edit-btn" (click)="downloadBackup(b, 'main')">Main</button>
                                 <button type="button" class="edit-btn" (click)="downloadBackup(b, 'collector')">History</button>
+                                <button type="button" class="remove-btn" [disabled]="restoreBackupBusy() || b.sameLayout === false" (click)="askRestoreBackup(b)"
+                                    [attr.title]="b.sameLayout === false ? 'The table had other columns back then, a developer is needed for this one' : 'Put the table back the way it was in this backup'">
+                                    <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore
+                                </button>
                             </td>
                         </tr>
                     }
                 </tbody>
             </table>
         </div>
+    }
+
+    @if (restoreAsk(); as ask) {
+        <div class="ask" id="restore-backup">
+            <p><i class="fa-solid fa-circle-question" aria-hidden="true"></i>This puts the table back the way it was on {{ formatDate(ask.entry.createdAt) }}:
+                {{ ask.preview.rowCount === null ? 'its rows' : ask.preview.rowCount + (ask.preview.rowCount === 1 ? ' row' : ' rows') }} instead of the {{ ask.preview.currentRows }} in the table now,
+                the rules, how long old versions are kept, and the requests from back then. Accounts and sign ins stay as they are now.
+                The table as it is now gets saved to History first, so you can come back to it.</p>
+            @if (!ask.preview.historyReady) {
+                <p class="hint-line"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>History is offline, so a copy can't be saved first. Wait until it's back.</p>
+            }
+            <div class="confirm-row">
+                <label class="field">
+                    <span class="field-label">Type RESTORE to confirm</span>
+                    <span class="control">
+                        <i class="fa-solid fa-keyboard" aria-hidden="true"></i>
+                        <input autocomplete="off" placeholder="RESTORE" [value]="restoreBackupText()" (input)="restoreBackupText.set($any($event.target).value)">
+                    </span>
+                </label>
+                <button type="button" class="cancel-btn" [disabled]="restoreBackupBusy()" (click)="closeRestoreBackup()">Cancel</button>
+                <button type="button" class="add-btn danger" [disabled]="restoreBackupText() !== 'RESTORE' || restoreBackupBusy() || !ask.preview.historyReady" (click)="restoreBackup()">
+                    @if (restoreBackupBusy()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Restoring }
+                    @else { <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore }
+                </button>
+            </div>
+        </div>
+    }
+    @if (restoreBackupDone(); as done) {
+        <p class="result small"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+            Restored. The table has the {{ done.rows }} rows from that backup now, rules version {{ done.rulesVersion }}.
+            @if (done.copyId) { The table as it was before is saved as version #{{ done.copyId }} at the top. }</p>
+    }
+    @if (restoreBackupError()) {
+        <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ restoreBackupError() }}</p>
     }
 
     @if (backupStatus()?.lastError) {

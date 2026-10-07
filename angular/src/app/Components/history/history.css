@@ -17,10 +17,8 @@
     display: block;
     padding: 0.85rem 1.1rem;
     color: var(--p-muted);
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
 }
 
 th.num .th{
@@ -193,6 +191,18 @@ a.add-btn{
     color: #ffffff;
 }
 
+/* The row count says "rows" where the card has no header to say it, on phones */
+.unit-word{
+    display: none;
+    font-weight: 500;
+}
+
+@media (max-width: 640px) {
+    .unit-word{
+        display: inline;
+    }
+}
+
 /* Retention */
 .settings-row{
     display: grid;
@@ -207,6 +217,11 @@ a.add-btn{
     color: var(--faint);
     font-size: 0.8rem;
     pointer-events: none;
+}
+
+/* An empty box shows its placeholder (All, Never) and no unit, so it never reads "Never days" */
+.control.empty .unit{
+    display: none;
 }
 
 .settings-row input{
@@ -283,10 +298,8 @@ a.add-btn{
     padding: 0.1rem 0.5rem;
     border: 1px solid var(--p-text);
     border-radius: 999px;
-    font-size: 0.65rem;
+    font-size: 0.72rem;
     font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
 }
 
 /* Export and Import settings sit side by side and wrap on a phone */

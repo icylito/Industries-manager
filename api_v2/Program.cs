@@ -38,14 +38,17 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connect
 builder.Services.AddSingleton<DatabaseStatus>();
 builder.Services.AddHostedService<MigrationService>();
 
-// Collector copies, versioned rules, and who is making the request (no login yet, see Auth/CurrentUser.cs)
+// Collector copies, versioned rules, backups and the restore from a backup
 builder.Services.AddSingleton<SettingsService>();
 builder.Services.AddSingleton<CollectorStore>();
 builder.Services.AddSingleton<AppLocks>();
 builder.Services.AddSingleton<api_v2.History.TableWriter>();
 builder.Services.AddSingleton<RulesService>();
 builder.Services.AddSingleton<BackupService>();
+builder.Services.AddSingleton<BackupRestore>();
 builder.Services.AddHostedService<BackupScheduler>();
+// Notices when the history database goes away or comes back after startup, so the page's badge stays right
+builder.Services.AddHostedService<HistoryMonitor>();
 // Who is signed in comes from the token the page sends, see Auth/CurrentUser.cs
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, SessionUser>();
@@ -64,7 +67,27 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
+// Https:Required turns http into a redirect to https and adds HSTS. Off by default so a fresh clone runs with no certificate,
+// start.bat https turns it on together with the https launch profile. See README, Https.
+var httpsRequired = builder.Configuration.GetValue("Https:Required", false);
+if (httpsRequired)
+{
+    builder.Services.AddHttpsRedirection(options => options.HttpsPort = builder.Configuration.GetValue<int?>("Https:Port") ?? 7165);
+}
+
 var app = builder.Build();
+
+if (httpsRequired)
+{
+    app.UseHsts();
+    app.UseHttpsRedirection();
+}
+// Passwords go over the wire at sign in, so say it in the window when nothing here is https
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    if (app.Urls.Any(u => u.StartsWith("https://", StringComparison.OrdinalIgnoreCase))) return;
+    app.Logger.LogWarning("Signing in goes over plain http here, fine on this PC only. On a shared network start with start.bat https, see README under Https");
+});
 
 app.UseExceptionHandler(errors =>
 {

@@ -14,6 +14,16 @@ public sealed class BackupBusyException : Exception
     public BackupBusyException() : base("A backup is already running, try again in a minute") { }
 }
 
+// A backup or restore that stopped for a reason the page can show as it is. Anything else only goes to the log.
+public sealed class BackupFailedException(string message) : Exception(message);
+
+// Where pg_dump and pg_restore live. Docker means they run inside the database container.
+public readonly record struct DatabaseTool(bool Docker, string? Path)
+{
+    public static DatabaseTool FromFile(string path) => new(false, path);
+    public static DatabaseTool InDocker() => new(true, null);
+}
+
 // One saved backup, what GET /backups lists and what POST /backups returns.
 public sealed record BackupEntry(
     string Id,
@@ -23,7 +33,11 @@ public sealed record BackupEntry(
     long MainSize,
     long CollectorSize,
     int RulesVersion,
-    bool HasExcel);
+    bool HasExcel,
+    // Rows in the table when the copy was made. Backups from before this was recorded don't have it.
+    int? RowCount = null,
+    // The database layout at the time, so a restore knows if the table looked the same
+    List<string>? Migrations = null);
 
 // Runs pg_dump for main and the collector, one backup at a time.
 public sealed class BackupService(
@@ -39,6 +53,9 @@ public sealed class BackupService(
 
     public const string MissingConfiguredToolMessage =
         "Backup:PgDump is set, but that file doesn't exist";
+
+    public const string MissingRestoreToolMessage =
+        "Restoring needs pg_restore, which comes with Postgres next to pg_dump";
 
     // The table as a CSV that opens in Excel. Backups from before it existed don't have one.
     public const string ExcelFile = "main.csv";
@@ -66,6 +83,29 @@ public sealed class BackupService(
     public TimeSpan NightlyTime { get; } = ReadTime(config);
 
     public static bool ValidId(string? id) => id is not null && IdPattern.IsMatch(id);
+
+    // What the page may show about a failure. Only messages this code wrote itself, never a tool's or the framework's.
+    public static string PlainMessage(Exception ex) =>
+        ex is BackupFailedException or BackupBusyException ? ex.Message : "Something went wrong. Nothing was changed, the details are in the API log";
+
+    // The folder a backup lives in, or null when the id isn't one
+    public string? FolderOf(string id)
+    {
+        if (!ValidId(id)) return null;
+        var full = Path.GetFullPath(Path.Combine(_folder, id));
+        return TryRead(full, out _) ? full : null;
+    }
+
+    public BackupEntry? Find(string id)
+    {
+        var dir = FolderOf(id);
+        return dir is not null && TryRead(dir, out var entry) ? entry : null;
+    }
+
+    public bool Running
+    {
+        get { lock (_statusLock) return _running; }
+    }
 
     public async Task<BackupEntry> RunAsync(string kind, string by, CancellationToken ct)
     {
@@ -96,6 +136,7 @@ public sealed class BackupService(
             var collectorFile = Path.Combine(dir, "collector.dump");
             var main = new NpgsqlConnectionStringBuilder(connections.Main);
             var collector = new NpgsqlConnectionStringBuilder(connections.Collector);
+            var rowCount = 0;
 
             // The dump and the Excel file read the same snapshot, so they match even if someone edits a row meanwhile
             await using (var conn = new NpgsqlConnection(connections.Main))
@@ -105,11 +146,12 @@ public sealed class BackupService(
                 await using var snap = new NpgsqlCommand("SELECT pg_export_snapshot()", conn, tx);
                 var snapshot = (string)(await snap.ExecuteScalarAsync(ct))!;
                 await DumpAsync(tool, main, mainFile, "main", ct, snapshot);
-                await WriteExcelAsync(conn, tx, Path.Combine(dir, ExcelFile), ct);
+                rowCount = await WriteExcelAsync(conn, tx, Path.Combine(dir, ExcelFile), ct);
             }
             await DumpAsync(tool, collector, collectorFile, "history", ct);
 
             var createdAt = DateTimeOffset.UtcNow;
+            var migrations = status.AppliedMigrations.ToList();
             var entry = new BackupEntry(
                 id,
                 createdAt,
@@ -118,7 +160,9 @@ public sealed class BackupService(
                 new FileInfo(mainFile).Length,
                 new FileInfo(collectorFile).Length,
                 rules.Current.Version,
-                HasExcel: true);
+                HasExcel: true,
+                RowCount: rowCount,
+                Migrations: migrations);
 
             var json = JsonSerializer.Serialize(new
             {
@@ -127,8 +171,9 @@ public sealed class BackupService(
                 by,
                 mainSize = entry.MainSize,
                 collectorSize = entry.CollectorSize,
-                migrations = status.AppliedMigrations.ToList(),
-                rulesVersion = entry.RulesVersion
+                migrations,
+                rulesVersion = entry.RulesVersion,
+                rowCount
             }, JsonOptions);
             await File.WriteAllTextAsync(Path.Combine(dir, "backup.json"), json, ct);
 
@@ -161,7 +206,7 @@ public sealed class BackupService(
             {
                 lock (_statusLock)
                 {
-                    _lastError = ex.Message;
+                    _lastError = PlainMessage(ex);
                     _lastErrorAt = DateTimeOffset.UtcNow;
                 }
             }
@@ -288,35 +333,47 @@ public sealed class BackupService(
     }
 
     // a. Backup:PgDump, and a missing file is an error. b. PATH. c. Newest installed Postgres. d. docker, only for the Docker database.
-    private DumpTool ResolveTool()
+    public DatabaseTool ResolveTool()
     {
         if (_pgDumpSetting is not null)
         {
             if (!File.Exists(_pgDumpSetting))
             {
-                throw new InvalidOperationException(MissingConfiguredToolMessage);
+                throw new BackupFailedException(MissingConfiguredToolMessage);
             }
-            return DumpTool.FromFile(_pgDumpSetting);
+            return DatabaseTool.FromFile(_pgDumpSetting);
         }
 
         var onPath = FindOnPath();
         if (onPath is not null)
         {
-            return DumpTool.FromFile(onPath);
+            return DatabaseTool.FromFile(onPath);
         }
 
         var installed = NewestInstalledDump();
         if (installed is not null)
         {
-            return DumpTool.FromFile(installed);
+            return DatabaseTool.FromFile(installed);
         }
 
         if (UseDockerDump())
         {
-            return DumpTool.InDocker();
+            return DatabaseTool.InDocker();
         }
 
-        throw new InvalidOperationException(MissingToolMessage);
+        throw new BackupFailedException(MissingToolMessage);
+    }
+
+    // pg_restore sits next to pg_dump, whichever way pg_dump was found
+    public DatabaseTool ResolveRestoreTool()
+    {
+        var dump = ResolveTool();
+        if (dump.Docker) return dump;
+        var dir = Path.GetDirectoryName(dump.Path!) ?? "";
+        var name = Path.GetFileName(dump.Path!).EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? "pg_restore.exe" : "pg_restore";
+        var path = Path.Combine(dir, name);
+        if (!File.Exists(path)) throw new BackupFailedException(MissingRestoreToolMessage);
+        return DatabaseTool.FromFile(path);
     }
 
     private bool UseDockerDump()
@@ -330,7 +387,7 @@ public sealed class BackupService(
     }
 
     // label is what the page calls the database, "main" or "history". pg_dump's own words only go to the log.
-    private async Task DumpAsync(DumpTool tool, NpgsqlConnectionStringBuilder db, string outFile, string label,
+    private async Task DumpAsync(DatabaseTool tool, NpgsqlConnectionStringBuilder db, string outFile, string label,
         CancellationToken ct, string? snapshot = null)
     {
         var psi = new ProcessStartInfo
@@ -387,12 +444,12 @@ public sealed class BackupService(
         using var process = new Process { StartInfo = psi };
         try
         {
-            if (!process.Start()) throw new InvalidOperationException("The backup program didn't start");
+            if (!process.Start()) throw new BackupFailedException("The backup program didn't start");
         }
         catch (System.ComponentModel.Win32Exception ex)
         {
             log.LogError(ex, "Couldn't start {Program}", psi.FileName);
-            throw new InvalidOperationException(MissingToolMessage);
+            throw new BackupFailedException(MissingToolMessage);
         }
         process.StandardInput.Close();
 
@@ -419,20 +476,21 @@ public sealed class BackupService(
         {
             Kill(process);
             log.LogError("pg_dump of {Database} timed out: {Detail}", db.Database, LastNonEmptyLine(await ReadQuiet(stderrTask)));
-            throw new InvalidOperationException($"Copying the {label} database took too long and was stopped");
+            throw new BackupFailedException($"Copying the {label} database took too long and was stopped");
         }
 
         var stderr = await ReadQuiet(stderrTask);
         if (process.ExitCode != 0)
         {
             log.LogError("pg_dump of {Database} failed with code {Code}: {Detail}", db.Database, process.ExitCode, LastNonEmptyLine(stderr));
-            throw new InvalidOperationException($"Couldn't copy the {label} database, the details are in the API log");
+            throw new BackupFailedException($"Couldn't copy the {label} database, the details are in the API log");
         }
     }
 
-    // The table as Excel opens it: the same columns the page export has, custom fields included
-    private async Task WriteExcelAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string file, CancellationToken ct)
+    // The table as Excel opens it: the same columns the page export has, custom fields included. Returns how many rows it wrote.
+    private async Task<int> WriteExcelAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string file, CancellationToken ct)
     {
+        var count = 0;
         var custom = rules.Current.Fields.Where(f => f.Custom && !f.Hidden).ToList();
         var csv = new System.Text.StringBuilder();
         csv.AppendLine(string.Join(",", new[] { "ID", "Name", "Sector", "Price", "Release" }
@@ -443,6 +501,7 @@ public sealed class BackupService(
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
+            count++;
             JsonElement? extra = reader.IsDBNull(5) ? null : JsonSerializer.Deserialize<JsonElement>(reader.GetString(5));
             var cells = new List<string>
             {
@@ -471,6 +530,7 @@ public sealed class BackupService(
 
         // The BOM makes Excel read it as UTF-8, so Arabic and accented names come through
         await File.WriteAllTextAsync(file, csv.ToString(), new System.Text.UTF8Encoding(true), ct);
+        return count;
 
         static string Text(string value) => CsvText.Cell(CsvText.GuardFormula(value));
     }
@@ -499,7 +559,9 @@ public sealed class BackupService(
                 doc.MainSize,
                 doc.CollectorSize,
                 doc.RulesVersion,
-                File.Exists(Path.Combine(dir, ExcelFile)));
+                File.Exists(Path.Combine(dir, ExcelFile)),
+                doc.RowCount,
+                doc.Migrations);
             return true;
         }
         catch (Exception ex) when (ex is JsonException or IOException)
@@ -657,11 +719,7 @@ public sealed class BackupService(
         public long MainSize { get; set; }
         public long CollectorSize { get; set; }
         public int RulesVersion { get; set; }
-    }
-
-    private readonly record struct DumpTool(bool Docker, string? Path)
-    {
-        public static DumpTool FromFile(string path) => new(false, path);
-        public static DumpTool InDocker() => new(true, null);
+        public int? RowCount { get; set; }
+        public List<string>? Migrations { get; set; }
     }
 }
