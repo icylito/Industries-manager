@@ -95,7 +95,7 @@ Do **not** put `filter: blur()` on `.app` instead: it would stop the nav pill's 
 - [x] **Step 5: Run the tests and the build**
 
 Run from `angular/`: `node node_modules\@angular\cli\bin\ng.js test --watch=false` then `node node_modules\@angular\cli\bin\ng.js build`
-Expected: Tests `14 passed`, build exit 0.
+Expected: Tests `15 files / 112 tests`, build exit 0.
 
 - [x] **Step 6: Commit (only if the user asks)**
 
@@ -168,7 +168,7 @@ In `angular/src/app/app.spec.ts`, in the test at line 125 (`'keeps Overview and 
 - [x] **Step 5: Run the tests and the build**
 
 Run from `angular/`: tests then build.
-Expected: `14 passed`, build exit 0.
+Expected: 15 files / 112 tests passing, build exit 0.
 
 - [x] **Step 6: Check it in the browser**
 
@@ -195,7 +195,7 @@ Contributor: deepseek flash"
 - Consumes: nothing.
 - Produces: `POST /history/versions/{id}/restore` now takes `{ "note": "…" }` with at least 10 characters after trimming. **Task 4 depends on this exact field name and this exact minimum.**
 
-- [ ] **Step 1: Prove the current behaviour fails the new contract**
+- [x] **Step 1: Prove the current behaviour fails the new contract**
 
 With the API running (`dotnet run --launch-profile http` from `api_v2/`, on port 5005), sign in and post a note instead of the word. Save this as `%TEMP%\note-check.ps1` and run it:
 
@@ -218,7 +218,7 @@ try {
 Run: `pwsh -File $env:TEMP\note-check.ps1`
 Expected: `refused as expected: HTTP 400` — today only the word `RESTORE` is accepted. **This script must never send `{"confirm":"RESTORE"}`.**
 
-- [ ] **Step 2: Change the record and the gate**
+- [x] **Step 2: Change the record and the gate**
 
 In `api_v2/Endpoints/HistoryEndpoints.cs:15`:
 
@@ -236,7 +236,7 @@ and at `:105-108`, replacing the `Confirm` check:
             }
 ```
 
-- [ ] **Step 3: Keep the note with the copy it saves**
+- [x] **Step 3: Keep the note with the copy it saves**
 
 At `:123`, pass the note into the reason so History explains why the restore happened:
 
@@ -246,7 +246,7 @@ At `:123`, pass the note into the reason so History explains why the restore hap
 
 The em dash is deliberate: `history.ts`'s `describe()` prefix-matches `Before restoring version {id}`, and Task 4 adds the branch that keeps the text after it. No database change: `reason` already exists.
 
-- [ ] **Step 4: Update the two checks that post the old word**
+- [x] **Step 4: Update the two checks that post the old word**
 
 - `testing/check_big.py:23`: change `{"confirm": "RESTORE"}` to `{"note": "restoring every row to check the count"}`.
 - `testing/stress.py:78`: same change, with any phrase of 10 characters or more.
@@ -255,13 +255,13 @@ Leave `testing/check_restore.py` alone — it exercises the **backup** card, whi
 
 **Careful — both files hold two restore calls each, for different endpoints.** In `testing/check_big.py` line 23 restores a **saved version** (change it) while line 40 restores a **backup** (leave it). In `testing/stress.py` line 78 is the saved version (change it) and line 76 is a backup (leave it). Never use a blind find-and-replace for this step; edit the two named lines and nothing else. Verified by search: the saved-version endpoint is called from exactly these two lines anywhere under `testing/`.
 
-- [ ] **Step 5: Build and re-run the check**
+- [x] **Step 5: Build and re-run the check**
 
 Run from `api_v2/`: `dotnet build -c Release` → expected 0 warnings, 0 errors.
 Restart the API, then run `pwsh -File $env:TEMP\note-check.ps1` again.
 Expected: no exception — the restore succeeds, and `GET /history/versions` now shows a new entry whose reason starts `Before restoring version` and ends with your note.
 
-- [ ] **Step 6: Commit (only if the user asks)**
+- [x] **Step 6: Commit (only if the user asks)**
 
 ```bash
 git add api_v2/Endpoints/HistoryEndpoints.cs testing/check_big.py testing/stress.py
@@ -284,7 +284,7 @@ Contributor: deepseek flash"
 - Consumes: Task 3's `{ note }` field and its 10-character minimum.
 - Produces: `page.restoreNote()` (a signal), `page.restore()` gated on `restoreNote().trim().length >= 10`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 In `angular/src/app/Components/history/history.spec.ts`, inside `describe('HistoryPage')`, using the file's existing `setup()` (which already flushes `[version(2, true), version(1)]`):
 
@@ -326,12 +326,12 @@ In `angular/src/app/Components/history/history.spec.ts`, inside `describe('Histo
   });
 ```
 
-- [ ] **Step 2: Run it to watch it fail**
+- [x] **Step 2: Run it to watch it fail**
 
 Run from `angular/`: `node node_modules\@angular\cli\bin\ng.js test --watch=false`
 Expected: FAIL — `page.restoreNote` does not exist, and the page still says "Type RESTORE".
 
-- [ ] **Step 3: Rename the state and gate it on length**
+- [x] **Step 3: Rename the state and gate it on length**
 
 In `angular/src/app/Components/history/history.ts`:
 
@@ -355,7 +355,7 @@ replace the reset at `:196-197` so the note is cleared too when the panel opens 
   }
 ```
 
-- [ ] **Step 4: Keep the note readable in `describe()`**
+- [x] **Step 4: Keep the note readable in `describe()`**
 
 At `history.ts:171-179`, the existing branch is `return \`Before restoring version #${m?.[1]}\`;`. Replace that one line with:
 
@@ -368,7 +368,7 @@ At `history.ts:171-179`, the existing branch is `return \`Before restoring versi
     }
 ```
 
-- [ ] **Step 5: Send the note from the client**
+- [x] **Step 5: Send the note from the client**
 
 In `angular/src/app/services/industry-api.ts:77-79`, the body becomes `{ note }`:
 
@@ -378,7 +378,7 @@ In `angular/src/app/services/industry-api.ts:77-79`, the body becomes `{ note }`
   }
 ```
 
-- [ ] **Step 6: Replace the field in the panel**
+- [x] **Step 6: Replace the field in the panel**
 
 In `angular/src/app/Components/history/history.html:165-178`, replace the label, the input and the disabled rule:
 
@@ -399,12 +399,12 @@ In `angular/src/app/Components/history/history.html:165-178`, replace the label,
                     </div>
 ```
 
-- [ ] **Step 7: Run the tests and the build**
+- [x] **Step 7: Run the tests and the build**
 
 Run from `angular/`: tests then build.
-Expected: `14 passed`, build exit 0.
+Expected: 15 files / 112 tests passing, build exit 0.
 
-- [ ] **Step 8: Commit (only if the user asks)**
+- [x] **Step 8: Commit (only if the user asks)**
 
 ```bash
 git add angular/src/app/Components/history/history.ts angular/src/app/Components/history/history.html angular/src/app/Components/history/history.spec.ts angular/src/app/services/industry-api.ts
@@ -426,7 +426,7 @@ Contributor: deepseek flash"
 - Consumes: the panel markup from Task 4 (the restore panel is `#version-panel`).
 - Produces: the class `glow` on `#version-panel` while a restore is being asked about.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `history.spec.ts`:
 
@@ -447,12 +447,12 @@ Add to `history.spec.ts`:
   });
 ```
 
-- [ ] **Step 2: Run it to watch it fail**
+- [x] **Step 2: Run it to watch it fail**
 
 Run from `angular/`: tests.
 Expected: FAIL — no `glow` class yet.
 
-- [ ] **Step 3: Add the class to the panel**
+- [x] **Step 3: Add the class to the panel**
 
 In `history.html`, the panel section is `<section class="panel" id="version-panel">` at `:81-82`. Change it to:
 
@@ -460,7 +460,7 @@ In `history.html`, the panel section is `<section class="panel" id="version-pane
     <section class="panel" [class.glow]="panel()?.kind === 'restore'" id="version-panel">
 ```
 
-- [ ] **Step 4: Write the glow in `history.css`**
+- [x] **Step 4: Write the glow in `history.css`**
 
 Append near the `.confirm-row` block (`:170-187`):
 
@@ -489,12 +489,12 @@ Append near the `.confirm-row` block (`:170-187`):
 }
 ```
 
-- [ ] **Step 5: Run the tests and the build**
+- [x] **Step 5: Run the tests and the build**
 
 Run from `angular/`: tests then build.
-Expected: `14 passed`, build exit 0.
+Expected: 15 files / 112 tests passing, build exit 0.
 
-- [ ] **Step 6: Commit (only if the user asks)**
+- [x] **Step 6: Commit (only if the user asks)**
 
 ```bash
 git add angular/src/app/Components/history/history.css angular/src/app/Components/history/history.html angular/src/app/Components/history/history.spec.ts
@@ -516,7 +516,7 @@ Contributor: deepseek flash"
 - Consumes: nothing.
 - Produces: `export function age(iso: string, now = Date.now()): string` — hours under a day, days and hours at a day or more.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `age.spec.ts`:
 
@@ -558,12 +558,12 @@ describe('age', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to watch it fail**
+- [x] **Step 2: Run it to watch it fail**
 
 Run from `angular/`: tests.
 Expected: FAIL — `Cannot find module './age'`.
 
-- [ ] **Step 3: Write the helper**
+- [x] **Step 3: Write the helper**
 
 Create `age.ts`:
 
@@ -588,12 +588,12 @@ export function age(iso: string, now = Date.now()): string {
 }
 ```
 
-- [ ] **Step 4: Run the tests again**
+- [x] **Step 4: Run the tests again**
 
 Run from `angular/`: tests.
 Expected: `age` passes all five cases.
 
-- [ ] **Step 5: Show it on the page**
+- [x] **Step 5: Show it on the page**
 
 In `history.html:52`, the saved-version line becomes (the exact date stays, the age joins it):
 
@@ -612,7 +612,7 @@ import { age } from './age';
   readonly howOld = age;
 ```
 
-- [ ] **Step 6: Assert it reaches the row**
+- [x] **Step 6: Assert it reaches the row**
 
 Add to `history.spec.ts`:
 
@@ -624,12 +624,12 @@ Add to `history.spec.ts`:
   });
 ```
 
-- [ ] **Step 7: Run the tests and the build**
+- [x] **Step 7: Run the tests and the build**
 
 Run from `angular/`: tests then build.
-Expected: `14 passed`, build exit 0.
+Expected: 15 files / 112 tests passing, build exit 0.
 
-- [ ] **Step 8: Commit (only if the user asks)**
+- [x] **Step 8: Commit (only if the user asks)**
 
 ```bash
 git add angular/src/app/Components/history/age.ts angular/src/app/Components/history/age.spec.ts angular/src/app/Components/history/history.html angular/src/app/Components/history/history.ts angular/src/app/Components/history/history.spec.ts
