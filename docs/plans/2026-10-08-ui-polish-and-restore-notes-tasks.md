@@ -361,8 +361,10 @@ At `history.ts:171-179`, the existing branch is `return \`Before restoring versi
 
 ```ts
     if (reason.startsWith('Before restoring version')) {
-      const note = reason.split(' — ')[1];
-      return note ? `Before restoring version #${m?.[1]} — ${note}` : `Before restoring version #${m?.[1]}`;
+      // The id sits before the note, so it cannot come from the trailing-digits match above: with a note appended
+      // there are no trailing digits at all, and that match returns null.
+      const [id, note] = reason.slice('Before restoring version '.length).split(' — ');
+      return note ? `Before restoring version #${id} — ${note}` : `Before restoring version #${id}`;
     }
 ```
 
@@ -385,7 +387,7 @@ In `angular/src/app/Components/history/history.html:165-178`, replace the label,
                         <label class="field">
                             <span class="field-label">Say why, in a few words</span>
                             <span class="control">
-                                <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                                <i class="fa-solid fa-keyboard" aria-hidden="true"></i>
                                 <input autocomplete="off" placeholder="Why go back to this copy?" [value]="restoreNote()" (input)="restoreNote.set($any($event.target).value)">
                             </span>
                         </label>
