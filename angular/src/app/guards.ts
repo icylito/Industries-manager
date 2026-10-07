@@ -1,6 +1,7 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { Auth } from './services/auth';
+import { Toast } from './services/toast';
 
 // A saved sign in that the API couldn't be asked about (it is down): the page opens and shows its own failure, see Auth.unreachable
 const waitingForApi = (auth: Auth) => !auth.isSignedIn() && auth.unreachable() && !!auth.token();
@@ -29,5 +30,8 @@ export const adminGuard: CanActivateFn = (_route, state) => {
     return router.createUrlTree(['/login'], { queryParams: { back: state.url } });
   }
   if (auth.user()?.mustChangePassword) return router.createUrlTree(['/account']);
-  return auth.isAdmin() ? true : router.createUrlTree(['/']);
+  if (auth.isAdmin()) return true;
+  // Someone with an account but no admin rights lands on the table, and is told why
+  inject(Toast).say('That page is for admins.');
+  return router.createUrlTree(['/']);
 };

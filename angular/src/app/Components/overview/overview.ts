@@ -48,7 +48,7 @@ export class OverviewPage implements OnInit {
   private clock = signal(Date.now());
 
   // How long the server gets before the page gives up and says so, instead of a grey page that never ends
-  static readonly GiveUpAfterMs = 30000;
+  static readonly GiveUpAfterMs = 20000;
   static readonly SlowAfterMs = 10000;
 
   ngOnInit() {
@@ -89,7 +89,7 @@ export class OverviewPage implements OnInit {
         this.slow.set(false);
         this.retrying.set(false);
         this.refreshing.set(false);
-        if (manual && wasStale) this.toast.say('Numbers updated.');
+        if (manual && wasStale) { this.toast.say('Numbers updated.'); this.restoreFocus(); }
         // The page may have opened while the server was down, so who is signed in is still to be asked
         this.auth.recheck();
       },
@@ -101,7 +101,7 @@ export class OverviewPage implements OnInit {
         // With numbers already on the page they stay, marked as out of date
         if (this.loadedAt() !== null) {
           this.stale.set(true);
-          if (manual) this.toast.say(`Still can't reach the server. These numbers are from ${this.staleText()}.`);
+          if (manual) { this.toast.say(`Still can't reach the server. These numbers are from ${this.staleText()}.`); this.restoreFocus(); }
           return;
         }
         const status = err instanceof HttpErrorResponse ? err.status : -1;
@@ -126,6 +126,15 @@ export class OverviewPage implements OnInit {
     if (this.retrying()) return;
     this.retrying.set(true);
     this.load(true);
+  }
+
+  // A button that was pressed and then disabled while it worked loses focus, so it goes back to the button, or to the headline when the
+  // banner is gone, and a keyboard user stays where they were
+  private restoreFocus() {
+    afterNextRender(() => {
+      if (document.activeElement && document.activeElement !== document.body) return;
+      (document.querySelector<HTMLElement>('.ov .stale .btn') ?? document.querySelector<HTMLElement>('.ov h1'))?.focus({ preventScroll: true });
+    }, { injector: this.injector });
   }
 
   refreshNow() {
@@ -212,10 +221,15 @@ export class OverviewPage implements OnInit {
     const d = this.view();
     const active = this.hov() ?? (this.sel().cmp ? null : d.effPick);
     const slice = d.slices.find(s => s.key === active);
-    if (slice) return { label: slice.key, value: slice.count, text: '', sub: `${slice.pct} of industries`, size: 'big' };
+    if (slice) return { label: slice.key, value: slice.count, text: '', sub: `${slice.pct} of industries`, size: this.sizeFor(slice.count) };
     if (d.cmpActive) return { label: 'Comparing', value: null, text: `${thousands(d.groups[0].length)} / ${thousands(d.groups[1].length)}`, sub: 'A / B', size: 'mid' };
-    return { label: 'All industries', value: d.total, text: '', sub: `${d.dim.label.toLowerCase()} known`, size: 'big' };
+    return { label: 'All industries', value: d.total, text: '', sub: `${d.dim.label.toLowerCase()} known`, size: this.sizeFor(d.total) };
   });
+
+  // Five digits and up (30,013) would touch the ring at the big size
+  private sizeFor(n: number): string {
+    return n >= 10000 ? 'five' : 'big';
+  }
   centreNumber = countUp(() => this.centre().value ?? 0);
   statCount = countUp(() => this.view().stats[0].count);
   statNulls = countUp(() => this.view().stats[0].nulls);
@@ -262,8 +276,19 @@ export class OverviewPage implements OnInit {
   // The label over each bar of a pair is short (2.3K) so two of them never run into each other
   fmtPair(v: number): string {
     if (!v) return '';
-    if (this.sel().metric !== 'count' || v < 1000) return this.fmt(v);
-    return (v / 1000).toFixed(v >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'K';
+    if (this.sel().metric !== 'count' || v < 10000) return this.fmt(v);
+    return Math.round(v / 1000) + 'K';
+  }
+
+  // Where the two numbers over a pair of bars sit: just above the taller bar
+  pairAt(b: { aH: number; bH: number }): number {
+    return Math.max(b.aH, b.bH);
+  }
+
+  // The tooltip of a pair of bars, with the exact numbers
+  pairTip(b: { a: number; b: number }, i: number): string[] {
+    const [a, c] = this.sel().cmpKeys;
+    return [this.view().periods[i].label, `A  ${a}: ${this.fmt(b.a)}`, `B  ${c}: ${this.fmt(b.b)}`];
   }
 
   fmtBar(v: number): string {
@@ -271,8 +296,7 @@ export class OverviewPage implements OnInit {
   }
 
   barAria(b: Bar, i: number): string {
-    const shown = this.fmtBar(b.shown);
-    return `${shown ? shown + ', ' : ''}${this.view().periods[i].label}, ${this.fmt(b.shown)}${this.sel().metric === 'count' ? ' industries' : ' average price'}, press to filter`;
+    return `${this.view().periods[i].label}, ${this.fmt(b.shown)}${this.sel().metric === 'count' ? ' industries' : ' average price'}, press to filter`;
   }
 
   // The three lines in a bar's tooltip

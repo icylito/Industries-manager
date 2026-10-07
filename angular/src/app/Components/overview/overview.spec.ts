@@ -116,7 +116,7 @@ describe('OverviewPage', () => {
     expect(el().querySelector('.ready')).not.toBeNull();
   });
 
-  it('gives up after 30 seconds with a failure card, not a grey page that never ends, and says it is slow at 10', () => {
+  it('gives up after 20 seconds with a failure card, not a grey page that never ends, and says it is slow at 10', () => {
     vi.useFakeTimers();
     try {
       const timed = TestBed.createComponent(OverviewPage);
@@ -124,7 +124,7 @@ describe('OverviewPage', () => {
       vi.advanceTimersByTime(10000);
       timed.detectChanges();
       expect((timed.nativeElement as HTMLElement).querySelector('.skel-note')?.textContent).toContain('taking longer than usual');
-      vi.advanceTimersByTime(20001);
+      vi.advanceTimersByTime(10001);
       timed.detectChanges();
       const card = (timed.nativeElement as HTMLElement).querySelector('.notice-card');
       expect(card?.querySelector('p')?.textContent).toContain('taking too long to answer');

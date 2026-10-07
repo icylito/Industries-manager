@@ -651,7 +651,7 @@ h1{
 }
 
 .tag{
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 800;
 }
 
@@ -913,6 +913,10 @@ h1{
     font-size: 26px;
 }
 
+.centre-num.five{
+    font-size: 34px;
+}
+
 .centre-sub{
     color: var(--muted);
     font-size: 13px;
@@ -1104,15 +1108,22 @@ h1{
     height: 100%;
 }
 
-.pair-value{
-    font-size: 10px;
+.pair-values{
+    position: absolute;
+    left: -6px;
+    right: -6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-bottom: 4px;
+    font-size: 11px;
     font-weight: 700;
-    letter-spacing: -0.02em;
+    line-height: 1.2;
     white-space: nowrap;
-    text-align: center;
+    pointer-events: none;
 }
 
-.pair-value.b{
+.pair-values .b{
     color: var(--signal);
 }
 

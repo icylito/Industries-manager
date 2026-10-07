@@ -35,7 +35,7 @@
                             } @else {
                                 <button type="button" class="key" (click)="edit(r.id)" [attr.aria-label]="r.keyLabel + '. Change the key for ' + r.name" title="Click to change this key">
                                     @for (k of r.caps; track $index) {
-                                        <span [class]="k.then ? 'then' : 'cap'">{{ k.text }}</span>
+                                        <span [class]="k.then ? 'then' : 'cap'">{{ k.text }}</span>{{ ' ' }}
                                     }
                                     @if (r.none) { <span class="no-key">Click to set a key</span> }
                                 </button>

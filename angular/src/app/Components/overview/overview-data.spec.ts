@@ -195,4 +195,10 @@ describe('numbers and shades people read', () => {
     expect(d.insight1).toBe('The smaller sector groups together are the biggest slice, 40% of the industries with a sector.');
     expect(d.insight2).toBe('1 industry has no sector and is left out.');
   });
+
+  it('writes a tiny slice as under 1%, never 0%', () => {
+    const rows = [...Array.from({ length: 300 }, (_, i) => item(i + 1, { sector: 'Public Sector' })), item(999, { sector: 'Private Sector' })];
+    const { d } = run(rows);
+    expect(d.slices.map(s => s.pct)).toEqual(['100%', '<1%']);
+  });
 });

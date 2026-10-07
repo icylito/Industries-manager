@@ -3,6 +3,7 @@ import { Router, provideRouter } from '@angular/router';
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Auth } from './auth';
+import { Toast } from './toast';
 import { authInterceptor } from './auth.interceptor';
 import { adminGuard, signedInGuard } from '../guards';
 import { AuthUser } from '../models/industry';
@@ -169,5 +170,13 @@ describe('Auth', () => {
     await first;
     expect(auth.unreachable()).toBe(false);
     expect(auth.token()).toBeNull();
+  });
+
+  it('tells someone with an account but no admin rights why they landed on the table', () => {
+    auth.user.set(user('normal'));
+    const toast = TestBed.inject(Toast);
+    const result = TestBed.runInInjectionContext(() => adminGuard({} as never, { url: '/overview' } as never));
+    expect(String(result)).toBe('/');
+    expect(toast.message()).toBe('That page is for admins.');
   });
 });

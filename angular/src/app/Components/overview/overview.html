@@ -81,7 +81,7 @@
     }
 
     <header class="head">
-        <h1>{{ d.headline }}</h1>
+        <h1 tabindex="-1">{{ d.headline }}</h1>
         <div class="head-actions">
             <!-- No keyboard on a phone, so this button goes there -->
             <button type="button" class="btn line small shortcuts-btn" (click)="keys.togglePanel()" [attr.aria-expanded]="keys.panelOpen()">
@@ -243,7 +243,7 @@
                         </svg>
                         <div class="centre">
                             <span class="centre-label">{{ centre().label }}</span>
-                            <span class="num centre-num" [class.mid]="centre().size === 'mid'">{{ centre().value === null ? centre().text : n(centreNumber()) }}</span>
+                            <span class="num centre-num" [class.mid]="centre().size === 'mid'" [class.five]="centre().size === 'five'">{{ centre().value === null ? centre().text : n(centreNumber()) }}</span>
                             <span class="centre-sub">{{ centre().sub }}</span>
                         </div>
                     </div>
@@ -300,16 +300,21 @@
                         <!-- Compare: two bars per period, A in ink and B in orange -->
                         <div class="bars">
                             @for (b of d.compareBars; track $index; let i = $index) {
-                                <div class="bar-col pair">
+                                <div class="bar-col pair" (mouseenter)="hovBar.set(i)" (mouseleave)="hovBar.set(null)">
                                     <div class="half">
-                                        <span class="num pair-value" aria-hidden="true">{{ fmtPair(b.a) }}</span>
                                         <div class="rise pair-bar a" [style.opacity]="barOpacity(i)" [style.height.%]="b.aH" [style.animation-delay.s]="i * 0.05"></div>
                                     </div>
                                     <div class="half">
-                                        <span class="num pair-value b" aria-hidden="true">{{ fmtPair(b.b) }}</span>
                                         <div class="rise pair-bar b" [style.opacity]="barOpacity(i)" [style.height.%]="b.bH" [style.animation-delay.s]="i * 0.05"></div>
                                     </div>
-                                    <button type="button" class="bar-hit" (click)="toggleBar(i)"
+                                    <!-- Both numbers, one over the other, above the taller bar: A in ink, B in orange. They can't run into each other. -->
+                                    <span class="num pair-values" [style.bottom.%]="pairAt(b)" aria-hidden="true"><b class="a">{{ fmtPair(b.a) }}</b><b class="b">{{ fmtPair(b.b) }}</b></span>
+                                    @if (hovBar() === i) {
+                                        <div role="tooltip" class="tip fade-in" [style.bottom]="'calc(' + pairAt(b) + '% + 40px)'" [class.tip-left]="tipLeft(i)" [class.tip-right]="tipRight(i)">
+                                            @for (line of pairTip(b, i); track $index) { <div [class.first]="$index === 0">{{ line }}</div> }
+                                        </div>
+                                    }
+                                    <button type="button" class="bar-hit" (click)="toggleBar(i)" (focus)="hovBar.set(i)" (blur)="hovBar.set(null)"
                                         [attr.aria-label]="d.periods[i].label + ', ' + sel().cmpKeys[0] + ' ' + fmt(b.a) + ', ' + sel().cmpKeys[1] + ' ' + fmt(b.b)" [attr.aria-pressed]="sel().bar === i"></button>
                                 </div>
                             }

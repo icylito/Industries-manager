@@ -363,7 +363,8 @@ export function derive(rows: Row[], dims: Dim[], periods: Period[], sel: Selecti
     const length = Math.max(0, frac * CIRCLE - (dim.keys.length > 1 && frac < 1 ? 3 : 0));
     const at = sel.cmpKeys.indexOf(key);
     const slice: Slice = {
-      key, count: counts[i], pct: Math.round(frac * 100) + '%', width: frac * 100,
+      key, count: counts[i], // A slice with a few rows is "<1%", not "0%", so it never reads as empty
+      pct: frac > 0 && Math.round(frac * 100) === 0 ? '<1%' : Math.round(frac * 100) + '%', width: frac * 100,
       on: sel.cmp ? at >= 0 : effPick === key,
       tag: sel.cmp && at >= 0 ? ['A', 'B'][at] : '',
       tone: tones[i], dash: `${length} ${CIRCLE}`, offset: -used,
@@ -437,7 +438,7 @@ export function derive(rows: Row[], dims: Dim[], periods: Period[], sel: Selecti
       release: r.year === null ? 'no date' : String(r.year),
       flags: [r.dup ? 'Similar row exists' : '', r.lost ? 'Has lost fields' : ''].filter(Boolean).join(' · '),
     }));
-    return { title, tone, note: priced.length < g.length ? `${g.length - priced.length} without a price skipped` : '', rows: rowsOut, empty: rowsOut.length === 0 };
+    return { title, tone, note: priced.length < g.length ? `${thousands(g.length - priced.length)} without a price skipped` : '', rows: rowsOut, empty: rowsOut.length === 0 };
   };
   const cols = cmpActive
     ? [column(groups[0], 'A  ' + sel.cmpKeys[0], 'ink'), column(groups[1], 'B  ' + sel.cmpKeys[1], 'signal')]

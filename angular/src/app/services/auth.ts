@@ -89,7 +89,9 @@ export class Auth {
     const wasSignedIn = this.isSignedIn() || !!this.token();
     this.clear();
     this.expired.set(wasSignedIn);
-    this.router.navigate(['/login'], { queryParams: { back: this.router.url.split('?')[0] } });
+    // During the first load the router hasn't settled and says "/", so the address bar is the better answer
+    const here = this.router.url === '/' && location.pathname !== '/' ? location.pathname : this.router.url.split('?')[0];
+    this.router.navigate(['/login'], { queryParams: { back: here } });
   }
 
   clear() {
