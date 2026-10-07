@@ -69,13 +69,13 @@ Written by an Opus 5.5 critic from the claims in README.md, plan.md and report.t
 
 * **Observe:** At 1280px, light, look at the sign in page, the main table toolbar and headers, the Connected badge (hover it or read its title), and History's Keep old versions with both boxes empty. With the network throttled to Slow 3G, open History and watch the Backups list. On the people page, with `navigator.clipboard` removed in the console, add a person and press Copy.
 * **Pass:** All of these hold:
-  * The sign in card title reads "Welcome back" and the card's left edge lines up with the page title.
+  * The sign in card title reads "Welcome back", the card sits in the middle of the page, and the page title and its line are centred over it (the same on Your account, and on no other page).
   * The search placeholder reads "Search by name" and the entries control reads "Show 10 entries" in sentence case, and no small label anywhere is in capitals (table headers, filter labels, the Connected badge, Print and Export CSV, tags, the "Showing 1 to 10" line).
   * The Connected badge's title is "The page can reach the database".
   * With the boxes empty, no "days" or "versions" unit shows, so the page never reads "Never days".
   * "Loading backups" with a spinner shows before the list fills in.
   * The people page says "Select the password and copy it yourself".
-* **Fail:** Any of these strings is missing, different or in capitals, any small label is in capitals, the card is centred while the page title is left aligned, a unit shows next to an empty box, the Backups list is blank while it loads, or Copy fails with no message.
+* **Fail:** Any of these strings is missing, different or in capitals, any small label is in capitals, the card is centred while the page title is left aligned (or the card sits left), another page has a centred title, a unit shows next to an empty box, the Backups list is blank while it loads, or Copy fails with no message.
 
 ### 10. Https
 
