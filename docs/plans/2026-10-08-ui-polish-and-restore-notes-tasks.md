@@ -779,7 +779,10 @@ Add a `## The Scratchpad (next session, its own project)` section, in the file's
 - **Refused:** Word, PowerPoint and Excel files. The SVG and executable question is the implementer's call.
 - **What exists today:** no Scratchpad code, route, service or tab anywhere in the repo. The two hooks waiting for it are the comment in `app.html` beside the tabs and `shortcuts.ts`'s `ADMIN_PAGES` / `Scope` union.
 - **What it inherits:** Overview and Settings are the admin tabs; History and Fields are on the normal nav; People, Rename, admin notes and Delete account live inside Settings; the database is the user's own PostgreSQL 18 with `main` and `collector`; and `app.spec.ts` pins the admin tabs to exactly `['Overview', 'Settings']`, so the new tab changes that assertion.
-- **Two things wrong in the file itself:** line 3 sends the reader to `plan.md`, which does not exist; and the "Waiting on the user" item about the Overview says it awaits a design, though the Overview is built and committed.
+- **Three things wrong in the file itself**, all worth fixing while it is open:
+  - `plan.md` is pointed at on **four** lines (3, 21, 45 and 80) and does not exist in the repo root — only `report.txt` does. Fix every reference, not just the first.
+  - The "Waiting on the user" item about the Overview says it awaits a design, though the Overview is built and committed.
+  - Line 45 pins the commit footer as `Contributor: opus 5.5`, but the repo's recent commits say `coder bot` and today's say `deepseek flash`. Do not pin a stale name: say plainly that the footer names whoever did the work, and keep the rest of the rule (one plain lowercase line, no co-author line).
 
 - [ ] **Step 2: Read it back as a stranger**
 

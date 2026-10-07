@@ -210,3 +210,4 @@ Decide before starting; do not leave it implicit.
 
 - **Escape does not close the History restore panel.** Verified in the browser: pressing Escape leaves `#version-panel` open. Every other dialog in the app closes on Escape.
 - The restore panel has **no focus trap**, unlike the shortcuts panel, so Tab can walk out of it into the page behind.
+- **`/fields` now shows its title twice.** With the page header back (Unit 2), the big "Fields" sits directly above the card heading "Fields" with its version badge. `/history` does not have this — its card is headed "Saved versions". Found by a task reviewer and confirmed in a real browser; left alone because it is page copy and it is how the page looked before the admin shell was applied to it this morning. If the duplication is unwanted, it is a one-line change in `fields.html`.
