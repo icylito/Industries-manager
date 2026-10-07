@@ -1,173 +1,140 @@
-# About
+# Stock Listing
 
-This project is a small web app that shows a list of industries kept in a database. You can search the list, add new rows, edit them, and delete them, and everything you do on the page is saved to the database.
+An Angular 22 page over a .NET 10 minimal API and PostgreSQL. It lists industries and keeps every change.
 
-I started this on September 26, 2026, and the sections below show where things are and what comes next.
-
-## Where things are
-
-- Done: the list shows the data from the database, search works, and adding, editing, and deleting all save to the database.
-- Done: the table has filters by sector and price, sorting on every column, pages, and Print and Export CSV.
-- Done: the API applies database migrations by itself when it starts, retries when the database is slow to answer, and the page shows if the database is ready or broken.
-- Done: a Python script fills the table with fake data for testing, see [Seeding synthetic data](#seeding-synthetic-data).
-- Done: a name can only be used once, no matter the capitals or extra spaces, so `Atlas Steel` and `atlas steel ` count as the same company. The API checks it and the database has a rule for it too.
-- Done: `start.bat` runs both folders at once.
-- Done: the rules (name length, price range, what's required) live in the database with versions, and the page and the seed script read them from the API, see [Rules and the collector](#rules-and-the-collector).
-- Done: before the table's structure or the rules change, a full copy goes to the `collector` database, and every add, edit, and delete gets logged there.
-- Done: an optional Docker database for testing that starts empty, see [docker_setup.md](docker_setup.md). The API creates its databases by itself on the first run.
-- Done: a History page to view, download, pin, restore, or bring back rows from any saved version, see [The pages](#the-pages).
-- Done: a Fields page so the team adds fields and changes limits without touching C#.
-- Done: a Requests page with a bell in the nav for anything that needs a developer, each one comes with the code drafted.
-- Done: a break test, where we tried hard to break the app and fixed what broke. Two people saving at the same time don't overwrite each other anymore, names get cleaned before saving so lookalikes like `Atlas  Steel` with 2 spaces count as taken, CSV downloads can't run formulas in Excel, and errors come back as plain messages instead of empty 500s.
-- Done: nightly backups of both databases, with a Back up now button on the History page, see [Backups](#backups).
-- Done: sector is a dropdown now, and the choices come from `scripts/config.toml`, so nobody types it wrong and the API says no to anything else.
-- Done: on Fields you can line up as many new fields as you want and send them in one go, and delete the ones made from the page.
-- Done: login with usernames and passwords. Anyone can look at the table, an account is needed to change rows, and admins also get History, Fields and People, see [Accounts and sign in](#accounts-and-sign-in).
-- Done: Export and Import settings on the History page, for how long old versions are kept and the field labels and limits.
-- Done: the last break test findings. Restore is all or nothing, damaged saved versions are marked instead of breaking History, and saving retention first says how many versions it would remove.
-- Done: the page checks its own input before anything is sent (the sign in back link, blocked storage, file names, the settings file, the people and account pages), with tests for each.
-- Done: the UI judge's list. Problems sit under their own box, the phone nav has readable labels, long names end with ... on a phone, Delete names the row, every colour pair reads at 4.5:1 or better in light and dark, one focus ring for everything, and a loading line wherever a list was blank for a moment.
-- Done: a Restore button on every backup. It puts the table, its rules, settings and requests back the way they were that night and leaves the accounts alone, see [Backups](#backups). Restores and imports of big tables got fast too, 100,000 rows in a few seconds instead of hitting the 30 second limit.
-- Next: the open items listed at the bottom, see [Not done yet](#not-done-yet).
-
-# Starting
-
-- To start, go to `/angular` and run `npm install` to get the packages. Most likely there are 4 packages you'd forget, so do
-`npm approve-scripts <package>`, which could look like this:
-`npm approve-scripts @parcel/watcher`. That's an example.
-That's all for Angular, as it's a bare project. When you create it, use `ssr=false`, and skip git with this flag:
-`--skip-git`.
-
-- For `api_v2`, it's a dotnet project, so you'd need to run `dotnet build`. It's a bit more non linear, as you'd need to get some packages. Make sure NuGet
-as an extension is downloaded in VS Code. Also make sure `.NET Install Tool`, `C# Dev Kit`, and `C#` are all installed. Use this URL for the .NET installation,
-no need for Visual Studio Community: https://dotnet.microsoft.com/en-us/download/dotnet/thank-you/sdk-10.0.401-windows-x64-installer.
-For the packages, this project only uses the ones below. Don't change the versions, because a wrong version may break things, and whether it does depends on the version and your luck:
-
-```
-- https://www.nuget.org/packages/Swashbuckle.AspNetCore/10.0.0
-- https://www.nuget.org/packages/Microsoft.EntityFrameworkCore.Design/10.0.12
-- https://www.nuget.org/packages/Npgsql.EntityFrameworkCore.PostgreSQL/10.0.2
-- https://www.nuget.org/packages/dotnet-ef/10.0.12
-```
-
-- For the database, you need Postgres. Docker is optional, if you want a test database that starts empty without touching your own Postgres, see [docker_setup.md](docker_setup.md).
-
-- For the seed script in `scripts/`, you need Python 3.13 or newer. The command depends on how it's installed on your PC, it could be `python`, `py`, or `python3.13`. Run `python --version` or `py --version` to find yours, and use that one wherever the commands below say `python`. It only uses what comes with Python, so there's nothing to `pip install`.
-
-And that should be all to get started.
+- Anyone can browse the table. An account is needed to change rows, and an admin gets the extra pages.
+- Every add, edit and delete is logged, and every change to the table's shape or rules saves a full copy into a second database called `collector`.
+- Setup history is in `HANDOFF.md`, work notes in `report.txt`.
+- Files under `angular/src` use CRLF line endings, and so does this file.
 
 ## Running it
 
-Double click `start.bat` in the project folder, or run `.\start.bat`. It starts the Docker database if the API uses it (no settings file, or settings pointing at port 5433), then opens 2 windows, one for the API at http://localhost:5005 and one for the page at http://localhost:4200. Closing a window stops that one. `.\start.bat https` does the same over https, see [Https](#https). `.\start.bat share` opens the page to a phone or another PC on the same Wi-Fi, see [Sharing on the Wi-Fi](#sharing-on-the-wi-fi).
+Double click `start.bat`, or run `.\start.bat`. It opens two windows: the page on http://localhost:4200 and the API on http://localhost:5005. Closing a window stops that part. `start.bat https` runs both over https ([Https](#https)), and `start.bat share` opens the page to a phone or another PC on the same Wi-Fi ([Sharing on the Wi-Fi](#sharing-on-the-wi-fi)).
 
-On a fresh clone the tables start empty, nobody's data comes with the repo. The API creates 2 databases on its first run: `main` with the `Industries` table and `collector`, which keeps the saved copies and the change log. If you want fake rows to test with, see [Seeding synthetic data](#seeding-synthetic-data).
+By hand, in two terminals: `dotnet run --launch-profile http` in `api_v2` (Swagger at http://localhost:5005/swagger/index.html), and `npx ng serve` in `angular`. Start the API first; if the page says it could not load the industries, the API is most likely not running.
 
-If you want to do it by hand, open two terminals, one for each folder. If you use Docker, run `docker compose up -d` in the project folder first.
+A fresh clone starts empty. The API creates two databases on its first start, `main` with the `Industries` table and `collector`, and applies any waiting migration then. The page carries a badge next to the table title, from http://localhost:5005/health:
 
-- In `api_v2`, run `dotnet run --launch-profile http`. The API starts at http://localhost:5005, and the Swagger page is at http://localhost:5005/swagger.
-- In `angular`, run `ng serve`. The page opens at http://localhost:4200.
+| Badge | Meaning |
+|---|---|
+| Connected | All good |
+| Updating database | Migrations are running, or the database hasn't answered yet. It retries after 2, 4, 8 and 16 seconds, then every 30 seconds |
+| History offline | The table still loads, but `collector` isn't answering, so saving, rule changes and History wait. It clears by itself |
+| Database error | Something a retry won't fix, like a wrong password. The reason shows in the table |
+| API offline | The page can't reach the API at all |
 
-Start the API first. If the page says it could not load the industries, the API is most likely not running.
+A waiting migration holds off while `collector` is down, so the copy always gets saved before the database changes.
 
-When the API starts, it checks the database and applies any migration that hasn't run yet. You can see how that went at http://localhost:5005/health, and the page shows the same thing as a small badge next to the table title:
+## Where things are
 
-- `Database ready`: all good.
-- `Updating database`: migrations are running, or the database didn't answer and the API is retrying. It waits 2, 4, 8, then 16 seconds, and after that it keeps trying every 30 seconds until the database answers.
-- `History offline`: the table still loads, but the `collector` isn't answering. You can read rows, but adding, editing, deleting, rule changes and the History page wait for it, since they all save a copy there first. Once it's back the badge goes away by itself.
-- `Database error`: something failed that a retry won't fix, like a wrong password in the connection string or a broken migration. The error shows in the table so you know what to fix.
-- `API offline`: the page can't reach the API at all.
+| Folder | What it holds |
+|---|---|
+| `angular/` | The page: project state, displaying the data safely, replacing the Swagger UI |
+| `api_v2/` | The API: endpoints, rules, history, backups, accounts |
+| `scripts/` | The seed script and its two settings files |
+| `design/` | The design the Overview follows, and the Scratchpad design |
+| `testing/` | The check suites, kept out of the app |
+| `backups/` | Nightly database copies, git ignored |
+| `start.bat` | Starts both halves |
 
-One catch, if there's a migration waiting and the `collector` is down, the API holds off on migrating until it's back, so the copy always gets saved first.
+Files worth knowing: `api_v2/Program.cs` (routes, `GET /health`), `Model/Industry.cs` (what a row holds), `Rules/FieldRule.cs` (the built in limits), `History/TableWriter.cs` (reading old rows back, and `ColumnRenames`), `Backups/BackupService.cs` (`pg_dump` and retention), `angular/src/app/app.routes.ts` (every page and who may open it), `app.html` (both navs), `Components/my-components/my-components.ts` (Browse), `Components/overview/overview-data.ts` (every overview number), `services/idle-top.ts` (the 5 minute jump to the top), `environments/environment.ts` (the API address).
 
-## Angular
+## First setup
 
-This folder uses Angular mainly to replace the Swagger UI from `api_v2/`. The 2 folders should not be merged, as they both handle different things: Angular handles project state, displaying the data safely, and a nice UI to handle everything more easily. The design is black and white and switches to dark mode with your system setting. Icons come from Font Awesome, loaded by the kit script in `src/index.html`.
+| Tool | Notes |
+|---|---|
+| Node and npm | In `angular/`, run `npm install`. npm may ask you to approve build scripts: `npm approve-scripts @parcel/watcher` |
+| .NET 10 SDK | [sdk-10.0.401-windows-x64-installer](https://dotnet.microsoft.com/en-us/download/dotnet/thank-you/sdk-10.0.401-windows-x64-installer), and the NuGet packages listed in `api_v2.csproj`: Swashbuckle 10.0.0, EntityFrameworkCore.Design 10.0.12, Npgsql 10.0.2, plus dotnet-ef 10.0.12 for `migrate.ps1`. Don't change the versions |
+| VS Code | `C#`, `C# Dev Kit`, `.NET Install Tool`, and NuGet |
+| PostgreSQL | Your own install. Docker is optional, see [docker_setup.md](docker_setup.md) |
+| Python | 3.13, only for the seed script. No `pip install`; your command may be `python`, `py` or `python3.13` |
 
-### The pages
+## Settings and the database
 
-- Any page left alone for 5 minutes starts from the top when you come back to it (the tab becomes visible again, the window gets focus, or you click or type), in one jump, so nobody lands halfway down a table they don't remember scrolling. The time is `IdleAfterMs` in `angular/src/app/services/idle-top.ts`.
-- **Sign in** (`/login`) and **Your account** (`/account`) are one card in the middle of the page with the title over it. They are for signing in, changing your password or signing out. A new account has to pick its own password first. After a sign in the page goes back to where you were, as long as that's a page of this app.
-- **People** (`/users`) is where an admin makes accounts, gives someone a new password, makes someone admin or normal, or turns an account off.
-- **Industries** (`/`) is the table. Delete asks in the row, and afterwards says what went: "Deleted 1 row from Industries: Horizon Water LLC." Deleting a field on Fields says how many rows lost a value. Rows can have a triangle next to the name, hover it to see why:
-  - red means a value couldn't come over from old data and shows `--`. It goes away once someone saves the row.
-  - black is minor, like a value that breaks today's rules or a similar row.
-  - Similar rows also get an amber background. That only happens through import, adding a name that's taken by hand still says it exists.
-  - A wrench on a column header means a developer was asked about that column.
-  - Browse can start with filters already set from the address, which is how the Overview opens it: `/?sector=Private%20Sector`, `/?minPrice=2.5&maxPrice=4.9999`, `/?releaseFrom=2010-01-01&releaseTo=2014-12-31`, `/?flags=duplicate,lost,noprice,nodate` (several flags mean rows with any of them), `/?q=nizwa` and `/?edit=12` (opens that row in the form). Anything it doesn't know is ignored, and the address is only read when the page opens. The release dates and the "Needs attention" chips are filters of their own above the table.
-- **Overview** (`/overview`, admins only) is the table at a glance, for spotting. Browse is for acting. A circle splits the industries (by sector, price band, release era, or any custom text field that has a list of choices), connected to bars by release period. One selection drives every number: click a slice, a bar or a "Needs attention" chip. Compare sets two slices side by side. When the filters can be shown in Browse, "Open N in Browse" opens it with the same rows, and N always matches. The link hides when Browse can't show the same rows (Compare, or a custom field). Its own slim nav, a sun and moon button for light and dark (kept in this browser, until nothing is set it follows the system), and a Shortcuts panel where every key can be changed (also kept in this browser). All the sums are in `angular/src/app/Components/overview/overview-data.ts`, and the design it follows is in `design/`. The Scratchpad and the carry tray from that design are not built yet.
-- **History** (`/history`) lists every saved copy of the table.
-  - View and Download (opens in Excel).
-  - Pin, so retention never removes it.
-  - Restore swaps every row for that version's rows after you type `RESTORE`, and the table as it was gets saved first.
-  - Bring back adds that version's rows as new rows with new numbers, nothing gets replaced. If the old data followed other rules it asks "The old data follows different rules than the table does now. Import it anyway?" first. Import without dups next to it skips every row whose name is already in the table, so you only get the ones that went missing.
-  - Keep old versions sets how many to keep or after how many days to remove them. Empty means keep everything. Saving asks first when it would remove saved versions, and says how many.
-  - Settings file: Export settings saves the retention and the field labels and limits to a file, Import settings loads one. It says what would change before it does anything, leaves out fields the table doesn't have, and saves a copy of the table first.
-  - A saved version with a value that can't be read shows a Damaged tag and can't be restored or brought back.
-  - Backups at the bottom: Back up now, a download for each one, and Restore, see [Backups](#backups).
-- **Fields** (`/fields`) is where the team changes labels and limits, adds custom fields, and hides custom fields they don't want anymore. Hiding keeps the data. Every save is a new rules version and a copy of the table gets saved first. Changing a field's type or making it a real column goes to a developer from here. If someone else saved while you had the page open, your save gets stopped and asks you to reload, and what you typed stays there.
-  - Add field puts the field in a list, nothing is saved yet. Add as many as you want, take one out with the x, then Send fields saves them all as one version.
-  - Delete is on the fields made from the page, the built in ones (Name, Sector, Price, Release) live in code so they can't be deleted. It takes the values off every row, but a copy of the table is saved first so History can bring it back. Hide is still there if you only want it off the page.
-- **Requests** (`/requests`) is for anything that needs a developer. The app makes some by itself, like when an import finds an old column that doesn't exist anymore or a restore brings back data from a different layout. Each one has the code drafted, Show the drafted code and Copy. The bell in the nav shows how many are open. Asking for something that's already open doesn't make a second one, your new details get added to the old one.
+`appsettings.Development.json` holds the two connection strings and is git ignored. Copy `appsettings.Development.example.json` to make your own. `ApiV2` is the live database with the `Industries` table; `Collector` is where the saved copies and the change log go, and leaving it out means the same server and login with a database called `collector`.
 
-## Api_v2
+The installed setup uses your own PostgreSQL 18 on port 5432, with the databases `main` and `collector`. `docker-compose.yml` is a test database on 5433 that starts empty, covered in [docker_setup.md](docker_setup.md).
 
-This folder is a minimal web app API that has a direct line of communication with the database using **ConnectionString**, which is in `appsettings.Development.json`. That file is git ignored since it holds private details, so you won't find it in the repo.
+The field limits aren't in the code, they're in the `RuleVersions` table, and every save is a new version.
 
-You don't need it though. With no settings file, the API connects to the Docker database by itself. If you want your own Postgres instead, copy `appsettings.Development.example.json` to `appsettings.Development.json` and change the connection strings in it:
+- `GET /schema` gives the rules in use, which the page builds its form checks from. `PUT /schema` saves new ones and is refused if someone saved in between.
+- `POST /schema/fields` and `/schema/fields/many` add custom fields, whose values live in the row's `Extra` column as JSON, so no migration is needed. `DELETE /schema/fields/{key}` removes one and its values after saving a copy, and that key never gets used again.
+- The sector choices come from `[fields] sectors` in `scripts/config.toml`, so change the list there and restart the API.
+- Values that don't fit today's type become empty, and the row remembers which in `LostFields`.
 
-- `ApiV2` is the main database with the `Industries` table.
-- `Collector` is where old versions go. Leave it out and the API uses the same server and login with a database called `collector`.
+Changing the shape of the table, and nothing else, needs a migration: change the model in `Model/Industry.cs` and the Dtos in `Dtos/`, run `.\migrate.ps1 -Name AddSomeColumn` in `api_v2`, then restart the API, which applies it on startup. There's no `dotnet ef database update`. Finally, update `angular/src/app/models/industry.ts`. Adding, editing and deleting rows never needs any of this.
 
-To wipe the Docker database and start empty again, run `docker compose down -v`.
+## The pages
 
-### Rules and the collector
+| Page | Address | Who | What it is |
+|---|---|---|---|
+| Browse | `/` | Anyone | The table |
+| Sign in | `/login` | Anyone | Signing in |
+| Your account | `/account` | Signed in | Your password, and signing out |
+| Overview | `/overview` | Admin | The table at a glance, slim nav |
+| Settings | `/settings` | Admin | Your account and the people who can sign in, slim nav |
+| History | `/history` | Admin | Every saved copy, normal nav |
+| Fields | `/fields` | Admin | Labels and limits, normal nav |
+| Requests | `/requests` | Signed in | Anything that needs a developer |
 
-The limits for each field aren't in the code anymore, they're in the `RuleVersions` table. Every change makes a new version, so you can always see what the rules were before.
+An old `/users` link lands on Settings. Every page jumps back to the top after 5 minutes of nobody touching it.
 
-- `GET /schema` gives the rules in use. The page builds its rule chips and form checks from it.
-- `PUT /schema` saves new rules as the next version, limits, labels, and hiding custom fields. It can't remove a field. Send `basedOn` with the version you started from and it says no if someone saved in between.
-- `POST /schema/fields` adds a custom field, `POST /schema/fields/many` adds a whole list as one version. Their values live in the row's `Extra` column as JSON, so no migration is needed.
-- `DELETE /schema/fields/{key}` deletes a custom field and its values, after saving a copy. A deleted field's key never gets used again, so old values can't come back on a new field.
-- The sector choices come from `[fields] sectors` in `scripts/config.toml`. Change the list there and restart the API, it saves the new list as a rules version by itself.
-- `GET /schema/versions` lists every rules version.
+- **Browse** is the table: search, filters by sector and price, sorting on every column, pages, Print and Export CSV. Delete names what went, like "Deleted 1 row from Industries: Horizon Water LLC." A name has to be unique ignoring capitals and extra spaces, and the API and the database both enforce it. A triangle next to a name is something to look at: red is a value that couldn't come over from old data, shown as `--` until someone saves the row, and black is minor, with an amber background on similar rows. It also reads filters from the address, which is how the Overview opens it: `/?sector=`, `/?minPrice=&maxPrice=`, `/?releaseFrom=&releaseTo=`, `/?flags=duplicate,lost,noprice,nodate`, `/?q=` and `/?edit=12`.
+- **Overview** is the table at a glance, for spotting, where Browse is for acting. A circle splits the industries by sector, price band, release era or a custom field with a list of choices, and one selection drives every bar and number. Compare sets two slices side by side, Open N in Browse carries the same rows across when Browse can show them, and the theme button and the Shortcuts panel are both kept in this browser.
+- **History** lists every saved copy: View, Download (a CSV that opens in Excel) and Pin, so retention never removes it. Restore replaces every row with that version's rows, asking first for a few words about why, at least 10 characters, which it keeps with the copy of the table it saves first. Bring back adds those rows as new rows with new numbers instead, and Import without dups skips names already in the table. Keep old versions sets how many to keep or after how many days to remove them, empty keeps everything, and saving says how many it would remove. Export and Import settings move the retention and the field labels and limits to a file, saying what would change first. A saved version with a value that can't be read shows a Damaged tag, and the backups sit at the bottom, see [Backups](#backups).
+- **Fields** is where the team changes labels and limits, adds custom fields, and hides or deletes custom fields; hiding keeps the data. Every save is a new rules version and saves a copy of the table first. Send fields saves every field you added as one version, Delete is only offered on the fields made from the page, and a new type or a field that becomes a real column goes to a developer. If someone else saved while you had the page open, your save is stopped and asks you to reload.
+- **Requests** is for anything that needs a developer. The app makes some by itself, like an import finding a column that no longer exists, and each has code drafted, with Show the drafted code and Copy. The bell shows how many are open, and asking for something already open adds your details to it instead.
 
-The `collector` database keeps old data so nothing gets lost:
+## Settings, accounts and sign in
 
-- Before a migration runs on a database that already has data, the whole table gets copied there first. Same before new rules get saved. If that copy fails, the migration or the rules change doesn't happen.
-- Every add, edit, and delete gets logged with the row before and after. None of them go through until the log is written, otherwise the API says so and nothing changes.
-- Only retention deletes from the collector, the team sets it on the History page and it never touches pinned versions. Everything under `/history` is what that page uses.
-- Old values that don't fit today's type become empty and the row remembers which ones in `LostFields`. `ImportedFrom` says which version a row came from, and `DuplicateOf` points an imported row at the row it's similar to.
-- If an old column got renamed, add it to `ColumnRenames` in `History/TableWriter.cs` so imports bring it over. The app makes a request when that's needed. An old column that matches a custom field's name goes into that field by itself.
+Settings is for admins: your own account and password, then the people who can sign in. From there an admin makes an account, changes a username, gives someone a new password, makes someone admin or normal, turns an account off, keeps a note that only admins ever see, or deletes an account for good.
 
-Requests live in the `Requests` table, `GET /requests` lists them and `GET /requests/count` is the bell. Settings like retention live in the `Settings` table, and `Collector:KeepVersions` and `Collector:KeepDays` in appsettings are the starting values.
+- Deleting an account is a hard delete. It refuses to delete you, and refuses to remove the last enabled admin. History keeps the old username, so old entries still read right.
+- The first start makes an account called `admin` with a random password, printed once in the API window. For a forgotten password, start with `Auth:ResetPassword` set to that username, then take the setting out again.
+- Nobody can sign up by themselves. A new account gets a temporary password shown once and has to pick its own at first sign in.
+- Passwords are at least 10 characters and stored as a salted PBKDF2 hash, never as text. Signing in allows 5 tries a minute per address, and a sign in lasts 12 hours after its last use and 7 days at most (`Auth:LoginTriesPerMinute`, `Auth:GuestCanView`).
+- On plain http anyone on the same Wi-Fi who is listening could read a password at sign in; on a shared network use `start.bat https` or `start.bat share`.
 
-### Accounts and sign in
+## Seeding synthetic data
 
-Anyone can look at the table. Adding, editing and deleting rows needs an account, and History, Fields, People and backups need an admin. Requests are for anyone with an account, but only an admin can mark them done.
+`scripts/seed_industries.py` fills the table with fake companies. Every row goes through the API, so the API's rules decide what gets in, and it also sends broken rows on purpose to check that they're refused. Start the API first, then from the project folder:
 
-- The first start makes an account called `admin` with a random password and prints it once in the API window. Sign in with it and pick your own. If there's ever no working admin, the next start makes one again the same way.
-- Forgot an admin password? Start the API with `Auth:ResetPassword` set to that username (for example `dotnet run --launch-profile http --Auth:ResetPassword=admin`). It prints a new password once. Take the setting out again afterwards.
-- Admins make the other accounts on the People page. Each gets a temporary password shown once, and has to pick their own at first sign in. Nobody can sign up by themselves, and accounts are turned off, never deleted, so History keeps the names.
-- Passwords are at least 10 characters and are stored as a salted PBKDF2 hash, never as text. Signing in is limited to 5 tries a minute per address (`Auth:LoginTriesPerMinute`). A sign in lasts 12 hours after its last use, 7 days at most, and is kept in the browser.
-- `Auth:GuestCanView` set to `false` hides the table from people who aren't signed in.
-- On plain http anyone on the same Wi-Fi who is listening could read a password at sign in. On your own PC that's fine, on a shared network start with `start.bat https` or `start.bat share`, see [Https](#https). The API window says so at startup when nothing is https.
-- The seed script needs an account. Copy `scripts/seeding.control.example.toml` to `scripts/seeding.control.toml` and fill in `username` and `password` (git ignores that copy). `python scripts/seed_industries.py` reads it, signs in, and sends the rows. How many rows, and what they look like, stays in `seeding.toml`. `SEED_USER` and `SEED_PASSWORD` fill in anything left blank.
-- Numbers have to arrive as numbers. The API refuses a price sent as text, like `"5"`.
-- Restore from a backup on the History page leaves the accounts alone. Only a restore by hand with `pg_restore` of the whole database brings old accounts and passwords back.
+```
+python scripts/seed_industries.py
+```
 
-### Https
+It signs in with the `username` and `password` from `scripts/seeding.control.toml`, so first copy `scripts/seeding.control.example.toml` to that name and fill it in (the copy is git ignored, and `SEED_USER` and `SEED_PASSWORD` also work). It reports how many rows were added, kept or refused, and exits with an error if one breaks a rule. The settings are split over two files in `scripts/`:
 
-`start.bat https` runs the API on https://localhost:7165 and the page on https://localhost:4200, and the page talks to the https API by itself (it picks the address from its own protocol, see `angular/src/environments/environment.ts`). Plain http on 5005 then answers with a redirect to https, and the API sends the HSTS header so browsers keep using https (not on localhost, ASP.NET leaves that one out on purpose).
+- `config.toml` is what the table's values can be, in `[fields]`: the sectors list, the price range, how many decimals, the release date range and the longest name. The API reads the sectors list from here too.
+- `seeding.toml` is only for the seed script. `[generation]` holds `count`, `bad_row_rate` (0 turns broken rows off), `seed` (the same number gives the same data every run, 0 is random) and `null_rate_min` and `null_rate_max` for how often price and release are left empty. `[broken_rows]` is which rules to test, `[names]` the words names are built from, and `[api]` where the API is and how hard to push it.
+- Comments start with `#`, not `//`, dates go without quotes, and a value that doesn't make sense makes the script send nothing.
 
-Make sure when you run any script commands in this case `start.bat` make sure its running from the work/home directory
+Flags change one run without editing the files, and win over what's in them:
 
-Two things to do once:
+| Flag | What it does | Example |
+|---|---|---|
+| `--count` | How many rows to get in for this run | `--count 50` |
+| `--seed` | Same number gives the same data every time | `--seed 7` |
+| `--dry-run` | Prints sample rows and sends nothing | `--dry-run` |
+| `--config` | Use a different main config | `--config scripts/other.toml` |
+| `--seeding` | Use a different seed settings file | `--seeding scripts/big.toml` |
 
-- Make and trust the development certificate: `dotnet dev-certs https --trust`. Windows asks once.
+## Backups
 
-`start.bat` copies that certificate to `angular/.cert` (git ignores it) the first time, and the page uses it too, so this PC opens both with no warning.
+Every night at 2:00 the API saves a full copy of both databases with `pg_dump` and keeps them for 14 days; the newest never gets deleted, and if the PC was off at 2:00 it makes one shortly after the API starts. The History page has Back up now, a download for each copy, and Restore next to each one.
 
-That certificate is only trusted on the PC that made it, and only for the name `localhost`. Another PC on the Wi-Fi that opens the page gets a warning, which is the honest state of a self signed certificate. For a certificate everyone trusts, point Kestrel at it in `appsettings.Development.json`:
+- A restore puts the table, its rules, the retention and the requests back the way they were in that backup, and leaves the accounts and sign ins alone. The table as it is now goes to History first, so it can be undone from the same page.
+- Restoring a backup still asks you to type `RESTORE`. That's the Backups card, and it hasn't changed.
+- The dump is loaded into a scratch database first, so a damaged file never touches the live one, then the tables are swapped in one transaction. A backup from a different table layout needs a developer.
+- The copies go in `backups/`, which is git ignored and on the same disk, so point `Backup:Folder` in `appsettings.Development.json` elsewhere if that matters. `Backup:Time`, `Backup:KeepDays` and `Backup:PgDump` change the time, how long they stay, and where `pg_dump` is found.
+
+If the history database goes away while the API is running, the badge says History offline within half a minute and saving stops with a plain message until it's back.
+
+## Https
+
+`start.bat https` runs the API on https://localhost:7165 and the page on https://localhost:4200, and the page picks the https API by itself. Plain http on 5005 then redirects to https, and the API sends the HSTS header. `Https:Required` turns both on, and it's off by default so a fresh clone runs with no certificate. Make and trust the certificate once with `dotnet dev-certs https --trust`; `start.bat` copies it to `angular/.cert` (git ignored) the first time, so this PC opens both pages with no warning.
+
+That certificate is trusted only on the PC that made it, and only for `localhost`, so another PC gets a warning. For one everyone trusts, point Kestrel at it in `appsettings.Development.json`:
 
 ```
 "Kestrel": {
@@ -175,107 +142,17 @@ That certificate is only trusted on the PC that made it, and only for the name `
 }
 ```
 
-By hand it's `dotnet run --launch-profile https --Https:Required=true` and `ng serve --ssl --ssl-cert .cert/localhost.pem --ssl-key .cert/localhost.key`. `Https:Required` is what turns the redirect and HSTS on, it's off by default so a fresh clone runs with no certificate. `Https:Port` is the port the redirect goes to, 7165 unless you change the profile. The page addresses the API accepts (`Cors:Origins` in `appsettings.json`) list both http and https for 4200.
+By hand: `dotnet run --launch-profile https --Https:Required=true` and `npx ng serve --ssl --ssl-cert .cert/localhost.pem --ssl-key .cert/localhost.key`. The addresses the page is served from are `Cors:Origins` in `appsettings.json`.
 
-The address the page uses for the API is in `angular/src/environments/environment.ts`. The page addresses the API accepts are `Cors:Origins` in `appsettings.json`.
+## Sharing on the Wi-Fi
 
-### Sharing on the Wi-Fi
+`start.bat share` opens the page to other devices on the same network, over https, and the window prints the address, for example `https://192.168.1.45:4200`. Only the page is open; the API and the database stay on this PC, and the page server passes `/api` on to the API (`angular/proxy.share.json`). The other device shows a certificate warning the first time, because the certificate is for `localhost` and not this PC's address.
 
-`start.bat share` opens the page to other devices on the same network, over https. The window prints the address, for example `https://192.168.1.45:4200`. Open it on the phone or the other PC.
+- Windows asks about the firewall the first time Node listens on the network; allow private networks, and make sure that Wi-Fi network is set to Private in Windows Settings.
+- `start.bat share db` also opens the database to the network on 5433, user and password `postgres`. Anyone on the Wi-Fi can then reach every table without signing in, so only do it on a network you trust, and go back to plain `start.bat` after.
 
-- Only the page is open. The API and the database stay on this PC. The page server passes `/api` on to the API (`angular/proxy.share.json`), and the page uses `/api` by itself when it's opened from another device.
-- The other device shows a certificate warning the first time, because the certificate is for `localhost` and not this PC's address. Continue past it.
-- Windows asks about the firewall the first time Node listens on the network. Allow private networks. If the Wi-Fi is set to Public in Windows, other devices can't get in, so switch that network to Private in Windows Settings, under Network & internet, Wi-Fi, the network's properties.
-- Sign in limits still count per device, the API reads the real address from the page server.
-- `start.bat share db` also opens the database to the network on 5433 (user and password `postgres`), for a teammate's database tool. Anyone on the Wi-Fi can then reach every table without signing in, past roles, History and the locks, so only do it on a network you trust and go back to plain `start.bat` after. Every other way of starting keeps the database on this PC only.
+## Not done yet
 
-### Backups
-
-Every night at 2:00 AM the API saves a full copy of both databases with `pg_dump`, and keeps them for 14 days. The newest one never gets deleted, even if it's older than that. If the PC was off at 2:00, it makes one a few minutes after the API starts instead. On the History page there's a Back up now button and a list where you can download each one. Excel gives you the table as it was at that time, it opens straight in Excel. Main and History are the `.dump` files, those are what Restore reads.
-
-They go in `backups/` in the project folder, which is git ignored. That's fine for mistakes, but if the disk dies the backups die with it, so point `Backup:Folder` in `appsettings.Development.json` at OneDrive or another drive. `Backup:Time` and `Backup:KeepDays` change the time and how long they stay.
-
-It needs `pg_dump`, which comes with Postgres. The API finds it in `C:\Program Files\PostgreSQL` by itself, or you can set `Backup:PgDump` to its path.
-
-Restore is next to each backup, for admins. After you type `RESTORE` it puts the table, its rules, how long old versions are kept, and the requests back the way they were in that backup. Accounts and sign ins are left as they are now, so nobody gets an old password back and nobody gets signed out. The table as it is now is saved to History first, so the restore itself can be undone from the same page.
-
-How it works: the dump is loaded into a scratch database on the same server first, so a damaged file never touches the live one. Then the four tables are swapped in one transaction, either all of it goes in or nothing changes. It needs `pg_restore`, which sits next to `pg_dump`, and the API finds it the same way. A backup made when the table had other columns shows "Other table layout" and its Restore button is off, that one needs a developer.
-
-The history database isn't restored from the page, it only ever grows and restoring it would throw away the versions saved since. If you ever need to, stop the API and run:
-
-```
-pg_restore --clean --if-exists --no-owner -h localhost -p 5432 -U postgres -d collector collector.dump
-```
-
-Use `-p 5433` if you're on Docker.
-
-If the history database goes away while the API is running, the badge on the main page says History offline within half a minute, adding and editing rows stops with a plain message until it's back, and everything clears by itself once it answers again.
-
-### Changing the table
-
-If you change what a row holds, like adding a column, you change it in 3 places and the API handles the database part:
-
-1. Update the C# model in `Model/Industry.cs` and the Dtos in `Dtos/` so they match. If the new column needs limits, add it to the rules in `Rules/FieldRule.cs` too.
-2. In `api_v2`, run `.\migrate.ps1 -Name AddSomeColumn`. That creates the migration file from your model change.
-3. Restart the API with `dotnet run --launch-profile http`. It applies the new migration on startup, so you don't run `dotnet ef database update` anymore.
-
-Then update `angular/src/app/models/industry.ts` so the page knows about the new field. Adding, editing, and deleting rows never needs a migration, only changing the shape of the table does.
-
-# Seeding synthetic data
-
-`scripts/seed_industries.py` fills the table with fake companies so there's something to test with. Every row goes through the API like it would from the page, which means the API's rules decide what gets in. It also sends some broken rows on purpose (empty names, names that are too long, prices outside 0 to 10, names that already exist) to check that the API blocks them.
-
-Start the API first, then from the project folder run:
-
-```
-python scripts/seed_industries.py
-```
-
-That command signs in with `username` and `password` from `scripts/seeding.control.toml` (copy `seeding.control.example.toml`, git ignores the copy) and sends the rows described in `seeding.toml`. Saving either file does not start a run.
-
-When it's done it names the database the rows landed in, how many were already there, how many were added, how many were kept because a trailing space was trimmed, how many were refused, and the table total. It exits with an error when a stored value breaks a rule, or when an intended row is refused.
-
-## Using config.toml and seeding.toml
-
-The settings are split in two files in `scripts/`, so you don't touch the Python file. Open one, change a value, save, and run the script again.
-
-`config.toml` is the main config, what the table's values can be:
-
-- `[fields]` has the sectors list, the price range, how many decimals, the date range for release, and the longest name. The sectors list is also what the API uses, so this is the place to change them. The longest name, the price range and the sectors get replaced by the API's rules from `/schema` when the script runs, so they always match.
-
-`seeding.toml` is only for the seed script, how it makes and sends rows:
-
-- `[generation]` is the main one. `count` is how many rows you want in the database, so set it to `50` if you want 50. `bad_row_rate` is how many broken rows get mixed in, `0.10` means 10 for every 100, and `0` turns them off. `seed` gives you the same data every run if you set it to any number, `0` means random every time. `null_rate_min` and `null_rate_max` are how often price and release are left empty, right now that's somewhere between 5% and 7%.
-- `[broken_rows]` is which rules to test. Remove one from the list and it stops sending that kind.
-- `[names]` is the word lists the company names are built from. A name is one prefix, one core and one suffix, like `Nizwa Retail Group`. The `""` in suffixes means some names have none, like `Meridian Energy`. Add your own words if you want different names.
-- `[api]` is where the API is and how hard to push it. `workers` is how many rows get sent at the same time, and `max_retries` is how many times it tries again when the connection drops.
-
-A few things to know when editing it:
-
-- Comments start with `#`, not `//`. A `//` breaks the file.
-- Dates go without quotes, like `release_from = 1995-01-01`.
-- If you put something wrong, like `count = 0` or a price range where the min is above the max, the script lists every problem and sends nothing.
-
-## Flags
-
-Flags change one run without editing the files, and they win over what's in them:
-
-| Flag | What it does | Example |
-|---|---|---|
-| `--count` | How many rows to get in for this run | `--count 50` |
-| `--seed` | Same number gives the same data every time | `--seed 7` |
-| `--dry-run` | Prints sample rows and sends nothing, good for checking your config | `--dry-run` |
-| `--config` | Use a different main config | `--config scripts/other.toml` |
-| `--seeding` | Use a different seed settings file | `--seeding scripts/big.toml` |
-
-For example, to see what 50 rows would look like before sending anything:
-
-```
-python scripts/seed_industries.py --count 50 --dry-run
-```
-
-# Not done yet
-
-- Restore brings back the rows and rules of a version but not its columns. If the table had different columns back then, a developer has to bring them back in code since the API moves the database forward on every start. The request it makes says how.
-- Restore from a backup needs the backup to have today's table layout. One from before a database update shows "Other table layout" and needs a developer, the same as an old saved version.
-- After the accounts update, every older saved version says "Different columns back then", and restoring one asks a developer about the layout. The accounts were added as new tables, the Industries table itself didn't change.
+- Restore brings back a version's rows and rules but not its old columns. If the table had different columns back then a developer has to bring them back in code, and the app makes a request that says how.
+- A restore from a backup, or of a saved version, from before a table change needs a developer. The accounts update added new tables without changing the `Industries` table.
+- The Scratchpad isn't built. Its design is in `design/` and the brief for building it is in `HANDOFF.md`.
