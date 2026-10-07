@@ -90,6 +90,8 @@ How it was made: the box had no Docker daemon, so a Postgres 16 was started by h
 - [x] D1 problems under their own box with aria-describedby, the summary line only for answers from the API. D2 a long name ends with ... next to the pinned Actions column on a phone. D3 phone nav labels at 0.75rem, the plus and the account link icon only so seven fit in 390px. D4 the sign in card says Welcome back and sits left like every card. D5 "300 rows" on the History cards on a phone. D6 no unit while a retention box is empty. D7 "Search by name" and "Show 10 entries" in sentence case. D8 contrast measured, dark red is #fda29b now (was 3.8:1 on amber) and disabled buttons go grey at full opacity (were 3:1). D9 "Delete <name>?" on a wide screen, the name on the button on a phone. D10 the Connected badge says what it means. D11 one focus ring in styles.css for links and everything else that had none. D12 a loading line on the Backups list
 - [x] The unused dollar sign favicon is gone
 
+Graded against `testing/rubric_batches_8_9.md` (written by an Opus 5.5 critic, 10 criteria, pass at 7) from headless browser captures scored by a second critic: round 1 was 6 of 10 (one real defect on the account page, three capture gaps), round 2 was 9 of 10, a pass. Details in `testing/report.txt`.
+
 How it was made: https was checked on the cloud box with the dev certificate (http answers 307 to https, https answers, the warning shows only when nothing is https). The edge cases are Vitest specs next to each file, 30 tests in 8 files. The design list was checked with `testing/contrast.py` (every pair 4.5:1 or better now) and `testing/check_design.mjs` in a headless Chromium at 390 and 1280 and in dark mode.
 
 ### Main table

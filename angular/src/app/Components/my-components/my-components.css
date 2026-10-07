@@ -282,10 +282,12 @@ button:active:not(:disabled){
 
 /* Keyboard focus on a button is the same 2px outline every link gets, from styles.css. One ring, not a glow and a ring. */
 
-/* Disabled buttons keep full opacity and go grey instead. At 0.6 opacity the text read at 3:1, grey text reads at 5:1. */
+/* Disabled buttons keep full opacity and go grey instead: grey text on a light grey fill, so an off button never looks like a live one.
+   At 0.6 opacity the text read at 3:1, this reads at 4.9:1 in light and 6.6:1 in dark. */
 button:disabled{
     color: var(--muted);
     border-color: var(--border);
+    background: var(--surface-2);
     cursor: not-allowed;
 }
 
@@ -798,9 +800,11 @@ tbody tr.similar td.actions, tbody tr.similar:hover td.actions{
     border-color: color-mix(in srgb, var(--danger) 40%, var(--p-border));
 }
 
+/* With a fallback, because this button also sits in cards that don't set the panel's colours (the Backups list) */
 .remove-btn:disabled{
-    color: var(--p-muted);
-    border-color: var(--p-border);
+    color: var(--p-muted, var(--muted));
+    border-color: var(--p-border, var(--border));
+    background: var(--surface-2);
 }
 
 .remove-btn:hover:not(:disabled), .remove-btn.confirming{
@@ -871,10 +875,9 @@ tbody tr.similar td:first-child{
     color: var(--danger);
 }
 
+/* The flag's keyboard focus is the same 2px outline as everything else, from styles.css. A 12% glow on an amber row was invisible. */
 .flag:focus-visible{
-    outline: none;
     border-radius: 4px;
-    box-shadow: 0 0 0 3px var(--focus);
 }
 
 /* Column waiting for a developer */

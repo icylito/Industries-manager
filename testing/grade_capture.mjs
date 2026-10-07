@@ -52,6 +52,7 @@ if (START <= 1) {
   await page.locator('#restore-backup').scrollIntoViewIfNeeded();
   await shot(page, 'c1-restore-panel-lowercase');
   await page.fill('#restore-backup input', 'RESTORE');
+  await page.waitForTimeout(400); // the button's colour transition, so the screenshot shows the settled red
   facts.restoreButtonDisabledUpper = await page.locator('#restore-backup').getByRole('button', { name: /^Restore$/ }).isDisabled();
   await shot(page, 'c1-restore-panel-uppercase');
   await page.locator('#restore-backup').getByRole('button', { name: /^Restore$/ }).click();
