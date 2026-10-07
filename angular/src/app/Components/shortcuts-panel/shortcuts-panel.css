@@ -3,6 +3,9 @@
     position: fixed;
     inset: 0;
     z-index: 40;
+    /* What the page looks like through here, so the panel is the only sharp thing on screen */
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
 }
 
 .holder{

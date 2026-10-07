@@ -38,6 +38,16 @@ describe('ShortcutsPanel reset', () => {
     return { cmd, before };
   };
 
+  // The page steps aside behind the panel (styles.css). jsdom can't see the dim or the blur, so this only pins the hook.
+  it('marks the page while the panel is open, and clears the mark when it closes', () => {
+    expect(document.documentElement.classList.contains('shortcuts-open')).toBe(true);
+
+    keys.togglePanel(false);
+    fixture.detectChanges();
+
+    expect(document.documentElement.classList.contains('shortcuts-open')).toBe(false);
+  });
+
   it('asks before it changes any key', () => {
     const { cmd } = changeAKey();
 

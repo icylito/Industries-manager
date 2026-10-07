@@ -231,7 +231,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 }
 
 html.shortcuts-open .app{
-    opacity: 0.6;
+    opacity: 0.85;
     transform: translateX(-3%) scale(0.95);
 }
 
