@@ -55,7 +55,7 @@
 
 **Note before you start:** jsdom cannot see a blur or an opacity, so **there is no failing test to drive this task**. The test below is a regression net over the hook the CSS depends on; the real proof is Task 7's screenshot. Do not pretend otherwise in the commit message.
 
-- [ ] **Step 1: Add the regression test for the hook**
+- [x] **Step 1: Add the regression test for the hook**
 
 In `angular/src/app/Components/shortcuts-panel/shortcuts-panel.spec.ts`, inside the existing `describe('ShortcutsPanel reset')`, add this test. Its `beforeEach` already opens the panel (`keys.togglePanel(true)`), so the class should already be on:
 
@@ -71,16 +71,16 @@ In `angular/src/app/Components/shortcuts-panel/shortcuts-panel.spec.ts`, inside 
   });
 ```
 
-- [ ] **Step 2: Run it — it passes already, and that is correct**
+- [x] **Step 2: Run it — it passes already, and that is correct**
 
 Run: `node node_modules\@angular\cli\bin\ng.js test --watch=false` (from `angular/`)
 Expected: PASS. The class has always been toggled; this test exists so a later rename of it fails loudly instead of silently un-blurring the page.
 
-- [ ] **Step 3: Lighten the dim**
+- [x] **Step 3: Lighten the dim**
 
 In `angular/src/styles.css`, in the `html.shortcuts-open .app` rule, change `opacity: 0.6;` to `opacity: 0.85;`. Leave the `translateX(-3%) scale(0.95)` line alone.
 
-- [ ] **Step 4: Blur the page through the panel's backdrop**
+- [x] **Step 4: Blur the page through the panel's backdrop**
 
 In `angular/src/app/Components/shortcuts-panel/shortcuts-panel.css`, add two lines inside `.backdrop{ … }` (which today has only `position: fixed; inset: 0; z-index: 40;`):
 
@@ -92,12 +92,12 @@ In `angular/src/app/Components/shortcuts-panel/shortcuts-panel.css`, add two lin
 
 Do **not** put `filter: blur()` on `.app` instead: it would stop the nav pill's own backdrop-filter from sampling the body gradient, and the blur would bleed at the edges of the scaled page. The backdrop is a sibling of `.app` (`app.html:81` vs `:83-86`), so it samples the page and leaves the panel sharp.
 
-- [ ] **Step 5: Run the tests and the build**
+- [x] **Step 5: Run the tests and the build**
 
 Run from `angular/`: `node node_modules\@angular\cli\bin\ng.js test --watch=false` then `node node_modules\@angular\cli\bin\ng.js build`
 Expected: Tests `14 passed`, build exit 0.
 
-- [ ] **Step 6: Commit (only if the user asks)**
+- [x] **Step 6: Commit (only if the user asks)**
 
 ```bash
 git add angular/src/styles.css angular/src/app/Components/shortcuts-panel/shortcuts-panel.css angular/src/app/Components/shortcuts-panel/shortcuts-panel.spec.ts
@@ -118,13 +118,13 @@ Contributor: deepseek flash"
 - Consumes: nothing.
 - Produces: `/history` and `/fields` render with the crowded nav and the hero header. `app.ts:17` derives its `adminPaths` list from the same route data, so removing the flag is the only change needed there.
 
-**The trap:** `app.spec.ts:58` supplies its own inline stub route with `admin: true` for `'/history'`, so four shell tests keep passing after this change while the real app is broken. Only the assertion at line 48 catches it.
+**The trap:** `app.spec.ts:58` supplies its own inline stub route with `admin: true` for `'/history'`, so several shell tests keep passing after this change while the real app is broken. **Two** assertions catch it: the route-table one at line 48, and the first-paint test at `:82-89`, which pushes `/history` and reads the **real** route table through `app.ts:17` — its inline stub is irrelevant because no navigation happens in that test. Both were confirmed by running them, not by reading them.
 
-- [ ] **Step 0: Clear the warning you will see in every build**
+- [x] **Step 0: Clear the warning you will see in every build**
 
 Every `ng build` and `ng test` currently prints `NG8113: 'RouterLink' is declared but its value is never read` pointing at `angular/src/app/Components/account/account.ts:11`. It is there because the admin-page links on that card were parked in an HTML comment earlier, leaving the import unused. Remove `RouterLink` from that component's `imports` array, and add one line to the parked comment in `account.html` saying the `RouterLink` import returns with the block. Both commands must then print no warnings at all.
 
-- [ ] **Step 1: Write the failing expectation**
+- [x] **Step 1: Write the failing expectation**
 
 In `angular/src/app/app.spec.ts`, line 39, change the list to:
 
@@ -147,16 +147,16 @@ Also change line 39's neighbours: keep `expect(isAdminRoute('')).toBe(false);` a
 
 **One more line, because removing the flag breaks a second test.** In `angular/src/app/app.spec.ts`, the test `'is already the admin shell on the first paint, before the router has settled'` pushes the address `/history` and relies on the **real** route table for the pre-router first paint, so it fails once `/history` stops being an admin page (`expected null to be truthy`, at the `nav.admin-nav` assertion). Change that pushed address to `/overview`, which is still an admin page: the test keeps its intent — the first paint is already the admin shell — and the suite goes green. Do not touch its inline stub router.
 
-- [ ] **Step 2: Run it to watch it fail**
+- [x] **Step 2: Run it to watch it fail**
 
 Run from `angular/`: `node node_modules\@angular\cli\bin\ng.js test --watch=false`
 Expected: FAIL — `history` and `fields` still carry `admin: true` in the route table.
 
-- [ ] **Step 3: Drop the flag from the two routes**
+- [x] **Step 3: Drop the flag from the two routes**
 
 In `angular/src/app/app.routes.ts`, remove `admin: true` from the `history` (line 18) and `fields` (line 19) routes, leaving `canActivate: [adminGuard]` and the rest untouched.
 
-- [ ] **Step 4: Pin that the crowded nav still offers them**
+- [x] **Step 4: Pin that the crowded nav still offers them**
 
 In `angular/src/app/app.spec.ts`, in the test at line 125 (`'keeps Overview and People out of the crowded nav, and sends the name item to Settings'`), add beside the existing assertions:
 
@@ -165,16 +165,16 @@ In `angular/src/app/app.spec.ts`, in the test at line 125 (`'keeps Overview and 
     expect(nav.querySelector('a[href="/fields"]')).toBeTruthy();
 ```
 
-- [ ] **Step 5: Run the tests and the build**
+- [x] **Step 5: Run the tests and the build**
 
 Run from `angular/`: tests then build.
 Expected: `14 passed`, build exit 0.
 
-- [ ] **Step 6: Check it in the browser**
+- [x] **Step 6: Check it in the browser**
 
 Load `http://localhost:4200/fields` and `http://localhost:4200/history` signed in as an admin. Expected: the crowded nav, with the current page highlighted, and the page's own title below it — not the slim nav.
 
-- [ ] **Step 7: Commit (only if the user asks)**
+- [x] **Step 7: Commit (only if the user asks)**
 
 ```bash
 git add angular/src/app/app.routes.ts angular/src/app/app.spec.ts
