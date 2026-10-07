@@ -51,6 +51,8 @@ export class ShortcutsPanel {
           : '';
         return {
           id: c.id, name: c.name, desc: c.desc, caps, editing, none: mine.length === 0,
+          // What the key button shows, so its name starts with the same words
+          keyLabel: mine.length === 0 ? 'Click to set a key' : capsOf(mine).map(k => k.text).join(' '),
           message, canTake: editing && rec!.clash.length > 0 && !rec!.error,
           text: (c.name + ' ' + c.desc + ' ' + caps.map(k => k.text).join(' ')).toLowerCase(),
         };

@@ -22,7 +22,7 @@
             </button>
             <a class="who" routerLink="/account" [attr.aria-label]="'Your account, ' + auth.user()?.username">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4.2"/><path d="M4 21c.6-4.2 4-6.2 8-6.2s7.4 2 8 6.2z"/></svg>
-                <span>{{ auth.user()?.username }}</span>
+                <span>{{ auth.user()?.username ?? 'Account' }}</span>
             </a>
         </div>
     </nav>

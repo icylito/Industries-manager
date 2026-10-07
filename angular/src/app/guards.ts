@@ -2,10 +2,14 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { Auth } from './services/auth';
 
+// A saved sign in that the API couldn't be asked about (it is down): the page opens and shows its own failure, see Auth.unreachable
+const waitingForApi = (auth: Auth) => !auth.isSignedIn() && auth.unreachable() && !!auth.token();
+
 // Pages for anyone with an account
 export const signedInGuard: CanActivateFn = (_route, state) => {
   const auth = inject(Auth);
   const router = inject(Router);
+  if (waitingForApi(auth)) return true;
   if (!auth.isSignedIn()) {
     return router.createUrlTree(['/login'], { queryParams: { back: state.url } });
   }
@@ -20,6 +24,7 @@ export const signedInGuard: CanActivateFn = (_route, state) => {
 export const adminGuard: CanActivateFn = (_route, state) => {
   const auth = inject(Auth);
   const router = inject(Router);
+  if (waitingForApi(auth)) return true;
   if (!auth.isSignedIn()) {
     return router.createUrlTree(['/login'], { queryParams: { back: state.url } });
   }

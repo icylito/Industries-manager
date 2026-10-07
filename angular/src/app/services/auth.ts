@@ -1,5 +1,5 @@
 import { Service, computed, inject, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable, firstValueFrom, tap } from 'rxjs';
 import { AuthUser, LoginResult } from '../models/industry';
@@ -40,14 +40,26 @@ export class Auth {
     }
   }
 
+  // Set when there is a saved sign in but the API couldn't be asked whose it is (stopped, restarting, database down).
+  // The person may well still be signed in, so they are not sent to Sign in: the page they asked for opens and says the server
+  // can't be reached. The API still checks every call itself, and once it answers init() runs again (see recheck).
+  unreachable = signal(false);
+
   // Runs before the first page, so the nav and the guards know who is signed in
   async init(): Promise<void> {
     if (!this.token()) return;
     try {
       this.user.set(await firstValueFrom(this.http.get<AuthUser>(`${environment.apiUrl}/auth/me`)));
-    } catch {
-      // A 401 already cleared the token in the interceptor. An API that is down just leaves the page as a guest view.
+      this.unreachable.set(false);
+    } catch (err) {
+      // A 401 already cleared the token in the interceptor. An API that is down keeps the token and waits.
+      this.unreachable.set(err instanceof HttpErrorResponse && (err.status === 0 || err.status >= 500));
     }
+  }
+
+  // The page calls this when the API answers again after it couldn't be reached
+  recheck() {
+    if (this.unreachable()) void this.init();
   }
 
   login(username: string, password: string): Observable<LoginResult> {
@@ -83,5 +95,6 @@ export class Auth {
   clear() {
     this.saveToken(null);
     this.user.set(null);
+    this.unreachable.set(false);
   }
 }

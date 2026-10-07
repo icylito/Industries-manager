@@ -4,6 +4,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { OverviewPage } from './overview';
 import { Shortcuts } from '../../services/shortcuts';
+import { Toast } from '../../services/toast';
 
 const row = (id: number, over: object = {}) => ({ id, name: 'Row ' + id, sector: 'Public Sector', price: 1, release: '2012-06-01', duplicateOf: null, importedFrom: null, lostFields: null, extra: null, ...over });
 
@@ -86,5 +87,57 @@ describe('OverviewPage', () => {
     expect(fixture.componentInstance.sel().cmp).toBe(true);
     fixture.destroy();
     expect(keys.hasPage()).toBe(false);
+  });
+
+  it('answers a server error in plain words, and Try again says it is trying instead of swapping the page', () => {
+    http.expectOne(r => r.url.endsWith('/industries')).flush('nope', { status: 404, statusText: 'Not Found' });
+    http.match(r => r.url.endsWith('/schema')).forEach(r => r.flush('nope', { status: 404, statusText: 'x' }));
+    fixture.detectChanges();
+    expect(el().querySelector('.notice-card p')?.textContent).toContain('The server answered, but it has a problem right now');
+    expect(el().querySelector('.details')).toBeNull();
+    const button = el().querySelector('.notice-card .btn.solid') as HTMLButtonElement;
+    button.click();
+    fixture.detectChanges();
+    // Still the failure card, the button is busy and can't be pressed twice
+    expect(el().querySelector('.notice-card')).not.toBeNull();
+    expect(el().querySelector('.skeleton')).toBeNull();
+    expect((el().querySelector('.notice-card .btn.solid') as HTMLButtonElement).disabled).toBe(true);
+    expect(el().querySelector('.notice-card .btn.solid')?.textContent).toContain('Trying again');
+    // It fails again: the person is told, the card stays
+    http.expectOne(r => r.url.endsWith('/industries')).flush('nope', { status: 404, statusText: 'Not Found' });
+    http.match(r => r.url.endsWith('/schema')).forEach(r => r.flush('nope', { status: 404, statusText: 'x' }));
+    fixture.detectChanges();
+    expect(TestBed.inject(Toast).message()).toContain("Still can't reach the server");
+    expect((el().querySelector('.notice-card .btn.solid') as HTMLButtonElement).disabled).toBe(false);
+    // And it works the third time
+    (el().querySelector('.notice-card .btn.solid') as HTMLButtonElement).click();
+    load([row(1), row(2)]);
+    expect(el().querySelector('.notice-card')).toBeNull();
+    expect(el().querySelector('.ready')).not.toBeNull();
+  });
+
+  it('gives up after 30 seconds with a failure card, not a grey page that never ends, and says it is slow at 10', () => {
+    vi.useFakeTimers();
+    try {
+      const timed = TestBed.createComponent(OverviewPage);
+      timed.detectChanges();
+      vi.advanceTimersByTime(10000);
+      timed.detectChanges();
+      expect((timed.nativeElement as HTMLElement).querySelector('.skel-note')?.textContent).toContain('taking longer than usual');
+      vi.advanceTimersByTime(20001);
+      timed.detectChanges();
+      const card = (timed.nativeElement as HTMLElement).querySelector('.notice-card');
+      expect(card?.querySelector('p')?.textContent).toContain('taking too long to answer');
+      expect((timed.nativeElement as HTMLElement).querySelector('.skeleton')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('writes big counts with a comma', () => {
+    load(Array.from({ length: 1234 }, (_, i) => row(i + 1, { name: 'Row ' + i })));
+    fixture.componentInstance.togglePick('Public Sector');
+    fixture.detectChanges();
+    expect(el().querySelector('a.open-btn')?.textContent).toContain('Open 1,234 in Browse');
   });
 });

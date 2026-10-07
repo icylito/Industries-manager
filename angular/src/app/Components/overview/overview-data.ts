@@ -88,6 +88,8 @@ const round4 = (n: number) => Number(n.toFixed(4));
 // Plain numbers on the page, 2.5 not 2.5000
 export const plain = (n: number) => String(round4(n));
 export const usd = (n: number, decimals: number) => '$' + n.toFixed(decimals);
+// 30,001 not 30001
+export const thousands = (n: number) => Math.round(n).toLocaleString('en-US');
 
 // A price of exactly 2.5 sits in the band 2.5 to 5. The first band takes anything below its top, the last takes
 // everything from its bottom up, so no price is ever left outside the four bands.
@@ -226,9 +228,10 @@ export interface Selection {
 
 export const emptySelection: Selection = { dim: 'sector', pick: null, bar: null, attns: [], cmp: false, cmpKeys: [], metric: 'count', topMode: 'top3' };
 
-// The slices of one split get lighter from the first to the last (both on the light page and the dark one)
+// The slices of one split get lighter from the first to the last (both on the light page and the dark one).
+// The faintest is still at least 3:1 against the card, so every slice can be seen.
 export function tonesFor(n: number): number[] {
-  return n === 2 ? [1, 0.4] : n === 3 ? [1, 0.55, 0.22] : [1, 0.62, 0.36, 0.2];
+  return n === 2 ? [1, 0.45] : n === 3 ? [1, 0.68, 0.45] : [1, 0.78, 0.6, 0.45];
 }
 
 export const CIRCLE = 2 * Math.PI * 74;
@@ -370,10 +373,14 @@ export function derive(rows: Row[], dims: Dim[], periods: Period[], sel: Selecti
   });
   const lead = [...slices].sort((a, b) => b.count - a.count)[0];
   const dimName = dim.label.toLowerCase();
-  const insight1 = total && lead ? `${lead.key} is the biggest slice, ${lead.pct} of the industries with a ${dimName}.` : 'Nothing to split yet.';
+  const insight1 = total && lead
+    ? lead.key === OTHER
+      ? `The smaller ${dimName} groups together are the biggest slice, ${lead.pct} of the industries with a ${dimName}.`
+      : `${lead.key} is the biggest slice, ${lead.pct} of the industries with a ${dimName}.`
+    : 'Nothing to split yet.';
   const missing = pieRows.length - total;
   const insight2 = missing > 0
-    ? `${missing} ${missing === 1 ? 'industry has' : 'industries have'} no ${dimName} and ${missing === 1 ? 'is' : 'are'} left out.`
+    ? `${thousands(missing)} ${missing === 1 ? 'industry has' : 'industries have'} no ${dimName} and ${missing === 1 ? 'is' : 'are'} left out.`
     : `Every industry has a ${dimName}.`;
 
   // Bars. With Count and no slice picked, every bar is stacked from the circle's slices.

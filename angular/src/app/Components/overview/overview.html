@@ -20,11 +20,11 @@
                 <div class="skel" style="height: 330px"></div>
             </div>
         </div>
-        <span role="status" class="skel-note">Loading industries...</span>
+        <span role="status" class="skel-note">{{ slow() ? 'Still loading. This is taking longer than usual.' : 'Loading industries...' }}</span>
     </div>
 } @else if (failure() !== null) {
     <!-- Couldn't load: plain words first, the technical line only behind a link -->
-    <div role="alert" class="notice-card">
+    <div role="alert" class="notice-card" [attr.aria-busy]="retrying()">
         <h1 class="sr-only">Overview</h1>
         <div class="notice-top">
             <span class="notice-icon">
@@ -32,16 +32,18 @@
             </span>
             <div class="notice-text">
                 <h2>We couldn't load the table</h2>
-                <p>The page couldn't reach the server, so the numbers can't be shown. Nothing was changed. If it keeps happening, tell whoever looks after the server.</p>
+                <p>{{ failureText() }}</p>
             </div>
         </div>
         <div class="notice-actions">
-            <button type="button" class="btn solid" (click)="retry()">Try again</button>
+            <button type="button" class="btn solid" [disabled]="retrying()" (click)="retry()">
+                @if (retrying()) { <span class="spin" aria-hidden="true"></span>Trying again... } @else { Try again }
+            </button>
             <a class="btn line" routerLink="/" fragment="browse">Go to Browse</a>
             <button type="button" class="link-btn" (click)="showDetails.set(!showDetails())" [attr.aria-expanded]="showDetails()">{{ showDetails() ? 'Hide details' : 'Show details' }}</button>
         </div>
         @if (showDetails()) {
-            <div class="details num fade-in">GET /industries failed: {{ failure() }}<br>Last tried: just now<br>The sign in and the other pages are not affected.</div>
+            <div class="details num fade-in">GET /industries failed: {{ failure() }}<br>Last tried: {{ failedTime() }}<br>The sign in and the other pages are not affected.</div>
         }
     </div>
 } @else if (empty()) {
@@ -72,7 +74,9 @@
     @if (stale()) {
         <div role="status" class="stale">
             <span><b>Showing numbers from {{ staleText() }}.</b> The last refresh didn't work.</span>
-            <button type="button" class="btn line small" (click)="load()">Refresh now</button>
+            <button type="button" class="btn line small" [disabled]="refreshing()" (click)="refreshNow()">
+                @if (refreshing()) { <span class="spin" aria-hidden="true"></span>Refreshing... } @else { Refresh now }
+            </button>
         </div>
     }
 
@@ -100,7 +104,7 @@
         }
         @if (browse(); as b) {
             <!-- Opens Browse with exactly these rows. It is hidden when Browse can't show the same ones, a wrong number is worse than no link. -->
-            <a class="open-btn" routerLink="/" [queryParams]="b.params" fragment="browse"><span>Open {{ b.count }} in Browse</span>
+            <a class="open-btn" routerLink="/" [queryParams]="b.params" fragment="browse"><span>Open {{ n(b.count) }} in Browse</span>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
         } @else if (d.chips.length === 0) {
             <span class="hint">{{ hint() }}</span>
@@ -118,7 +122,7 @@
         <span class="eyebrow">NEEDS ATTENTION</span>
         <span class="attn-note">pick any, shows rows with at least one</span>
         @for (a of d.attention; track a.key) {
-            <button type="button" class="pick" [class.on]="a.on" (click)="toggleAttention(a.key)" [attr.aria-pressed]="a.on">{{ a.label }}<span class="num">{{ a.count }}</span></button>
+            <button type="button" class="pick" [class.on]="a.on" (click)="toggleAttention(a.key)" [attr.aria-pressed]="a.on">{{ a.label }}<span class="num">{{ n(a.count) }}</span></button>
         }
     </div>
 
@@ -152,7 +156,7 @@
                                 <span class="swatch" [style.background]="sliceColour(s)" [style.opacity]="sliceOpacity(s)"></span>
                                 <span class="slice-name">{{ s.key }}</span>
                                 <span class="tag" [style.color]="sliceColour(s)">{{ s.tag }}</span>
-                                <span class="num muted">{{ s.count }}</span>
+                                <span class="num muted">{{ n(s.count) }}</span>
                                 <span class="num pct">{{ s.pct }}</span>
                             </span>
                             <span class="meter"><span class="fill" [style.width.%]="s.width" [style.background]="sliceColour(s)" [style.opacity]="sliceOpacity(s)"></span></span>
@@ -200,10 +204,10 @@
                 <span class="eyebrow">{{ railTitle() }}</span>
                 @if (!d.cmpActive) {
                     <div class="stats">
-                        <div><span class="num stat">{{ statCount().toFixed(0) }}</span><span class="stat-label">Industries</span></div>
+                        <div><span class="num stat">{{ n(statCount()) }}</span><span class="stat-label">Industries</span></div>
                         <div><span class="num stat">{{ d.stats[0].sectors }}</span><span class="stat-label">{{ d.stats[0].sectors === 1 ? 'Sector' : 'Sectors' }}</span></div>
                         <div><span class="num stat">{{ d.stats[0].avg === null ? '—' : usd(statAvg() / 100, 2) }}</span><span class="stat-label">Average price</span></div>
-                        <div><span class="num stat">{{ statNulls().toFixed(0) }}</span><span class="stat-label">No price yet</span></div>
+                        <div><span class="num stat">{{ n(statNulls()) }}</span><span class="stat-label">No price yet</span></div>
                     </div>
                 } @else {
                     <div class="versus">
@@ -239,7 +243,7 @@
                         </svg>
                         <div class="centre">
                             <span class="centre-label">{{ centre().label }}</span>
-                            <span class="num centre-num" [class.mid]="centre().size === 'mid'">{{ centre().value === null ? centre().text : centreNumber().toFixed(0) }}</span>
+                            <span class="num centre-num" [class.mid]="centre().size === 'mid'">{{ centre().value === null ? centre().text : n(centreNumber()) }}</span>
                             <span class="centre-sub">{{ centre().sub }}</span>
                         </div>
                     </div>
@@ -263,46 +267,51 @@
                     @if (!d.cmpActive) {
                         <div class="bars">
                             @for (b of d.bars; track $index; let i = $index) {
-                                <button type="button" class="bar-col" [style.opacity]="barOpacity(i)" (click)="toggleBar(i)"
-                                    (mouseenter)="hovBar.set(i)" (mouseleave)="hovBar.set(null)" (focus)="hovBar.set(i)" (blur)="hovBar.set(null)"
-                                    [attr.aria-label]="barAria(b, i)" [attr.aria-pressed]="sel().bar === i">
-                                    @if (!d.stacked) {
-                                        <!-- The total as a faint ghost, the picked slice in front of it -->
-                                        <div class="layer rise ghost" [class.ring]="sel().bar === i" [style.height.%]="b.allH" [style.animation-delay.s]="i * 0.05"></div>
-                                        <div class="layer rise" [style.height.%]="b.shownH" [style.background]="d.effPick ? 'var(--signal)' : 'var(--text)'" [style.animation-delay.s]="i * 0.05"></div>
-                                    } @else {
-                                        @for (p of b.pieces; track $index; let j = $index) {
-                                            <div class="layer rise piece" [style.bottom.%]="p.b" [style.height.%]="p.h" [style.animation-delay.s]="i * 0.05"
-                                                [style.background]="pieceColour(d.dim.keys[j])" [style.opacity]="pieceOpacity(d.dim.keys[j], d.slices[j].tone)"></div>
+                                <!-- The column holds the drawing and the label, the button sits over it with only a name. Only the drawing fades when
+                                     another bar is picked, the number on it stays at full strength so it can still be read. -->
+                                <div class="bar-col" (mouseenter)="hovBar.set(i)" (mouseleave)="hovBar.set(null)">
+                                    <div class="fills" [style.opacity]="barOpacity(i)">
+                                        @if (!d.stacked) {
+                                            <!-- The total as a faint ghost, the picked slice in front of it -->
+                                            <div class="layer rise ghost" [class.ring]="sel().bar === i" [style.height.%]="b.allH" [style.animation-delay.s]="i * 0.05"></div>
+                                            <div class="layer rise" [style.height.%]="b.shownH" [style.background]="d.effPick ? 'var(--signal)' : 'var(--text)'" [style.animation-delay.s]="i * 0.05"></div>
+                                        } @else {
+                                            @for (p of b.pieces; track $index; let j = $index) {
+                                                <div class="layer rise piece" [style.bottom.%]="p.b" [style.height.%]="p.h" [style.animation-delay.s]="i * 0.05"
+                                                    [style.background]="pieceColour(d.dim.keys[j])" [style.opacity]="pieceOpacity(d.dim.keys[j], d.slices[j].tone)"></div>
+                                            }
+                                            <!-- Industries with no value for this split, so the bar still adds up to the total -->
+                                            <div class="layer rise piece miss" [style.bottom.%]="b.missB" [style.height.%]="b.missH" [style.opacity]="hov() ? 0.35 : 1" [style.animation-delay.s]="i * 0.05"></div>
+                                            <div class="layer ring-only" [class.ring]="sel().bar === i" [style.height.%]="b.allH"></div>
                                         }
-                                        <!-- Industries with no value for this split, so the bar still adds up to the total -->
-                                        <div class="layer rise piece miss" [style.bottom.%]="b.missB" [style.height.%]="b.missH" [style.opacity]="hov() ? 0.35 : 1" [style.animation-delay.s]="i * 0.05"></div>
-                                        <div class="layer ring-only" [class.ring]="sel().bar === i" [style.height.%]="b.allH"></div>
-                                    }
-                                    <span class="num bar-value" [style.bottom.%]="b.labelAt">{{ fmtBar(b.shown) }}</span>
+                                    </div>
+                                    <span class="num bar-value" [style.bottom.%]="b.labelAt" aria-hidden="true">{{ fmtBar(b.shown) }}</span>
                                     @if (hovBar() === i) {
                                         <div role="tooltip" class="tip fade-in" [style.bottom]="'calc(' + b.labelAt + '% + 26px)'" [class.tip-left]="tipLeft(i)" [class.tip-right]="tipRight(i)">
                                             @for (line of barTip(b, i); track $index) { <div [class.first]="$index === 0">{{ line }}</div> }
                                         </div>
                                     }
-                                </button>
+                                    <button type="button" class="bar-hit" (click)="toggleBar(i)" (focus)="hovBar.set(i)" (blur)="hovBar.set(null)"
+                                        [attr.aria-label]="barAria(b, i)" [attr.aria-pressed]="sel().bar === i"></button>
+                                </div>
                             }
                         </div>
                     } @else {
                         <!-- Compare: two bars per period, A in ink and B in orange -->
                         <div class="bars">
                             @for (b of d.compareBars; track $index; let i = $index) {
-                                <button type="button" class="bar-col pair" [style.opacity]="barOpacity(i)" (click)="toggleBar(i)"
-                                    [attr.aria-label]="d.periods[i].label + ', ' + sel().cmpKeys[0] + ' ' + fmt(b.a) + ', ' + sel().cmpKeys[1] + ' ' + fmt(b.b)" [attr.aria-pressed]="sel().bar === i">
+                                <div class="bar-col pair">
                                     <div class="half">
-                                        <span class="num pair-value">{{ fmtBar(b.a) }}</span>
-                                        <div class="rise pair-bar a" [style.height.%]="b.aH" [style.animation-delay.s]="i * 0.05"></div>
+                                        <span class="num pair-value" aria-hidden="true">{{ fmtPair(b.a) }}</span>
+                                        <div class="rise pair-bar a" [style.opacity]="barOpacity(i)" [style.height.%]="b.aH" [style.animation-delay.s]="i * 0.05"></div>
                                     </div>
                                     <div class="half">
-                                        <span class="num pair-value b">{{ fmtBar(b.b) }}</span>
-                                        <div class="rise pair-bar b" [style.height.%]="b.bH" [style.animation-delay.s]="i * 0.05"></div>
+                                        <span class="num pair-value b" aria-hidden="true">{{ fmtPair(b.b) }}</span>
+                                        <div class="rise pair-bar b" [style.opacity]="barOpacity(i)" [style.height.%]="b.bH" [style.animation-delay.s]="i * 0.05"></div>
                                     </div>
-                                </button>
+                                    <button type="button" class="bar-hit" (click)="toggleBar(i)"
+                                        [attr.aria-label]="d.periods[i].label + ', ' + sel().cmpKeys[0] + ' ' + fmt(b.a) + ', ' + sel().cmpKeys[1] + ' ' + fmt(b.b)" [attr.aria-pressed]="sel().bar === i"></button>
+                                </div>
                             }
                         </div>
                     }
@@ -315,7 +324,7 @@
                         <div role="group" aria-label="Slices, same as the circle" class="legend">
                             @for (s of d.slices; track s.key) {
                                 <button type="button" (click)="togglePick(s.key)" (mouseenter)="hov.set(s.key)" (mouseleave)="hov.set(null)" [attr.aria-pressed]="s.on">
-                                    <span class="swatch" [style.background]="sliceColour(s)" [style.opacity]="hov() === s.key ? 1 : s.tone"></span>{{ s.key }}<span class="num faint">{{ s.count }}</span>
+                                    <span class="swatch" [style.background]="sliceColour(s)" [style.opacity]="hov() === s.key ? 1 : s.tone"></span>{{ s.key }}<span class="num faint">{{ n(s.count) }}</span>
                                 </button>
                             }
                         </div>
@@ -339,7 +348,7 @@
                         <button type="button" [class.on]="sel().topMode === 'low3'" (click)="setTopMode('low3')" [attr.aria-pressed]="sel().topMode === 'low3'">Cheapest 3</button>
                     </div>
                 </div>
-                <div class="top-cols">
+                <div class="top-cols" [class.compare]="d.cmpActive">
                     @for (c of d.cols; track c.title) {
                         <div class="top-col">
                             <div class="top-col-head">
@@ -352,7 +361,7 @@
                                         (click)="openId.set(openId() === t.id ? null : t.id)" (mouseenter)="hovTop.set(t.id)" (mouseleave)="hovTop.set(null)" [attr.aria-expanded]="openId() === t.id">
                                         <span class="num rank" [class.signal]="c.tone === 'signal'" [class.first]="t.rank === 1">{{ t.rank }}</span>
                                         <span class="who-col">
-                                            <span class="top-name">{{ t.name }}</span>
+                                            <span class="top-name" [attr.title]="t.name">{{ t.name }}</span>
                                             <span class="muted">{{ t.sector }}</span>
                                         </span>
                                         <span class="top-meter"><span class="fill" [style.width.%]="t.fill" [class.signal]="c.tone === 'signal'" [class.first]="t.rank === 1"></span></span>

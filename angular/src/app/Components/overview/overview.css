@@ -135,6 +135,25 @@ a{
 
 /* ---------- Loading, failed, empty ---------- */
 
+.spin{
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 999px;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin{
+    to{ transform: rotate(360deg); }
+}
+
+.btn:disabled{
+    cursor: progress;
+    opacity: 0.8;
+}
+
 .skeleton{
     display: flex;
     flex-direction: column;
@@ -187,8 +206,11 @@ a{
     flex-direction: column;
     gap: 16px;
     padding: 32px 28px;
-    border: 1px solid var(--border);
+    border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--border));
+    border-left: 6px solid var(--danger);
     border-radius: 16px;
+    /* A red wash, so it can't be taken for a normal card even at a glance. The words stay on a calm tint. */
+    background: var(--danger-soft);
 }
 
 .notice-top{
@@ -205,8 +227,8 @@ a{
     width: 44px;
     height: 44px;
     border-radius: 12px;
-    background: var(--danger-soft);
-    color: var(--danger);
+    background: var(--danger);
+    color: var(--danger-on);
 }
 
 .notice-text{
@@ -221,6 +243,10 @@ a{
     font-size: 26px;
     font-weight: 800;
     letter-spacing: -0.03em;
+}
+
+.notice-text h2{
+    color: var(--danger);
 }
 
 .notice-text p, .empty-card p{
@@ -240,7 +266,7 @@ a{
 .details{
     padding: 12px 14px;
     border-radius: 10px;
-    background: var(--surface-2);
+    background: var(--surface);
     color: var(--text-2);
     font-size: 12px;
     line-height: 1.7;
@@ -564,7 +590,7 @@ h1{
 
 .keyhint{
     color: var(--faint);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 500;
 }
 
@@ -963,10 +989,26 @@ h1{
     flex: 1 1 0;
     min-width: 0;
     height: 100%;
+}
+
+/* Only the drawing fades when another bar is picked, never the number on it */
+.fills{
+    position: absolute;
+    inset: 0;
+    transition: opacity 0.2s ease;
+}
+
+/* The real button, over the whole column. It has a name for screen readers and no text of its own. */
+.bar-hit{
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
     padding: 0;
     border: 0;
+    border-radius: 6px 6px 0 0;
     background: transparent;
-    transition: opacity 0.2s ease;
 }
 
 .layer{
@@ -1063,8 +1105,10 @@ h1{
 }
 
 .pair-value{
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
     text-align: center;
 }
 
@@ -1074,7 +1118,7 @@ h1{
 
 .pair-bar{
     border-radius: 5px 5px 0 0;
-    transition: height 0.35s ease;
+    transition: height 0.35s ease, opacity 0.2s ease;
 }
 
 .pair-bar.a{ background: var(--text); }
@@ -1257,6 +1301,14 @@ h1{
     padding: 4px 8px 16px 48px;
     color: var(--text-2);
     font-size: 13px;
+}
+
+.compare .top-row{
+    grid-template-columns: 34px minmax(0, 1fr) 84px;
+}
+
+.compare .top-meter{
+    display: none;
 }
 
 .top-open b{

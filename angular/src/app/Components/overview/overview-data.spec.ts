@@ -1,6 +1,6 @@
 import { Industry } from '../../models/industry';
 import {
-  Row, Selection, bandEdges, bandOf, browseParams, buildDims, buildPeriods, derive, emptySelection, periodOf, rankRows, toRow,
+  Row, Selection, bandEdges, bandOf, browseParams, buildDims, buildPeriods, derive, emptySelection, periodOf, rankRows, thousands, tonesFor, toRow,
 } from './overview-data';
 
 const item = (id: number, over: Partial<Industry> = {}): Industry => ({
@@ -167,5 +167,32 @@ describe('top list and find', () => {
     expect(ranked).toBe(4);
     expect(rank.get(2)).toBe(1);
     expect(rank.has(3)).toBe(false);
+  });
+});
+
+describe('numbers and shades people read', () => {
+  it('puts a comma in every big count', () => {
+    expect(thousands(30001)).toBe('30,001');
+    expect(thousands(999)).toBe('999');
+    expect(thousands(1234567)).toBe('1,234,567');
+  });
+
+  it('keeps even the faintest slice at 3:1 or better on the card, light and dark', () => {
+    // Ink drawn at an opacity over the card, the way the circle and bars draw it. 3:1 is the bar for chart marks.
+    const lum = (v: number) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+    const contrast = (a: number, b: number) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+    const over = (ink: number, card: number, alpha: number) => card + (ink - card) * alpha;
+    for (const n of [2, 3, 4]) {
+      const faintest = Math.min(...tonesFor(n));
+      expect(contrast(over(10, 255, faintest), 255)).toBeGreaterThanOrEqual(3);   // light: #0a0a0a on white
+      expect(contrast(over(226, 28, faintest), 28)).toBeGreaterThanOrEqual(3);    // dark: #e2e2e2 on #1c1c1c
+    }
+  });
+
+  it('says it plainly when the biggest slice is the grouped smaller ones, and when one industry is left out', () => {
+    const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G'].flatMap((s, i) => Array.from({ length: i < 3 ? 1 : 3 }, (_, k) => item(i * 10 + k + 1, { sector: s }))).concat([item(99, { sector: null })]);
+    const { d } = run(rows);
+    expect(d.insight1).toBe('The smaller sector groups together are the biggest slice, 40% of the industries with a sector.');
+    expect(d.insight2).toBe('1 industry has no sector and is left out.');
   });
 });

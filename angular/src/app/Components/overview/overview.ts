@@ -1,13 +1,15 @@
 import { Component, DestroyRef, Injector, OnInit, afterNextRender, computed, effect, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
+import { timeout } from 'rxjs';
 import { RouterLink } from '@angular/router';
 import { FieldRule, Industry } from '../../models/industry';
+import { Auth } from '../../services/auth';
 import { IndustryApi } from '../../services/industry-api';
 import { Shortcuts, capsOf } from '../../services/shortcuts';
 import { Toast } from '../../services/toast';
 import { countUp } from './count-up';
 import {
-  Bar, Metric, OTHER, Selection, TopMode, bandEdges, browseParams, buildDims, buildPeriods, derive, emptySelection, plain, rankRows, toRow, usd,
+  Bar, Metric, OTHER, Selection, TopMode, bandEdges, browseParams, buildDims, buildPeriods, derive, emptySelection, plain, rankRows, thousands, toRow, usd,
 } from './overview-data';
 
 // The admin Overview: the table at a glance. For spotting, Browse is for acting.
@@ -21,6 +23,7 @@ import {
 })
 export class OverviewPage implements OnInit {
   private api = inject(IndustryApi);
+  private auth = inject(Auth);
   protected keys = inject(Shortcuts);
   private toast = inject(Toast);
   private destroyRef = inject(DestroyRef);
@@ -30,15 +33,27 @@ export class OverviewPage implements OnInit {
   items = signal<Industry[]>([]);
   rules = signal<FieldRule[] | null>(null);
   loading = signal(true);
-  // What went wrong on the first load, shown behind "Show details"
+  // What went wrong on the first load, shown behind "Show details", and what kind of trouble it was (the words on the card follow it)
   failure = signal<string | null>(null);
+  failureKind = signal<'down' | 'broken' | 'slow'>('down');
+  failedAt = signal<Date | null>(null);
   showDetails = signal(false);
   loadedAt = signal<number | null>(null);
   stale = signal(false);
+  // A try again or a Refresh now that is waiting for the server, so the button can say so
+  retrying = signal(false);
+  refreshing = signal(false);
+  // Loading for longer than usual, the grey page says so
+  slow = signal(false);
   private clock = signal(Date.now());
+
+  // How long the server gets before the page gives up and says so, instead of a grey page that never ends
+  static readonly GiveUpAfterMs = 30000;
+  static readonly SlowAfterMs = 10000;
 
   ngOnInit() {
     this.load();
+    const slowTimer = setTimeout(() => { if (this.loading()) this.slow.set(true); }, OverviewPage.SlowAfterMs);
     // New rows show up without a reload. The numbers refresh every minute while the page is in view.
     const every = setInterval(() => { this.clock.set(Date.now()); if (!document.hidden) this.load(); }, 60000);
     const visible = () => { if (!document.hidden && Date.now() - (this.loadedAt() ?? 0) > 60000) this.load(); };
@@ -57,35 +72,79 @@ export class OverviewPage implements OnInit {
       },
       'ov.clear': () => { this.clearEverything(); this.toast.say('Every filter cleared'); },
     });
-    this.destroyRef.onDestroy(() => { clearInterval(every); document.removeEventListener('visibilitychange', visible); off(); });
+    this.destroyRef.onDestroy(() => { clearTimeout(slowTimer); clearInterval(every); document.removeEventListener('visibilitychange', visible); off(); });
   }
 
-  load() {
-    this.api.getAll().subscribe({
+  // manual is a press of Try again or Refresh now, they say what happened. The quiet refresh every minute stays quiet.
+  load(manual = false) {
+    this.api.getAll().pipe(timeout(OverviewPage.GiveUpAfterMs)).subscribe({
       next: data => {
+        const wasStale = this.stale();
         this.items.set(data);
         this.loadedAt.set(Date.now());
         this.clock.set(Date.now());
         this.failure.set(null);
         this.stale.set(false);
         this.loading.set(false);
+        this.slow.set(false);
+        this.retrying.set(false);
+        this.refreshing.set(false);
+        if (manual && wasStale) this.toast.say('Numbers updated.');
+        // The page may have opened while the server was down, so who is signed in is still to be asked
+        this.auth.recheck();
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: HttpErrorResponse | Error) => {
+        this.retrying.set(false);
+        this.refreshing.set(false);
+        this.slow.set(false);
+        this.failedAt.set(new Date());
         // With numbers already on the page they stay, marked as out of date
-        if (this.loadedAt() !== null) { this.stale.set(true); return; }
-        this.failure.set(err.status === 0 ? 'no response from the server' : `the server answered ${err.status} ${err.statusText}`.trim());
+        if (this.loadedAt() !== null) {
+          this.stale.set(true);
+          if (manual) this.toast.say(`Still can't reach the server. These numbers are from ${this.staleText()}.`);
+          return;
+        }
+        const status = err instanceof HttpErrorResponse ? err.status : -1;
+        this.failureKind.set(status === -1 ? 'slow' : status === 0 ? 'down' : 'broken');
+        this.failure.set(status === -1 ? `no answer after ${OverviewPage.GiveUpAfterMs / 1000} seconds`
+          : status === 0 ? 'no response from the server'
+          : `the server answered ${status} ${(err as HttpErrorResponse).statusText}`.trim());
         this.loading.set(false);
+        // Pressing Try again and failing again leaves the person where they were, with a word about it
+        if (manual) {
+          this.toast.say(`Still can't reach the server. Tried again at ${this.failedTime()}.`);
+          afterNextRender(() => document.querySelector<HTMLElement>('.ov .notice-card .btn.solid')?.focus({ preventScroll: true }), { injector: this.injector });
+        }
       },
     });
     // The rules give the split lists their names and the price bands their size. Without them the page still works from the rows.
     this.api.schema().subscribe({ next: r => this.rules.set(r.fields), error: () => {} });
   }
 
+  // Try again keeps the failure card up and says it is trying, it doesn't swap the page for a grey one and back
   retry() {
-    this.loading.set(true);
-    this.failure.set(null);
-    this.load();
+    if (this.retrying()) return;
+    this.retrying.set(true);
+    this.load(true);
   }
+
+  refreshNow() {
+    if (this.refreshing()) return;
+    this.refreshing.set(true);
+    this.load(true);
+  }
+
+  failedTime = computed(() => (this.failedAt() ?? new Date()).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
+
+  // The words on the failure card, by what kind of trouble it was
+  failureText = computed(() => {
+    const tail = ' Nothing was changed.';
+    switch (this.failureKind()) {
+      case 'slow': return "The server is taking too long to answer, so the numbers can't be shown." + tail + ' Try again in a moment.';
+      case 'broken': return 'The server answered, but it has a problem right now, so the numbers can\'t be shown.' + tail + ' If it keeps happening, tell whoever looks after the server.';
+      default: return "The page couldn't reach the server, so the numbers can't be shown." + tail + ' If it keeps happening, tell whoever looks after the server.';
+    }
+  });
 
   staleText = computed(() => {
     const minutes = Math.max(0, Math.round((this.clock() - (this.loadedAt() ?? this.clock())) / 60000));
@@ -154,7 +213,7 @@ export class OverviewPage implements OnInit {
     const active = this.hov() ?? (this.sel().cmp ? null : d.effPick);
     const slice = d.slices.find(s => s.key === active);
     if (slice) return { label: slice.key, value: slice.count, text: '', sub: `${slice.pct} of industries`, size: 'big' };
-    if (d.cmpActive) return { label: 'Comparing', value: null, text: `${d.groups[0].length} / ${d.groups[1].length}`, sub: 'A / B', size: 'mid' };
+    if (d.cmpActive) return { label: 'Comparing', value: null, text: `${thousands(d.groups[0].length)} / ${thousands(d.groups[1].length)}`, sub: 'A / B', size: 'mid' };
     return { label: 'All industries', value: d.total, text: '', sub: `${d.dim.label.toLowerCase()} known`, size: 'big' };
   });
   centreNumber = countUp(() => this.centre().value ?? 0);
@@ -194,7 +253,17 @@ export class OverviewPage implements OnInit {
   }
 
   fmt(v: number): string {
-    return this.sel().metric === 'count' ? String(v) : v ? usd(v, 2) : '—';
+    return this.sel().metric === 'count' ? thousands(v) : v ? usd(v, 2) : '—';
+  }
+
+  // Counts for the page: 30,001 and not 30001
+  protected n = thousands;
+
+  // The label over each bar of a pair is short (2.3K) so two of them never run into each other
+  fmtPair(v: number): string {
+    if (!v) return '';
+    if (this.sel().metric !== 'count' || v < 1000) return this.fmt(v);
+    return (v / 1000).toFixed(v >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'K';
   }
 
   fmtBar(v: number): string {
@@ -202,7 +271,8 @@ export class OverviewPage implements OnInit {
   }
 
   barAria(b: Bar, i: number): string {
-    return `${this.view().periods[i].label}, ${this.fmt(b.shown)}${this.sel().metric === 'count' ? ' industries' : ' average price'}, press to filter`;
+    const shown = this.fmtBar(b.shown);
+    return `${shown ? shown + ', ' : ''}${this.view().periods[i].label}, ${this.fmt(b.shown)}${this.sel().metric === 'count' ? ' industries' : ' average price'}, press to filter`;
   }
 
   // The three lines in a bar's tooltip
@@ -212,12 +282,12 @@ export class OverviewPage implements OnInit {
     const hov = this.hov();
     let third = 'Click to filter by this period';
     if (d.stacked) {
-      if (hov) third = `${b.perSlice[d.dim.keys.indexOf(hov)] ?? 0} in ${hov}`;
+      if (hov) third = `${thousands(b.perSlice[d.dim.keys.indexOf(hov)] ?? 0)} in ${hov}`;
       else third = 'Split like the circle. Click to filter by this period';
     } else if (d.effPick) {
-      third = count ? `${b.shown} in ${d.effPick} (${b.all ? Math.round((b.shown / b.all) * 100) : 0}%)` : `${d.effPick}: ${this.fmt(b.shown)}`;
+      third = count ? `${thousands(b.shown)} in ${d.effPick} (${b.all ? Math.round((b.shown / b.all) * 100) : 0}%)` : `${d.effPick}: ${this.fmt(b.shown)}`;
     }
-    return [d.periods[i].label, count ? `${b.all} industries in total` : `Average ${this.fmt(b.all)} overall`, third];
+    return [d.periods[i].label, count ? `${thousands(b.all)} industries in total` : `Average ${this.fmt(b.all)} overall`, third];
   }
 
   // A stacked piece: the ink at the slice's shade, orange while that slice is hovered, the others fade
@@ -237,8 +307,8 @@ export class OverviewPage implements OnInit {
     const d = this.view();
     const last = d.periods[d.periods.length - 1];
     let text = d.stacked ? 'Each bar is split like the circle. Click a slice to see only its bars. ' : '';
-    if (d.leftOutNoDate) text += `${d.leftOutNoDate} without a release date are left out. `;
-    if (d.leftOutRange) text += `${d.leftOutRange} with a date before 1900 or after 2100 are left out. `;
+    if (d.leftOutNoDate) text += `${thousands(d.leftOutNoDate)} without a release date ${d.leftOutNoDate === 1 ? 'is' : 'are'} left out. `;
+    if (d.leftOutRange) text += `${thousands(d.leftOutRange)} with a date before 1900 or after 2100 ${d.leftOutRange === 1 ? 'is' : 'are'} left out. `;
     text += `5 year periods, the last is ${last.label}.`;
     if (this.sel().metric === 'avg') text += ` Bars are out of ${usd(this.priceMax(), 0)}. Averages cannot be stacked, so pick a slice to see its own bars.`;
     return text;
@@ -305,10 +375,10 @@ export class OverviewPage implements OnInit {
     const two = (v: number | null) => (v === null ? '—' : usd(v, 2));
     const three = (v: number | null) => (v === null ? '—' : usd(v, 3));
     return [
-      { label: 'Industries', a: String(a.count), b: String(b.count) },
+      { label: 'Industries', a: thousands(a.count), b: thousands(b.count) },
       { label: 'Average price', a: two(a.avg), b: two(b.avg) },
       { label: 'Highest price', a: three(a.max), b: three(b.max) },
-      { label: 'No price yet', a: String(a.nulls), b: String(b.nulls) },
+      { label: 'No price yet', a: thousands(a.nulls), b: thousands(b.nulls) },
     ];
   });
 
@@ -349,7 +419,7 @@ export class OverviewPage implements OnInit {
 
   private line(r: { id: number; sector: string | null; year: number | null }): string {
     const { rank, ranked } = this.ranks();
-    const place = rank.has(r.id) ? `#${rank.get(r.id)} of ${ranked} by price` : 'No price';
+    const place = rank.has(r.id) ? `#${thousands(rank.get(r.id)!)} of ${thousands(ranked)} by price` : 'No price';
     return `${place} · ${(r.sector ?? 'No sector').replace(' Sector', '')} · ${r.year === null ? 'no date' : r.year}`;
   }
 
@@ -366,7 +436,7 @@ export class OverviewPage implements OnInit {
     const at = rank.get(row.id);
     return {
       id: row.id, name: row.name,
-      rank: at ? `#${at} of ${ranked}` : 'No price yet',
+      rank: at ? `#${thousands(at)} of ${thousands(ranked)}` : 'No price yet',
       price: row.price === null ? '—' : usd(row.price, 3),
       sector: row.sector ?? 'No sector',
       released: row.year === null ? 'No date' : String(row.year),

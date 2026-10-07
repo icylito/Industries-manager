@@ -14,6 +14,7 @@
     --accent: #0a0a0a;
     --accent-text: #ffffff;
     --danger: #b42318;
+    --danger-on: #ffffff;
     --danger-bg: #991b1b;
     --hover: rgba(0, 0, 0, 0.035);
     --focus: rgba(0, 0, 0, 0.12);
@@ -56,6 +57,7 @@
         --accent-text: #050505;
         /* Light enough to read on an amber row too (5.4:1), #f97066 was 3.8:1 there */
         --danger: #fda29b;
+        --danger-on: #2a0a07;
         --danger-bg: #991b1b;
         --hover: rgba(255, 255, 255, 0.04);
         --focus: rgba(255, 255, 255, 0.2);
@@ -93,6 +95,7 @@
     --accent: #f5f5f5;
     --accent-text: #050505;
     --danger: #fda29b;
+    --danger-on: #2a0a07;
     --danger-bg: #991b1b;
     --hover: rgba(255, 255, 255, 0.04);
     --focus: rgba(255, 255, 255, 0.2);
@@ -125,7 +128,7 @@
         --surface-2: #242424;
         --text: #e2e2e2;
         --muted: #a3a3a3;
-        --faint: #939393;
+        --faint: #9c9c9c;
         --border: #2e2e2e;
         --border-strong: #454545;
         --accent: #e2e2e2;
@@ -150,7 +153,7 @@
     --surface-2: #242424;
     --text: #e2e2e2;
     --muted: #a3a3a3;
-    --faint: #939393;
+    --faint: #9c9c9c;
     --border: #2e2e2e;
     --border-strong: #454545;
     --accent: #e2e2e2;
@@ -166,6 +169,18 @@
     --skeleton-b: #2a2a2a;
     --cap-bg: #262626;
     --cap-border: #454545;
+}
+
+/* The Overview in light: the small grey notes and key hints get 5:1 or better (the shared grey is 4.5:1).
+   Light is either the chosen light or, with no choice, a light system, so dark from the system setting is left alone. */
+:root.admin-layout[data-theme="light"] {
+    --faint: #686868;
+}
+
+@media (prefers-color-scheme: light) {
+    :root.admin-layout:not([data-theme="dark"]) {
+        --faint: #686868;
+    }
 }
 
 html {
