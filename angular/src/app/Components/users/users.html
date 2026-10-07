@@ -25,6 +25,9 @@
                 </button>
                 <button type="button" class="cancel-btn" (click)="shown.set(null)">Done</button>
             </div>
+            @if (copyNote()) {
+                <p class="hint-line"><i class="fa-solid fa-circle-info" aria-hidden="true"></i>{{ copyNote() }}</p>
+            }
         </div>
     }
 

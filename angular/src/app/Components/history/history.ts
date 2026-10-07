@@ -315,6 +315,9 @@ export class HistoryPage implements OnInit {
     });
   }
 
+  // A settings file is a few KB. Anything near a megabyte is some other file picked by mistake.
+  static readonly SettingsFileMax = 1024 * 1024;
+
   // Reads the chosen file in the browser, then asks the API what it would change before anything is saved
   chooseSettingsFile(input: HTMLInputElement) {
     const chosen = input.files?.[0];
@@ -323,12 +326,21 @@ export class HistoryPage implements OnInit {
     this.settingsError.set('');
     this.settingsAsk.set(null);
     if (!chosen) return;
+    if (chosen.size > HistoryPage.SettingsFileMax) {
+      this.settingsError.set('That file is too big to be a settings file');
+      return;
+    }
     chosen.text().then(text => {
       let file: SettingsFile;
       try {
         file = JSON.parse(text);
       } catch {
         this.settingsError.set("That file couldn't be read. Use a file made with Export settings");
+        return;
+      }
+      // A list, a number or a file from another app gets the same answer the API would give, without the call
+      if (!file || typeof file !== 'object' || Array.isArray(file) || typeof file.app !== 'string') {
+        this.settingsError.set("That isn't a settings file from this app. Use a file made with Export settings");
         return;
       }
       this.settingsBusy.set(true);

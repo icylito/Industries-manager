@@ -63,6 +63,54 @@ describe('Auth', () => {
     expect(auth.isSignedIn()).toBe(false);
   });
 
+  // E2: a private window or blocked site data makes localStorage throw, the sign in still works for this visit
+  it('keeps the token in memory when storage is blocked, and sign out clears it', () => {
+    const broken = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); }, removeItem: () => { throw new Error('blocked'); } };
+    const get = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(broken.getItem);
+    const set = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(broken.setItem);
+    const remove = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(broken.removeItem);
+    try {
+      auth.login('sam', 'a long password').subscribe();
+      http.expectOne(`${environment.apiUrl}/auth/login`).flush({ token: 'mem', expiresAt: '', user: user('normal') });
+      expect(auth.token()).toBe('mem');
+      TestBed.inject(HttpClient).get(`${environment.apiUrl}/industries`).subscribe();
+      expect(http.expectOne(`${environment.apiUrl}/industries`).request.headers.get('Authorization')).toBe('Bearer mem');
+      auth.clear();
+      expect(auth.token()).toBeNull();
+    } finally {
+      get.mockRestore(); set.mockRestore(); remove.mockRestore();
+    }
+  });
+
+  // E3: what the interceptor does with a 401 and a 403
+  it('sends a 401 to Sign in with the page to come back to, but not for the sign in call or another site', () => {
+    auth.login('sam', 'a long password').subscribe();
+    http.expectOne(`${environment.apiUrl}/auth/login`).flush({ token: 'abc', expiresAt: '', user: user('admin') });
+    vi.spyOn(router, 'url', 'get').mockReturnValue('/fields?x=1');
+    const go = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+    TestBed.inject(HttpClient).get('https://example.com/other').subscribe({ error: () => {} });
+    http.expectOne('https://example.com/other').flush({}, { status: 401, statusText: 'Unauthorized' });
+    expect(go).not.toHaveBeenCalled();
+    expect(auth.isSignedIn()).toBe(true);
+
+    TestBed.inject(HttpClient).get(`${environment.apiUrl}/schema/versions`).subscribe({ error: () => {} });
+    http.expectOne(`${environment.apiUrl}/schema/versions`).flush({}, { status: 401, statusText: 'Unauthorized' });
+    expect(auth.isSignedIn()).toBe(false);
+    expect(go).toHaveBeenCalledWith(['/login'], { queryParams: { back: '/fields' } });
+  });
+
+  it('sends a 403 about a new password to the account page and leaves any other 403 alone', () => {
+    const byUrl = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    TestBed.inject(HttpClient).post(`${environment.apiUrl}/industries`, {}).subscribe({ error: () => {} });
+    http.expectOne(`${environment.apiUrl}/industries`).flush({ title: 'Not allowed' }, { status: 403, statusText: 'Forbidden' });
+    expect(byUrl).not.toHaveBeenCalled();
+
+    TestBed.inject(HttpClient).post(`${environment.apiUrl}/industries`, {}).subscribe({ error: () => {} });
+    http.expectOne(`${environment.apiUrl}/industries`).flush({ title: 'New password needed' }, { status: 403, statusText: 'Forbidden' });
+    expect(byUrl).toHaveBeenCalledWith('/account');
+  });
+
   it('lets guards through by role', () => {
     const run = (guard: typeof adminGuard, url: string) =>
       TestBed.runInInjectionContext(() => guard({} as never, { url } as never));
@@ -77,9 +125,15 @@ describe('Auth', () => {
     auth.user.set(user('admin'));
     expect(run(adminGuard, '/history')).toBe(true);
 
-    // A new account only gets the page to pick a password
+    // E10: a new account only gets the page to pick a password, from every guarded route, and can open that page
     auth.user.set(user('admin', true));
     expect(String(run(adminGuard, '/history'))).toBe('/account');
+    expect(String(run(adminGuard, '/fields'))).toBe('/account');
+    expect(String(run(adminGuard, '/users'))).toBe('/account');
     expect(String(run(signedInGuard, '/requests'))).toBe('/account');
+    expect(run(signedInGuard, '/account')).toBe(true);
+    auth.user.set(user('normal', true));
+    expect(String(run(signedInGuard, '/requests'))).toBe('/account');
+    expect(run(signedInGuard, '/account')).toBe(true);
   });
 });

@@ -138,12 +138,10 @@ export class IndustryApi {
         return new Observable<void>(subscriber => {
             this.http.get(url, { responseType: 'blob', observe: 'response' }).subscribe({
                 next: (res: HttpResponse<Blob>) => {
-                    const disposition = res.headers.get('Content-Disposition') ?? '';
-                    const named = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition)?.[1];
                     const link = document.createElement('a');
                     const href = URL.createObjectURL(res.body as Blob);
                     link.href = href;
-                    link.download = named ? decodeURIComponent(named) : fallbackName;
+                    link.download = fileNameFrom(res.headers.get('Content-Disposition'), fallbackName);
                     document.body.appendChild(link);
                     link.click();
                     link.remove();
@@ -179,6 +177,22 @@ export class IndustryApi {
     }
     setRequestStatus(id: number, status: 'open' | 'done' | 'dismissed'): Observable<DevRequest> {
         return this.http.put<DevRequest>(`${this.apiUrl}/requests/${id}/status`, { status });
+    }
+}
+
+// The file name out of a Content-Disposition header. filename* (percent encoded, any language) wins over filename,
+// quotes come off, a name that can't be decoded or that isn't there at all falls back to the given one.
+export function fileNameFrom(disposition: string | null, fallbackName: string): string {
+    const text = disposition ?? '';
+    const star = /filename\*\s*=\s*(?:[\w-]*'[\w-]*')?"?([^";]+)"?/i.exec(text)?.[1];
+    const plain = /(?:^|;)\s*filename\s*=\s*(?:"([^"]*)"|([^;]+))/i.exec(text);
+    const raw = (star ?? plain?.[1] ?? plain?.[2] ?? '').trim();
+    if (!raw) return fallbackName;
+    try {
+        const name = (star ? decodeURIComponent(raw) : raw).replace(/[\\/]/g, '_').trim();
+        return name || fallbackName;
+    } catch {
+        return fallbackName;
     }
 }
 

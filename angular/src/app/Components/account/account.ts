@@ -33,6 +33,10 @@ export class AccountPage {
       this.error.set("The two new passwords don't match");
       return;
     }
+    if (this.next() === this.current()) {
+      this.error.set("Pick a password you haven't used just now");
+      return;
+    }
     const first = this.auth.user()?.mustChangePassword === true;
     this.busy.set(true);
     this.auth.changePassword(this.current(), this.next()).subscribe({

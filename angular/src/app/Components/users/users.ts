@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { AuthUser } from '../../models/industry';
 import { Auth } from '../../services/auth';
@@ -29,6 +29,12 @@ export class UsersPage implements OnInit {
   // A temporary password is shown once, here, and gone when the page is left
   shown = signal<{ username: string; password: string; created: boolean } | null>(null);
   copied = signal(false);
+  // When the browser won't copy (no clipboard on plain http from another PC, or it refused), say so instead of nothing
+  copyNote = signal('');
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => { this.shown.set(null); this.copied.set(false); this.copyNote.set(''); });
+  }
 
   ngOnInit() {
     this.load();
@@ -49,12 +55,14 @@ export class UsersPage implements OnInit {
   add() {
     if (this.busy()) return;
     this.addError.set('');
-    if (!this.newName().trim()) {
+    // Usernames are saved trimmed and lowercase, so send them that way and the person sees what gets saved
+    const username = this.newName().trim().toLowerCase();
+    if (!username) {
       this.addError.set('Type a username');
       return;
     }
     this.busy.set(true);
-    this.api.createUser(this.newName(), this.newRole()).subscribe({
+    this.api.createUser(username, this.newRole()).subscribe({
       next: r => {
         this.busy.set(false);
         this.newName.set('');
@@ -110,6 +118,15 @@ export class UsersPage implements OnInit {
   }
 
   copy(text: string) {
-    navigator.clipboard?.writeText(text).then(() => this.copied.set(true), () => {});
+    this.copyNote.set('');
+    const clipboard = navigator.clipboard;
+    if (!clipboard?.writeText) {
+      this.copyNote.set('Select the password and copy it yourself');
+      return;
+    }
+    clipboard.writeText(text).then(
+      () => this.copied.set(true),
+      () => this.copyNote.set('Select the password and copy it yourself'),
+    );
   }
 }

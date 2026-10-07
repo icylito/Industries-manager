@@ -120,6 +120,32 @@ describe('HistoryPage', () => {
     http.expectOne(r => r.url.endsWith('/history/settings'));
   });
 
+  // E6: the settings file is checked on the page before anything goes to the API
+  it('refuses a settings file that is too big, not JSON, a list, or from another app', async () => {
+    const page = setup().componentInstance;
+    const pick = (content: string, size?: number) => {
+      const file = new File([content], 'settings.json', { type: 'application/json' });
+      if (size !== undefined) Object.defineProperty(file, 'size', { value: size });
+      const input = document.createElement('input');
+      Object.defineProperty(input, 'files', { value: [file], configurable: true });
+      page.chooseSettingsFile(input);
+    };
+    const settle = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
+
+    pick('{}', 2 * 1024 * 1024); await settle();
+    expect(page.settingsError()).toBe('That file is too big to be a settings file');
+    pick('not json'); await settle();
+    expect(page.settingsError()).toBe("That file couldn't be read. Use a file made with Export settings");
+    pick('[1, 2]'); await settle();
+    expect(page.settingsError()).toBe("That isn't a settings file from this app. Use a file made with Export settings");
+    pick('{"retention": {}}'); await settle();
+    expect(page.settingsError()).toBe("That isn't a settings file from this app. Use a file made with Export settings");
+    http.expectNone(r => r.url.endsWith('/history/settings/import/preview'));
+
+    pick('{"app": "stock-listing", "format": 1}'); await settle();
+    http.expectOne(r => r.url.endsWith('/history/settings/import/preview'));
+  });
+
   it('names the backup a version was saved before', () => {
     const page = setup().componentInstance;
     expect(page.describe('Before restoring backup 2026-10-07_020000_nightly')).toMatch(/^Before restoring the backup from Oct 7, 2026/);
