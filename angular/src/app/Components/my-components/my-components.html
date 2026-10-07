@@ -331,7 +331,7 @@
                             <td class="actions">
                                 @if (confirmingId() === item.id) {
                                     <!-- The question names the row on a wide screen, the narrow cell on a phone keeps it short and the button carries the name -->
-                                    <span class="confirm-text"><span class="long">Delete {{ shortName(item.name) }}?</span><span class="short">Delete for good?</span></span>
+                                    <span class="confirm-text"><span class="long">Are you sure you want to delete {{ shortName(item.name) }}?</span><span class="short">Are you sure you want to delete it?</span></span>
                                     <button type="button" class="edit-btn" [disabled]="deletingId() === item.id" (click)="confirmingId.set(null)" aria-label="Cancel"><i class="fa-solid fa-xmark" aria-hidden="true"></i><span class="btn-text">Cancel</span></button>
                                     <button type="button" class="remove-btn confirming" [attr.aria-label]="'Delete ' + item.name" [attr.title]="'Delete ' + item.name" [disabled]="deletingId() === item.id" (click)="remove(item.id)">
                                         @if (deletingId() === item.id) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i><span class="btn-text">Deleting...</span> }

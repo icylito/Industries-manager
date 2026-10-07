@@ -17,10 +17,8 @@
     display: block;
     padding: 0.85rem 1.1rem;
     color: var(--p-muted);
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
 }
 
 th.num .th{
@@ -300,10 +298,8 @@ a.add-btn{
     padding: 0.1rem 0.5rem;
     border: 1px solid var(--p-text);
     border-radius: 999px;
-    font-size: 0.65rem;
+    font-size: 0.72rem;
     font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
 }
 
 /* Export and Import settings sit side by side and wrap on a phone */

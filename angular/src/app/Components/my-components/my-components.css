@@ -51,12 +51,11 @@ i{
     font-variant-numeric: tabular-nums;
 }
 
+/* Small labels are plain sentence case everywhere, no capitals */
 .stat-label{
     color: var(--muted);
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
 }
 
 /* Form card */
@@ -510,10 +509,8 @@ select.placeholder option{
     border: 1px solid var(--p-border);
     border-radius: 999px;
     color: var(--p-muted);
-    font-size: 0.7rem;
+    font-size: 0.78rem;
     font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
 }
 
 .db-status i{
@@ -539,10 +536,8 @@ select.placeholder option{
     padding: 0 0.75rem;
     border-radius: 8px;
     color: var(--p-muted);
-    font-size: 0.75rem;
+    font-size: 0.85rem;
     font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
 }
 
 .tool-btn:hover:not(:disabled){
@@ -579,9 +574,7 @@ select.placeholder option{
 
 .panel .filter-label{
     color: var(--p-muted);
-    font-size: 0.7rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    font-size: 0.78rem;
 }
 
 .filters{
@@ -685,10 +678,8 @@ th{
     gap: 0.45rem;
     padding: 0.85rem 1.1rem;
     color: var(--p-muted);
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
 }
 
 .sort-btn i{
@@ -903,10 +894,8 @@ input.bad{
     gap: 1rem;
     margin-top: 1rem;
     color: var(--p-muted);
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    font-size: 0.8rem;
+    font-weight: 500;
 }
 
 .pager{

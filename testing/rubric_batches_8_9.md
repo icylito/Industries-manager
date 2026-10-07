@@ -27,7 +27,7 @@ Written by an Opus 5.5 critic from the claims in README.md, plan.md and report.t
 ### 3. Delete says what went
 
 * **Observe:** Main table at 1280px, light. Click Delete on the long name row, read the question, then confirm. Do the same on another row at 390px. Last, on the Fields page at 1280px, delete the custom field.
-* **Pass:** At 1280px the question reads "Delete <name cut at 24 characters>?". After confirming, the line "Deleted 1 row from Industries: <full name>." appears above the table. At 390px the visible text is "Delete for good?" and the confirm button's aria-label and title both read "Delete <full name>". On Fields the message reads "Deleted <label>. Its values were removed from 12 rows in Industries." and the number matches the setup.
+* **Pass:** At 1280px the question reads "Are you sure you want to delete <name cut at 24 characters>?". After confirming, the line "Deleted 1 row from Industries: <full name>." appears above the table. At 390px the visible text is "Are you sure you want to delete it?" and the confirm button's aria-label and title both read "Delete <full name>". On Fields the message reads "Deleted <label>. Its values were removed from 12 rows in Industries." and the number matches the setup.
 * **Fail:** Either question lacks the wording above, no line appears after a delete, the line names the wrong row or table, the phone button has no name in aria-label or title, or the Fields number is wrong or missing.
 
 ### 4. Phone layout at 390px
@@ -70,12 +70,12 @@ Written by an Opus 5.5 critic from the claims in README.md, plan.md and report.t
 * **Observe:** At 1280px, light, look at the sign in page, the main table toolbar and headers, the Connected badge (hover it or read its title), and History's Keep old versions with both boxes empty. With the network throttled to Slow 3G, open History and watch the Backups list. On the people page, with `navigator.clipboard` removed in the console, add a person and press Copy.
 * **Pass:** All of these hold:
   * The sign in card title reads "Welcome back" and the card's left edge lines up with the page title.
-  * The search placeholder reads "Search by name" and the entries control reads "Show 10 entries" in sentence case, while the table headers stay small capitals.
+  * The search placeholder reads "Search by name" and the entries control reads "Show 10 entries" in sentence case, and no small label anywhere is in capitals (table headers, filter labels, the Connected badge, Print and Export CSV, tags, the "Showing 1 to 10" line).
   * The Connected badge's title is "The page can reach the database".
   * With the boxes empty, no "days" or "versions" unit shows, so the page never reads "Never days".
   * "Loading backups" with a spinner shows before the list fills in.
   * The people page says "Select the password and copy it yourself".
-* **Fail:** Any of these strings is missing, different or in capitals, the card is centred while the page title is left aligned, a unit shows next to an empty box, the Backups list is blank while it loads, or Copy fails with no message.
+* **Fail:** Any of these strings is missing, different or in capitals, any small label is in capitals, the card is centred while the page title is left aligned, a unit shows next to an empty box, the Backups list is blank while it loads, or Copy fails with no message.
 
 ### 10. Https
 
@@ -90,7 +90,7 @@ Take these in order, because the restore and deletes change the data.
 1. **History at 1280px, light, Slow 3G throttling.** Screenshot the "Loading backups" line, then the Backups list with row counts and the disabled "Other table layout" button. Then open Restore on the setup backup and take one screenshot with "restore" typed and one with "RESTORE" typed. In the console, check the other layout button's disabled attribute. Covers 1, 2 and part of 9.
 2. **History at 1280px, light, after confirming the restore.** Screenshot the result line and the new version at the top of Saved versions. Then empty both Keep old versions boxes and screenshot that section. Covers 2 and part of 9.
 3. **Main table at 1280px, light.** Screenshot the long name delete question, then the "Deleted 1 row from Industries" line. Screenshot the toolbar and headers. Read the Connected badge's title in the console. Press Add on the empty form and screenshot it, then read aria-describedby, the message ids and aria-invalid in the console. Tab onto the nav link, the search box, a flag and a Delete button, screenshot each focus, and read the computed outline. Covers 3, 5, 7 and part of 9.
-4. **Main table and History at 390px, light, admin.** Screenshot the nav, the long name row and the "Delete for good?" state. In the console, run the scrollWidth check on both pages, read each label's font size, the name cell's text overflow and the edges of the name and Actions cells, and the confirm button's aria-label and title. Screenshot a History card. Covers 3 and 4.
+4. **Main table and History at 390px, light, admin.** Screenshot the nav, the long name row and the "Are you sure you want to delete it?" state. In the console, run the scrollWidth check on both pages, read each label's font size, the name cell's text overflow and the edges of the name and Actions cells, and the confirm button's aria-label and title. Screenshot a History card. Covers 3 and 4.
 5. **Fields at 1280px, light.** Screenshot the delete message for the custom field. Then on the account page, try the three bad passwords with the Network tab open and screenshot each message along with the empty request list. Covers 3 and 5.
 6. **Main table and History at 1280px, dark.** Screenshot a disabled button, an amber row with danger red, and a focused nav link. In the console, read the computed colours and the disabled button's opacity, and work out the ratios for every pair in criterion 6. Do the same pairs again in light. Covers 6 and 7.
 7. **Sign in, History import, people page and guest view at 1280px, light.** Screenshot the sign in card. Record where each of the five back values lands. Screenshot each refused settings file next to an empty Network tab. Screenshot the copy message with the clipboard removed. Sign out, then screenshot the guest table and its Network tab. Covers 8 and part of 9.

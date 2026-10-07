@@ -63,7 +63,7 @@
                             <td class="actions">
                                 @if (u.id !== auth.user()?.id) {
                                     @if (pending()?.user?.id === u.id) {
-                                        <span class="confirm-text">{{ pending()?.action === 'off' ? 'Turn off and sign them out?' : 'Give a new password?' }}</span>
+                                        <span class="confirm-text">{{ pending()?.action === 'off' ? 'Are you sure you want to turn this account off? They get signed out.' : 'Are you sure you want to give them a new password?' }}</span>
                                         <button type="button" class="edit-btn" [disabled]="busy()" (click)="pending.set(null)">Cancel</button>
                                         <button type="button" class="remove-btn" [disabled]="busy()" (click)="confirm()">{{ pending()?.action === 'off' ? 'Turn off' : 'New password' }}</button>
                                     } @else if (u.disabled) {
