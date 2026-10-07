@@ -206,11 +206,146 @@
         line-height: 1;
     }
 
-    .nav-links a[aria-label="Add"] span, .nav-links a[aria-label^="Your account"] span{
+    .nav-links a[aria-label="Add"] span, .nav-links a[aria-label="Overview"] span, .nav-links a[aria-label^="Your account"] span{
         display: none;
     }
 
     .nav-links i{
         font-size: 0.9rem;
+    }
+}
+
+/* The Overview's slim nav: brand, the page tabs, then the theme button and the account pill. It scrolls away with the page. */
+.admin-nav{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+    padding: 10px 12px 10px 20px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+}
+
+.admin-nav .brand{
+    gap: 8px;
+    font-size: 17px;
+}
+
+.tabs{
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+.tabs a{
+    padding: 9px 18px;
+    border-radius: 999px;
+    color: var(--muted);
+    text-decoration: none;
+}
+
+.tabs a:hover{
+    color: var(--text);
+}
+
+.tabs a.current{
+    background: var(--surface-2);
+    color: var(--text);
+    font-weight: 600;
+}
+
+.side{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.theme-btn{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 40px;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text);
+    cursor: pointer;
+}
+
+.theme-btn:hover, .who:hover{
+    background: var(--border);
+}
+
+.who{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.admin-nav a:focus-visible, .admin-nav button:focus-visible{
+    outline: 2px solid var(--signal);
+    outline-offset: 2px;
+}
+
+@media (max-width: 560px) {
+    .admin-nav{
+        padding-left: 14px;
+    }
+
+    .admin-nav .brand-text, .who span{
+        display: none;
+    }
+
+    .tabs a{
+        padding: 9px 12px;
+    }
+
+    .who{
+        padding: 9px 12px;
+    }
+}
+
+/* One line at the bottom, above the dimmed page and the Shortcuts panel. It is dark on the light page and light on the dark one. */
+.toast{
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 24px;
+    z-index: 60;
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    margin: 0 auto;
+    padding: 10px 18px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    animation: toast-in 0.25s ease both;
+}
+
+@keyframes toast-in{
+    from{ opacity: 0; transform: translateY(-4px); }
+    to{ opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .toast{
+        animation: none;
     }
 }

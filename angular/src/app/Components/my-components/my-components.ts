@@ -2,8 +2,12 @@ import { Component, signal, computed, inject, OnInit, HostListener, DestroyRef }
 import { Industry, CreateIndustry, DbHealth, FieldRule, RuleSet } from '../../models/industry';
 import { Auth } from '../../services/auth';
 import { IndustryApi } from '../../services/industry-api';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, ParamMap, RouterLink } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
+
+// The words in ?flags= that Browse understands
+export type FlagKey = 'duplicate' | 'lost' | 'noprice' | 'nodate';
 
 // A custom field can be named constructor or toString. A plain obj[key] would return a built in function.
 function own(obj: object | null | undefined, key: string): unknown {
@@ -22,6 +26,7 @@ export class MyComponents implements OnInit {
   private api = inject(IndustryApi);
   protected auth = inject(Auth);
   private fb = inject(FormBuilder);
+  private route = inject(ActivatedRoute);
 
   // General Table logic 
 
@@ -307,6 +312,7 @@ export class MyComponents implements OnInit {
       next: data => {
         this.industries.set(data);
         this.loading.set(false);
+        this.finishSeeding();
     },
     error: () => {
       // Before deleting take place this pop up will confirm if you really want it off
@@ -372,23 +378,53 @@ export class MyComponents implements OnInit {
   sectorFilter = signal('');
   minPrice = signal<number | null>(null);
   maxPrice = signal<number | null>(null);
+  // Release dates as 'YYYY-MM-DD', both ends included. A row with no release date never matches a range.
+  releaseFrom = signal<string | null>(null);
+  releaseTo = signal<string | null>(null);
+  // The "needs attention" filters. A row passes when it has any of the chosen ones, every other filter has to pass as well.
+  flagFilter = signal<ReadonlySet<FlagKey>>(new Set());
 
-  filtered = computed(() =>
-  this.industries().filter(i => i.name.toLowerCase()
+  // The words in ?flags=, see the Overview page (Components/overview). Anything else in the address is ignored.
+  readonly flagChoices: { key: FlagKey; label: string; has: (i: Industry) => boolean }[] = [
+    { key: 'duplicate', label: 'A similar row exists', has: i => i.duplicateOf !== null },
+    { key: 'lost', label: 'Lost fields', has: i => (i.lostFields?.length ?? 0) > 0 },
+    { key: 'noprice', label: 'No price', has: i => i.price === null },
+    { key: 'nodate', label: 'No release date', has: i => i.release === null },
+  ];
+
+  filtered = computed(() => {
+    const flags = this.flagChoices.filter(f => this.flagFilter().has(f.key));
+    const from = this.releaseFrom();
+    const to = this.releaseTo();
+    return this.industries().filter(i => i.name.toLowerCase()
   .includes(this.search().toLowerCase()))
   .filter(i => !this.sectorFilter() || i.sector === this.sectorFilter())
   .filter(i => this.minPrice() === null || (i.price ?? -Infinity) >= this.minPrice()!)
-  .filter(i => this.maxPrice() === null || (i.price ?? Infinity) <= this.maxPrice()!))
+  .filter(i => this.maxPrice() === null || (i.price ?? Infinity) <= this.maxPrice()!)
+  // Dates are YYYY-MM-DD, so comparing them as text is comparing them as dates
+  .filter(i => (from === null && to === null) || (i.release !== null && (from === null || i.release >= from) && (to === null || i.release <= to)))
+  .filter(i => flags.length === 0 || flags.some(f => f.has(i)));
+  })
 
   sectors = computed(() =>
     [...new Set(this.industries().map(i => i.sector).filter((s): s is string => !!s))].sort());
 
   hasFilters = computed(() =>
-    !!this.search() || !!this.sectorFilter() || this.minPrice() !== null || this.maxPrice() !== null);
+    !!this.search() || !!this.sectorFilter() || this.minPrice() !== null || this.maxPrice() !== null
+    || this.releaseFrom() !== null || this.releaseTo() !== null || this.flagFilter().size > 0);
 
   // Number inputs give '' when empty, keep that as "no limit"
   toNumber(value: string): number | null {
     return value === '' ? null : Number(value);
+  }
+
+  toggleFlag(key: FlagKey) {
+    this.flagFilter.update(set => {
+      const next = new Set(set);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+    this.page.set(1);
   }
 
   clearFilters() {
@@ -396,7 +432,61 @@ export class MyComponents implements OnInit {
     this.sectorFilter.set('');
     this.minPrice.set(null);
     this.maxPrice.set(null);
+    this.releaseFrom.set(null);
+    this.releaseTo.set(null);
+    this.flagFilter.set(new Set());
     this.page.set(1);
+  }
+
+  // The Overview page opens Browse with filters in the address, like /?sector=Private%20Sector&flags=duplicate,lost
+  // (all the words are in the Overview's browseParams). They only seed the filters when the page opens: typing in the
+  // filters works as before and nothing is written back to the address. Anything Browse doesn't know is ignored.
+  private seedFromAddress(params: ParamMap) {
+    const number = (key: string) => {
+      const raw = params.get(key);
+      const n = raw === null || raw.trim() === '' ? NaN : Number(raw);
+      return Number.isFinite(n) ? n : null;
+    };
+    const date = (key: string) => {
+      const raw = params.get(key);
+      if (raw === null || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+      const d = new Date(raw + 'T00:00:00Z');
+      return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== raw ? null : raw;
+    };
+    const flags = (params.get('flags') ?? '').split(',').map(f => f.trim())
+      .filter((f): f is FlagKey => this.flagChoices.some(c => c.key === f));
+    const edit = number('edit');
+    const seeded = {
+      q: params.get('q') ?? '', sector: params.get('sector') ?? '', min: number('minPrice'), max: number('maxPrice'),
+      from: date('releaseFrom'), to: date('releaseTo'), flags,
+    };
+    if (seeded.q) this.search.set(seeded.q);
+    if (seeded.sector) this.sectorFilter.set(seeded.sector);
+    if (seeded.min !== null) this.minPrice.set(seeded.min);
+    if (seeded.max !== null) this.maxPrice.set(seeded.max);
+    if (seeded.from !== null) this.releaseFrom.set(seeded.from);
+    if (seeded.to !== null) this.releaseTo.set(seeded.to);
+    if (flags.length) this.flagFilter.set(new Set(flags));
+    // "Edit in Browse" on the Overview: opens this one row in the form once the rows are here
+    if (edit !== null) this.pendingEdit = edit;
+    this.seedPending = true;
+    if (!this.loading()) this.finishSeeding();
+  }
+
+  private pendingEdit: number | null = null;
+  // Set until the rows have been checked against what the address asked for, so it happens once and not after every save
+  private seedPending = false;
+
+  // A sector that isn't in the table would leave an empty list and a select showing nothing, so it's dropped
+  private finishSeeding() {
+    if (!this.seedPending) return;
+    this.seedPending = false;
+    if (this.sectorFilter() && !this.sectors().includes(this.sectorFilter())) this.sectorFilter.set('');
+    if (this.pendingEdit !== null) {
+      const row = this.industries().find(i => i.id === this.pendingEdit);
+      this.pendingEdit = null;
+      if (row && this.auth.isSignedIn()) this.edit(row);
+    }
   }
 
   // Sorting, click a header to sort, click again to flip. Labels follow the rules, custom fields get their own column.
@@ -492,6 +582,7 @@ export class MyComponents implements OnInit {
 
   constructor() {
     this.form.controls.release.valueChanges.subscribe(v => this.releaseValue.set(v || null));
+    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe(params => this.seedFromAddress(params));
   }
 
   private firstOfMonth(d: Date) {

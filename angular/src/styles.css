@@ -22,6 +22,22 @@
     /* Similar rows from an import, the one color in the black and white design */
     --similar-bg: rgba(245, 158, 11, 0.3);
     --similar-edge: #d97706;
+    /* Admin Overview. One signal color that only ever means "this is selected". The design's #d9481a was 4.3:1 with white text,
+       this one is 5.1:1. Charts draw in --text and step lighter with opacity, so they flip with the theme by themselves. */
+    --signal: #c63f12;
+    --signal-text: #ffffff;
+    --text-2: #3a3a3a;
+    --track: #ececec;
+    --miss: #d4d4d4;
+    --skeleton-a: #f1f1f1;
+    --skeleton-b: #e4e4e4;
+    --danger-soft: #fdecea;
+    --warn-soft: #fff7f6;
+    --warn-soft-border: #f6d6d2;
+    --warn-soft-text: #8a1c12;
+    --cap-bg: #f7f7f7;
+    --cap-border: #cfcfcf;
+    --pop-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
 }
 
 /* Dark mode follows the OS setting, no toggle needed */
@@ -47,6 +63,20 @@
         --nav-bg: rgba(14, 14, 14, 0.96);
         --similar-bg: rgba(251, 191, 36, 0.3);
         --similar-edge: #fbbf24;
+        --signal: #ff7a4d;
+        --signal-text: #1a0a04;
+        --text-2: #c8c8c8;
+        --track: #232323;
+        --miss: #3a3a3a;
+        --skeleton-a: #161616;
+        --skeleton-b: #232323;
+        --danger-soft: rgba(253, 162, 155, 0.14);
+        --warn-soft: rgba(253, 162, 155, 0.08);
+        --warn-soft-border: rgba(253, 162, 155, 0.28);
+        --warn-soft-text: #fda29b;
+        --cap-bg: #1c1c1c;
+        --cap-border: #3a3a3a;
+        --pop-shadow: 0 18px 48px rgba(0, 0, 0, 0.7);
     }
 }
 
@@ -70,6 +100,20 @@
     --nav-bg: rgba(14, 14, 14, 0.96);
     --similar-bg: rgba(251, 191, 36, 0.3);
     --similar-edge: #fbbf24;
+    --signal: #ff7a4d;
+    --signal-text: #1a0a04;
+    --text-2: #c8c8c8;
+    --track: #232323;
+    --miss: #3a3a3a;
+    --skeleton-a: #161616;
+    --skeleton-b: #232323;
+    --danger-soft: rgba(253, 162, 155, 0.14);
+    --warn-soft: rgba(253, 162, 155, 0.08);
+    --warn-soft-border: rgba(253, 162, 155, 0.28);
+    --warn-soft-text: #fda29b;
+    --cap-bg: #1c1c1c;
+    --cap-border: #3a3a3a;
+    --pop-shadow: 0 18px 48px rgba(0, 0, 0, 0.7);
 }
 
 html {
@@ -106,4 +150,30 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
     color: var(--text);
     text-decoration: underline;
     text-underline-offset: 0.15em;
+}
+
+/* The Shortcuts panel and the theme button, see app.html. The page steps aside so the panel sits clean in the middle. */
+.app{
+    transform-origin: 50% 0;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+html.shortcuts-open .app{
+    opacity: 0.6;
+    transform: translateX(-3%) scale(0.95);
+}
+
+/* Switching light and dark fades the colors for a moment, nothing moves. The class is only there while it fades. */
+html.theme-fade, html.theme-fade *, html.theme-fade *::before, html.theme-fade *::after{
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, fill 0.3s ease, stroke 0.3s ease !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app{
+        transition: none;
+    }
+
+    html.theme-fade, html.theme-fade *, html.theme-fade *::before, html.theme-fade *::after{
+        transition: none !important;
+    }
 }
