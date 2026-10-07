@@ -279,10 +279,7 @@ button:active:not(:disabled){
     transform: translateY(1px);
 }
 
-button:focus-visible{
-    outline: none;
-    box-shadow: 0 0 0 4px var(--focus);
-}
+/* Keyboard focus on a button is the same 2px outline every link gets, from styles.css. One ring, not a glow and a ring. */
 
 /* Disabled buttons keep full opacity and go grey instead. At 0.6 opacity the text read at 3:1, grey text reads at 5:1. */
 button:disabled{

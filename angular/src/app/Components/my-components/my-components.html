@@ -152,7 +152,8 @@
                     <i class="fa-solid fa-xmark" aria-hidden="true"></i>Cancel
                 </button>
             }
-            <button type="submit" class="add-btn" [disabled]="form.invalid || customInvalid() || saving()">
+            <!-- Always pressable: pressing it with a problem shows the problem under its box instead of doing nothing -->
+            <button type="submit" class="add-btn" [disabled]="saving()">
                 @if (saving()) {
                     <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Saving
                 } @else if (editingId() === null) {

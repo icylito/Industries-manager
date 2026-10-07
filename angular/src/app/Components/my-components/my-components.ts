@@ -50,10 +50,11 @@ export class MyComponents implements OnInit {
   formError = signal('');
 
    submit() {
-    if (this.form.invalid) {
-      // The problem shows under the box it belongs to
+    if (this.form.invalid || this.customInvalid()) {
+      // The problems show under the boxes they belong to
       this.form.markAllAsTouched();
       if (this.form.controls.sector.hasError('required')) this.form.controls.sector.markAsDirty();
+      this.extraTouched.set(new Set(this.customFields().map(f => f.key)));
       return;
     }
 
