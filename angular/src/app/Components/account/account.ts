@@ -8,7 +8,7 @@ type Box = 'current' | 'next' | 'repeat';
 
 @Component({
   selector: 'app-account',
-  imports: [RouterLink],
+  imports: [],
   styleUrls: ['../my-components/my-components.css', '../history/history.css', '../login/login.css', './account.css'],
   templateUrl: './account.html',
 })

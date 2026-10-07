@@ -15,8 +15,8 @@ export const routes: Routes = [
     { path: 'settings', canActivate: [adminGuard], loadComponent: () => import('./Components/settings/settings').then(m => m.SettingsPage), data: { title: 'Settings', lede: 'Your account, and the people who can sign in.', admin: true } },
     // The People page moved inside Settings, so an old link still lands somewhere useful
     { path: 'users', redirectTo: 'settings' },
-    { path: 'history', canActivate: [adminGuard], loadComponent: () => import('./Components/history/history').then(m => m.HistoryPage), data: { title: 'History', lede: 'Every saved copy of the table. View, download, restore, or bring old rows back.', admin: true } },
-    { path: 'fields', canActivate: [adminGuard], loadComponent: () => import('./Components/fields/fields').then(m => m.FieldsPage), data: { title: 'Fields', lede: 'What each column holds and its limits. Every save is a new version.', admin: true } },
+    { path: 'history', canActivate: [adminGuard], loadComponent: () => import('./Components/history/history').then(m => m.HistoryPage), data: { title: 'History', lede: 'Every saved copy of the table. View, download, restore, or bring old rows back.' } },
+    { path: 'fields', canActivate: [adminGuard], loadComponent: () => import('./Components/fields/fields').then(m => m.FieldsPage), data: { title: 'Fields', lede: 'What each column holds and its limits. Every save is a new version.' } },
     { path: 'requests', canActivate: [signedInGuard], loadComponent: () => import('./Components/requests/requests').then(m => m.RequestsPage), data: { title: 'Requests', lede: 'Things that need a developer, each with the steps written out for them.' } },
     { path: '**', redirectTo: '' },
 ];

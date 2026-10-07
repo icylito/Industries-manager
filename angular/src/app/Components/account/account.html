@@ -60,6 +60,7 @@
         <!-- Parked 2026-10-08: the admin page links came off this page for now, at the user's request.
              History and Fields are still reachable from the nav on Browse, so nothing is orphaned.
              Uncomment the block below to bring them back, and change the test in account.spec.ts with it.
+             The RouterLink import has to come back into account.ts's imports array with the block, it was removed while the links are parked.
         @if (user.role === 'admin') {
             <div class="admin-links">
                 <p class="field-label">Admin pages</p>

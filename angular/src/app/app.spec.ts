@@ -36,7 +36,7 @@ class StubPage {}
 
 // The admin pages share the Overview's slim nav and its colours. The table, Sign in and Account keep the normal nav.
 describe('App admin shell', () => {
-  const adminPaths = ['overview', 'history', 'fields', 'settings'];
+  const adminPaths = ['overview', 'settings'];
   const isAdminRoute = (path: string) => routes.find(r => r.path === path)?.data?.['admin'] === true;
 
   afterEach(() => {
@@ -45,9 +45,11 @@ describe('App admin shell', () => {
   });
 
   it('marks every admin page in the route table, and nothing else', () => {
-    expect(adminPaths.map(isAdminRoute)).toEqual([true, true, true, true]);
+    expect(adminPaths.map(isAdminRoute)).toEqual([true, true]);
     expect(isAdminRoute('')).toBe(false);
     expect(isAdminRoute('requests')).toBe(false);
+    expect(isAdminRoute('history')).toBe(false);
+    expect(isAdminRoute('fields')).toBe(false);
   });
 
   describe('on an admin page', () => {
@@ -80,7 +82,7 @@ describe('App admin shell', () => {
 
     // Opening an admin page straight from the address must not show the other nav first
     it('is already the admin shell on the first paint, before the router has settled', () => {
-      history.pushState({}, '', '/history');
+      history.pushState({}, '', '/overview');
       const fixture = TestBed.createComponent(App);
       fixture.detectChanges();
       expect((fixture.nativeElement as HTMLElement).querySelector('nav.admin-nav')).toBeTruthy();
@@ -131,6 +133,8 @@ describe('App admin shell', () => {
       expect(nav.querySelector('a[href="/overview"]')).toBeFalsy();
       expect(nav.querySelector('a[href="/users"]')).toBeFalsy();
       expect(nav.querySelector('a[href="/settings"]')).toBeTruthy();
+      expect(nav.querySelector('a[href="/history"]')).toBeTruthy();
+      expect(nav.querySelector('a[href="/fields"]')).toBeTruthy();
     });
   });
 });
