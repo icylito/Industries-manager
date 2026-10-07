@@ -13,29 +13,36 @@
         }
 
         <form class="auth-form" (submit)="submit($event)">
+            <!-- Each problem sits under its own box, aria-describedby ties them together for screen readers -->
             <label class="field">
                 <span class="field-label">{{ user.mustChangePassword ? 'The temporary password you were given' : 'Current password' }}</span>
                 <span class="control">
                     <i class="fa-solid fa-key" aria-hidden="true"></i>
-                    <input type="password" autocomplete="current-password" [value]="current()" (input)="current.set($any($event.target).value)">
+                    <input type="password" autocomplete="current-password" [value]="current()" (input)="current.set($any($event.target).value)"
+                        [class.bad]="problemFor('current')" [attr.aria-describedby]="problemFor('current') ? 'problem-current' : null" [attr.aria-invalid]="problemFor('current') ? true : null">
                 </span>
+                @if (problemFor('current'); as p) { <span class="field-error inline" id="problem-current"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ p }}</span> }
             </label>
             <label class="field">
                 <span class="field-label">New password <span class="optional">at least 10 characters</span></span>
                 <span class="control">
                     <i class="fa-solid fa-lock" aria-hidden="true"></i>
-                    <input type="password" autocomplete="new-password" [value]="next()" (input)="next.set($any($event.target).value)">
+                    <input type="password" autocomplete="new-password" [value]="next()" (input)="next.set($any($event.target).value)"
+                        [class.bad]="problemFor('next')" [attr.aria-describedby]="problemFor('next') ? 'problem-next' : null" [attr.aria-invalid]="problemFor('next') ? true : null">
                 </span>
+                @if (problemFor('next'); as p) { <span class="field-error inline" id="problem-next"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ p }}</span> }
             </label>
             <label class="field">
                 <span class="field-label">New password again</span>
                 <span class="control">
                     <i class="fa-solid fa-lock" aria-hidden="true"></i>
-                    <input type="password" autocomplete="new-password" [value]="repeat()" (input)="repeat.set($any($event.target).value)">
+                    <input type="password" autocomplete="new-password" [value]="repeat()" (input)="repeat.set($any($event.target).value)"
+                        [class.bad]="problemFor('repeat')" [attr.aria-describedby]="problemFor('repeat') ? 'problem-repeat' : null" [attr.aria-invalid]="problemFor('repeat') ? true : null">
                 </span>
+                @if (problemFor('repeat'); as p) { <span class="field-error inline" id="problem-repeat"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ p }}</span> }
             </label>
             @if (error()) {
-                <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ error() }}</p>
+                <p class="field-error" role="alert"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ error() }}</p>
             }
             @if (done()) {
                 <p class="result small"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>Password changed.</p>

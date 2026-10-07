@@ -226,7 +226,8 @@ input::placeholder{
     color: var(--muted);
 }
 
-input.ng-invalid.ng-dirty, select.ng-invalid.ng-dirty{
+/* A box with a problem gets the red edge once it was touched or typed in, the same moment its message shows */
+input.ng-invalid.ng-dirty, select.ng-invalid.ng-dirty, input.ng-invalid.ng-touched, select.ng-invalid.ng-touched{
     border-color: var(--danger);
 }
 
@@ -974,6 +975,13 @@ input.bad{
     /* The name gets what's left next to the pinned Actions column and ends with ... instead of being cut by it */
     td.name{
         max-width: calc(100vw - 15rem);
+    }
+
+    /* Any other cell the pinned column covers ends with ... too, never a half word */
+    .industries td:not(.actions):not(.name){
+        max-width: 9rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     /* The row number goes, so the name has room. The amber and editing edges move to the name cell. */

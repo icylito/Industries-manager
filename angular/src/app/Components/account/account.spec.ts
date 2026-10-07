@@ -17,14 +17,15 @@ describe('AccountPage', () => {
     const page = TestBed.createComponent(AccountPage).componentInstance;
     const submit = () => page.submit(new Event('submit'));
 
+    // Each problem belongs to a box, so the page can show it there
     page.current.set('old password 1'); page.next.set('short'); page.repeat.set('short'); submit();
-    expect(page.error()).toBe('The new password has to be at least 10 characters');
+    expect(page.problem()).toEqual({ box: 'next', text: 'The new password has to be at least 10 characters' });
 
     page.next.set('a new password'); page.repeat.set('a new passwor'); submit();
-    expect(page.error()).toBe("The two new passwords don't match");
+    expect(page.problem()).toEqual({ box: 'repeat', text: "The two new passwords don't match" });
 
     page.next.set('old password 1'); page.repeat.set('old password 1'); submit();
-    expect(page.error()).toBe("Pick a password you haven't used just now");
+    expect(page.problem()).toEqual({ box: 'next', text: "Pick a password you haven't used just now" });
 
     http.expectNone(r => r.url.endsWith('/auth/password'));
 
