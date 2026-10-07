@@ -32,3 +32,6 @@ angular/.cert/
 
 # The page checks in testing/ (playwright), installed there and not part of the repo
 testing/node_modules/
+
+# Plan workspaces for the subagent-driven runs (scratch, not part of the project)
+.superpowers/
