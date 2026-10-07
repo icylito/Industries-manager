@@ -219,4 +219,69 @@ describe('HistoryPage', () => {
     const rows = (fixture.nativeElement as HTMLElement).querySelectorAll('table.versions tbody tr');
     expect(rows[0].textContent).toMatch(/less than an hour|hours|day/);
   });
+
+  // A note can have a dash of its own. Splitting on every ' — ' used to drop everything after the second one,
+  // so the row read as if the note ended early.
+  it('keeps a whole note that has a dash in it', () => {
+    const fixture = setup();
+    const page = fixture.componentInstance;
+
+    expect(page.describe('Before restoring version 6 — back to october — because the rules were wrong'))
+      .toBe('Before restoring version #6 — back to october — because the rules were wrong');
+    expect(page.describe('Before restoring version 6')).toBe('Before restoring version #6');
+    expect(page.describe('Before restoring version 6 — ')).toBe('Before restoring version #6 — ');
+  });
+
+  // The button is grey until there is enough, so the page has to say how much is enough and how much is missing
+  it('says the least length under the note box, and drops it once there is enough', () => {
+    const fixture = setup();
+    const page = fixture.componentInstance;
+
+    page.askRestore(version(1));
+    fixture.detectChanges();
+
+    const panel = (fixture.nativeElement as HTMLElement).querySelector('#version-panel') as HTMLElement;
+    const box = panel.querySelector('input') as HTMLInputElement;
+    expect(panel.textContent).toContain('at least 10 characters');
+    expect(panel.textContent).toContain('so the next person knows why');
+    expect(box.getAttribute('aria-describedby')).toBe('restore-note-hint');
+
+    page.restoreNote.set('abc');
+    fixture.detectChanges();
+    expect(panel.textContent).toContain('3 of 10 characters');
+
+    page.restoreNote.set('swapping in the october rows');
+    fixture.detectChanges();
+    expect(panel.textContent).not.toContain('of 10 characters');
+    expect(box.getAttribute('aria-describedby')).toBeNull();
+  });
+
+  // Every other overlay here closes on Escape, and so does the Cancel button beside it
+  it('closes the restore question on Escape', () => {
+    const fixture = setup();
+    const page = fixture.componentInstance;
+
+    page.askRestore(version(1));
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('#version-panel')).toBeTruthy();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('#version-panel')).toBeNull();
+    expect(page.restoreNote()).toBe('');
+  });
+
+  it('closes the backup restore question on Escape too', () => {
+    const fixture = setup();
+    const page = fixture.componentInstance;
+
+    page.askRestoreBackup(backup('2026-10-07_020000_nightly'));
+    http.expectOne(r => r.url.includes('/backups/')).flush({ rowCount: 300, currentRows: 3, rulesVersion: 1, historyReady: true });
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('#restore-backup')).toBeTruthy();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('#restore-backup')).toBeNull();
+  });
 });

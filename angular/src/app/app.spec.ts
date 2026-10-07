@@ -5,6 +5,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { App } from './app';
 import { Auth } from './services/auth';
+import { Theme } from './services/theme';
 import { routes } from './app.routes';
 
 describe('App', () => {
@@ -135,6 +136,23 @@ describe('App admin shell', () => {
       expect(nav.querySelector('a[href="/settings"]')).toBeTruthy();
       expect(nav.querySelector('a[href="/history"]')).toBeTruthy();
       expect(nav.querySelector('a[href="/fields"]')).toBeTruthy();
+    });
+
+    // History and Fields sit on this nav, and they had a theme button before they moved here, so it has to stay on both navs
+    it('keeps the theme button in this nav too, and it still switches the theme', () => {
+      TestBed.inject(Auth).user.set({ id: 1, username: 'ada', role: 'admin', disabled: false, mustChangePassword: false, createdAt: '', lastLoginAt: null });
+      const theme = TestBed.inject(Theme);
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+
+      const button = (fixture.nativeElement as HTMLElement).querySelector('nav.nav .theme-btn') as HTMLButtonElement;
+      expect(button).toBeTruthy();
+      expect(button.getAttribute('aria-label')).toBe('Switch to dark mode');
+
+      button.click();
+      fixture.detectChanges();
+      expect(theme.isDark()).toBe(true);
+      expect(button.getAttribute('aria-label')).toBe('Switch to light mode');
     });
   });
 });

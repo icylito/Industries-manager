@@ -79,6 +79,24 @@
     background: var(--hover);
 }
 
+/* The theme button on this nav. It is the same round button the admin nav uses, sized to sit quietly beside the
+   links rather than as tall as them, and it never takes a label, so the crowded nav keeps its width at 390px. */
+.nav-links .theme-btn{
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+}
+
+.nav-links .theme-btn svg{
+    width: 15px;
+    height: 15px;
+}
+
+.nav-wrap .theme-btn:focus-visible{
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+}
+
 /* Bell count, a small solid pill so it reads in both themes */
 .bell{
     position: relative;
@@ -193,6 +211,15 @@
         gap: 0.2rem;
         padding: 0.35rem 0.2rem;
         border-radius: 14px;
+    }
+
+    /* The theme button is a round icon on every width, so at this size it takes the same column as a link
+       without stretching to the height of one. */
+    .nav-links .theme-btn{
+        flex: 0 0 30px;
+        width: 30px;
+        height: 30px;
+        align-self: center;
     }
 
     /* Readable labels (0.75rem). Seven of them don't fit in 390px at that size, so the plus and the account

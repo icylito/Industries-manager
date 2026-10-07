@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
@@ -30,6 +30,10 @@ export class HistoryPage implements OnInit {
   panelError = signal('');
   notice = signal('');
   restoreNote = signal('');
+  // The least a note can be, shared by the button, the hint under it and restore(), so the rule lives in one place
+  static readonly noteMin = 10;
+  noteChars = computed(() => this.restoreNote().trim().length);
+  noteTooShort = computed(() => this.noteChars() < HistoryPage.noteMin);
   restoreDone = signal<RestoreResult | null>(null);
   importDone = signal<ImportResult | null>(null);
 
@@ -142,6 +146,15 @@ export class HistoryPage implements OnInit {
     this.restoreBackupText.set('');
   }
 
+  // Escape closes whichever question is open, the same way every other overlay in the app closes, and the same way
+  // Cancel does. While a restore is running neither the Cancel button nor Escape does anything, so a half-done
+  // restore can't be dismissed out from under itself.
+  @HostListener('document:keydown.escape')
+  onEscape() {
+    if (this.panel() && !this.busy()) this.close();
+    if (this.restoreAsk() && !this.restoreBackupBusy()) this.closeRestoreBackup();
+  }
+
   restoreBackup() {
     const ask = this.restoreAsk();
     if (!ask || this.restoreBackupText() !== 'RESTORE' || this.restoreBackupBusy()) return;
@@ -176,8 +189,11 @@ export class HistoryPage implements OnInit {
     if (reason.startsWith('Before restoring version')) {
       // The id sits before the note, so it cannot come from the trailing-digits match above: with a note appended
       // there are no trailing digits at all, and that match returns null.
-      const [id, note] = reason.slice('Before restoring version '.length).split(' — ');
-      return note ? `Before restoring version #${id} — ${note}` : `Before restoring version #${id}`;
+      const rest = reason.slice('Before restoring version '.length);
+      const cut = rest.indexOf(' — ');
+      if (cut === -1) return `Before restoring version #${rest}`;
+      // Split once and keep everything after it. split(' — ') used to drop the tail of any note that had a dash in it.
+      return `Before restoring version #${rest.slice(0, cut)} — ${rest.slice(cut + 3)}`;
     }
     if (reason.startsWith('Before importing from version')) return `Before bringing back rows from version #${m?.[1]}`;
     if (reason.startsWith('Before restoring backup')) return `Before restoring the backup from ${this.backupDate(reason.slice('Before restoring backup '.length))}`;
@@ -275,7 +291,7 @@ export class HistoryPage implements OnInit {
   restore() {
     const p = this.panel();
     const note = this.restoreNote().trim();
-    if (p?.kind !== 'restore' || note.length < 10) return;
+    if (p?.kind !== 'restore' || this.noteTooShort()) return;
     this.busy.set(true);
     this.panelError.set('');
     this.api.restore(p.version.id, note).subscribe({

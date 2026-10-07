@@ -16,6 +16,14 @@ The scripts that checked batch 8, kept so the next round doesn't start from noth
 3. Set `ADMIN_PASSWORD` to the password the checks should use, for example `set ADMIN_PASSWORD=Pick-one-2026!`. There's no default on purpose. `check_restore.py` and `grade_setup.py` set it as the admin password on a first run.
 4. Python 3.13 or newer, nothing to install. The page checks need Node 22.23.3 or newer and the `playwright` package with Chromium.
 
+   **Two playwrights share one browser cache, and they want different Chromium builds.** The `playwright` in `testing/node_modules` is 1.64 and asks for one Chromium revision; the Python `playwright` wheel asks for another. Installing only the Python one, or only `npm install` in `testing/`, leaves the other's browser missing and the check stops before printing anything with `Executable doesn't exist at ...\ms-playwright\chromium_headless_shell-<revision>\...`. Install the Node side's browser once, from `testing/`:
+
+   ```
+   node node_modules\playwright\cli.js install chromium-headless-shell
+   ```
+
+   That only adds the revision it needs, so the Python checks keep working. A first run here needed 1248 while the cache held 1228 and took about 120 MB.
+
 The Python scripts read `API` (default `http://localhost:5104`), `ADMIN_PASSWORD`, `MAIN_DB`, `COLLECTOR_DB` and `BACKUPS` from the environment.
 
 The page checks (`check_page.mjs`, `check_design.mjs`, `grade_capture.mjs`, `grade_recapture.mjs`) drive the page, and the page calls the API on 5005. For those, close `start.bat`'s API window and run the throwaway API with `--urls http://localhost:5005` instead.
@@ -29,6 +37,7 @@ The page checks (`check_page.mjs`, `check_design.mjs`, `grade_capture.mjs`, `gra
 | `check_monitor.py` | History taken away under the running API: adds answer 503, `/health` says offline at once, back within 30 seconds | `python3 -I check_monitor.py` (renames the collector database and back, needs psql on 5433) |
 | `stress.py` | The race test: three restores at once each round under 8 threads of adds, edits, deletes, bring backs, rules saves, retention saves and backups. Fails on any 500, a lock wait that ran out, a pending change log entry, a scratch database left behind or two originals with one name | `python3 -I stress.py 30` for 30 rounds on 300 rows, `python3 -I stress.py 10 20000` for 10 rounds on 20,000 rows |
 | `check_page.mjs` | The Restore panel in a headless browser at 1280 and 390 wide and in dark mode, runs a restore, saves screenshots, reports console errors and sideways scroll | with the page on 4200 and the API on the address in `environment.ts`: `node check_page.mjs <folder for screenshots>` from a folder that has `playwright` in `node_modules` |
+| `check_ui.mjs` | The five changes a jsdom test cannot see: Fields and History on the normal nav, the restore question asking for a note and flashing the signal colour, the age line on each saved copy, and the shortcuts panel blurring the page behind it and dimming it only a little, light and dark. It **never confirms a restore**: it opens the question, types into the note box to prove the button turns on at ten characters, and leaves with Escape | with the page on 4200 and the API on 5005: `node check_ui.mjs <folder for screenshots>` from `testing/`. Reads the sign in from `../scripts/seeding.control.toml` and refuses any host that is not localhost. With no folder it writes beside the repo, at `../dsh-shots/after`, never inside it |
 | `check_design.mjs` | The batch 9 design checks: the nav at 390, errors under their field, the delete question, the History card on a phone, the sign in page, a disabled button in dark mode, screenshots of each | same setup as `check_page.mjs`: `node check_design.mjs <folder for screenshots>` |
 | `contrast.py` | WCAG contrast of the colour pairs the UI judge pointed at, read from `styles.css`, light and dark | `python3 -I contrast.py ../angular/src/styles.css`, every line should say ok |
 | `grade_setup.py` | Builds the state `rubric_batches_8_9.md` asks for on a throwaway API: 300 rows with a long name, a custom field with a value in 12 rows, two amber rows, a backup, 20 rows deleted after it, and a copy of the backup marked as another layout | `python3 -I grade_setup.py <password from the API window>` on a fresh database, with `BACKUPS` pointing at the backup folder if it isn't the default |
@@ -46,3 +55,4 @@ The page checks (`check_page.mjs`, `check_design.mjs`, `grade_capture.mjs`, `gra
 - `stress.py` ends with `STRESS OK` and `errors: 0`
 - `check_design.mjs` prints `no sideways scroll: true` twice, a focus ring of `solid 2px`, two field problems with matching `describedBy`, and `page errors: none`
 - `check_page.mjs` prints `no sideways scroll: true` three times and `console errors: none` (blocked font and icon downloads show up as errors on a box without internet, those don't count)
+- `check_ui.mjs` prints fifteen `ok` lines and ends with `all checks passed`, exit 0. The dim line prints the real opacity it read, `0.85`, so a pass shows the number rather than just a tick

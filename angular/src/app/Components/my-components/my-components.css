@@ -169,6 +169,11 @@ form{
     font-style: normal;
 }
 
+/* The quiet part of a label, and the same colour as the "optional" notes elsewhere on the page */
+.field-label .optional{
+    color: var(--faint);
+}
+
 .form-actions{
     grid-column: 1 / -1;
     display: flex;
