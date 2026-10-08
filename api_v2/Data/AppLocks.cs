@@ -3,7 +3,7 @@ using Npgsql;
 namespace api_v2.Data;
 
 // Advisory locks belong to the database session, so a crash frees them, and they work if the API runs twice.
-public enum AppLock { Table = 1, Rules = 2, Requests = 3, Settings = 4 }
+public enum AppLock { Table = 1, Rules = 2, Requests = 3, Settings = 4, Scratchpad = 5 }
 
 public class AppBusyException : Exception;
 

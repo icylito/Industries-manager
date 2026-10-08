@@ -4,6 +4,11 @@
     padding: 1rem 1rem 6rem;
 }
 
+/* The Scratchpad draws a full width board. Every other page stays in the readable column. */
+.app.wide{
+    max-width: none;
+}
+
 /* The nav stays at the top while the page scrolls. The strip behind it is solid, then fades out, so page text never shows beside or above the pill. */
 .nav-wrap{
     position: sticky;

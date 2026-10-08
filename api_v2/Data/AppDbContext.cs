@@ -11,6 +11,8 @@ DbContext(options){
     public DbSet<User> Users => Set<User>();
     public DbSet<Session> Sessions => Set<Session>();
     public DbSet<UserNote> UserNotes => Set<UserNote>();
+    public DbSet<ScratchBoard> ScratchBoards => Set<ScratchBoard>();
+    public DbSet<ScratchFile> ScratchFiles => Set<ScratchFile>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -29,5 +31,18 @@ DbContext(options){
         model.Entity<UserNote>().Property(n => n.Text).HasMaxLength(2000);
         model.Entity<UserNote>().HasIndex(n => n.UserId);
         model.Entity<UserNote>().HasOne<User>().WithMany().HasForeignKey(n => n.UserId).OnDelete(DeleteBehavior.Cascade);
+        // One Scratchpad board per person, the whole board as JSON so a later slice adds new kinds of
+        // thing (lines, groups, files) without another migration. Deleting the account takes its board.
+        model.Entity<ScratchBoard>().Property(b => b.Document).HasColumnType("jsonb");
+        model.Entity<ScratchBoard>().HasIndex(b => b.UserId).IsUnique();
+        model.Entity<ScratchBoard>().HasOne<User>().WithMany().HasForeignKey(b => b.UserId).OnDelete(DeleteBehavior.Cascade);
+        // A file a person uploaded to the Scratchpad. Name is only shown on the card; StoredName is the only
+        // name on disk (a GUID plus extension) and is unique. Deleting the account takes its files.
+        model.Entity<ScratchFile>().Property(f => f.Name).HasMaxLength(260);
+        model.Entity<ScratchFile>().Property(f => f.ContentType).HasMaxLength(120);
+        model.Entity<ScratchFile>().Property(f => f.StoredName).HasMaxLength(80);
+        model.Entity<ScratchFile>().HasIndex(f => f.UserId);
+        model.Entity<ScratchFile>().HasIndex(f => f.StoredName).IsUnique();
+        model.Entity<ScratchFile>().HasOne<User>().WithMany().HasForeignKey(f => f.UserId).OnDelete(DeleteBehavior.Cascade);
     }
 }

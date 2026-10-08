@@ -177,8 +177,60 @@ Each item says what it is for, how it should feel, and why it matters. Storage, 
 | **e) Carry tray** | Under the board on the Scratchpad and at the bottom of the Overview: **CARRY TRAY** with chips. On the Overview, **Carry the circle** and **Carry the list** (next to Shortcuts) put what is on screen, with its filters, into the tray. On the Scratchpad each chip has **+** (put on board) and **×**, and can be dragged onto the board. It becomes a **Snapshot** card: SNAPSHOT label, a Frozen badge, the title ("Circle split by Sector, Private Sector selected"), a small circle with legend or a short list, and "From the Overview, 7 Oct, 14:02". The bar has "Open in Overview" (dead link on purpose, `OPUS:` comment). | A snapshot is `{ kind, title, takenAt, numbers }`: the title the person would read, the numbers as they were, never recalculated. The tray is a small per person list kept on the server and shown along the **bottom of every admin page** (the board only puts it under the board and at the end of the Overview, and shares it through browser storage). Dragging a chart onto the tray (the intent in e) is not drawn, the Carry buttons are the accessible way in; do both. "Open in Overview" should restore the same slice and selection. |
 | **e) Files and pictures** | **+ File or image** in the left column, or drop a file on the board, or paste a picture. While a file is being dragged over the page, the + File or image field turns into a dashed orange drop target saying **Drop files here**, and **Release to add it** when the file is over it. Over the board the whole board gets an orange overlay, "Drop to put it on the board". Each file becomes a card at the drop point (or in free space): a picture shows its preview, anything else shows a file icon with its type, name, size and an upload bar. Word, PowerPoint and Excel files show a dark message on the board: "Word, PowerPoint and Excel files can't go on the board", and files over **25 MB** get "is bigger than 25 MB". A failed upload shows "Couldn't upload" and **Try again**. Dropping outside any target does nothing (the browser must not open the file). The FILE bar has Open (dead link, `OPUS:` comment) and Remove from board. | The user approved server storage. Needs: an upload endpoint, a size limit (**25 MB is a placeholder, the user has not chosen it**), a table, and a migration (see `model-change-needs-migration`; confirm the field names with the user). The card keeps the file's id, never a browser address. Decide the allow list: the user said everything except Word, PowerPoint and Excel, but think about executables and SVG (the board refuses to preview SVG because it can carry script). Video and GIF: the board shows a plain card, a player is yours. Ctrl+Z removes the card (the file can be cleaned up later). |
 | **Fonts** | Select a note and the TEXT bar has a font button showing the current font in its own face. It opens a list of **27 Google fonts**, grouped Sans serif, Serif, Monospace, Display, Handwriting, each name drawn in its own typeface. Picking one changes the note straight away and the list stays open to try more; pressing anywhere outside closes it. | The board keeps **one font per note**, because the text is drawn twice (a styled copy under a see through text box) and two fonts would not line up. With the real rich text editor the font belongs on the text span like bold and highlight, so one note can mix fonts. Load the fonts from Google Fonts only for the fonts in use, not all 27 on every page (the board loads all of them so the list can show them). Same list: Inter, Poppins, Montserrat, Work Sans, DM Sans, Nunito, Lato, Open Sans, Raleway, Playfair Display, Merriweather, Lora, Libre Baskerville, Cormorant Garamond, Source Serif 4, JetBrains Mono, IBM Plex Mono, Space Mono, Oswald, Bebas Neue, Abril Fatface, Lobster, Caveat, Pacifico, Shadows Into Light, Permanent Marker, Dancing Script, Indie Flower. The page font is Inter, that stays the default. |
-| **Save status** | Next to Shortcuts: **Saved to your account**, **Saving** (spinner) for a moment after every change, and **Couldn't save. Your changes are kept on this page.** with Try again. | Every change is saved on its own, no Save button. On failure keep the changes in memory, retry quietly, and show the red state only if it keeps failing. The board itself still resets on reload in the prototype, so "Saved" is only the look. |
+| **Save status** | Next to Shortcuts: **Save** while changes are not yet saved, **Saved** only after the server confirmed them, and **Failed to save** with **Try again**. | See "Scratchpad: the save state" below. Both triggers are required — any change (debounced) and a periodic save every 2 minutes — and "Saved" is never shown before the server confirms. The board itself still resets on reload in the prototype, so "Saved" is only the look. |
 | **Review controls** | A PROTOTYPE strip at the top of the Scratchpad (like the Overview's) with Width, Saving, Board, Tray, Dragging a file and sample-file buttons. | Review only, not part of the page. The sample file buttons exist because the design tool cannot drop real files; they take the same path a real file takes. |
+
+### Scratchpad: the save state (sharpened 2026-10-08)
+
+The pill next to Shortcuts tells the truth at all times. It has exactly three states, and one rule decides which.
+
+- **Save** — there are changes the server has not confirmed. This is the honest default: nothing is called saved until it is. Shown on any change and while the first save attempt is in flight.
+- **Saved** — the server confirmed the latest change. Only after a successful save that covers every change made so far. A change that arrives while a request is in flight puts the pill back to Save.
+- **Failed to save** — an attempt returned an error. Keep the person's changes on the page, keep retrying quietly, and show this with a plain "Try again". A failure reads Failed to save straight away rather than Save, and a later success flips it to Saved. Never show Saved in this state.
+
+Triggers, both required:
+
+- Any change schedules a save, debounced (about 700 ms) so a typing burst becomes one request.
+- A periodic save runs every 2 minutes. It sends only when there are unsaved changes, so a long, quiet session cannot drift unsaved.
+- While the pill reads Save it can be pressed to save immediately, so nobody has to wait out a timer.
+
+Rules that must hold:
+
+- "Saved" is never shown speculatively, on a timer, or because a request was merely sent. It means the server accepted the latest change and answered with the new timestamp.
+- The two-tab guard stays: a stale `updatedAt` is refused with 409 and the pill must not pretend it saved. Say the board was changed somewhere else and offer Reload.
+- On failure the pill says "Failed to save", never "Saved", and the page keeps the changes rather than dropping or reloading over them.
+- Plain words only: no "dirty", no "sync", no "pending". Colours come from the CSS variables, and the failed state uses the danger colour with a visible focus ring.
+
+**Stress test plan — write these, do NOT run them in this session** (a later session, with the app and the throwaway API running):
+
+1. Burst: type quickly for 10 seconds, then stop. Exactly one request after the debounce, and the pill ends at Saved.
+2. Change during flight: start a save and change again before it answers. The pill returns to Save, a second request follows, and the final state is Saved.
+3. Failure then recovery: make the endpoint return 500, change, wait. Failed to save with the changes still on screen; restore the endpoint, press Try again, expect Saved and no data loss.
+4. Retry storm: fail the endpoint for 3 minutes. Retries back off, the page stays usable, and there is no console error flood.
+5. Two tabs: change and save in tab A, then save in tab B with the stale timestamp. Expect 409, tab B showing "changed somewhere else" with Reload, and no silent overwrite.
+6. The 2-minute timer: make no changes for 5 minutes and expect no requests at all; then change and wait out the timer and expect a timed save only when there are unsaved changes.
+7. Reload mid-flight: change and reload before the request answers. Either the change is saved or the pill never claimed Saved — never "Saved" for text a reload loses.
+8. Offline: take the API down mid-edit. The page stays usable, the pill moves to Failed to save, and once the API returns, a retry or Try again reaches Saved with every change intact.
+
+### Scratchpad: rail and files (decided 2026-10-08)
+
+The user settled the two open questions.
+
+**The companies rail.** It shows the **3 most expensive** industries when it opens, with a **title or helper line that says so** ("Most expensive first."), so the three rows are never a mystery list. Typing in the search box replaces them with up to 10 name matches. The rail never loads the table. One small API addition carries it: `GET /industries/top?by=price&limit=3`, viewer-readable, skipping rows with no price, highest first, ties broken by name then id. A card added from this list carries a real rank (#1..#3) — its position in the list. A card added from a search result carries no rank. Never a global price position.
+
+**Files (item e) — storage approved.** New table `ScratchFiles`: `Id` (int PK identity), `UserId` (int, FK to `Users`, cascade delete), `Name` (the original name, shown on the card, never used as a path), `ContentType`, `SizeBytes` (bigint), `StoredName` (a GUID plus extension — the only name used on disk), `CreatedAt`.
+
+- Files live on disk in a configured folder (`Scratchpad:Files`, default `scratchpad-files/`, git ignored, outside the web root). The file on disk is `{guid}{ext}`.
+- Endpoints, admin only: `POST /scratchpad/files` (multipart), `GET /scratchpad/files/{id}`, `DELETE /scratchpad/files/{id}`. Serving sends `X-Content-Type-Options: nosniff`; images and PDF render inline, everything else is an attachment, and **SVG is never previewed**.
+- **25 MB** cap, refused with a plain message.
+- Refused: Word, PowerPoint and Excel, **txt and md**, and executables and scripts. Everything else is allowed; anything unusual becomes a plain download card.
+- A board file item stores `{ type: 'file', fileId, name, contentType, sizeBytes }` — an id, never a browser URL.
+- **The refusal is a toast**: it pops up, **names the exact refusal** ("Word, PowerPoint and Excel files can't go on the board (Quarterly report.docx)."), can be closed, and **fades away on its own after 10 seconds**.
+- The exact refusal lines, each naming the file: Office — `Word, PowerPoint and Excel files can't go on the board (Quarterly report.docx).`; text — `Text files can't go on the board (notes.txt). Copy the text and paste it instead.`; anything executable — `That kind of file can't go on the board (setup.exe).`; too big — `report.zip is bigger than 25 MB.` The API returns the line and the page shows it verbatim in the toast.
+- **A failed upload shows on the card itself**: the item on the board carries the failed state ("Couldn't upload" with Try again and the danger edge), so the thing that failed visibly cannot be used. Removing a card only drops the reference; deleting the bytes is a later sweep.
+- The carry tray stays inside the board document (`tray: [...]`), so it needs no table of its own.
+
+
 
 **What was tested and what was not (round two).** Tested in a real browser: grouping, naming, dragging a group by its name chip, ungrouping, deleting a group, undo of each; line label, arrowheads, curve, flip, a new line with its label focused; snapshots from the tray onto the board; sample picture, PDF, too big, Word refusal, failed upload and Try again; the three "file over" states; the empty board and empty tray states; Saving and Couldn't save states; the Overview Carry buttons and tray, and the Scratchpad picking them up; the fonts list and applying fonts; dark mode on the new cards; phone width (a 390 px preview) on both pages. **Not tested:** dropping a real file from the computer, pasting a picture, the system file chooser (the design tool cannot do these; the code paths are the same as the sample buttons), dragging a chip from the tray with the mouse (native drag and drop, the + button path was tested), keyboard Tab to a line, Ctrl + scroll zoom, a trackpad pinch.
 
@@ -232,3 +284,54 @@ Storage format, API shape, the table for scratchpad and shortcuts, how the keybo
 2. Try the boundaries: a row priced exactly 2.500, a row released on 2014-12-31, a row with no price.
 3. Try a bad URL (`/?sector=Nope&flags=banana`). It should just show Browse with no crash.
 4. Clear filters in Browse and check the URL params don't come back.
+
+## Session handoff — Scratchpad, 2026-10-08
+
+Branch `scratchpad-canvas`, off local `main`. **Nothing is committed**; every change is in the working tree.
+
+### Built and verified
+
+- **Browse filter visibility** — a filter control renders only when the whole loaded table has something it could match, and a filter that is switched on stays visible so it can be cleared. Independently verified by the critic, 30/30.
+- **Scratchpad slice a** — endless canvas (pan, zoom toward the pointer clamped 10–400%, Fit / 100% / Selection), industry cards, sticky notes and text boxes, single selection, **undo and redo covering moves, deletes and typing while a note has focus**, per-person autosave, and the view remembered.
+- **Pass 2** — box select, groups (create, name, ungroup, delete), rich text (bold, highlight, font family and size stored as runs, across paragraphs), and plain glued lines.
+- **Page chrome** — the page title, Shortcuts plus the save pill on the header row, the context strip, a grouped icon toolbar (Tools and Add), the empty-board state, and the footer note.
+- **Save state** — exactly three honest states: **Save** (unsaved), **Saved** (the server confirmed), and **Failed to save** with Try again. A 409 reads "This board was changed somewhere else." with Reload and stops retrying. Saving happens on change (about 700 ms after a pause) and every 2 minutes.
+- **Pass F** — line labels as pills, arrowheads None / One end / Both ends, and Straight / Curved with Flip.
+- Last measured: `ng build` 0 warnings at 441.60 kB; `ng test` 141 passed and 8 skipped. The critic scored the combined slice-a and pass-2 state 9.5/10; the newest batch (save state, Pass F, keys trim, rank and 390 px fixes) was still being verified when this note was written.
+
+### Written, but not built and not applied
+
+- **`GET /industries/top?by=price&limit=3`** and **`GET /industries/by-ids?ids=`** are written in `api_v2/Endpoints/IndustryEndpoints.cs`. The first gives the rail its three most expensive rows; the second refreshes cards without loading the table.
+- **Item e file storage** is written: `Model/ScratchFile.cs`, `Data/ScratchFileStore.cs`, `Endpoints/ScratchFileEndpoints.cs`, the DbContext wiring, the `Program.cs` registration, `Scratchpad:Files` = `../scratchpad-files` in both appsettings files, and `/scratchpad-files/` in `.gitignore`. Endpoints: `POST /scratchpad/files` (multipart, 25 MB cap answering 413, refusals using the exact strings in the section above), `GET /scratchpad/files/{id}` (nosniff; images and PDF inline, everything else including SVG as an attachment), and `DELETE /scratchpad/files/{id}` (row and disk file). All admin only.
+- **The `AddScratchFiles` migration is NOT generated and NOT applied.** The API code compiles cleanly (a throwaway-output build gave 0 warnings, 0 errors without stopping the running API), but it has never been run, so the model and the database are still apart.
+
+### The safe stopping point
+
+- The API on `:5005` is the build from *before* the file-storage code, so it matches the database, which has `ScratchBoards` applied and no `ScratchFiles` table. **Do not build the new API until the migration exists**, or its model will not match the database.
+- Everything above is uncommitted on `scratchpad-canvas`.
+
+### What the next agent does, in order
+
+
+### Coder notes — frontend pass
+
+Files under `angular/`:
+
+- New: `services/scratchpad.ts`, `services/scratchpad.spec.ts`, `services/scratchpad-save.spec.ts` (the 8 skipped stress specs), and `Components/scratchpad/` with `scratchpad.ts`, `scratchpad.html`, `scratchpad.css`, `scratchpad.spec.ts`, `note-editor.ts`, `note-editor.html`, `note-editor.css` and `rich-text.ts`.
+- Modified: `app.routes.ts`, `app.html`, `app.css`, `app.ts`, `app.spec.ts`, `services/shortcuts.ts`, `services/shortcuts.spec.ts`, `services/industry-api.ts`, `models/industry.ts` and `styles.css`.
+- Not this pass: `Components/my-components/*` (the Browse filter work) and everything under `api_v2/`.
+
+Traps that cost time and will cost the next agent time:
+
+- PowerShell eats an unquoted `@e12` ref, so agent-browser clicks silently do nothing. Always quote: `click '@e12'`.
+- `agent-browser`: `open` never returns (run it capped in a job); `set viewport 390 844`; `network route "**/scratchpad" --abort` then `network unroute` (there is no bare offline command); `eval` returns a JSON-encoded string, so it needs decoding twice.
+- Killing your own browser processes trips the DSH job runner (exit code 4294967295) even though the kill worked. Check the state afterwards with a plain command, not another kill.
+- Process queries self-match — filter `Name -eq 'chrome.exe'`.
+- A running `dotnet run` locks `bin/Debug/net10.0/api_v2.exe` and `.dll`. Stop it before `dotnet build`, and NEVER generate a migration with `--no-build` while it runs — that reads the stale dll and produces an EMPTY migration.
+- The floating note toolbar translates in the layer units once the board is scaled, so the offset must be multiplied by `1/zoom` or it sinks onto the words when zoomed out; the canvas has overflow hidden, so the bar also needs nudging back inside.
+- The canvas captures the pointer on pointerdown, so any control inside it (the line label pill) must stopPropagation on pointerdown or its click is lost.
+- contenteditable formatting must run on mousedown, not click, or the selection is already gone; the editor must redraw from an external counter, not from the blocks signal, or the caret jumps while typing.
+- A typing burst must begin on input (`begin()` is idempotent), not only on focus, or typing after an undo has no snapshot; and the live text must call `saveSoon()`, or text saves only on blur and a reload loses it.
+- Do not `structuredClone` the whole board on wheel, drag or typing paths; patch one item.
+- Vitest: the API client retries 5xx, so a load-failure spec must play out four attempts with `advanceTimersByTimeAsync`; fake timers must be on before touching the service.
+

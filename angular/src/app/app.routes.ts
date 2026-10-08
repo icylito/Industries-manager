@@ -13,6 +13,8 @@ export const routes: Routes = [
     { path: 'overview', canActivate: [adminGuard], loadComponent: () => import('./Components/overview/overview').then(m => m.OverviewPage), data: { title: 'Overview', lede: 'The table at a glance.', admin: true } },
     // Settings holds the people list and your own account, see app.html (the admin nav's second tab)
     { path: 'settings', canActivate: [adminGuard], loadComponent: () => import('./Components/settings/settings').then(m => m.SettingsPage), data: { title: 'Settings', lede: 'Your account, and the people who can sign in.', admin: true } },
+    // The Scratchpad is the board for thinking with the industries. A wider page, see app.css (.app.wide)
+    { path: 'scratchpad', canActivate: [adminGuard], loadComponent: () => import('./Components/scratchpad/scratchpad').then(m => m.ScratchpadPage), data: { title: 'Scratchpad', lede: 'A board to think with your industries.', admin: true, wide: true } },
     // The People page moved inside Settings, so an old link still lands somewhere useful
     { path: 'users', redirectTo: 'settings' },
     { path: 'history', canActivate: [adminGuard], loadComponent: () => import('./Components/history/history').then(m => m.HistoryPage), data: { title: 'History', lede: 'Every saved copy of the table. View, download, restore, or bring old rows back.' } },

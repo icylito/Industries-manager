@@ -85,8 +85,8 @@ describe('Shortcuts', () => {
 
   it('treats a key and a two key sequence that starts with it as a clash, and runs the sequence', () => {
     keys.assign('ov.find', ['G', 'F']);
-    // G alone also starts Go to Overview (G then O), so it clashes with that one too
-    expect(keys.check('ov.top', ['G']).conflicts.map(c => c.id)).toEqual(['nav.overview', 'ov.find']);
+    // G alone also starts the two key ways to another admin page, so it clashes with those too
+    expect(keys.check('ov.top', ['G']).conflicts.map(c => c.id)).toEqual(['nav.overview', 'nav.scratchpad', 'ov.find']);
     keys.onKey(press('g'), 1000);
     keys.onKey(press('f'), 1500);
     expect(ran).toEqual(['ov.find']);
@@ -118,17 +118,19 @@ describe('Shortcuts', () => {
     expect(keys.panelOpen()).toBe(false);
   });
 
-  it('goes to the Overview with G then O for an admin anywhere, and says so when already there', () => {
+  it('goes to the Overview or the Scratchpad with G then O and G then S, and steps between the pages', () => {
     TestBed.inject(Auth).user.set({ id: 1, username: 'sam', role: 'admin', disabled: false, mustChangePassword: false, createdAt: '', lastLoginAt: null });
     const router = TestBed.inject(Router);
     const go = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
     keys.onKey(press('g'), 1000);
     keys.onKey(press('o'), 1200);
     expect(go).toHaveBeenCalledWith('/overview');
-    // With only one admin page, Previous and Next say so instead of going nowhere
+    // Next page steps through the admin pages, and they wrap around
     keys.onKey(press(']'));
-    expect(TestBed.inject(Toast).message()).toBe('The Overview is the only admin page so far.');
-    expect(go).toHaveBeenCalledTimes(1);
+    expect(go).toHaveBeenLastCalledWith('/scratchpad');
+    keys.onKey(press('g'), 3000);
+    keys.onKey(press('s'), 3200);
+    expect(go).toHaveBeenLastCalledWith('/scratchpad');
   });
 
   it('refuses Tab and Shift+Tab like the other keys the browser keeps', () => {

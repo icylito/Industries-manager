@@ -212,6 +212,7 @@
 
     <!-- Column filters -->
     <div class="filters">
+        @if (showSector()) {
         <label class="filter">
             <span class="filter-label">Sector</span>
             <span class="control">
@@ -225,6 +226,8 @@
                 <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
             </span>
         </label>
+        }
+        @if (showPrice()) {
         <label class="filter">
             <span class="filter-label">Min price</span>
             <span class="control">
@@ -241,6 +244,7 @@
                     (input)="maxPrice.set(toNumber($any($event.target).value)); page.set(1)">
             </span>
         </label>
+        }
         <div class="filter filter-action">
             @if (hasFilters()) {
                 <button type="button" class="tool-btn" (click)="clearFilters()">
@@ -251,7 +255,9 @@
     </div>
 
     <!-- Release dates and rows that need a look. The Overview page opens this table with these set, see seedFromAddress. -->
+    @if (showDates() || visibleFlags().length) {
     <div class="filters more">
+        @if (showDates()) {
         <label class="filter">
             <span class="filter-label">Released from</span>
             <span class="control">
@@ -268,15 +274,19 @@
                     (input)="releaseTo.set($any($event.target).value || null); page.set(1)">
             </span>
         </label>
+        }
+        @if (visibleFlags().length) {
         <div class="filter" role="group" aria-label="Needs attention">
             <span class="filter-label">Needs attention <em>(rows with any of these)</em></span>
             <span class="flag-chips">
-                @for (choice of flagChoices; track choice.key) {
+                @for (choice of visibleFlags(); track choice.key) {
                     <button type="button" class="flag-chip" [attr.aria-pressed]="flagFilter().has(choice.key)" (click)="toggleFlag(choice.key)">{{ choice.label }}</button>
                 }
             </span>
         </div>
+        }
     </div>
+    }
 
     <!-- Search and page size -->
     <div class="toolbar">

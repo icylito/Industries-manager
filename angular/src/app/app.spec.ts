@@ -37,7 +37,7 @@ class StubPage {}
 
 // The admin pages share the Overview's slim nav and its colours. The table, Sign in and Account keep the normal nav.
 describe('App admin shell', () => {
-  const adminPaths = ['overview', 'settings'];
+  const adminPaths = ['overview', 'scratchpad', 'settings'];
   const isAdminRoute = (path: string) => routes.find(r => r.path === path)?.data?.['admin'] === true;
 
   afterEach(() => {
@@ -46,7 +46,7 @@ describe('App admin shell', () => {
   });
 
   it('marks every admin page in the route table, and nothing else', () => {
-    expect(adminPaths.map(isAdminRoute)).toEqual([true, true]);
+    expect(adminPaths.map(isAdminRoute)).toEqual([true, true, true]);
     expect(isAdminRoute('')).toBe(false);
     expect(isAdminRoute('requests')).toBe(false);
     expect(isAdminRoute('history')).toBe(false);
@@ -76,7 +76,7 @@ describe('App admin shell', () => {
       const el = fixture.nativeElement as HTMLElement;
       expect(el.querySelector('nav.nav')).toBeFalsy();
       expect([...el.querySelectorAll('nav.admin-nav .tabs a')].map(a => a.textContent?.trim()))
-        .toEqual(['Overview', 'Settings']);
+        .toEqual(['Overview', 'Scratchpad', 'Settings']);
       expect(el.querySelector('nav.admin-nav a[href="/requests"]')).toBeTruthy();
       expect(document.documentElement.classList.contains('admin-layout')).toBe(true);
     });

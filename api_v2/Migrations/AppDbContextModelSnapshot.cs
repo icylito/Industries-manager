@@ -159,6 +159,35 @@ namespace api_v2.Migrations
                     b.ToTable("RuleVersions");
                 });
 
+            modelBuilder.Entity("api_v2.Model.ScratchBoard", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Document")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("ScratchBoards");
+                });
+
             modelBuilder.Entity("api_v2.Model.Session", b =>
                 {
                     b.Property<long>("Id")
@@ -272,6 +301,15 @@ namespace api_v2.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("UserNotes");
+                });
+
+            modelBuilder.Entity("api_v2.Model.ScratchBoard", b =>
+                {
+                    b.HasOne("api_v2.Model.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("api_v2.Model.Session", b =>

@@ -39,6 +39,10 @@
     --cap-bg: #f7f7f7;
     --cap-border: #cfcfcf;
     --pop-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
+    /* Sticky notes and text boxes, the Scratchpad is the only page that uses them */
+    --paper: rgba(255, 191, 141, 0.6);
+    --paper-amber: rgba(255, 156, 86, 0.6);
+    --mark: #ffe58a;
 }
 
 /* Dark mode follows the OS setting, no toggle needed */
@@ -79,6 +83,9 @@
         --cap-bg: #1c1c1c;
         --cap-border: #3a3a3a;
         --pop-shadow: 0 18px 48px rgba(0, 0, 0, 0.7);
+        --paper: #1c1c1c;
+        --paper-amber: #3a2f14;
+    --mark: #5f4a12;
     }
 }
 
@@ -117,6 +124,9 @@
     --cap-bg: #1c1c1c;
     --cap-border: #3a3a3a;
     --pop-shadow: 0 18px 48px rgba(0, 0, 0, 0.7);
+    --paper: rgba(219, 141, 98, 0.6);
+    --paper-amber: rgba(201, 112, 68, 0.6);
+    --mark: #5f4a12;
 }
 
 /* The Overview's own dark colors: a near black page that is not pure black, cards a touch lighter, soft off white text (the design asks for

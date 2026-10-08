@@ -5,6 +5,7 @@ import {
     Industry, CreateIndustry, UpdateIndustry, DbHealth, RuleSet, FieldRule, NewField, VersionSummary, VersionDetail,
     ImportPreview, ImportResult, RestoreResult, Retention, BackupEntry, BackupStatus, BackupRestorePreview, BackupRestoreResult, DevRequest,
     SettingsFile, SettingsImportPreview, SettingsImportResult, AuthUser, NewUserResult, DeletedRow, FieldDeleted, UserNote,
+    BoardAnswer, BoardDocument,
 } from '../models/industry';
 import { environment } from '../../environments/environment';
 
@@ -32,6 +33,13 @@ export class IndustryApi {
         }
     getAll(): Observable<Industry[]> {
             return this.http.get<Industry[]>(this.baseUrl).pipe(this.retryTransient());
+        }
+        // The Scratchpad, one board per person, saved as a single JSON document
+        board(): Observable<BoardAnswer> {
+            return this.http.get<BoardAnswer>(this.apiUrl + '/scratchpad').pipe(this.retryTransient());
+        }
+        saveBoard(document: BoardDocument, updatedAt: string | null): Observable<{ updatedAt: string }> {
+            return this.http.put<{ updatedAt: string }>(this.apiUrl + '/scratchpad', { document, updatedAt });
         }
         create(body: CreateIndustry): Observable<Industry>{
             return this.http.post<Industry>(this.baseUrl, body);

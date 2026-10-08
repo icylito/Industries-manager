@@ -149,4 +149,45 @@ describe('MyComponents', () => {
       expect(component.editingId()).toBeNull();
     });
   });
+
+  // A filter only shows when the whole loaded table has something it could match, and a filter
+  // that is switched on stays visible so it can always be cleared. Everything shows while loading.
+  describe('filters with nothing to match', () => {
+    const row = (id: number, over: object = {}) => ({ id, name: 'Row ' + id, sector: 'Public Sector', price: 1, release: '2012-06-01', duplicateOf: null, importedFrom: null, lostFields: null, extra: null, ...over });
+    const flagKeys = () => component.visibleFlags().map(f => f.key);
+
+    it('hides a flag chip no row has, and keeps one that is switched on', () => {
+      component.loading.set(false);
+      component.industries.set([row(1), row(2, { price: null })]);
+      expect(flagKeys()).toEqual(['noprice']);
+      component.toggleFlag('duplicate');
+      expect(flagKeys()).toEqual(['duplicate', 'noprice']);
+    });
+
+    it('hides the price and date boxes when no row has one', () => {
+      component.loading.set(false);
+      component.industries.set([row(1, { price: null, release: null })]);
+      expect(component.showPrice()).toBe(false);
+      expect(component.showDates()).toBe(false);
+      component.minPrice.set(2);
+      expect(component.showPrice()).toBe(true);
+    });
+
+    it('hides Sector when there is only one, and keeps it when one is chosen', () => {
+      component.loading.set(false);
+      component.industries.set([row(1), row(2)]);
+      expect(component.showSector()).toBe(false);
+      component.sectorFilter.set('Public Sector');
+      expect(component.showSector()).toBe(true);
+    });
+
+    it('shows every control while the first load is still running', () => {
+      component.loading.set(true);
+      component.industries.set([]);
+      expect(component.showSector()).toBe(true);
+      expect(component.showPrice()).toBe(true);
+      expect(component.showDates()).toBe(true);
+      expect(flagKeys().length).toBe(4);
+    });
+  });
 });

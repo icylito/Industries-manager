@@ -14,6 +14,55 @@ export interface Industry {
     extra: Record<string, string | number | null> | null;
 }
 
+// The Scratchpad board, one per person, kept as a single JSON document.
+// The shape is checked in api_v2/Endpoints/ScratchpadEndpoints.cs. See docs/plans/2026-10-08-scratchpad-canvas.md
+export type BoardItemType = 'industry' | 'note' | 'text';
+export type NoteTone = 'white' | 'amber';
+
+export interface BoardItem {
+    id: string;
+    type: BoardItemType;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    // An industry card keeps what it showed, refreshed from the table when the board loads
+    industryId?: number;
+    name?: string;
+    sector?: string | null;
+    price?: number | null;
+    // Where it sat when it was added from the point of view of price, shown as #1 on the card
+    rank?: number | null;
+    // A sticky note or a text box. text is the plain form kept for boards saved before rich text.
+    text?: string;
+    blocks?: TextBlock[];
+    tone?: NoteTone;
+    tilt?: number;
+}
+
+export interface BoardView { x: number; y: number; zoom: number; }
+
+// Rich text, stored as runs (a stretch of text plus how it looks), so a single word can be bold,
+// highlighted, or a different font and size from the words beside it. See OVERVIEW_HANDOFF.md item d.
+export type BoardList = 'none' | 'bullet' | 'number';
+export type TextSize = 'sm' | 'base' | 'lg' | 'xl';
+export interface TextRun { text: string; bold?: boolean; highlight?: boolean; font?: string; size?: TextSize; }
+export interface TextBlock { id: string; list: BoardList; runs: TextRun[]; }
+
+// A line glued to two things on the board. head and bend are the label, arrowhead and curve of item f.
+export interface BoardLine { id: string; from: string; to: string; head: 'none' | 'end' | 'both'; bend: number; label: string; }
+// A group is only a name and the ids it holds. The outline is drawn from the real boxes.
+export interface BoardGroup { id: string; name: string; itemIds: string[]; }
+
+export interface BoardDocument {
+    version: 1;
+    view: BoardView;
+    items: BoardItem[];
+    lines: BoardLine[];
+    groups: BoardGroup[];
+}
+export interface BoardAnswer { document: BoardDocument; updatedAt: string | null; }
+
 // What DELETE /industries/{id} gives back, so the page can say what went and from where
 export interface DeletedRow {
     deleted: number;

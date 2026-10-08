@@ -1,0 +1,30 @@
+<div class="editor-wrap">
+    @if (bar() && barPos(); as pos) {
+        <div class="fmt" role="toolbar" aria-label="Format the selected words"
+            [style.left.px]="pos.x" [style.top.px]="pos.y"
+            [style.transform]="barTransform()">
+            <button type="button" class="fmt-btn" (mousedown)="$event.preventDefault(); bold()" title="Bold" aria-label="Bold"><b>B</b></button>
+            <button type="button" class="fmt-btn" (mousedown)="$event.preventDefault(); highlight()" title="Highlight" aria-label="Highlight">Highlight</button>
+            <button type="button" class="fmt-btn" (mousedown)="$event.preventDefault()" (click)="fontsOpen.set(!fontsOpen())" title="Font" aria-label="Font">Font</button>
+            @for (step of sizes; track step.key) {
+                <button type="button" class="fmt-btn" (mousedown)="$event.preventDefault(); setSize(step.key)" [title]="step.label">{{ step.label }}</button>
+            }
+            <button type="button" class="fmt-btn" (mousedown)="$event.preventDefault(); bullets()" title="Bulleted list" aria-label="Bulleted list">&bull;</button>
+            <button type="button" class="fmt-btn" (mousedown)="$event.preventDefault(); numbers()" title="Numbered list" aria-label="Numbered list">1.</button>
+
+            @if (fontsOpen()) {
+                <div class="fonts">
+                    @for (group of groups; track group.label) {
+                        <div class="font-group">{{ group.label }}</div>
+                        @for (font of group.fonts; track font) {
+                            <button type="button" class="font-pick" [style.fontFamily]="font"
+                                (mousedown)="$event.preventDefault(); setFont(font)">{{ font }}</button>
+                        }
+                    }
+                </div>
+            }
+        </div>
+    }
+    <div class="editor" #editor contenteditable="true" role="textbox" aria-multiline="true" aria-label="Note text"
+        (focus)="onFocus()" (blur)="onBlur()" (input)="onInput()"></div>
+</div>

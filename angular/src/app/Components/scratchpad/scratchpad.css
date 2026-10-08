@@ -1,0 +1,751 @@
+.scratch{
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    height: calc(100vh - 8rem);
+    min-height: 40rem;
+}
+
+/* Title, then Shortcuts and the save state on the same row */
+.head{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.head h1{
+    margin: 0;
+    font-size: 2rem;
+    letter-spacing: -0.03em;
+}
+
+.head-side{
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.ghost{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.95rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.ghost:hover{
+    border-color: var(--border-strong);
+}
+
+.pill{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.5rem 0.95rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.88rem;
+}
+
+.pill.bad{
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+/* While there is something to save the pill is a button, so nobody waits out a timer */
+.pill.ask{
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.pill.ask:hover{
+    border-color: var(--border-strong);
+}
+
+.pill.ask:focus-visible,
+.pill .try:focus-visible{
+    outline: 2px solid var(--signal);
+    outline-offset: 2px;
+}
+
+.pill.bad .try:focus-visible{
+    outline: 2px solid var(--danger);
+    outline-offset: 2px;
+}
+
+.try{
+    padding: 0.25rem 0.7rem;
+    border: 0;
+    border-radius: 999px;
+    background: var(--danger-bg);
+    color: var(--danger-on);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.scratch-body{
+    display: flex;
+    gap: 1rem;
+    flex: 1;
+    min-height: 0;
+}
+
+/* The list of companies to pull onto the board */
+.rail{
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 17rem;
+    min-width: 0;
+    padding: 0.85rem 0 0;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    overflow: hidden;
+}
+
+.rail-title{
+    margin: 0 0.9rem 0.5rem;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+
+.rail-search{
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0.75rem 0.5rem;
+    padding: 0.45rem 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--muted);
+}
+
+.rail-search input{
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    outline: none;
+}
+
+.rail-helper{
+    margin: 0 0.9rem 0.55rem;
+    color: var(--muted);
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+.rail-list{
+    flex: 1;
+    margin: 0;
+    padding: 0 0.6rem;
+    list-style: none;
+    overflow-y: auto;
+}
+
+.rail-list li{
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.4rem;
+    padding: 0.45rem 0.5rem 0.45rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg);
+}
+
+.rail-list li:hover{
+    border-color: var(--border-strong);
+}
+
+.rail-text{
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+.rail-name{
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.rail-meta{
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted);
+    font-size: 0.76rem;
+}
+
+.rail-price{
+    flex: 0 0 auto;
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.rail-add{
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+}
+
+.rail-add:hover{
+    border-color: var(--signal);
+    color: var(--signal);
+}
+
+.rail-empty{
+    padding: 0.6rem 0.25rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.rail-keys{
+    margin: 0.5rem 0.9rem 0.9rem;
+    padding-top: 0.7rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.72rem;
+    line-height: 1.5;
+}
+
+/* The board */
+.stage{
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.bar{
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.bar-group{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.bar-sep{
+    width: 1px;
+    height: 1.5rem;
+    background: var(--border);
+}
+
+.bar-gap{
+    flex: 1;
+}
+
+.tool{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.tool:hover:not(:disabled){
+    border-color: var(--border-strong);
+}
+
+.tool.on{
+    border-color: var(--signal);
+    background: var(--signal);
+    color: var(--signal-text);
+}
+
+.tool:disabled{
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.tool.danger{
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+.tool.icon{
+    width: 2.1rem;
+    height: 2.1rem;
+    justify-content: center;
+    padding: 0;
+}
+
+.tool.sq{
+    width: 2rem;
+    justify-content: center;
+    padding: 0.35rem 0;
+}
+
+.tool.zoom-val{
+    min-width: 3.6rem;
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
+}
+
+/* What the selected thing can do. Empty until something is picked. */
+.context{
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    min-height: 3rem;
+    padding: 0.4rem 0.65rem;
+    border: 1px dashed var(--border-strong);
+    border-radius: 12px;
+}
+
+.ctx-hint{
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.ctx-label{
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+
+.count{
+    color: var(--text);
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.group-name{
+    width: 11rem;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.85rem;
+}
+
+.tones{
+    display: inline-flex;
+    gap: 0.3rem;
+}
+
+.tone{
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+.tone.white{
+    background: var(--paper);
+}
+
+.tone.amber{
+    background: var(--paper-amber);
+}
+
+.tone.on{
+    box-shadow: 0 0 0 2px var(--signal);
+}
+
+.link{
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.canvas{
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    touch-action: none;
+    background:
+        radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 0) 0 0 / 24px 24px,
+        var(--surface);
+}
+
+.canvas.grab{
+    cursor: grab;
+}
+
+.canvas.drawing{
+    cursor: crosshair;
+}
+
+.layer{
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+}
+
+.lines{
+    position: absolute;
+    top: 0;
+    left: 0;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.line-hit{
+    fill: none;
+    stroke: transparent;
+    stroke-width: 16;
+    pointer-events: stroke;
+    cursor: pointer;
+}
+
+.line-ink{
+    fill: none;
+    stroke: var(--border-strong);
+    stroke-width: 2;
+}
+
+/* The label rides on the line, above the cards, and is named by double-clicking it */
+.line-pill{
+    position: absolute;
+    transform: translate(-50%, -50%);
+    max-width: 14rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0.15rem 0.55rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.78rem;
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.line-pill.edit{
+    min-width: 9rem;
+    cursor: text;
+}
+
+.line-label{
+    width: 10rem;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.85rem;
+}
+
+.item{
+    position: absolute;
+    box-sizing: border-box;
+    border-radius: 10px;
+    color: var(--text);
+    cursor: grab;
+}
+
+.item.selected{
+    outline: 2px solid var(--signal);
+    outline-offset: 2px;
+}
+
+.item.link-from{
+    box-shadow: 0 0 0 3px var(--signal);
+}
+
+.item.industry{
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 0.6rem 0.8rem 0.7rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow: var(--pop-shadow);
+}
+
+/* No rank until the rail has a genuinely ranked list, so the price sits on its own */
+.card-top{
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.card-name{
+    font-weight: 700;
+    font-size: 0.95rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.card-meta{
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+
+.card-price{
+    font-size: 0.9rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.item.note,
+.item.text{
+    padding: 0.5rem;
+    border: 1px solid var(--border-strong);
+    background: var(--paper);
+    box-shadow: 0 4px 12px var(--glow);
+}
+
+/* Paper, not a box: the bottom right corner curls up */
+.item.note{
+    border-radius: 4px 4px 4px 0;
+}
+
+.item.note::after{
+    content: '';
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 26px;
+    height: 26px;
+    border-bottom-right-radius: 10px;
+    background: linear-gradient(315deg, var(--surface) 47%, var(--paper-amber) 50%, var(--paper-amber) 100%);
+    box-shadow: -3px -3px 6px var(--glow);
+    pointer-events: none;
+}
+
+.item.note.amber{
+    background: var(--paper-amber);
+}
+
+.item.text{
+    background: var(--surface);
+    border-style: dashed;
+}
+
+.grip{
+    display: block;
+    margin-bottom: 0.15rem;
+    color: var(--muted);
+    font-size: 0.75rem;
+    letter-spacing: 0.18em;
+    text-align: center;
+    cursor: grab;
+    user-select: none;
+}
+
+/* The outline hugs the members, and the name chip is the handle that moves the whole group */
+.group-box{
+    position: absolute;
+    border: 1.5px dashed var(--border-strong);
+    border-radius: 16px;
+    pointer-events: none;
+}
+
+.group-box.on{
+    border-color: var(--signal);
+}
+
+.group-chip{
+    position: absolute;
+    top: -0.95rem;
+    left: 0.75rem;
+    max-width: 14rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    pointer-events: auto;
+    cursor: grab;
+}
+
+/* The box that picks several things at once */
+.box{
+    position: absolute;
+    border: 1px solid var(--signal);
+    background: var(--focus);
+    border-radius: 2px;
+    pointer-events: none;
+}
+
+.state{
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+    max-width: 22rem;
+    color: var(--muted);
+    text-align: center;
+}
+
+.empty{
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    width: min(28rem, 80%);
+    text-align: center;
+    pointer-events: none;
+}
+
+.empty strong{
+    font-size: 1.15rem;
+}
+
+.empty span{
+    color: var(--muted);
+    font-size: 0.88rem;
+    line-height: 1.5;
+}
+
+.foot{
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.78rem;
+    text-align: center;
+}
+
+.foot p{
+    margin: 0.2rem 0;
+}
+
+@media (max-width: 560px){
+    .scratch{
+        gap: 0.6rem;
+    }
+
+    .head h1{
+        font-size: 1.35rem;
+    }
+
+    .head-side{
+        width: 100%;
+    }
+
+    .pill,
+    .ghost{
+        padding: 0.4rem 0.7rem;
+        font-size: 0.82rem;
+    }
+
+    /* Keep the board on the first screen: a short rail, no keys block, compact bars */
+    .rail{
+        max-height: none;
+        padding-top: 0.6rem;
+    }
+
+    .rail-helper,
+    .rail-keys{
+        display: none;
+    }
+
+    .rail-list{
+        max-height: 7rem;
+    }
+
+    .bar,
+    .context{
+        gap: 0.3rem;
+        padding: 0.35rem 0.45rem;
+    }
+
+    .tool{
+        padding: 0.3rem 0.55rem;
+        font-size: 0.8rem;
+    }
+
+    .context{
+        min-height: 2.4rem;
+    }
+
+    .canvas{
+        min-height: 20rem;
+    }
+}
+
+@media (max-width: 860px){
+    .scratch{
+        height: auto;
+        min-height: 0;
+    }
+
+    .scratch-body{
+        flex-direction: column;
+    }
+
+    .rail{
+        flex: 0 0 auto;
+        max-height: 22rem;
+    }
+
+    .canvas{
+        min-height: 26rem;
+    }
+}

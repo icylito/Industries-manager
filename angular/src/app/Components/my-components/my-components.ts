@@ -414,6 +414,20 @@ export class MyComponents implements OnInit {
     !!this.search() || !!this.sectorFilter() || this.minPrice() !== null || this.maxPrice() !== null
     || this.releaseFrom() !== null || this.releaseTo() !== null || this.flagFilter().size > 0);
 
+  // A filter only shows when the loaded table has something it could match, so an empty
+  // "Needs attention" chip or a Sector box with one choice never takes up room. A filter that is
+  // switched on stays visible even if its count drops, so it can always be cleared. While the
+  // first load is still running everything shows, so the row does not jump.
+  private anyPrice = computed(() => this.industries().some(i => i.price !== null));
+  private anyRelease = computed(() => this.industries().some(i => i.release !== null));
+
+  showSector = computed(() => this.loading() || this.sectors().length > 1 || !!this.sectorFilter());
+  showPrice = computed(() => this.loading() || this.anyPrice() || this.minPrice() !== null || this.maxPrice() !== null);
+  showDates = computed(() => this.loading() || this.anyRelease() || this.releaseFrom() !== null || this.releaseTo() !== null);
+  visibleFlags = computed(() => this.loading()
+    ? this.flagChoices
+    : this.flagChoices.filter(f => this.flagFilter().has(f.key) || this.industries().some(f.has)));
+
   // Number inputs give '' when empty, keep that as "no limit"
   toNumber(value: string): number | null {
     return value === '' ? null : Number(value);

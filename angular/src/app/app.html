@@ -1,4 +1,4 @@
-<div class="app">
+<div class="app" [class.wide]="page().wide">
     @if (page().admin) {
     <!-- The admin pages share one slim nav: brand, the page tabs, then the bell, the theme button and the account pill. -->
     <nav class="admin-nav" aria-label="Main">
@@ -8,6 +8,7 @@
         </a>
         <div class="tabs">
             <a routerLink="/overview" routerLinkActive="current" ariaCurrentWhenActive="page">Overview</a>
+            <a routerLink="/scratchpad" routerLinkActive="current" ariaCurrentWhenActive="page">Scratchpad</a>
             <a routerLink="/settings" routerLinkActive="current" ariaCurrentWhenActive="page">Settings</a>
             <!-- The Scratchpad joins these tabs when that page is built -->
         </div>

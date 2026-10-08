@@ -42,6 +42,8 @@ builder.Services.AddHostedService<MigrationService>();
 builder.Services.AddSingleton<SettingsService>();
 builder.Services.AddSingleton<CollectorStore>();
 builder.Services.AddSingleton<AppLocks>();
+// Where uploaded Scratchpad files live on disk, created on startup. See Data/ScratchFileStore.cs
+builder.Services.AddSingleton<ScratchFileStore>();
 builder.Services.AddSingleton<api_v2.History.TableWriter>();
 builder.Services.AddSingleton<RulesService>();
 builder.Services.AddSingleton<BackupService>();
@@ -76,6 +78,10 @@ if (httpsRequired)
 }
 
 var app = builder.Build();
+
+// Make the Scratchpad file folder now, so a bad path or a denied folder fails at startup instead of on the
+// first upload. See Scratchpad:Files in appsettings.
+app.Services.GetRequiredService<ScratchFileStore>();
 
 if (httpsRequired)
 {
@@ -126,6 +132,8 @@ app.MapSchema();
 app.MapHistory();
 app.MapBackups();
 app.MapRequests();
+app.MapScratchpad();
+app.MapScratchFiles();
 app.MapOpenApi();
 app.UseSwaggerUI(options =>
 {

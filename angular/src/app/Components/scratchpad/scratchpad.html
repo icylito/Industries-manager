@@ -1,0 +1,258 @@
+<div class="scratch">
+    <header class="head">
+        <h1>Think with your industries.</h1>
+        <div class="head-side">
+            <button type="button" class="ghost" (click)="shortcuts.togglePanel()" [attr.aria-expanded]="shortcuts.panelOpen()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M7.5 14h9"/></svg>
+                Shortcuts
+            </button>
+            @switch (pad.saveState()) {
+                @case ('save') {
+                    <button type="button" class="pill ask" (click)="pad.saveNow()" title="Save now" aria-label="Save">Save</button>
+                }
+                @case ('saved') {
+                    <span class="pill good" role="status">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
+                        Saved</span>
+                }
+                @case ('failed') {
+                    @if (pad.conflict()) {
+                        <span class="pill bad" role="status">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5M12 16h.01"/></svg>
+                            This board was changed somewhere else.
+                            <button type="button" class="try" (click)="reload()">Reload</button>
+                        </span>
+                    } @else {
+                        <span class="pill bad" role="status">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5M12 16h.01"/></svg>
+                            Failed to save
+                            <button type="button" class="try" (click)="pad.retrySave()">Try again</button>
+                        </span>
+                    }
+                }
+            }
+        </div>
+    </header>
+
+    <div class="scratch-body">
+        <aside class="rail">
+            <span class="rail-title">Companies</span>
+            <label class="rail-search">
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                <input type="search" placeholder="Search the table" aria-label="Search the table"
+                    [value]="search()" (input)="search.set($any($event.target).value)">
+            </label>
+            <p class="rail-helper">Drag onto the board, or press +.</p>
+            <ul class="rail-list">
+                @for (row of matches(); track row.id) {
+                    <li>
+                        <span class="rail-text">
+                            <span class="rail-name">{{ row.name }}</span>
+                            <span class="rail-meta">{{ row.sector ?? 'No sector' }}</span>
+                        </span>
+                        <span class="rail-price">{{ rowPrice(row) }}</span>
+                        <button type="button" class="rail-add" [attr.aria-label]="'Put ' + row.name + ' on the board'"
+                            [attr.title]="'Put ' + row.name + ' on the board'" (click)="addIndustry(row)">
+                            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                        </button>
+                    </li>
+                } @empty {
+                    <li class="rail-empty">Nothing matches that.</li>
+                }
+            </ul>
+            <p class="rail-keys">Keys: V select, L line, N new sticky, T new text box. Esc goes back to select, Delete removes what is selected.</p>
+        </aside>
+
+        <section class="stage">
+            <div class="bar" role="toolbar" aria-label="Scratchpad">
+                <span class="bar-group" role="group" aria-label="Tools">
+                    <button type="button" class="tool icon" [class.on]="pad.tool() === 'select'" (click)="pad.tool.set('select')" title="Select" aria-label="Select">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M5 3l14 8-6.2 1.6L9.6 19z"/></svg>
+                    </button>
+                    <button type="button" class="tool icon" [class.on]="pad.tool() === 'hand'" (click)="pad.tool.set('hand')" title="Hand" aria-label="Hand">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11V5.6a1.6 1.6 0 013.2 0V11"/><path d="M12.2 10.6V4.9a1.6 1.6 0 013.2 0v5.7"/><path d="M15.4 11V7.4a1.6 1.6 0 013.2 0V15a6 6 0 01-6 6h-1.2a5 5 0 01-4.2-2.3l-2.6-4.2a1.6 1.6 0 012.6-1.8L9 14.4"/></svg>
+                    </button>
+                    <button type="button" class="tool icon" [class.on]="pad.tool() === 'line'" (click)="pad.tool.set('line')" title="Line" aria-label="Line">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6.5 17.5L17.5 6.5"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/></svg>
+                    </button>
+                </span>
+                <span class="bar-sep" aria-hidden="true"></span>
+                <!-- Kept here until the PAPER section at the bottom of the rail lands with item e -->
+                <span class="bar-group" role="group" aria-label="Add">
+                    <button type="button" class="tool icon" (click)="addNote()" title="New note" aria-label="New note">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h14v10l-5 5H5z"/><path d="M19 14h-5v5"/></svg>
+                    </button>
+                    <button type="button" class="tool icon" (click)="addText()" title="New text" aria-label="New text">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 6V4h14v2"/><path d="M12 4v16"/><path d="M9 20h6"/></svg>
+                    </button>
+                </span>
+                <span class="bar-gap"></span>
+                <span class="bar-group">
+                    <button type="button" class="tool" [disabled]="!pad.canUndo()" (click)="pad.undo()" title="Undo" aria-label="Undo">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg>
+                        Undo
+                    </button>
+                    <button type="button" class="tool" [disabled]="!pad.canRedo()" (click)="pad.redo()" title="Redo" aria-label="Redo">
+                        Redo
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 000 12h3"/></svg>
+                    </button>
+                </span>
+                <span class="bar-group">
+                    <button type="button" class="tool sq" (click)="zoomOut()" title="Zoom out" aria-label="Zoom out">&minus;</button>
+                    <button type="button" class="tool zoom-val" (click)="zoomTo(1)" title="Zoom to 100%">{{ zoomPercent() }}%</button>
+                    <button type="button" class="tool sq" (click)="zoomIn()" title="Zoom in" aria-label="Zoom in">+</button>
+                </span>
+                <button type="button" class="tool" (click)="fit()">Fit</button>
+                <button type="button" class="tool" [disabled]="pickedCount() === 0" (click)="zoomToSelection()">Selection</button>
+            </div>
+
+            <div class="context">
+                @if (pad.selectedGroupId(); as groupId) {
+                    <span class="ctx-label">Group</span>
+                    <input class="group-name" type="text" placeholder="Name this group" aria-label="Group name"
+                        [value]="selectedGroupName()"
+                        (focus)="onGroupNameFocus()"
+                        (input)="onGroupNameInput(groupId, $any($event.target).value)"
+                        (blur)="onGroupNameBlur()">
+                    <button type="button" class="tool" (click)="ungroupSelected()">Ungroup</button>
+                    <button type="button" class="tool danger" (click)="pad.deleteGroup(groupId)">Delete group</button>
+                } @else if (pad.selectedLineId(); as lineId) {
+                    <span class="ctx-label">Line</span>
+                    <input class="line-label" type="text" placeholder="Label this line" aria-label="Line label"
+                        [value]="selectedLine()?.label ?? ''"
+                        (focus)="onLineLabelFocus()"
+                        (input)="onLineLabelInput(lineId, $any($event.target).value)"
+                        (blur)="onLineLabelBlur()">
+                    <span class="bar-sep" aria-hidden="true"></span>
+                    <span class="bar-group" role="group" aria-label="Arrowhead">
+                        <button type="button" class="tool" [class.on]="selectedLine()?.head === 'none'" (click)="pad.setLineHead(lineId, 'none')">None</button>
+                        <button type="button" class="tool" [class.on]="selectedLine()?.head === 'end'" (click)="pad.setLineHead(lineId, 'end')">One end</button>
+                        <button type="button" class="tool" [class.on]="selectedLine()?.head === 'both'" (click)="pad.setLineHead(lineId, 'both')">Both ends</button>
+                    </span>
+                    <span class="bar-sep" aria-hidden="true"></span>
+                    <span class="bar-group" role="group" aria-label="Shape">
+                        <button type="button" class="tool" [class.on]="!selectedLine()?.bend" (click)="pad.setLineCurve(lineId, false)">Straight</button>
+                        <button type="button" class="tool" [class.on]="!!selectedLine()?.bend" (click)="pad.setLineCurve(lineId, true)">Curved</button>
+                        <button type="button" class="tool" [disabled]="!selectedLine()?.bend" (click)="pad.flipLine(lineId)">Flip</button>
+                    </span>
+                    <button type="button" class="tool danger" (click)="deleteSelected()">Delete line</button>
+                } @else if (pickedCount() > 0) {
+                    <span class="count">{{ pickedCount() }} selected</span>
+                    <button type="button" class="tool danger" (click)="deleteSelected()">Delete</button>
+                    @if (pickedTones().length > 0) {
+                        <span class="tones">
+                            <button type="button" class="tone white" [class.on]="pickedTones()[0].tone !== 'amber'"
+                                aria-label="White paper" title="White paper" (click)="pad.setTone(pad.selectedIds(), 'white')"></button>
+                            <button type="button" class="tone amber" [class.on]="pickedTones()[0].tone === 'amber'"
+                                aria-label="Yellow paper" title="Yellow paper" (click)="pad.setTone(pad.selectedIds(), 'amber')"></button>
+                        </span>
+                    }
+                    @if (pickedCount() >= 2) {
+                        <button type="button" class="tool" (click)="makeGroup()">Group under a name</button>
+                    }
+                } @else {
+                    <span class="ctx-hint">Select a card, a note or a line to see its tools here.</span>
+                }
+            </div>
+
+            <div class="canvas" #canvas
+                [class.grab]="pad.tool() === 'hand' || spaceDown()"
+                [class.drawing]="pad.tool() === 'line'"
+                (pointerdown)="onPointerDown($event)"
+                (pointermove)="onPointerMove($event)"
+                (pointerup)="onPointerUp($event)"
+                (pointercancel)="onPointerUp($event)">
+                @if (pad.loading()) {
+                    <div class="state">Loading your board...</div>
+                } @else if (pad.loadError()) {
+                    <div class="state">Couldn't open your board.
+                        <button type="button" class="link" (click)="reload()">Try again</button>
+                    </div>
+                } @else {
+                    <div class="layer" [style.transform]="layerTransform()">
+                        <svg class="lines" width="1" height="1" aria-hidden="true">
+                            <defs>
+                                <marker id="sl-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                                    <path d="M0 0L10 5L0 10z" fill="var(--border-strong)"></path>
+                                </marker>
+                            </defs>
+                            @for (line of lineShapes(); track line.id) {
+                                <path class="line-hit" [attr.data-line]="line.id" [attr.d]="line.d"></path>
+                                <path class="line-ink" [attr.d]="line.d"
+                                    [attr.marker-end]="line.head === 'end' || line.head === 'both' ? 'url(#sl-arrow)' : null"
+                                    [attr.marker-start]="line.head === 'both' ? 'url(#sl-arrow)' : null"></path>
+                            }
+                        </svg>
+
+                        @for (item of pad.board().items; track item.id) {
+                            <div class="item" [attr.data-item]="item.id" [class.selected]="pad.isPicked(item.id)"
+                                [class.industry]="item.type === 'industry'"
+                                [class.note]="item.type === 'note'" [class.text]="item.type === 'text'"
+                                [class.amber]="item.tone === 'amber'"
+                                [class.link-from]="lineFrom() === item.id"
+                                [style.left.px]="item.x" [style.top.px]="item.y" [style.width.px]="item.w"
+                                [style.min-height.px]="item.h"
+                                [style.transform]="item.tilt ? 'rotate(' + item.tilt + 'deg)' : null">
+                                @if (item.type === 'industry') {
+                                    <span class="card-top">
+                                        <span class="card-price">{{ priceLabel(item) }}</span>
+                                    </span>
+                                    <span class="card-name">{{ item.name }}</span>
+                                    <span class="card-meta">{{ item.sector ?? 'No sector' }}</span>
+                                } @else {
+                                    <span class="grip" aria-hidden="true">&bull;&bull;&bull;</span>
+                                    <app-note-editor [item]="item"></app-note-editor>
+                                }
+                            </div>
+                        }
+
+                        @for (line of lineShapes(); track line.id) {
+                            @if (line.label) {
+                                @if (editingLineId() === line.id) {
+                                    <input class="line-pill edit" [value]="line.label" aria-label="Line label"
+                                        [style.left.px]="line.pill.x" [style.top.px]="line.pill.y"
+                                        (pointerdown)="$event.stopPropagation()"
+                                        (focus)="onLineLabelFocus()"
+                                        (input)="onLineLabelInput(line.id, $any($event.target).value)"
+                                        (blur)="onLineLabelBlur()"
+                                        (keydown.enter)="onLineLabelBlur()">
+                                } @else {
+                                    <button type="button" class="line-pill" [style.left.px]="line.pill.x" [style.top.px]="line.pill.y"
+                                        (pointerdown)="$event.stopPropagation()"
+                                        (click)="pad.pickLine(line.id)" (dblclick)="editLineLabel(line.id)"
+                                        [attr.title]="line.label">{{ line.label }}</button>
+                                }
+                            }
+                        }
+
+                        @for (box of groupBoxes(); track box.id) {
+                            <div class="group-box" [class.on]="pad.selectedGroupId() === box.id"
+                                [style.left.px]="box.x" [style.top.px]="box.y" [style.width.px]="box.w" [style.height.px]="box.h">
+                                <button type="button" class="group-chip" [attr.data-group]="box.id"
+                                    [attr.title]="'Move ' + (box.name || 'the group')"
+                                    [attr.aria-label]="'Move ' + (box.name || 'the group')">{{ box.name || 'Group' }}</button>
+                            </div>
+                        }
+                    </div>
+
+                    @if (box(); as b) {
+                        <div class="box" [style.left.px]="Math.min(b.x0, b.x1)" [style.top.px]="Math.min(b.y0, b.y1)"
+                            [style.width.px]="Math.abs(b.x1 - b.x0)" [style.height.px]="Math.abs(b.y1 - b.y0)"></div>
+                    }
+
+                    @if (pad.itemCount() === 0) {
+                        <div class="empty">
+                            <strong>Nothing on the board yet</strong>
+                            <span>Drag a company from the list, drop a file or an image here, paste a picture, or add a note. Undo takes back anything.</span>
+                        </div>
+                    }
+                }
+            </div>
+        </section>
+    </div>
+
+    <div class="foot">
+        <p>Drag a box on empty space to select several things, then group them. Shift + click adds one. Drag a card, or the grip of a note, to move it.</p>
+        <p>Sample companies come from the same generated rows as the Overview. In the app, dropped files are stored on the server.</p>
+    </div>
+</div>

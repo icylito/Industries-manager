@@ -8,10 +8,13 @@ import { Toast } from './toast';
 // The keys a person changed are kept in this browser for now. The handoff wants them per person on the server once the table is agreed.
 
 // global works on every admin page, the others only on their own page
-export type Scope = 'global' | 'overview';
+export type Scope = 'global' | 'overview' | 'scratchpad';
 
 // The admin pages in menu order, for Go to and Previous / Next page. The Scratchpad joins this list when it is built.
-export const ADMIN_PAGES = [{ url: '/overview', name: 'Overview' }];
+export const ADMIN_PAGES = [
+  { id: 'nav.overview', url: '/overview', name: 'Overview' },
+  { id: 'nav.scratchpad', url: '/scratchpad', name: 'Scratchpad' },
+];
 
 export interface Command {
   id: string;
@@ -26,6 +29,7 @@ export interface Command {
 
 export const COMMANDS: Command[] = [
   { id: 'nav.overview', name: 'Go to Overview', desc: 'Jump to the Overview page.', scope: 'global', def: ['G', 'O'], anywhere: true },
+  { id: 'nav.scratchpad', name: 'Go to Scratchpad', desc: 'Jump to the Scratchpad page.', scope: 'global', def: ['G', 'S'], anywhere: true },
   { id: 'nav.prev', name: 'Previous page', desc: 'Move to the page before this one in the menu.', scope: 'global', def: ['['] },
   { id: 'nav.next', name: 'Next page', desc: 'Move to the page after this one in the menu.', scope: 'global', def: [']'] },
   { id: 'keys.open', name: 'Show shortcuts', desc: 'Open this list. Esc closes it.', scope: 'global', def: ['?'] },
@@ -35,6 +39,18 @@ export const COMMANDS: Command[] = [
   { id: 'ov.metric', name: 'Count or Average price', desc: 'Switch the bars between how many industries and their average price.', scope: 'overview', def: ['M'] },
   { id: 'ov.top', name: 'Switch the top list', desc: 'Cycle through Top 3, Top 10 and Cheapest 3.', scope: 'overview', def: ['T'] },
   { id: 'ov.clear', name: 'Clear filters', desc: 'Remove every filter at once.', scope: 'overview', def: ['Esc'] },
+  // The Scratchpad. Space (pan) and Delete (remove) are handled on the page itself, see Components/scratchpad.
+  { id: 'sp.select', name: 'Select tool', desc: 'On the Scratchpad, pick up and move things.', scope: 'scratchpad', def: ['V'] },
+  { id: 'sp.hand', name: 'Hand tool', desc: 'On the Scratchpad, drag the view around.', scope: 'scratchpad', def: ['H'] },
+  { id: 'sp.line', name: 'Line tool', desc: 'On the Scratchpad, join two things with a line.', scope: 'scratchpad', def: ['L'] },
+  { id: 'sp.sticky', name: 'New sticky note', desc: 'On the Scratchpad, add a sticky note.', scope: 'scratchpad', def: ['N'] },
+  { id: 'sp.text', name: 'New text box', desc: 'On the Scratchpad, add a text box.', scope: 'scratchpad', def: ['T'] },
+  { id: 'sp.undo', name: 'Undo', desc: 'On the Scratchpad, take back the last change.', scope: 'scratchpad', def: ['Ctrl+Z'] },
+  { id: 'sp.redo', name: 'Redo', desc: 'On the Scratchpad, bring back what was taken back.', scope: 'scratchpad', def: ['Ctrl+Y'] },
+  { id: 'sp.zoom100', name: 'Zoom to 100%', desc: 'On the Scratchpad, reset the zoom.', scope: 'scratchpad', def: ['Ctrl+0'] },
+  { id: 'sp.fit', name: 'Fit everything on screen', desc: 'On the Scratchpad, show the whole board.', scope: 'scratchpad', def: ['Ctrl+1'] },
+  { id: 'sp.zoomSel', name: 'Zoom to the selection', desc: 'On the Scratchpad, fill the screen with what is selected.', scope: 'scratchpad', def: ['Ctrl+2'] },
+  { id: 'sp.clear', name: 'Clear the selection', desc: 'On the Scratchpad, let go of what is selected.', scope: 'scratchpad', def: ['Esc'] },
 ];
 
 // Keys the browser or the system keeps for itself, a page can never use these reliably
@@ -230,12 +246,13 @@ export class Shortcuts {
     else this.pages.get(c.scope)?.[c.id]?.(e);
   }
 
-  // Go to Overview, and Previous / Next page through ADMIN_PAGES (they wrap around)
+  // Go to a named admin page, and Previous / Next page through ADMIN_PAGES (they wrap around)
   private go(id: string) {
     const here = ADMIN_PAGES.findIndex(p => this.router.url.split(/[?#]/)[0] === p.url);
-    if (id === 'nav.overview') {
-      if (here >= 0 && ADMIN_PAGES[here].url === '/overview') this.toast.say('You are already on the Overview.');
-      else this.router.navigateByUrl('/overview');
+    const named = ADMIN_PAGES.find(p => p.id === id);
+    if (named) {
+      if (here >= 0 && ADMIN_PAGES[here].url === named.url) this.toast.say('You are already on the ' + named.name + '.');
+      else this.router.navigateByUrl(named.url);
       return;
     }
     if (ADMIN_PAGES.length < 2) { this.toast.say('The Overview is the only admin page so far.'); return; }

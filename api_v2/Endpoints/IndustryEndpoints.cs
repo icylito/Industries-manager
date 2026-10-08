@@ -12,6 +12,15 @@ namespace api_v2.Endpoints;
 
 public static class IndustryEndpoints
 {
+    // How many rows the Scratchpad rail asks for, and the most one search may return
+    private const int SearchDefaultLimit = 10;
+    private const int SearchMaxLimit = 25;
+    // How many rows the Scratchpad rail's top list asks for: the three most expensive by default
+    private const int TopDefaultLimit = 3;
+    private const int TopMaxLimit = 25;
+    // The most rows one cards refresh may ask for: the board itself holds at most 500 things
+    private const int ByIdsMax = 500;
+
     public static void MapIndustries(this WebApplication app)
     {
         var group = app.MapGroup("/industries").RequireDatabaseReady();
@@ -19,6 +28,68 @@ public static class IndustryEndpoints
             group.MapGet("/", async (AppDbContext db) =>
             {
                 var rows = await db.Industries.AsNoTracking().OrderBy(i => i.Id).ToListAsync();
+                return Results.Ok(rows.Select(ToDto));
+            }).RequireViewer();
+
+            // The Scratchpad rail searches by name so it never pulls the whole table down.
+            // A blank search answers an empty list, the same as never looking.
+            group.MapGet("/search", async (string? q, string? limit, AppDbContext db, CancellationToken ct) =>
+            {
+                var needle = q?.Trim() ?? "";
+                if (needle.Length == 0) return Results.Ok(Array.Empty<IndustryDto>());
+
+                // A limit that isn't a number falls back to the default instead of failing the call
+                var take = SearchDefaultLimit;
+                if (int.TryParse(limit, out var asked)) take = Math.Clamp(asked, 1, SearchMaxLimit);
+
+                // The same comparison the unique name rule uses: lower(btrim(Name)) in Postgres, never C#.
+                // position() keeps the needle a plain substring, so a % or _ in it can't act as a wildcard.
+                var rows = await db.Industries.FromSql($"""
+                    SELECT * FROM "Industries"
+                    WHERE position(lower(btrim({needle})) in lower(btrim("Name"))) > 0
+                    ORDER BY lower(btrim("Name")), "Id"
+                    LIMIT {take}
+                    """).AsNoTracking().ToListAsync(ct);
+                return Results.Ok(rows.Select(ToDto));
+            }).RequireViewer();
+
+            // The Scratchpad rail's short list: the few most expensive rows, so it never pulls the table down.
+            // Only by=price is offered today. A by anywhere else, or none at all, is answered with price
+            // rather than a failure, so a typo in the rail can never break the list.
+            group.MapGet("/top", async (string? limit, AppDbContext db, CancellationToken ct) =>
+            {
+                // A limit that isn't a number, or is out of range, falls back or clamps instead of failing
+                var take = TopDefaultLimit;
+                if (int.TryParse(limit, out var asked)) take = Math.Clamp(asked, 1, TopMaxLimit);
+
+                // Rows with no price are skipped. Highest first, ties by lower(btrim(Name)) then Id, the same
+                // comparison the search endpoint and the unique name rule use.
+                var rows = await db.Industries.FromSql($"""
+                    SELECT * FROM "Industries"
+                    WHERE "Price" IS NOT NULL
+                    ORDER BY "Price" DESC, lower(btrim("Name")), "Id"
+                    LIMIT {take}
+                    """).AsNoTracking().ToListAsync(ct);
+                return Results.Ok(rows.Select(ToDto));
+            }).RequireViewer();
+
+            // The Scratchpad refreshes a handful of cards without pulling the table: it sends the ids it holds.
+            // Anything non-numeric is ignored, at most 500 ids are looked at, and no valid id answers an empty
+            // list rather than a failure, so junk input can never break the call.
+            group.MapGet("/by-ids", async (string? ids, AppDbContext db, CancellationToken ct) =>
+            {
+                var wanted = new List<int>();
+                foreach (var part in (ids ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    if (wanted.Count >= ByIdsMax) break;
+                    if (int.TryParse(part, out var id)) wanted.Add(id);
+                }
+                if (wanted.Count == 0) return Results.Ok(Array.Empty<IndustryDto>());
+
+                var rows = await db.Industries.AsNoTracking()
+                    .Where(i => wanted.Contains(i.Id))
+                    .OrderBy(i => i.Id)
+                    .ToListAsync(ct);
                 return Results.Ok(rows.Select(ToDto));
             }).RequireViewer();
 

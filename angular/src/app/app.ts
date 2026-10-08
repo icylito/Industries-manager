@@ -11,7 +11,7 @@ import { ShortcutsPanel } from './Components/shortcuts-panel/shortcuts-panel';
 import { routes } from './app.routes';
 
 // admin is the admin layout: the slim nav and no page header, the page draws its own title
-interface PageInfo { title: string; lede: string; centered?: boolean; admin?: boolean; }
+interface PageInfo { title: string; lede: string; centered?: boolean; admin?: boolean; wide?: boolean; }
 
 // The pages that use the admin shell, read from the route table so marking a route there is the only place to change
 const adminPaths = routes.filter(r => r.data?.['admin'] === true).map(r => `/${r.path}`);
