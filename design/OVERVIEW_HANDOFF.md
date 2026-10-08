@@ -313,3 +313,50 @@ Branch `scratchpad-canvas`, off local `main`. **Nothing is committed**; every ch
 ### What the next agent does, in order
 
 
+### Coder notes — frontend pass
+
+Files under `angular/`:
+
+- New: `services/scratchpad.ts`, `services/scratchpad.spec.ts`, `services/scratchpad-save.spec.ts` (the 8 skipped stress specs), and `Components/scratchpad/` with `scratchpad.ts`, `scratchpad.html`, `scratchpad.css`, `scratchpad.spec.ts`, `note-editor.ts`, `note-editor.html`, `note-editor.css` and `rich-text.ts`.
+- Modified: `app.routes.ts`, `app.html`, `app.css`, `app.ts`, `app.spec.ts`, `services/shortcuts.ts`, `services/shortcuts.spec.ts`, `services/industry-api.ts`, `models/industry.ts` and `styles.css`.
+- Not this pass: `Components/my-components/*` (the Browse filter work) and everything under `api_v2/`.
+
+Traps that cost time and will cost the next agent time:
+
+- PowerShell eats an unquoted `@e12` ref, so agent-browser clicks silently do nothing. Always quote: `click '@e12'`.
+- `agent-browser`: `open` never returns (run it capped in a job); `set viewport 390 844`; `network route "**/scratchpad" --abort` then `network unroute` (there is no bare offline command); `eval` returns a JSON-encoded string, so it needs decoding twice.
+- Killing your own browser processes trips the DSH job runner (exit code 4294967295) even though the kill worked. Check the state afterwards with a plain command, not another kill.
+- Process queries self-match — filter `Name -eq 'chrome.exe'`.
+- A running `dotnet run` locks `bin/Debug/net10.0/api_v2.exe` and `.dll`. Stop it before `dotnet build`, and NEVER generate a migration with `--no-build` while it runs — that reads the stale dll and produces an EMPTY migration.
+- The floating note toolbar translates in the layer units once the board is scaled, so the offset must be multiplied by `1/zoom` or it sinks onto the words when zoomed out; the canvas has overflow hidden, so the bar also needs nudging back inside.
+- The canvas captures the pointer on pointerdown, so any control inside it (the line label pill) must stopPropagation on pointerdown or its click is lost.
+- contenteditable formatting must run on mousedown, not click, or the selection is already gone; the editor must redraw from an external counter, not from the blocks signal, or the caret jumps while typing.
+- A typing burst must begin on input (`begin()` is idempotent), not only on focus, or typing after an undo has no snapshot; and the live text must call `saveSoon()`, or text saves only on blur and a reload loses it.
+- Do not `structuredClone` the whole board on wheel, drag or typing paths; patch one item.
+- Vitest: the API client retries 5xx, so a load-failure spec must play out four attempts with `advanceTimersByTimeAsync`; fake timers must be on before touching the service.
+
+### Critic verification — 2026-10-08
+
+Batch: save-state rework, Pass F (LINE bar), P/M keys trim, rank removal, 390 px fix, plus regressions. **Verdict: FAIL — 5/10.** Every check in the batch passed except one ship-blocking save-state defect: a slow link can make the board stop saving while the pill says "Saved". Everything else is verified good.
+
+**The blocker (repro).** After a 409, `conflict` is set true and is only cleared in `load()` (services/scratchpad.ts:121). A save already in flight that later succeeds sets `saveState='saved'` without clearing `conflict` (services/scratchpad.ts:520-522), so the pill shows "Saved", the Reload button disappears, `saveSoon()` returns early (line 502) and every later change is silently dropped. Also, `saveNow()` does not serialise requests, so on a link slower than the 700 ms debounce one tab can 409 itself: PUT2 carries the same stale `updatedAt` as PUT1 after PUT1 bumped it. Repro (Chrome, dev server): patch `window.fetch` to delay PUT /scratchpad by 1500 ms, click New note at t=0 and t=900 ms, wait. Raw: putTimes 701,1608,2912; transitions `101:Save > 3204:This board was changed somewhere else. Reload > 4501:Saved` (PUT3's success at 4501 masks the conflict). Then add a third note at t=6600: items 24->25, `puts` stayed 3, pill "Saved" — the change was never sent.
+
+**Verified working (raw observation).**
+- ng build: exit 0, Initial total 441.60 kB, no warning lines. `ng test --watch=false`: 141 passed | 8 skipped (149), 17 files, exit 0; scratchpad-save.spec.ts reports `(8 tests | 8 skipped)` — left skipped on purpose.
+- Save transitions: on load `pill good | Saved`; after a change `pill ask | Save`; after the server confirms `pill good | Saved`.
+- A change during flight: 100 ms sampling gave `101:Save > 3204:... > 4502:Saved` (bounded, converged, never a premature Saved).
+- Failure: PUT aborted -> `pill bad | Failed to save ... btn=Try again`, change kept (25->26 on the page); unroute + Try again -> `pill good | Saved`; reload -> 26 items, nothing lost.
+- 409 (two real tabs): tab 2 saved first, tab 1's PUT answered 409 -> `pill bad | This board was changed somewhere else. Reload | btn=Reload`; exactly ONE PUT in the next 7 s (no auto-retry); Reload -> `pill good | Saved`.
+- Periodic save: `setInterval`/`clearInterval` instrumented across SPA navigation -> `clear:7` on leaving /scratchpad, `set:120000:208` on returning (PERIODIC_SAVE_MS = 120000). 135 s idle -> "No requests captured" (zero scratchpad requests).
+- Pass F: the context bar reads `Line None One end Both ends Straight Curved Flip Delete line`; a new line starts selected with its label box focused (`INPUT|line-label`); typing "depends on" renders the pill; Both ends sets `marker-start=url(#sl-arrow)` AND `marker-end=url(#sl-arrow)`; Curved changes d from `M ... L ...` to `M ... Q 688.221 -301.426 1093.986 -473.377`; Flip moves the control offset from (16.73,67.97) to (-16.73,-67.97); each change is one undo step (heads -> none, curve -> L, flip -> pre-flip Q, label -> "depends on", redo -> "changed-label"); Delete line 2 -> 1 -> undo 2. A real pointer click on the pill (`find text "depends on" click`) selects the line and shows the LINE bar — the pointerdown stopPropagation fix holds.
+- Keys trim: rail hint is `Keys: V select, L line, N new sticky, T new text box. Esc goes back to select, Delete removes what is selected.` Pressing P or M leaves the active tool on Select and the canvas class unchanged; L -> Line and V -> Select still work.
+- Rank: 0 `.card-rank` elements on the board.
+- 390 px: viewport 390x844, `.canvas` top = 630 (head 83, rail 198, bar 120, context 38), so the board is on the first screen; light and dark both look right.
+- Regressions: focused typing `PG-GATE-A` -> Ctrl+Z -> `PB-GATE-DUR` -> Ctrl+Y -> `PG-GATE-A` (focus stayed in the editor); blur undo/redo; no-blur `PG-GATE-DUR` survived a reload. Hand pan translate(183.96,504.68)->(-16.04,384.68); one Ctrl+wheel at (600,500) kept the world point under the cursor (delta ~0.1) and clamped at exactly 400% and 10%; Fit -> 14%, 100% -> 100%, Selection zoomed on the picked item. A new note landed with `overlaps: none` (27 -> 28 items); Delete-only-selected 28 -> 27 -> undo 28; view reload 305% -> 305% with 28 items; dark bg rgb(20,20,20) / text rgb(226,226,226) / muted rgb(163,163,163); agent-browser page errors empty.
+
+**The three earlier defects — fixes hold.** (1) The rail keys no longer list P/M and both keys do nothing. (2) No rank badge is drawn on any card (0 `.card-rank`). (3) The 390 px canvas top is 630, on the first screen.
+
+**Could NOT check.** The 8 stress specs in services/scratchpad-save.spec.ts are deliberately skipped and were not unskipped or run. `network route --body` cannot set a 409 status, so the conflict needed a real second tab. The in-flight/self-conflict repro uses a patched `window.fetch` to add 1500 ms — an inference about a slow link, not a real slow link. Not covered: a real trackpad pinch, file drop/paste (slice e), a full WCAG sweep, and the API size/item/updatedAt guards.
+
+**Next agent must know.** The conflict path is not finished: when a later save succeeds, clear `conflict` and re-arm saving, or serialise `saveNow()` and advance `updatedAt` per in-flight request, so one tab can never 409 itself. Until then a slow link can silently stop the board saving while the pill says "Saved". Everything else in this batch is verified and can be built on.
+
