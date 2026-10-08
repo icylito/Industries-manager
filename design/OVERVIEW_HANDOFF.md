@@ -313,25 +313,3 @@ Branch `scratchpad-canvas`, off local `main`. **Nothing is committed**; every ch
 ### What the next agent does, in order
 
 
-### Coder notes — frontend pass
-
-Files under `angular/`:
-
-- New: `services/scratchpad.ts`, `services/scratchpad.spec.ts`, `services/scratchpad-save.spec.ts` (the 8 skipped stress specs), and `Components/scratchpad/` with `scratchpad.ts`, `scratchpad.html`, `scratchpad.css`, `scratchpad.spec.ts`, `note-editor.ts`, `note-editor.html`, `note-editor.css` and `rich-text.ts`.
-- Modified: `app.routes.ts`, `app.html`, `app.css`, `app.ts`, `app.spec.ts`, `services/shortcuts.ts`, `services/shortcuts.spec.ts`, `services/industry-api.ts`, `models/industry.ts` and `styles.css`.
-- Not this pass: `Components/my-components/*` (the Browse filter work) and everything under `api_v2/`.
-
-Traps that cost time and will cost the next agent time:
-
-- PowerShell eats an unquoted `@e12` ref, so agent-browser clicks silently do nothing. Always quote: `click '@e12'`.
-- `agent-browser`: `open` never returns (run it capped in a job); `set viewport 390 844`; `network route "**/scratchpad" --abort` then `network unroute` (there is no bare offline command); `eval` returns a JSON-encoded string, so it needs decoding twice.
-- Killing your own browser processes trips the DSH job runner (exit code 4294967295) even though the kill worked. Check the state afterwards with a plain command, not another kill.
-- Process queries self-match — filter `Name -eq 'chrome.exe'`.
-- A running `dotnet run` locks `bin/Debug/net10.0/api_v2.exe` and `.dll`. Stop it before `dotnet build`, and NEVER generate a migration with `--no-build` while it runs — that reads the stale dll and produces an EMPTY migration.
-- The floating note toolbar translates in the layer units once the board is scaled, so the offset must be multiplied by `1/zoom` or it sinks onto the words when zoomed out; the canvas has overflow hidden, so the bar also needs nudging back inside.
-- The canvas captures the pointer on pointerdown, so any control inside it (the line label pill) must stopPropagation on pointerdown or its click is lost.
-- contenteditable formatting must run on mousedown, not click, or the selection is already gone; the editor must redraw from an external counter, not from the blocks signal, or the caret jumps while typing.
-- A typing burst must begin on input (`begin()` is idempotent), not only on focus, or typing after an undo has no snapshot; and the live text must call `saveSoon()`, or text saves only on blur and a reload loses it.
-- Do not `structuredClone` the whole board on wheel, drag or typing paths; patch one item.
-- Vitest: the API client retries 5xx, so a load-failure spec must play out four attempts with `advanceTimersByTimeAsync`; fake timers must be on before touching the service.
-
