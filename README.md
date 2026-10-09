@@ -10,12 +10,11 @@ Working now:
 - History, where every saved copy can be viewed, downloaded, pinned, restored or imported
 - Nightly backups at 2:00, kept for 14 days
 - Requests, for anything that needs a developer
-- The Scratchpad, an admin board for notes, industry cards, groups and lines, saved per person
+- The Scratchpad, an admin board for notes, industry cards, groups, lines, files and pictures, saved per person. The Overview can carry a frozen copy of its circle or list there.
 - Tables, where managers and admins make their own tables, fill them, and delete them, with no developer
 - Backups that leave as one file and can be dropped back in on History
 
 Not done yet:
-- Files and pictures on the Scratchpad. The API can store them, the page does not use it yet.
 - Restoring a version saved before a table change needs a developer.
 - A restore brings back the rows and rules of a version, but not its old columns. A developer has to add those back in code.
 

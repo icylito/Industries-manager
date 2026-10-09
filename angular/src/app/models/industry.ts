@@ -16,8 +16,12 @@ export interface Industry {
 
 // The Scratchpad board, one per person, kept as a single JSON document.
 // The shape is checked in api_v2/Endpoints/ScratchpadEndpoints.cs. See docs/plans/2026-10-08-scratchpad-canvas.md
-export type BoardItemType = 'industry' | 'note' | 'text';
-export type NoteTone = 'white' | 'amber';
+export type BoardItemType = 'industry' | 'note' | 'text' | 'file' | 'snap';
+export type NoteTone = 'white' | 'gray' | 'ink' | 'amber';
+export type TextAlign = 'left' | 'center' | 'right';
+
+// What POST /scratchpad/files answers. The card keeps the id, never a browser address.
+export interface ScratchFileInfo { id: number; name: string; contentType: string; sizeBytes: number; }
 
 export interface BoardItem {
     id: string;
@@ -38,6 +42,14 @@ export interface BoardItem {
     blocks?: TextBlock[];
     tone?: NoteTone;
     tilt?: number;
+    align?: TextAlign;
+    // A file or picture. fileId is null until the upload is done, or when it never finished; name is the
+    // original file name, shown on the card and never used as a path.
+    fileId?: number | null;
+    contentType?: string;
+    sizeBytes?: number;
+    // A snapshot from the carry tray, frozen as it was carried
+    snap?: Snapshot;
 }
 
 export interface BoardView { x: number; y: number; zoom: number; }
@@ -54,12 +66,26 @@ export interface BoardLine { id: string; from: string; to: string; head: 'none' 
 // A group is only a name and the ids it holds. The outline is drawn from the real boxes.
 export interface BoardGroup { id: string; name: string; itemIds: string[]; }
 
+// A frozen picture of something on the Overview: the title the person would read and the numbers as they were,
+// never recalculated. split and pick let "Open in Overview" come back to the same slice.
+export interface Snapshot {
+    id: string;
+    kind: 'circle' | 'list';
+    title: string;
+    takenAt: string;
+    numbers: { label: string; value: string; share?: number }[];
+    split?: string;
+    pick?: string | null;
+}
+
 export interface BoardDocument {
     version: 1;
     view: BoardView;
     items: BoardItem[];
     lines: BoardLine[];
     groups: BoardGroup[];
+    // Snapshots carried from the Overview, waiting to go on the board. Kept with the board, so no table of its own.
+    tray?: Snapshot[];
 }
 export interface BoardAnswer { document: BoardDocument; updatedAt: string | null; }
 

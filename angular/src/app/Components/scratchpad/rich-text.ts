@@ -6,14 +6,19 @@ import { BoardList, TextBlock, TextRun, TextSize } from '../../models/industry';
 
 export interface FontGroup { label: string; fonts: string[]; }
 
-// 20 Google fonts. Only the ones actually used are loaded on the page, see ensureFont.
+// The 28 Google fonts the handoff lists. Only the ones actually used are loaded on the page, see ensureFont;
+// a font list that shows every name in its own face loads them when it opens, see ensureFonts.
 export const FONT_GROUPS: FontGroup[] = [
-  { label: 'Sans serif', fonts: ['Inter', 'Poppins', 'Montserrat', 'Work Sans', 'DM Sans', 'Nunito'] },
-  { label: 'Serif', fonts: ['Playfair Display', 'Merriweather', 'Lora', 'Libre Baskerville'] },
-  { label: 'Monospace', fonts: ['JetBrains Mono', 'IBM Plex Mono'] },
+  { label: 'Sans serif', fonts: ['Inter', 'Poppins', 'Montserrat', 'Work Sans', 'DM Sans', 'Nunito', 'Lato', 'Open Sans', 'Raleway'] },
+  { label: 'Serif', fonts: ['Playfair Display', 'Merriweather', 'Lora', 'Libre Baskerville', 'Cormorant Garamond', 'Source Serif 4'] },
+  { label: 'Monospace', fonts: ['JetBrains Mono', 'IBM Plex Mono', 'Space Mono'] },
   { label: 'Display', fonts: ['Oswald', 'Bebas Neue', 'Abril Fatface', 'Lobster'] },
-  { label: 'Handwriting', fonts: ['Caveat', 'Pacifico', 'Shadows Into Light', 'Permanent Marker'] },
+  { label: 'Handwriting', fonts: ['Caveat', 'Pacifico', 'Shadows Into Light', 'Permanent Marker', 'Dancing Script', 'Indie Flower'] },
 ];
+
+export function ensureFonts(): void {
+  for (const group of FONT_GROUPS) for (const font of group.fonts) ensureFont(font);
+}
 
 export interface SizeStep { key: TextSize; label: string; px: string; exec: string; }
 export const SIZE_STEPS: SizeStep[] = [
@@ -24,6 +29,8 @@ export const SIZE_STEPS: SizeStep[] = [
 ];
 
 const loaded = new Set<string>();
+// Families that come in one weight only
+const ONE_WEIGHT = new Set(['Bebas Neue', 'Abril Fatface', 'Lobster', 'Pacifico', 'Shadows Into Light', 'Permanent Marker', 'Indie Flower']);
 
 // Google Fonts loads a family the first time it is used, not all 20 on every page
 export function ensureFont(family: string): void {
@@ -31,7 +38,9 @@ export function ensureFont(family: string): void {
   loaded.add(family);
   const link = document.createElement('link');
   link.rel = 'stylesheet';
-  link.href = 'https://fonts.googleapis.com/css2?family=' + family.replace(/ /g, '+') + ':wght@400;700&display=swap';
+  // Google Fonts refuses the whole request when it asks for a weight the family doesn't have
+  const weights = ONE_WEIGHT.has(family) ? '' : ':wght@400;700';
+  link.href = 'https://fonts.googleapis.com/css2?family=' + family.replace(/ /g, '+') + weights + '&display=swap';
   document.head.appendChild(link);
 }
 

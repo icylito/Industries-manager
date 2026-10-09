@@ -2,10 +2,10 @@ import { Service, computed, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { IndustryApi } from './industry-api';
-import { BoardDocument, BoardGroup, BoardItem, BoardLine, BoardView, TextBlock } from '../models/industry';
+import { BoardDocument, BoardGroup, BoardItem, BoardLine, BoardView, NoteTone, Snapshot, TextAlign, TextBlock } from '../models/industry';
 
 // The board's own types live with the other API models, see models/industry.ts
-export type { BoardDocument, BoardGroup, BoardItem, BoardItemType, BoardLine, BoardList, BoardView, NoteTone, TextBlock, TextRun, TextSize } from '../models/industry';
+export type { BoardDocument, BoardGroup, BoardItem, BoardItemType, BoardLine, BoardList, BoardView, NoteTone, TextAlign, TextBlock, TextRun, TextSize } from '../models/industry';
 
 // The pill next to Shortcuts. Three states, one rule: nothing is called Saved until the server says so.
 export type SaveState = 'save' | 'saved' | 'failed';
@@ -17,7 +17,19 @@ export const ITEM_SIZE = {
   industry: { w: 236, h: 92 },
   note: { w: 250, h: 150 },
   text: { w: 270, h: 110 },
+  // A picture shows its preview over the name, anything else is a slim card with its type
+  image: { w: 240, h: 212 },
+  file: { w: 270, h: 76 },
+  snap: { w: 300, h: 236 },
 } as const;
+
+// A tray is a few things on their way, not a store. The oldest goes when it gets past this.
+export const TRAY_MAX = 20;
+
+export function isImage(contentType: string | undefined): boolean {
+  // SVG can carry script, so it is never previewed, the same rule the API serves it by
+  return !!contentType && contentType.startsWith('image/') && !contentType.includes('svg');
+}
 
 const HISTORY_CAP = 100;
 const SAVE_DEBOUNCE_MS = 700;
@@ -54,6 +66,7 @@ function openBoard(raw: BoardDocument): BoardDocument {
     items,
     lines: raw.lines ?? [],
     groups: (raw.groups ?? []).filter(group => group.itemIds.length >= 2),
+    tray: Array.isArray(raw.tray) ? raw.tray : [],
   };
 }
 
@@ -92,6 +105,8 @@ export class Scratchpad {
   });
   selectedOne = computed(() => (this.selection().length === 1 ? this.selection()[0] : null));
   itemCount = computed(() => this.board().items.length);
+  // Companies already on the board, so the rail's + is off for them
+  industryIds = computed(() => new Set(this.board().items.filter(item => item.type === 'industry').map(item => item.industryId)));
   groups = computed(() => this.board().groups);
   lines = computed(() => this.board().lines);
 
@@ -117,6 +132,7 @@ export class Scratchpad {
       const document = answer.document;
       if (!document || document.version !== 1 || !Array.isArray(document.items)) throw new Error('unreadable');
       this.board.set(openBoard(document));
+      this.loadedOnce = true;
       this.updatedAt = answer.updatedAt;
       // A board that just loaded matches the server, so nothing is outstanding
       this.unsaved = false;
@@ -271,6 +287,103 @@ export class Scratchpad {
     this.pick(item.id);
   }
 
+  // A file or picture goes on the board at once, before its upload is done, so dropping feels instant.
+  // Its fileId arrives with fileStored. Undo takes the card off like anything else.
+  addFile(file: { name: string; contentType: string; sizeBytes: number }, at?: { x: number; y: number }): string {
+    const size = isImage(file.contentType) ? ITEM_SIZE.image : ITEM_SIZE.file;
+    const spot = at ? { x: at.x - size.w / 2, y: at.y - size.h / 2 } : this.freeSpot(size.w, size.h);
+    const item: BoardItem = {
+      id: newId(), type: 'file', x: spot.x, y: spot.y, w: size.w, h: size.h,
+      fileId: null, name: file.name, contentType: file.contentType, sizeBytes: file.sizeBytes,
+    };
+    this.commit(document => { document.items.push(item); });
+    this.pick(item.id);
+    return item.id;
+  }
+
+  // The upload finished. Not an undo step of its own: the card was already added, this only fills in its id.
+  // Undo history keeps copies of the board, so they learn the id too, or undo then redo would bring back a card
+  // that has no file behind it.
+  fileStored(itemId: string, stored: { id: number; contentType: string; sizeBytes: number }): void {
+    const fill = (document: BoardDocument) => ({
+      ...document,
+      items: document.items.map(item => (item.id === itemId
+        ? { ...item, fileId: stored.id, contentType: stored.contentType, sizeBytes: stored.sizeBytes } : item)),
+    });
+    this.board.update(fill);
+    this.past = this.past.map(fill);
+    this.future = this.future.map(fill);
+    if (this.before) this.before = fill(this.before);
+    this.saveSoon();
+  }
+
+  // ---- the carry tray ----
+
+  tray = computed(() => this.board().tray ?? []);
+  private loadedOnce = false;
+
+  // The Overview carries a snapshot here. The board may not be open, so it is opened first, then the snapshot joins
+  // the tray and is saved at once. Not an undo step on its own: the Scratchpad's undo is about the board.
+  async carry(snap: Snapshot): Promise<boolean> {
+    // Fresh from the server, so another tab's changes are kept, unless this tab still has changes of its own on the way
+    if (!this.loadedOnce || this.loadError() || (!this.unsaved && !this.inFlight)) await this.load();
+    if (this.loadError()) return false;
+    this.board.update(document => ({ ...document, tray: [...(document.tray ?? []), snap].slice(-TRAY_MAX) }));
+    this.unsaved = true;
+    this.changeVersion++;
+    this.saveState.set('save');
+    await this.saveNow();
+    return this.saveState() === 'saved';
+  }
+
+  // Off the tray and onto the board, as a frozen card. Undo puts it back in the tray.
+  placeSnap(snapId: string, at?: { x: number; y: number }): void {
+    const snap = this.tray().find(one => one.id === snapId);
+    if (!snap) return;
+    const size = ITEM_SIZE.snap;
+    const spot = at ? { x: at.x - size.w / 2, y: at.y - size.h / 2 } : this.freeSpot(size.w, size.h);
+    const item: BoardItem = { id: newId(), type: 'snap', x: spot.x, y: spot.y, w: size.w, h: size.h, snap };
+    this.commit(document => {
+      document.tray = (document.tray ?? []).filter(one => one.id !== snapId);
+      document.items.push(item);
+    });
+    this.pick(item.id);
+  }
+
+  dropFromTray(snapId: string): void {
+    this.commit(document => { document.tray = (document.tray ?? []).filter(one => one.id !== snapId); });
+  }
+
+  // ---- the TEXT bar: the whole note at once. Selected words are formatted by the note's own floating bar. ----
+
+  setAlign(ids: string[], align: TextAlign): void {
+    this.commit(document => {
+      for (const item of document.items) if (ids.includes(item.id) && item.type !== 'industry' && item.type !== 'file') item.align = align;
+    });
+    this.external.update(count => count + 1);
+  }
+
+  // Bold or highlight every word of the note. On when any part is off, so a mixed note turns all on first.
+  toggleWhole(id: string, style: 'bold' | 'highlight'): void {
+    const item = this.board().items.find(one => one.id === id);
+    const runs = item?.blocks?.flatMap(block => block.runs).filter(run => run.text.length > 0) ?? [];
+    if (!item || runs.length === 0) return;
+    const on = !runs.every(run => run[style]);
+    this.commit(document => {
+      const target = document.items.find(one => one.id === id);
+      for (const block of target?.blocks ?? []) for (const run of block.runs) run[style] = on || undefined;
+    });
+    this.external.update(count => count + 1);
+  }
+
+  setFontWhole(id: string, font: string): void {
+    this.commit(document => {
+      const target = document.items.find(one => one.id === id);
+      for (const block of target?.blocks ?? []) for (const run of block.runs) run.font = font === 'Inter' ? undefined : font;
+    });
+    this.external.update(count => count + 1);
+  }
+
   // Dragging happens many times a second, so only the moving things change, not the whole board
   moveManyLive(positions: { id: string; x: number; y: number }[]): void {
     const byId = new Map(positions.map(one => [one.id, one]));
@@ -299,7 +412,7 @@ export class Scratchpad {
     this.saveSoon();
   }
 
-  setTone(ids: string[], tone: 'white' | 'amber'): void {
+  setTone(ids: string[], tone: NoteTone): void {
     this.commit(document => {
       for (const item of document.items) if (ids.includes(item.id)) item.tone = tone;
     });

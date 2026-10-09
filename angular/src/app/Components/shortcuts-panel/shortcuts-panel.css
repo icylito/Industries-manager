@@ -352,6 +352,48 @@
     gap: 0.5rem;
 }
 
+/* The Mouse group under the keys: a small heading, then rows whose held key is a plain list */
+.group-head{
+    padding: 0.7rem 1.25rem 0.4rem;
+    border-top: 1px solid var(--border);
+    background: var(--cap-bg);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.mouse-key{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.mod{
+    height: 30px;
+    padding: 0 6px;
+    border: 1px solid var(--cap-border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.mod:focus-visible{
+    outline: 2px solid var(--signal);
+    outline-offset: 2px;
+}
+
+.gesture{
+    color: var(--text-2);
+    font-size: 13px;
+}
+
 .none{
     padding: 1.4rem 1.25rem;
     border-top: 1px solid var(--border);

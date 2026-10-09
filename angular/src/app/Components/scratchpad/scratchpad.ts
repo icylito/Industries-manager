@@ -1,10 +1,22 @@
-import { Component, DestroyRef, ElementRef, afterNextRender, computed, inject, signal, viewChild } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
-import { BoardItem, Industry } from '../../models/industry';
-import { IndustryApi } from '../../services/industry-api';
-import { Shortcuts } from '../../services/shortcuts';
-import { Scratchpad, clampZoom, curveControl, quadPoint } from '../../services/scratchpad';
+import { Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { HttpErrorResponse, HttpEventType } from '@angular/common/http';
+import { Subscription, firstValueFrom } from 'rxjs';
+import { NgTemplateOutlet } from '@angular/common';
+import { RouterLink } from '@angular/router';
+import { BoardItem, Industry, NoteTone, Snapshot, TextAlign } from '../../models/industry';
+import { IndustryApi, errorText } from '../../services/industry-api';
+import { Shortcuts, modHeld } from '../../services/shortcuts';
+import { ITEM_SIZE, Scratchpad, clampZoom, curveControl, isImage, quadPoint } from '../../services/scratchpad';
 import { NoteEditor } from './note-editor';
+import { MAX_FILE_MB, nameForPasted, refusalFor, sizeText, typeLabel } from './board-files';
+import { FONT_GROUPS, ensureFont, ensureFonts, fontCss } from './rich-text';
+
+// A file's upload while the page is open. Gone after a reload: a card whose upload never finished says so.
+interface Upload { pct: number; failed: boolean; }
+
+// A company dragged from the rail onto the board, and a snapshot dragged off the carry tray
+const INDUSTRY_DRAG = 'application/x-scratchpad-industry';
+const SNAP_DRAG = 'application/x-scratchpad-snap';
 
 // The endless board. Pan and zoom, industry cards, sticky notes and text boxes, several things picked at
 // once, groups, lines that stay glued, undo and redo, and the whole thing saved per person on its own.
@@ -23,7 +35,7 @@ interface Box { x0: number; y0: number; x1: number; y1: number; }
 
 @Component({
   selector: 'app-scratchpad',
-  imports: [NoteEditor],
+  imports: [NoteEditor, NgTemplateOutlet, RouterLink],
   templateUrl: './scratchpad.html',
   styleUrl: './scratchpad.css',
 })
@@ -39,21 +51,55 @@ export class ScratchpadPage {
 
   search = signal('');
   spaceDown = signal(false);
-  rows = signal<Industry[]>([]);
   box = signal<Box | null>(null);
   lineFrom = signal<string | null>(null);
 
   private drag: Drag | null = null;
 
-  // Exactly three at a time. Anything else is found by searching, then added with its + button.
-  matches = computed(() => {
-    const query = this.search().trim().toLowerCase();
-    const all = this.rows();
-    const found = query ? all.filter(row => row.name.toLowerCase().includes(query)) : all;
-    return found.slice(0, 3);
-  });
+  // The rail never loads the table. With no search it shows the 3 most expensive rows, and says so;
+  // typing swaps them for up to 10 name matches. See OVERVIEW_HANDOFF.md, "the companies rail".
+  static readonly TOP = 3;
+  static readonly MATCHES = 10;
+  matches = signal<Industry[]>([]);
+  railLoading = signal(true);
+  railError = signal(false);
+  railHelper = computed(() => (this.search().trim() ? 'Drag one onto the board, or press +.' : 'Most expensive first. Search for any other.'));
+  private railTimer: ReturnType<typeof setTimeout> | null = null;
+  private railCall: Subscription | null = null;
+
+  // Files: the upload of each card while it runs, the pictures fetched for showing, and the refusal toast
+  uploads = signal<Record<string, Upload>>({});
+  private pendingFiles = new Map<string, File>();
+  previews = signal<Record<number, string>>({});
+  private previewAsked = new Set<number>();
+  notice = signal<string[]>([]);
+  private noticeTimer: ReturnType<typeof setTimeout> | null = null;
+  // Where a file being dragged is: anywhere on the page, over the + File or image field, or over the board
+  fileOver = signal<'none' | 'page' | 'button' | 'board'>('none');
+  readonly maxFileMb = MAX_FILE_MB;
+  protected readonly typeLabel = typeLabel;
+  protected readonly sizeText = sizeText;
+  protected readonly isImage = isImage;
+
+  // The TEXT bar's font list, the same fonts the note's own bar offers
+  fontsOpen = signal(false);
+  protected readonly fontGroups = FONT_GROUPS;
+  protected readonly fontCss = fontCss;
 
   pickedCount = computed(() => this.pad.selectedIds().length);
+  // What the tool in hand does, in the same spot on the toolbar so it never jumps around
+  toolHint = computed(() => {
+    if (this.spaceDown() || this.pad.tool() === 'hand') return 'Drag to move around the board. Scrolling also moves it, Ctrl + scroll zooms.';
+    if (this.pad.tool() === 'line') return this.lineFrom() ? 'Now click the item to join it to.' : 'Click an item, then another. The line follows when either moves.';
+    return 'Drag a box on empty space to select several things. ' + this.shortcuts.mouseMod('mouse.add') + ' + click adds one.';
+  });
+  // The one thing picked, which decides the bar: COMPANY, FILE or TEXT
+  picked = computed(() => this.pad.selectedOne());
+  pickedFont = computed(() => this.picked()?.blocks?.flatMap(block => block.runs).find(run => run.text)?.font ?? 'Inter');
+  pickedStyle = computed(() => {
+    const runs = this.picked()?.blocks?.flatMap(block => block.runs).filter(run => run.text) ?? [];
+    return { bold: runs.length > 0 && runs.every(run => run.bold), highlight: runs.length > 0 && runs.every(run => run.highlight) };
+  });
 
   layerTransform = computed(() => {
     const view = this.pad.board().view;
@@ -118,10 +164,46 @@ export class ScratchpadPage {
   editingLineId = signal<string | null>(null);
 
   constructor() {
-    void this.pad.load();
+    void this.pad.load().then(() => this.refreshCards());
     // The periodic save lives with the page, not the service, so closing the page stops it
     this.pad.startAutoSave();
-    void this.loadRows();
+    this.loadRail();
+
+    // A picture card shows its preview, fetched once with the sign in, since an <img> can't send it
+    effect(() => {
+      for (const item of this.pad.board().items) {
+        if (item.type === 'file' && item.fileId != null && isImage(item.contentType)) this.askPreview(item.fileId);
+      }
+    });
+    // Fonts used on the board are loaded once, so a note in Caveat shows in Caveat after a reload
+    effect(() => {
+      for (const item of this.pad.board().items) for (const block of item.blocks ?? []) for (const run of block.runs) if (run.font) ensureFont(run.font);
+    });
+
+    // Files dragged over the page: the browser must never open a dropped file, wherever it lands
+    let depth = 0;
+    const hasFiles = (event: DragEvent) => !!event.dataTransfer?.types.includes('Files');
+    const onDragEnter = (event: DragEvent) => { if (hasFiles(event)) { depth++; if (this.fileOver() === 'none') this.fileOver.set('page'); } };
+    const onDragLeave = (event: DragEvent) => { if (hasFiles(event) && --depth <= 0) { depth = 0; this.fileOver.set('none'); } };
+    const onDragOver = (event: DragEvent) => { if (hasFiles(event)) event.preventDefault(); };
+    const onDrop = (event: DragEvent) => { if (hasFiles(event)) event.preventDefault(); depth = 0; this.fileOver.set('none'); };
+    const onPaste = (event: ClipboardEvent) => this.onPaste(event);
+    document.addEventListener('dragenter', onDragEnter);
+    document.addEventListener('dragleave', onDragLeave);
+    document.addEventListener('dragover', onDragOver);
+    document.addEventListener('drop', onDrop);
+    document.addEventListener('paste', onPaste);
+    this.destroy.onDestroy(() => {
+      document.removeEventListener('dragenter', onDragEnter);
+      document.removeEventListener('dragleave', onDragLeave);
+      document.removeEventListener('dragover', onDragOver);
+      document.removeEventListener('drop', onDrop);
+      document.removeEventListener('paste', onPaste);
+      for (const url of Object.values(this.previews())) URL.revokeObjectURL(url);
+      if (this.noticeTimer) clearTimeout(this.noticeTimer);
+      if (this.railTimer) clearTimeout(this.railTimer);
+      this.railCall?.unsubscribe();
+    });
 
     const off = this.shortcuts.register('scratchpad', {
       'sp.select': () => this.pad.tool.set('select'),
@@ -174,18 +256,323 @@ export class ScratchpadPage {
   }
 
   reload(): void {
-    void this.pad.load();
-    void this.loadRows();
+    void this.pad.load().then(() => this.refreshCards());
+    this.loadRail();
   }
 
-  private async loadRows(): Promise<void> {
+  // Cards show what the table says now. Only the companies on the board are asked for, never the table.
+  private async refreshCards(): Promise<void> {
+    const ids = [...this.pad.industryIds()].filter((id): id is number => typeof id === 'number');
+    if (ids.length === 0) return;
     try {
-      const rows = await firstValueFrom(this.api.getAll());
-      this.rows.set(rows);
-      this.pad.refreshCards(rows);
+      this.pad.refreshCards(await firstValueFrom(this.api.industriesByIds(ids)));
     } catch {
-      this.rows.set([]);
+      // The cards keep what they showed last time
     }
+  }
+
+  onSearch(value: string): void {
+    this.search.set(value);
+    if (this.railTimer) clearTimeout(this.railTimer);
+    // A short pause, so a typed word is one request rather than one per letter
+    this.railTimer = setTimeout(() => this.loadRail(), 250);
+  }
+
+  loadRail(): void {
+    const query = this.search().trim();
+    this.railCall?.unsubscribe();
+    this.railLoading.set(true);
+    const call = query ? this.api.searchIndustries(query, ScratchpadPage.MATCHES) : this.api.topIndustries(ScratchpadPage.TOP);
+    this.railCall = call.subscribe({
+      next: rows => { this.matches.set(rows); this.railLoading.set(false); this.railError.set(false); },
+      error: () => { this.matches.set([]); this.railLoading.set(false); this.railError.set(true); },
+    });
+  }
+
+  // A card added from the top list carries its place in that list (#1..#3). One added from a search has no rank.
+  private rankOf(row: Industry): number | null {
+    if (this.search().trim()) return null;
+    const at = this.matches().findIndex(one => one.id === row.id);
+    return at >= 0 ? at + 1 : null;
+  }
+
+  onBoard(row: Industry): boolean {
+    return this.pad.industryIds().has(row.id);
+  }
+
+  onRailDragStart(event: DragEvent, row: Industry): void {
+    if (!event.dataTransfer) return;
+    event.dataTransfer.setData(INDUSTRY_DRAG, JSON.stringify({ ...row, rank: this.rankOf(row) }));
+    event.dataTransfer.effectAllowed = 'copy';
+  }
+
+  // ---- files and pictures ----
+
+  // The world point under a screen point, so a drop lands where the person let go
+  private worldAt(clientX: number, clientY: number): { x: number; y: number } | null {
+    const rect = this.rect();
+    if (!rect) return null;
+    const view = this.pad.board().view;
+    return { x: (clientX - rect.left - view.x) / view.zoom, y: (clientY - rect.top - view.y) / view.zoom };
+  }
+
+  onCanvasDragOver(event: DragEvent): void {
+    const types = event.dataTransfer?.types ?? [];
+    if (!types.includes('Files') && !types.includes(INDUSTRY_DRAG) && !types.includes(SNAP_DRAG)) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    if (types.includes('Files')) this.fileOver.set('board');
+  }
+
+  onCanvasDragLeave(event: DragEvent): void {
+    const node = this.canvas()?.nativeElement;
+    if (this.fileOver() === 'board' && (!event.relatedTarget || !node?.contains(event.relatedTarget as Node))) this.fileOver.set('page');
+  }
+
+  onCanvasDrop(event: DragEvent): void {
+    event.preventDefault();
+    this.fileOver.set('none');
+    const at = this.worldAt(event.clientX, event.clientY) ?? undefined;
+    const snapId = event.dataTransfer?.getData(SNAP_DRAG);
+    if (snapId) { this.pad.placeSnap(snapId, at); return; }
+    const company = event.dataTransfer?.getData(INDUSTRY_DRAG);
+    if (company) {
+      try {
+        const row = JSON.parse(company) as Industry & { rank: number | null };
+        if (!this.pad.industryIds().has(row.id)) {
+          const size = { w: 236, h: 92 };
+          this.pad.addIndustry(row, at ? { x: at.x - size.w / 2, y: at.y - size.h / 2 } : undefined);
+        }
+      } catch {
+        // Not something this page put there
+      }
+      return;
+    }
+    this.addFiles(Array.from(event.dataTransfer?.files ?? []), at);
+  }
+
+  onButtonDragOver(event: DragEvent): void {
+    if (!event.dataTransfer?.types.includes('Files')) return;
+    event.preventDefault();
+    this.fileOver.set('button');
+  }
+
+  onButtonDragLeave(): void {
+    if (this.fileOver() === 'button') this.fileOver.set('page');
+  }
+
+  onButtonDrop(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.fileOver.set('none');
+    this.addFiles(Array.from(event.dataTransfer?.files ?? []));
+  }
+
+  onPick(input: HTMLInputElement): void {
+    const files = Array.from(input.files ?? []);
+    input.value = '';
+    this.addFiles(files);
+  }
+
+  // Ctrl+V with a picture on the clipboard puts it on the board. Pasting into a note or a box stays theirs.
+  private onPaste(event: ClipboardEvent): void {
+    const target = event.target as HTMLElement | null;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+    const files = Array.from(event.clipboardData?.files ?? []).filter(file => file.type.startsWith('image/'));
+    if (files.length === 0) return;
+    event.preventDefault();
+    this.addFiles(files.map(file => new File([file], nameForPasted(file), { type: file.type })));
+  }
+
+  // Each file is checked, then goes on the board at once and uploads in the background. Several dropped
+  // together land side by side from the drop point.
+  addFiles(files: File[], at?: { x: number; y: number }): void {
+    const refused: string[] = [];
+    // The first lands centred on the drop point, the rest in a row to its right, never on top of each other
+    let left: number | null = null;
+    for (const file of files) {
+      const why = refusalFor(file);
+      if (why) { refused.push(why); continue; }
+      const contentType = file.type || 'application/octet-stream';
+      const width = isImage(contentType) ? ITEM_SIZE.image.w : ITEM_SIZE.file.w;
+      // addFile centres the card on the point it is given
+      if (at && left === null) left = at.x - width / 2;
+      const spot = at && left !== null ? { x: left + width / 2, y: at.y } : undefined;
+      if (left !== null) left += width + 24;
+      const id = this.pad.addFile({ name: file.name, contentType, sizeBytes: file.size }, spot);
+      this.upload(id, file);
+    }
+    if (refused.length) this.showNotice(refused);
+  }
+
+  private upload(itemId: string, file: File): void {
+    this.pendingFiles.set(itemId, file);
+    this.setUpload(itemId, { pct: 0, failed: false });
+    this.api.uploadScratchFile(file).subscribe({
+      next: event => {
+        if (event.type === HttpEventType.UploadProgress && event.total) {
+          this.setUpload(itemId, { pct: Math.round((event.loaded / event.total) * 100), failed: false });
+        } else if (event.type === HttpEventType.Response && event.body) {
+          this.pad.fileStored(itemId, event.body);
+          this.pendingFiles.delete(itemId);
+          this.setUpload(itemId, null);
+        }
+      },
+      error: (err: HttpErrorResponse) => {
+        // A refusal from the API (it checks again) is said in the toast; anything else waits on the card for Try again
+        if (err.status === 400 || err.status === 413) this.showNotice([errorText(err, "Couldn't upload " + file.name)]);
+        this.setUpload(itemId, { pct: 0, failed: true });
+      },
+    });
+  }
+
+  retryUpload(itemId: string): void {
+    const file = this.pendingFiles.get(itemId);
+    if (file) this.upload(itemId, file);
+  }
+
+  private setUpload(itemId: string, state: Upload | null): void {
+    this.uploads.update(all => {
+      const next = { ...all };
+      if (state) next[itemId] = state; else delete next[itemId];
+      return next;
+    });
+  }
+
+  // How a file card reads under its name: uploading, failed, never finished, or its size and type
+  fileMeta(item: BoardItem): { text: string; bad: boolean } {
+    const up = this.uploads()[item.id];
+    if (up?.failed) return { text: "Couldn't upload", bad: true };
+    if (up) return { text: 'Uploading ' + up.pct + '%', bad: false };
+    if (item.fileId == null) return { text: "Couldn't upload. Remove it and add the file again", bad: true };
+    return { text: typeLabel(item.name) + ', ' + sizeText(item.sizeBytes), bad: false };
+  }
+
+  canRetry(item: BoardItem): boolean {
+    return !!this.uploads()[item.id]?.failed && this.pendingFiles.has(item.id);
+  }
+
+  private askPreview(fileId: number): void {
+    if (this.previewAsked.has(fileId)) return;
+    this.previewAsked.add(fileId);
+    this.api.scratchFileBlob(fileId).subscribe({
+      next: blob => this.previews.update(all => ({ ...all, [fileId]: URL.createObjectURL(blob) })),
+      // No preview: the card falls back to the plain file look
+      error: () => {},
+    });
+  }
+
+  // Open a picture or a PDF in a new tab, anything else downloads with its own name
+  openFile(item: BoardItem): void {
+    if (item.fileId == null) return;
+    this.api.scratchFileBlob(item.fileId).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        const shows = isImage(item.contentType) || item.contentType === 'application/pdf';
+        if (shows) {
+          window.open(url, '_blank', 'noopener');
+        } else {
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = item.name ?? 'file';
+          link.click();
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      },
+      error: (err: HttpErrorResponse) => this.showNotice([errorText(err, "Couldn't open " + (item.name ?? 'that file'))]),
+    });
+  }
+
+  // The toast names exactly what was refused, can be closed, and goes on its own after 10 seconds
+  showNotice(lines: string[]): void {
+    this.notice.set(lines);
+    if (this.noticeTimer) clearTimeout(this.noticeTimer);
+    this.noticeTimer = setTimeout(() => this.notice.set([]), 10_000);
+  }
+
+  dismissNotice(): void {
+    this.notice.set([]);
+    if (this.noticeTimer) clearTimeout(this.noticeTimer);
+  }
+
+  fileButtonLabel = computed(() => {
+    const over = this.fileOver();
+    return over === 'button' ? 'Release to add it' : over === 'none' ? '+ File or image' : 'Drop files here';
+  });
+
+  // ---- the carry tray and snapshots ----
+
+  onTrayDragStart(event: DragEvent, snap: Snapshot): void {
+    if (!event.dataTransfer) return;
+    event.dataTransfer.setData(SNAP_DRAG, snap.id);
+    event.dataTransfer.effectAllowed = 'copy';
+  }
+
+  // "7 Oct, 14:02", when it was carried
+  snapWhen(iso: string | undefined): string {
+    if (!iso) return '';
+    const at = new Date(iso);
+    return at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ', ' + at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // The circle as it was: the ink steps lighter slice by slice, the picked slice is the signal colour, the same
+  // logic as the Overview's circle, so both read alike
+  snapShade(snap: Snapshot, index: number): string {
+    if (snap.pick && snap.numbers[index]?.label === snap.pick) return 'var(--signal)';
+    const n = Math.max(snap.numbers.length, 1);
+    const pct = Math.round(92 - (index * 70) / n);
+    return `color-mix(in srgb, var(--text) ${pct}%, var(--surface))`;
+  }
+
+  snapCircle(snap: Snapshot): string {
+    const total = snap.numbers.reduce((sum, one) => sum + (one.share ?? 0), 0);
+    if (!total) return 'var(--track)';
+    let from = 0;
+    const parts = snap.numbers.map((one, i) => {
+      const to = from + ((one.share ?? 0) / total) * 100;
+      const part = `${this.snapShade(snap, i)} ${from}% ${to}%`;
+      from = to;
+      return part;
+    });
+    return `conic-gradient(${parts.join(', ')})`;
+  }
+
+  // ---- paper colours, for one note or several ----
+
+  protected readonly tones: { key: NoteTone; label: string }[] = [
+    { key: 'white', label: 'White' }, { key: 'gray', label: 'Grey' }, { key: 'ink', label: 'Ink' }, { key: 'amber', label: 'Orange' },
+  ];
+
+  allTone(items: BoardItem[], tone: NoteTone): boolean {
+    return items.length > 0 && items.every(item => (item.tone ?? 'white') === tone);
+  }
+
+  setTone(items: BoardItem[], tone: NoteTone): void {
+    this.pad.setTone(items.map(item => item.id), tone);
+  }
+
+  // ---- the TEXT bar ----
+
+  setAlign(align: TextAlign): void {
+    const one = this.picked();
+    if (one) this.pad.setAlign([one.id], align);
+  }
+
+  toggleWhole(style: 'bold' | 'highlight'): void {
+    const one = this.picked();
+    if (one) this.pad.toggleWhole(one.id, style);
+  }
+
+  toggleFonts(): void {
+    if (!this.fontsOpen()) ensureFonts();
+    this.fontsOpen.update(open => !open);
+  }
+
+  pickFont(font: string): void {
+    const one = this.picked();
+    if (!one) return;
+    ensureFont(font);
+    this.pad.setFontWhole(one.id, font);
   }
 
   private rect(): DOMRect | null {
@@ -219,7 +606,15 @@ export class ScratchpadPage {
       }
       return;
     }
-    if (event.key === 'Escape') this.lineFrom.set(null);
+    if (event.key === 'Escape') {
+      this.lineFrom.set(null);
+      this.fontsOpen.set(false);
+    }
+  }
+
+  // The key the panel's Add to selection row holds, Shift unless the person changed it
+  private adding(event: PointerEvent): boolean {
+    return modHeld(this.shortcuts.mouseMod('mouse.add'), event);
   }
 
   private boardWheel(event: WheelEvent): void {
@@ -227,7 +622,8 @@ export class ScratchpadPage {
     if (!rect) return;
     event.preventDefault();
     const view = this.pad.board().view;
-    if (event.ctrlKey || event.metaKey) {
+    // The panel's Zoom row picks the held key. A trackpad pinch always arrives as Ctrl + scroll, so it zooms either way.
+    if (modHeld(this.shortcuts.mouseMod('mouse.zoom'), event) || event.ctrlKey) {
       const zoom = clampZoom(view.zoom * Math.exp(-event.deltaY * 0.002));
       this.zoomAround(zoom, event.clientX - rect.left, event.clientY - rect.top);
     } else {
@@ -289,9 +685,10 @@ export class ScratchpadPage {
     });
   }
 
-  // No rank is shown on a card until the rail has a genuinely ranked list to add from (the user's call)
+  // One card per company. From the top list it carries its rank there, from a search none.
   addIndustry(row: Industry): void {
-    this.pad.addIndustry({ id: row.id, name: row.name, sector: row.sector, price: row.price });
+    if (this.onBoard(row)) return;
+    this.pad.addIndustry({ id: row.id, name: row.name, sector: row.sector, price: row.price, rank: this.rankOf(row) });
   }
 
   rowPrice(row: Industry): string {
@@ -373,7 +770,7 @@ export class ScratchpadPage {
       const id = holder.getAttribute('data-item') ?? '';
       const item = this.pad.board().items.find(one => one.id === id);
       if (!item) return;
-      if (event.shiftKey) { this.pad.togglePick(id); return; }
+      if (this.adding(event)) { this.pad.togglePick(id); return; }
       if (!this.pad.isPicked(id)) this.pad.pick(id);
       const origins = this.pad.selection().map(one => ({ id: one.id, x: one.x, y: one.y }));
       node.setPointerCapture(event.pointerId);
@@ -383,7 +780,7 @@ export class ScratchpadPage {
     }
 
     // Empty board: drag a box around what it touches. The box picks exactly what it touches.
-    if (!event.shiftKey) this.pad.clearSelection();
+    if (!this.adding(event)) this.pad.clearSelection();
     node.setPointerCapture(event.pointerId);
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;

@@ -31,6 +31,34 @@ describe('Scratchpad', () => {
     await loading;
   }
 
+  it('carries a snapshot into the tray from a fresh board and saves it at once', async () => {
+    const snap = { id: 's1', kind: 'circle' as const, title: 'Circle split by Sector', takenAt: '2026-10-09T10:00:00Z', numbers: [{ label: 'Public Sector', value: '12', share: 12 }], split: 'sector', pick: null };
+    const carrying = pad.carry(snap);
+    // Another tab put a note on the board meanwhile: the carry starts from the server's board, so the note stays
+    http.expectOne(url).flush({ document: { version: 1, view: { x: 0, y: 0, zoom: 1 }, items: [{ id: 'n', type: 'note', x: 0, y: 0, w: 10, h: 10, text: 'theirs' }], lines: [], groups: [] }, updatedAt: '2026-10-09T09:00:00Z' });
+    const put = await vi.waitFor(() => http.expectOne(r => r.method === 'PUT' && r.url === url));
+    expect(put.request.body.updatedAt).toBe('2026-10-09T09:00:00Z');
+    expect(put.request.body.document.tray.map((one: { id: string }) => one.id)).toEqual(['s1']);
+    expect(put.request.body.document.items.length).toBe(1);
+    put.flush({ updatedAt: '2026-10-09T10:00:01Z' });
+    expect(await carrying).toBe(true);
+    expect(pad.saveState()).toBe('saved');
+  });
+
+  it('puts a snapshot on the board from the tray, and undo puts it back in the tray', async () => {
+    await open();
+    pad.board.update(document => ({ ...document, tray: [{ id: 's2', kind: 'list', title: 'Top 3', takenAt: '2026-10-09T10:00:00Z', numbers: [] }] }));
+    pad.placeSnap('s2');
+    expect(pad.tray().length).toBe(0);
+    expect(pad.board().items[0].type).toBe('snap');
+    expect(pad.board().items[0].snap?.title).toBe('Top 3');
+    pad.undo();
+    expect(pad.tray().map(one => one.id)).toEqual(['s2']);
+    expect(pad.board().items.length).toBe(0);
+    vi.runOnlyPendingTimers();
+    http.match(r => r.method === 'PUT').forEach(r => r.flush({ updatedAt: '2026-10-09T10:01:00Z' }));
+  });
+
   it('starts empty and at 100%', () => {
     expect(pad.board().items.length).toBe(0);
     expect(pad.board().view).toEqual({ x: 0, y: 0, zoom: 1 });

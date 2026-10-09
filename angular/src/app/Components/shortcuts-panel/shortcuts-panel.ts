@@ -1,5 +1,5 @@
 import { Component, ElementRef, HostListener, Injector, afterNextRender, computed, effect, inject, signal, viewChild } from '@angular/core';
-import { Shortcuts, capsOf, comboOf } from '../../services/shortcuts';
+import { MOUSE_MODS, MouseMod, Shortcuts, capsOf, comboOf } from '../../services/shortcuts';
 
 // The Keyboard shortcuts panel. Kept deliberately plain (the user asked for it): a search box, one Reset button and a list of
 // Function, What it does and Key. The key itself is the button. A new key applies the moment it is pressed, there is no Save.
@@ -67,6 +67,18 @@ export class ShortcutsPanel {
       // The row being changed stays in the list even if the search no longer matches it
       .filter(r => r.editing || !q || r.text.includes(q));
   });
+
+  // The Mouse group, in the same plain list, while the Scratchpad is open. Only the held key can change.
+  mouseRows = computed(() => {
+    if (!this.keys.scratchpadOpen()) return [];
+    const q = this.query().trim().toLowerCase();
+    return this.keys.mouseRows().filter(row => !q || (row.name + ' ' + row.desc + ' ' + (row.mod ?? '') + ' ' + row.gesture + ' mouse').toLowerCase().includes(q));
+  });
+  protected readonly mods = MOUSE_MODS;
+
+  setMod(id: string, value: string) {
+    this.keys.setMouseMod(id, value as MouseMod);
+  }
 
   close() {
     this.keys.togglePanel(false);
@@ -154,7 +166,7 @@ export class ShortcutsPanel {
     // While the question is up it owns Tab, so focus cannot slip back onto the panel behind it
     const box = (this.confirmReset() ? this.confirmPop()?.nativeElement : null) ?? this.dialog()?.nativeElement;
     if (!box) return;
-    const focusable = [...box.querySelectorAll<HTMLElement>('button, input, [tabindex]:not([tabindex="-1"])')].filter(el => !el.hasAttribute('disabled'));
+    const focusable = [...box.querySelectorAll<HTMLElement>('button, input, select, [tabindex]:not([tabindex="-1"])')].filter(el => !el.hasAttribute('disabled'));
     if (!focusable.length) return;
     const first = focusable[0];
     const last = focusable[focusable.length - 1];

@@ -36,30 +36,51 @@
 
     <div class="scratch-body">
         <aside class="rail">
-            <span class="rail-title">Companies</span>
-            <label class="rail-search">
+            <label class="rail-title" for="sp-find">Companies</label>
+            <span class="rail-search">
                 <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-                <input type="search" placeholder="Search the table" aria-label="Search the table"
-                    [value]="search()" (input)="search.set($any($event.target).value)">
-            </label>
-            <p class="rail-helper">Drag onto the board, or press +.</p>
-            <ul class="rail-list">
+                <input id="sp-find" type="search" placeholder="Search the table" autocomplete="off"
+                    [value]="search()" (input)="onSearch($any($event.target).value)">
+            </span>
+            <p class="rail-helper">{{ railHelper() }}</p>
+            <ul class="rail-list" [attr.aria-busy]="railLoading()">
                 @for (row of matches(); track row.id) {
-                    <li>
+                    <li [class.on-board]="onBoard(row)" [attr.draggable]="!onBoard(row)" (dragstart)="onRailDragStart($event, row)">
                         <span class="rail-text">
                             <span class="rail-name">{{ row.name }}</span>
                             <span class="rail-meta">{{ row.sector ?? 'No sector' }}</span>
                         </span>
                         <span class="rail-price">{{ rowPrice(row) }}</span>
-                        <button type="button" class="rail-add" [attr.aria-label]="'Put ' + row.name + ' on the board'"
-                            [attr.title]="'Put ' + row.name + ' on the board'" (click)="addIndustry(row)">
-                            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                        <button type="button" class="rail-add" [disabled]="onBoard(row)"
+                            [attr.aria-label]="onBoard(row) ? row.name + ' is on the board' : 'Add ' + row.name + ' to the board'"
+                            [attr.title]="onBoard(row) ? 'Already on the board' : 'Add to the board'" (click)="addIndustry(row)">
+                            <i class="fa-solid" [class.fa-plus]="!onBoard(row)" [class.fa-check]="onBoard(row)" aria-hidden="true"></i>
                         </button>
                     </li>
                 } @empty {
-                    <li class="rail-empty">Nothing matches that.</li>
+                    @if (railLoading()) {
+                        <li class="rail-empty">Looking...</li>
+                    } @else if (railError()) {
+                        <li class="rail-empty">Couldn't load the companies. <button type="button" class="link" (click)="loadRail()">Try again</button></li>
+                    } @else if (search().trim()) {
+                        <li class="rail-empty">Nothing matches your search.</li>
+                    } @else {
+                        <li class="rail-empty">No company has a price yet. Search for one by name.</li>
+                    }
                 }
             </ul>
+
+            <div class="rail-paper">
+                <span class="rail-title">Paper</span>
+                <div class="paper-row">
+                    <button type="button" class="paper-btn" (click)="addNote()">+ Sticky note</button>
+                    <button type="button" class="paper-btn" (click)="addText()">+ Text box</button>
+                </div>
+                <button type="button" class="paper-btn file-btn" [class.page]="fileOver() === 'page' || fileOver() === 'board'" [class.over]="fileOver() === 'button'"
+                    (click)="filePick.click()" (dragover)="onButtonDragOver($event)" (dragleave)="onButtonDragLeave()" (drop)="onButtonDrop($event)">{{ fileButtonLabel() }}</button>
+                <input #filePick type="file" multiple hidden aria-label="Choose files to put on the board" (change)="onPick(filePick)">
+                <p class="rail-helper">Or drop it on the board, or paste a picture. Images, GIFs, video, PDF and more, up to {{ maxFileMb }} MB each. Word, PowerPoint and Excel files can't go on the board.</p>
+            </div>
             <p class="rail-keys">Keys: V select, L line, N new sticky, T new text box. Esc goes back to select, Delete removes what is selected.</p>
         </aside>
 
@@ -76,17 +97,7 @@
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6.5 17.5L17.5 6.5"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/></svg>
                     </button>
                 </span>
-                <span class="bar-sep" aria-hidden="true"></span>
-                <!-- Kept here until the PAPER section at the bottom of the rail lands with item e -->
-                <span class="bar-group" role="group" aria-label="Add">
-                    <button type="button" class="tool icon" (click)="addNote()" title="New note" aria-label="New note">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h14v10l-5 5H5z"/><path d="M19 14h-5v5"/></svg>
-                    </button>
-                    <button type="button" class="tool icon" (click)="addText()" title="New text" aria-label="New text">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 6V4h14v2"/><path d="M12 4v16"/><path d="M9 20h6"/></svg>
-                    </button>
-                </span>
-                <span class="bar-gap"></span>
+                <span class="bar-hint">{{ toolHint() }}</span>
                 <span class="bar-group">
                     <button type="button" class="tool" [disabled]="!pad.canUndo()" (click)="pad.undo()" title="Undo" aria-label="Undo">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg>
@@ -106,7 +117,7 @@
                 <button type="button" class="tool" [disabled]="pickedCount() === 0" (click)="zoomToSelection()">Selection</button>
             </div>
 
-            <div class="context">
+            <div class="context" [class.active]="pad.selectedGroupId() || pad.selectedLineId() || pickedCount() > 0">
                 @if (pad.selectedGroupId(); as groupId) {
                     <span class="ctx-label">Group</span>
                     <input class="group-name" type="text" placeholder="Name this group" aria-label="Group name"
@@ -114,8 +125,9 @@
                         (focus)="onGroupNameFocus()"
                         (input)="onGroupNameInput(groupId, $any($event.target).value)"
                         (blur)="onGroupNameBlur()">
+                    <span class="ctx-text">{{ pad.membersOf(groupId).length }} things move together.</span>
                     <button type="button" class="tool" (click)="ungroupSelected()">Ungroup</button>
-                    <button type="button" class="tool danger" (click)="pad.deleteGroup(groupId)">Delete group</button>
+                    <button type="button" class="tool danger push" (click)="pad.deleteGroup(groupId)">Delete group and cards</button>
                 } @else if (pad.selectedLineId(); as lineId) {
                     <span class="ctx-label">Line</span>
                     <input class="line-label" type="text" placeholder="Label this line" aria-label="Line label"
@@ -133,22 +145,85 @@
                     <span class="bar-group" role="group" aria-label="Shape">
                         <button type="button" class="tool" [class.on]="!selectedLine()?.bend" (click)="pad.setLineCurve(lineId, false)">Straight</button>
                         <button type="button" class="tool" [class.on]="!!selectedLine()?.bend" (click)="pad.setLineCurve(lineId, true)">Curved</button>
-                        <button type="button" class="tool" [disabled]="!selectedLine()?.bend" (click)="pad.flipLine(lineId)">Flip</button>
+                        <button type="button" class="tool" [disabled]="!selectedLine()?.bend" (click)="pad.flipLine(lineId)">Flip curve</button>
                     </span>
-                    <button type="button" class="tool danger" (click)="deleteSelected()">Delete line</button>
-                } @else if (pickedCount() > 0) {
-                    <span class="count">{{ pickedCount() }} selected</span>
-                    <button type="button" class="tool danger" (click)="deleteSelected()">Delete</button>
+                    <button type="button" class="tool danger push" (click)="deleteSelected()">Delete line</button>
+                } @else if (pickedCount() >= 2) {
+                    <span class="ctx-label">Selection</span>
+                    <span class="ctx-text">{{ pickedCount() }} selected. Drag one to move all.</span>
                     @if (pickedTones().length > 0) {
-                        <span class="tones">
-                            <button type="button" class="tone white" [class.on]="pickedTones()[0].tone !== 'amber'"
-                                aria-label="White paper" title="White paper" (click)="pad.setTone(pad.selectedIds(), 'white')"></button>
-                            <button type="button" class="tone amber" [class.on]="pickedTones()[0].tone === 'amber'"
-                                aria-label="Yellow paper" title="Yellow paper" (click)="pad.setTone(pad.selectedIds(), 'amber')"></button>
-                        </span>
+                        <span class="bar-sep" aria-hidden="true"></span>
+                        <ng-container *ngTemplateOutlet="toneRow; context: { ids: pickedTones() }"></ng-container>
                     }
-                    @if (pickedCount() >= 2) {
-                        <button type="button" class="tool" (click)="makeGroup()">Group under a name</button>
+                    <button type="button" class="tool solid push" (click)="makeGroup()">Group under a name</button>
+                    <button type="button" class="tool danger" (click)="deleteSelected()">Delete all</button>
+                } @else if (picked(); as one) {
+                    @switch (one.type) {
+                        @case ('industry') {
+                            <span class="ctx-label">Company</span>
+                            <span class="ctx-text">Drag it by the card. Use Line to join it to a note.</span>
+                            <button type="button" class="tool danger push" (click)="deleteSelected()">Remove from board</button>
+                        }
+                        @case ('snap') {
+                            <span class="ctx-label">Snapshot</span>
+                            <span class="ctx-text">Frozen on {{ snapWhen(one.snap?.takenAt) }}. It does not change when the table changes.</span>
+                            <a class="tool push" routerLink="/overview" [queryParams]="{ split: one.snap?.split ?? null, pick: one.snap?.pick ?? null }">Open in Overview</a>
+                            <button type="button" class="tool danger" (click)="deleteSelected()">Remove from board</button>
+                        }
+                        @case ('file') {
+                            <span class="ctx-label">File</span>
+                            <span class="ctx-text clip">{{ one.name }}, {{ fileMeta(one).text }}</span>
+                            <button type="button" class="tool push" [disabled]="one.fileId == null" (click)="openFile(one)">Open</button>
+                            <button type="button" class="tool danger" (click)="deleteSelected()">Remove from board</button>
+                        }
+                        @default {
+                            <span class="ctx-label">Text</span>
+                            <span class="bar-group" role="group" aria-label="Text style">
+                                <button type="button" class="tool sq bold" [class.on]="pickedStyle().bold" [attr.aria-pressed]="pickedStyle().bold"
+                                    (click)="toggleWhole('bold')" title="Bold, the whole note" aria-label="Bold">B</button>
+                                <button type="button" class="tool" [class.on]="pickedStyle().highlight" [attr.aria-pressed]="pickedStyle().highlight"
+                                    (click)="toggleWhole('highlight')" title="Highlight, the whole note">Highlight</button>
+                            </span>
+                            <span class="bar-sep" aria-hidden="true"></span>
+                            <span class="bar-group" role="group" aria-label="Alignment">
+                                <button type="button" class="tool sq" [class.on]="(one.align ?? 'left') === 'left'" [attr.aria-pressed]="(one.align ?? 'left') === 'left'" (click)="setAlign('left')" title="Align left" aria-label="Align left">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/></svg>
+                                </button>
+                                <button type="button" class="tool sq" [class.on]="one.align === 'center'" [attr.aria-pressed]="one.align === 'center'" (click)="setAlign('center')" title="Centre" aria-label="Centre">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M5.5 18h13"/></svg>
+                                </button>
+                                <button type="button" class="tool sq" [class.on]="one.align === 'right'" [attr.aria-pressed]="one.align === 'right'" (click)="setAlign('right')" title="Align right" aria-label="Align right">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M10 12h10M7 18h13"/></svg>
+                                </button>
+                            </span>
+                            <span class="bar-sep" aria-hidden="true"></span>
+                            <span class="font-pop">
+                                <button type="button" class="tool font-btn" aria-haspopup="listbox" [attr.aria-expanded]="fontsOpen()"
+                                    [attr.aria-label]="'Font, ' + pickedFont()" (click)="toggleFonts()">
+                                    <span class="font-name" [style.fontFamily]="fontCss(pickedFont())">{{ pickedFont() }}</span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+                                </button>
+                                @if (fontsOpen()) {
+                                    <div class="font-scrim" (click)="fontsOpen.set(false)" aria-hidden="true"></div>
+                                    <div class="font-list" role="listbox" aria-label="Fonts">
+                                        @for (group of fontGroups; track group.label) {
+                                            <div class="font-head">{{ group.label }}</div>
+                                            @for (font of group.fonts; track font) {
+                                                <button type="button" role="option" class="font-row" [class.on]="font === pickedFont()" [attr.aria-selected]="font === pickedFont()"
+                                                    [style.fontFamily]="fontCss(font)" (click)="pickFont(font)">
+                                                    <span>{{ font }}</span>@if (font === pickedFont()) { <span class="font-tick">In use</span> }
+                                                </button>
+                                            }
+                                        }
+                                    </div>
+                                }
+                            </span>
+                            @if (one.type === 'note') {
+                                <span class="bar-sep" aria-hidden="true"></span>
+                                <ng-container *ngTemplateOutlet="toneRow; context: { ids: [one] }"></ng-container>
+                            }
+                            <button type="button" class="tool danger push" (click)="deleteSelected()">Delete</button>
+                        }
                     }
                 } @else {
                     <span class="ctx-hint">Select a card, a note or a line to see its tools here.</span>
@@ -161,7 +236,10 @@
                 (pointerdown)="onPointerDown($event)"
                 (pointermove)="onPointerMove($event)"
                 (pointerup)="onPointerUp($event)"
-                (pointercancel)="onPointerUp($event)">
+                (pointercancel)="onPointerUp($event)"
+                (dragover)="onCanvasDragOver($event)"
+                (dragleave)="onCanvasDragLeave($event)"
+                (drop)="onCanvasDrop($event)">
                 @if (pad.loading()) {
                     <div class="state">Loading your board...</div>
                 } @else if (pad.loadError()) {
@@ -188,17 +266,66 @@
                             <div class="item" [attr.data-item]="item.id" [class.selected]="pad.isPicked(item.id)"
                                 [class.industry]="item.type === 'industry'"
                                 [class.note]="item.type === 'note'" [class.text]="item.type === 'text'"
-                                [class.amber]="item.tone === 'amber'"
+                                [class.file]="item.type === 'file'" [class.snap]="item.type === 'snap'" [class.picture]="item.type === 'file' && isImage(item.contentType)"
+                                [class.failed]="item.type === 'file' && fileMeta(item).bad"
+                                [class.amber]="item.tone === 'amber'" [class.gray]="item.tone === 'gray'" [class.ink]="item.tone === 'ink'"
                                 [class.link-from]="lineFrom() === item.id"
                                 [style.left.px]="item.x" [style.top.px]="item.y" [style.width.px]="item.w"
                                 [style.min-height.px]="item.h"
                                 [style.transform]="item.tilt ? 'rotate(' + item.tilt + 'deg)' : null">
                                 @if (item.type === 'industry') {
                                     <span class="card-top">
+                                        @if (item.rank) { <span class="card-rank">#{{ item.rank }}</span> }
                                         <span class="card-price">{{ priceLabel(item) }}</span>
                                     </span>
                                     <span class="card-name">{{ item.name }}</span>
                                     <span class="card-meta">{{ item.sector ?? 'No sector' }}</span>
+                                } @else if (item.type === 'snap' && item.snap; as snap) {
+                                    <span class="snap-top">
+                                        <span class="snap-kind">Snapshot</span>
+                                        <span class="snap-frozen">
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>Frozen
+                                        </span>
+                                    </span>
+                                    <span class="snap-title">{{ snap.title }}</span>
+                                    <span class="snap-body">
+                                        @if (snap.kind === 'circle') {
+                                            <span class="snap-circle" aria-hidden="true" [style.background]="snapCircle(snap)"><span></span></span>
+                                        }
+                                        <span class="snap-legend">
+                                            @for (one of snap.numbers.slice(0, 6); track $index) {
+                                                <span class="snap-row">
+                                                    @if (snap.kind === 'circle') { <span class="snap-swatch" [style.background]="snapShade(snap, $index)"></span> }
+                                                    <span class="snap-label" [class.on]="one.label === snap.pick">{{ one.label }}</span>
+                                                    <span class="snap-value">{{ one.value }}</span>
+                                                </span>
+                                            }
+                                            @if (snap.numbers.length > 6) { <span class="snap-more">and {{ snap.numbers.length - 6 }} more</span> }
+                                            @if (snap.numbers.length === 0) { <span class="snap-more">Nothing was shown.</span> }
+                                        </span>
+                                    </span>
+                                    <span class="snap-when">From the Overview, {{ snapWhen(snap.takenAt) }}</span>
+                                } @else if (item.type === 'file') {
+                                    @if (isImage(item.contentType) && item.fileId != null && previews()[item.fileId]) {
+                                        <img class="file-picture" [src]="previews()[item.fileId]" [alt]="item.name" draggable="false">
+                                    } @else {
+                                        <span class="file-type" aria-hidden="true">
+                                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h8.5L19 7v14.5H6z"/><path d="M14.5 2.5V7H19"/></svg>
+                                            <span>{{ typeLabel(item.name) }}</span>
+                                        </span>
+                                    }
+                                    <span class="file-text">
+                                        <span class="file-name">{{ item.name }}</span>
+                                        <span class="file-meta" [class.bad]="fileMeta(item).bad">{{ fileMeta(item).text }}</span>
+                                        @if (uploads()[item.id]; as up) {
+                                            @if (!up.failed) {
+                                                <span class="file-bar" aria-hidden="true"><span [style.width.%]="up.pct"></span></span>
+                                            }
+                                        }
+                                        @if (canRetry(item)) {
+                                            <button type="button" class="file-retry" (pointerdown)="$event.stopPropagation()" (click)="retryUpload(item.id)">Try again</button>
+                                        }
+                                    </span>
                                 } @else {
                                     <span class="grip" aria-hidden="true">&bull;&bull;&bull;</span>
                                     <app-note-editor [item]="item"></app-note-editor>
@@ -247,12 +374,54 @@
                         </div>
                     }
                 }
+                @if (fileOver() === 'board') {
+                    <div class="drop-over" aria-hidden="true"><span>Drop to put it on the board</span></div>
+                }
+                @if (notice().length) {
+                    <div class="toast" role="alert" (pointerdown)="$event.stopPropagation()">
+                        <span class="toast-lines">
+                            @for (line of notice(); track $index) { <span>{{ line }}</span> }
+                        </span>
+                        <button type="button" class="toast-close" (click)="dismissNotice()" aria-label="Dismiss this message">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                        </button>
+                    </div>
+                }
+            </div>
+
+            <div class="tray" aria-label="Carry tray">
+                <span class="rail-title">Carry tray</span>
+                @for (snap of pad.tray(); track snap.id) {
+                    <div class="tray-chip" draggable="true" (dragstart)="onTrayDragStart($event, snap)">
+                        <span class="tray-text">
+                            <span class="tray-title">{{ snap.title }}</span>
+                            <span class="tray-sub">{{ snap.kind === 'circle' ? 'Circle' : 'List' }}, {{ snapWhen(snap.takenAt) }}</span>
+                        </span>
+                        <button type="button" class="rail-add" [attr.aria-label]="'Put ' + snap.title + ' on the board'" title="Put it on the board" (click)="pad.placeSnap(snap.id)">
+                            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                        </button>
+                        <button type="button" class="tray-drop" [attr.aria-label]="'Take ' + snap.title + ' out of the tray'" title="Take it out of the tray" (click)="pad.dropFromTray(snap.id)">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                        </button>
+                    </div>
+                } @empty {
+                    <span class="tray-empty">Nothing carried yet. On the Overview, press Carry the circle or Carry the list, then drag it from here onto the board.</span>
+                }
             </div>
         </section>
     </div>
 
+    <ng-template #toneRow let-ids="ids">
+        <span class="tones" role="group" aria-label="Paper colour">
+            @for (tone of tones; track tone.key) {
+                <button type="button" class="tone {{ tone.key }}" [class.on]="allTone(ids, tone.key)" [attr.aria-pressed]="allTone(ids, tone.key)"
+                    [attr.aria-label]="tone.label + ' paper'" [attr.title]="tone.label + ' paper'" (click)="setTone(ids, tone.key)"></button>
+            }
+        </span>
+    </ng-template>
+
     <div class="foot">
-        <p>Drag a box on empty space to select several things, then group them. Shift + click adds one. Drag a card, or the grip of a note, to move it.</p>
-        <p>Sample companies come from the same generated rows as the Overview. In the app, dropped files are stored on the server.</p>
+        <p>Drag a box on empty space to select several things, then group them. {{ shortcuts.mouseMod('mouse.add') }} + click adds one. Drag a card, or the grip of a note, to move it.</p>
+        <p>Files and pictures are kept on the server, only for you. Removing one from the board doesn't delete the file.</p>
     </div>
 </div>

@@ -120,6 +120,24 @@ export function conflictsOf(commands: Command[], bound: Record<string, string[]>
 }
 
 const STORE = 'stock-listing-shortcuts';
+const MOUSE_STORE = 'stock-listing-mouse';
+
+// The Mouse group of the panel, on the Scratchpad. A mouse gesture can't be recorded, so only the held key can change,
+// and only on the rows that have one to change. See OVERVIEW_HANDOFF.md item g.
+export type MouseMod = 'Shift' | 'Ctrl' | 'Alt';
+export const MOUSE_MODS: MouseMod[] = ['Shift', 'Ctrl', 'Alt'];
+export interface MouseRow { id: string; name: string; desc: string; gesture: string; def?: MouseMod; fixed?: string; }
+export const MOUSE_ROWS: MouseRow[] = [
+  { id: 'mouse.box', name: 'Select several', desc: 'On the Scratchpad, drag a box on empty space. Everything it touches is picked.', gesture: 'Drag on empty space', fixed: 'Drag on empty space' },
+  { id: 'mouse.add', name: 'Add to selection', desc: 'On the Scratchpad, add one thing to what is picked, or take it out.', gesture: 'click', def: 'Shift' },
+  { id: 'mouse.zoom', name: 'Zoom', desc: 'On the Scratchpad, zoom in and out toward the pointer. Only the board zooms, never the page.', gesture: 'scroll', def: 'Ctrl' },
+  { id: 'mouse.pan', name: 'Move around', desc: 'On the Scratchpad, move the board. Scrolling moves it too.', gesture: 'drag', fixed: 'Space + drag' },
+];
+
+// Is the key this row uses held during this mouse event. Ctrl also takes Cmd on a Mac.
+export function modHeld(mod: MouseMod, e: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean; altKey: boolean }): boolean {
+  return mod === 'Shift' ? e.shiftKey : mod === 'Ctrl' ? e.ctrlKey || e.metaKey : e.altKey;
+}
 
 @Service()
 export class Shortcuts {
@@ -133,6 +151,37 @@ export class Shortcuts {
   private labels = signal<Record<string, string>>({});
   // Functions the open page has nothing for right now (a fourth split when there are three). They keep their key but aren't listed.
   private unused = signal<ReadonlySet<string>>(new Set());
+
+  // The held key of each Mouse row the person changed, and the rows the panel shows while the Scratchpad is open
+  private mouseChanged = signal<Record<string, MouseMod>>(loadMouse());
+  mouseRows = computed(() => MOUSE_ROWS.map(row => ({ ...row, mod: row.def ? this.mouseChanged()[row.id] ?? row.def : undefined })));
+  mouseMod(id: string): MouseMod {
+    return this.mouseChanged()[id] ?? MOUSE_ROWS.find(row => row.id === id)?.def ?? 'Shift';
+  }
+  scratchpadOpen = signal(false);
+
+  // Two rows can't share a held key, or one gesture would do two things: the other row gets the key this one gave up
+  setMouseMod(id: string, mod: MouseMod) {
+    const row = MOUSE_ROWS.find(one => one.id === id);
+    if (!row?.def) return;
+    const was = this.mouseMod(id);
+    if (was === mod) return;
+    const next = { ...this.mouseChanged(), [id]: mod };
+    const other = MOUSE_ROWS.find(one => one.id !== id && one.def && this.mouseMod(one.id) === mod);
+    if (other) next[other.id] = was;
+    for (const one of MOUSE_ROWS) if (one.def && next[one.id] === one.def) delete next[one.id];
+    this.saveMouse(next);
+    this.toast.say(`${row.name} now uses ${mod} + ${row.gesture}.` + (other ? ` ${other.name} now uses ${was} + ${other.gesture}.` : ''));
+  }
+
+  private saveMouse(next: Record<string, MouseMod>) {
+    this.mouseChanged.set(next);
+    try {
+      localStorage.setItem(MOUSE_STORE, JSON.stringify(next));
+    } catch {
+      // Blocked storage, the changes last until the page is closed
+    }
+  }
 
   // Pages that said what they can run. With none open, no key does anything.
   private pages = new Map<Scope, Record<string, (e: KeyboardEvent) => void>>();
@@ -156,8 +205,10 @@ export class Shortcuts {
   register(scope: Scope, run: Record<string, (e: KeyboardEvent) => void>, labels: Record<string, string> = {}): () => void {
     this.pages.set(scope, run);
     this.labels.update(l => ({ ...l, ...labels }));
+    if (scope === 'scratchpad') this.scratchpadOpen.set(true);
     return () => {
       if (this.pages.get(scope) === run) this.pages.delete(scope);
+      if (!this.pages.has('scratchpad')) this.scratchpadOpen.set(false);
       if (this.pages.size === 0) this.panelOpen.set(false);
     };
   }
@@ -200,6 +251,7 @@ export class Shortcuts {
 
   resetAll() {
     this.save({});
+    this.saveMouse({});
     this.toast.say('Every shortcut is back to its default.');
   }
 
@@ -259,6 +311,20 @@ export class Shortcuts {
     const step = id === 'nav.next' ? 1 : -1;
     const next = ADMIN_PAGES[(Math.max(here, 0) + step + ADMIN_PAGES.length) % ADMIN_PAGES.length];
     this.router.navigateByUrl(next.url);
+  }
+}
+
+function loadMouse(): Record<string, MouseMod> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(MOUSE_STORE) ?? '{}');
+    const out: Record<string, MouseMod> = {};
+    for (const row of MOUSE_ROWS) {
+      const mod = raw?.[row.id];
+      if (row.def && MOUSE_MODS.includes(mod)) out[row.id] = mod;
+    }
+    return out;
+  } catch {
+    return {};
   }
 }
 

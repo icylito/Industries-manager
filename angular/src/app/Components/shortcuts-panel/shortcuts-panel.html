@@ -50,7 +50,31 @@
                         </div>
                     }
                 } @empty {
-                    <div class="none">Nothing matches your search.</div>
+                    @if (mouseRows().length === 0) {
+                        <div class="none">Nothing matches your search.</div>
+                    }
+                }
+                @if (mouseRows().length) {
+                    <div class="group-head">Mouse</div>
+                    @for (m of mouseRows(); track m.id) {
+                        <div class="row" role="group" [attr.aria-label]="m.name">
+                            <span class="name">{{ m.name }}</span>
+                            <span class="desc">{{ m.desc }}</span>
+                            <span class="key-cell">
+                                @if (m.mod) {
+                                    <span class="mouse-key">
+                                        <select class="mod" [value]="m.mod" (change)="setMod(m.id, $any($event.target).value)"
+                                            [attr.aria-label]="'The key held for ' + m.name">
+                                            @for (mod of mods; track mod) { <option [value]="mod" [selected]="mod === m.mod">{{ mod }}</option> }
+                                        </select>
+                                        <span class="gesture">+ {{ m.gesture }}</span>
+                                    </span>
+                                } @else {
+                                    <span class="gesture fixed">{{ m.fixed }}</span>
+                                }
+                            </span>
+                        </div>
+                    }
                 }
             </div>
         </div>

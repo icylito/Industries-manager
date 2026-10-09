@@ -1,12 +1,13 @@
 import { Component, DestroyRef, Injector, OnInit, afterNextRender, computed, effect, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { timeout } from 'rxjs';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FieldRule, Industry } from '../../models/industry';
 import { Auth } from '../../services/auth';
 import { IndustryApi } from '../../services/industry-api';
 import { Shortcuts, capsOf } from '../../services/shortcuts';
 import { Toast } from '../../services/toast';
+import { Scratchpad } from '../../services/scratchpad';
 import { countUp } from './count-up';
 import {
   Bar, Metric, OTHER, Selection, TopMode, bandEdges, browseParams, buildDims, buildPeriods, derive, emptySelection, plain, rankRows, thousands, toRow, usd,
@@ -28,6 +29,10 @@ export class OverviewPage implements OnInit {
   private toast = inject(Toast);
   private destroyRef = inject(DestroyRef);
   private injector = inject(Injector);
+  private pad = inject(Scratchpad);
+  private route = inject(ActivatedRoute);
+  // A snapshot on the Scratchpad opens the Overview on the split and slice it was taken from: ?split=&pick=
+  private fromAddress: { split: string | null; pick: string | null } | null = null;
 
   // The page can be loading, ready, or failed before it ever had numbers. Once it has numbers, a failed refresh only makes them "out of date".
   items = signal<Industry[]>([]);
@@ -52,6 +57,8 @@ export class OverviewPage implements OnInit {
   static readonly SlowAfterMs = 10000;
 
   ngOnInit() {
+    const query = this.route.snapshot.queryParamMap;
+    if (query.get('split')) this.fromAddress = { split: query.get('split'), pick: query.get('pick') };
     this.load();
     const slowTimer = setTimeout(() => { if (this.loading()) this.slow.set(true); }, OverviewPage.SlowAfterMs);
     // New rows show up without a reload. The numbers refresh every minute while the page is in view.
@@ -82,6 +89,7 @@ export class OverviewPage implements OnInit {
         const wasStale = this.stale();
         this.items.set(data);
         this.loadedAt.set(Date.now());
+        this.applyAddress();
         this.clock.set(Date.now());
         this.failure.set(null);
         this.stale.set(false);
@@ -119,6 +127,42 @@ export class OverviewPage implements OnInit {
     });
     // The rules give the split lists their names and the price bands their size. Without them the page still works from the rows.
     this.api.schema().subscribe({ next: r => this.rules.set(r.fields), error: () => {} });
+  }
+
+  // Once, after the first numbers: a split this table doesn't have, or a slice it doesn't have, is ignored
+  private applyAddress() {
+    const wanted = this.fromAddress;
+    if (!wanted) return;
+    this.fromAddress = null;
+    const dim = this.dims().find(d => d.id === wanted.split);
+    if (!dim) return;
+    this.patch({ dim: dim.id, pick: wanted.pick && dim.keys.includes(wanted.pick) ? wanted.pick : null, cmpKeys: [], cmp: false });
+  }
+
+  // ---------- Carry: a frozen snapshot of the circle or the list, to the tray on the Scratchpad ----------
+
+  carrying = signal(false);
+
+  async carry(kind: 'circle' | 'list') {
+    if (this.carrying()) return;
+    const d = this.view();
+    const picked = d.effPick;
+    const snap = kind === 'circle'
+      ? {
+        title: `Circle split by ${d.dim.label}` + (picked ? `, ${picked} selected` : ''),
+        numbers: d.slices.map(s => ({ label: s.key, value: thousands(s.count), share: s.count })),
+      }
+      : {
+        // "Top 3 most expensive: All industries", so the card says which list it was and of what
+        title: { top3: 'Top 3 most expensive', top10: 'Top 10 most expensive', low3: '3 cheapest' }[this.sel().topMode]
+          + ': ' + (d.cols[0]?.title ?? 'the table'),
+        numbers: (d.cols[0]?.rows ?? []).map(r => ({ label: r.name, value: r.price })),
+      };
+    this.carrying.set(true);
+    const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 's' + Date.now();
+    const ok = await this.pad.carry({ id, kind, ...snap, takenAt: new Date().toISOString(), split: d.dim.id, pick: picked });
+    this.carrying.set(false);
+    this.toast.say(ok ? 'Carried. It waits in the tray on the Scratchpad.' : "Couldn't carry it. Open the Scratchpad, then try again.");
   }
 
   // Try again keeps the failure card up and says it is trying, it doesn't swap the page for a grey one and back

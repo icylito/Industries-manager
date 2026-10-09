@@ -363,3 +363,32 @@ Batch: save-state rework, Pass F (LINE bar), P/M keys trim, rank removal, 390 px
 - **The `AddScratchFiles` migration** was committed in `0084d98` and applied to the local database when the API was next started on 2026-10-09.
 - **Still to build:** the page side of files (item e: drop, paste, upload card, refusal toast), the carry tray, and the Mouse rows in the shortcuts panel.
 
+## Update 2026-10-09, later: the rest of the Scratchpad design
+
+The work a laptop session had done was never pushed (GitHub's newest Scratchpad commit is `0084d98`, and no branch, pull request or dangling commit held more), so it was built again from this brief and `design/Scratchpad-Light.dc.html`.
+
+**Built**
+- **Rail.** The 3 most expensive rows from `GET /industries/top`, with "Most expensive first. Search for any other." Typing swaps them for up to 10 matches from `GET /industries/search`. The rail no longer loads the table; cards refresh through `GET /industries/by-ids`. A card added from the top list carries its rank (#1..#3), one from a search none. A company already on the board keeps its row but its + turns into a tick. Rows drag onto the board.
+- **Paper.** The rail's PAPER section: + Sticky note, + Text box, + File or image, and the file line. The Add buttons left the toolbar, whose free space now says what the tool in hand does.
+- **Files and pictures (item e).** Drop on the board, drop on the + File or image field, pick with it, or paste a picture. While a file is dragged anywhere on the page the field turns into a dashed drop target ("Drop files here", "Release to add it") and the board shows "Drop to put it on the board"; the browser never opens a dropped file. The card goes on at once with an upload bar and its id arrives afterwards (not an undo step; undo history learns the id too). Refusals are checked in the page first, with the API's own words, so a refused file never becomes a card, and shown in the toast for 10 seconds. A failed upload marks the card ("Couldn't upload", Try again). After a reload a card whose upload never finished says to remove it and add the file again, since the browser no longer has the file. Pictures show a preview fetched with the sign in; SVG is never previewed. The FILE bar's Open shows pictures and PDF in a new tab and downloads anything else. Remove from board leaves the file on the server (the sweep is still to write).
+- **Bars.** TEXT for one note or text box (bold and highlight for the whole note, align left, centre, right, font, paper, Delete; selected words keep their own floating bar), SELECTION ("N selected. Drag one to move all.", papers, Group under a name, Delete all), COMPANY, FILE and SNAPSHOT, beside the GROUP and LINE bars that were there. A bar with something picked has a solid edge, the hint keeps the dashed one.
+- **Papers.** White, grey, ink and orange. The stored key for orange stays `amber`, so saved boards keep their colour.
+- **Fonts.** The 28 the brief lists. Single-weight families are asked for without a weight, or Google Fonts refuses the request.
+- **Carry tray.** Carry the circle and Carry the list on the Overview put a frozen snapshot (`{ kind, title, takenAt, numbers, split, pick }`) into `tray` on the board document. On the Scratchpad the tray sits under the board; + or a drag puts a snapshot on the board as a Snapshot card, and undo puts it back in the tray. Open in Overview goes to `/overview?split=&pick=`, which the Overview now reads once after its first load.
+- **Mouse rows (item g).** Select several, Add to selection, Zoom and Move around, listed under the keys while the Scratchpad is open. Add to selection and Zoom change their held key between Shift, Ctrl and Alt; two rows never share one (the other takes the key given up). A trackpad pinch arrives as Ctrl + scroll, so it zooms whatever is chosen. Kept in this browser, like the key changes.
+
+**Different from the brief, on purpose**
+- The tray is under the board only, not along the bottom of every admin page, and a chart can't be dragged onto it: the Carry buttons are the way in.
+- Duplicate while dragging (Alt + drag) is not built.
+- Several dropped files land in a row from the drop point rather than in free space, so they arrive where the person let go.
+
+**Still open**
+- Shortcuts, mouse keys and the theme are kept per browser, not per person on the server.
+- Files taken off the board stay on disk until a sweep removes files no board refers to.
+- Video and GIF show as cards with their type; there is no player.
+
+**Checked**
+- `ng test`: 182 passed, 8 skipped. `ng build`: 451.6 kB initial, no warnings.
+- In Chrome against the stress API: a real PNG, PDF and ZIP dropped together uploaded and landed in a row, the PNG with its preview; a Word file dropped with them was refused in the toast.
+- Headless Chromium, light and dark, 1366 and 390 wide: no sideways scroll, no page errors, the board still starts on the first screen at 390; the toast is light on the dark page.
+- Overview, Carry the circle, the Scratchpad tray, +, Snapshot card, Open in Overview back on the same split and slice.

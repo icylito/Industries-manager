@@ -1,11 +1,11 @@
 import { Service, inject, signal } from '@angular/core';
-import { HttpClient, HttpErrorResponse, HttpResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpEvent, HttpResponse } from '@angular/common/http';
 import { MonoTypeOperatorFunction, Observable, retry, throwError, timer } from 'rxjs';
 import {
     Industry, CreateIndustry, UpdateIndustry, DbHealth, RuleSet, FieldRule, NewField, VersionSummary, VersionDetail,
     ImportPreview, ImportResult, RestoreResult, Retention, BackupEntry, BackupStatus, BackupRestorePreview, BackupRestoreResult, DevRequest,
     SettingsFile, SettingsImportPreview, SettingsImportResult, AuthUser, NewUserResult, DeletedRow, FieldDeleted, UserNote,
-    BoardAnswer, BoardDocument,
+    BoardAnswer, BoardDocument, ScratchFileInfo,
 } from '../models/industry';
 import { environment } from '../../environments/environment';
 
@@ -43,6 +43,26 @@ export class IndustryApi {
         }
         create(body: CreateIndustry): Observable<Industry>{
             return this.http.post<Industry>(this.baseUrl, body);
+        }
+        // The Scratchpad rail never loads the table: the few most expensive rows, name matches, and the cards it holds
+        topIndustries(limit: number): Observable<Industry[]> {
+            return this.http.get<Industry[]>(`${this.baseUrl}/top`, { params: { by: 'price', limit } }).pipe(this.retryTransient());
+        }
+        searchIndustries(q: string, limit: number): Observable<Industry[]> {
+            return this.http.get<Industry[]>(`${this.baseUrl}/search`, { params: { q, limit } });
+        }
+        industriesByIds(ids: number[]): Observable<Industry[]> {
+            return this.http.get<Industry[]>(`${this.baseUrl}/by-ids`, { params: { ids: ids.join(',') } }).pipe(this.retryTransient());
+        }
+        // A file for the Scratchpad, sent as a form so the API names it in any refusal. The events carry the progress.
+        uploadScratchFile(file: File): Observable<HttpEvent<ScratchFileInfo>> {
+            const form = new FormData();
+            form.append('file', file, file.name);
+            return this.http.post<ScratchFileInfo>(`${this.apiUrl}/scratchpad/files`, form, { reportProgress: true, observe: 'events' });
+        }
+        // The bytes of a stored file, fetched with the sign in so a picture can show and Open can work
+        scratchFileBlob(id: number): Observable<Blob> {
+            return this.http.get(`${this.apiUrl}/scratchpad/files/${id}`, { responseType: 'blob' });
         }
         getById(id: number): Observable<Industry> {
             return this.http.get<Industry>(`${this.baseUrl}/${id}`);

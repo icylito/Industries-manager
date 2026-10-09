@@ -3,7 +3,7 @@ import { Router, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { Auth } from './auth';
-import { COMMANDS, Shortcuts, capsOf, comboOf, showKey } from './shortcuts';
+import { COMMANDS, Shortcuts, capsOf, comboOf, modHeld, showKey } from './shortcuts';
 import { Toast } from './toast';
 
 const press = (key: string, over: Partial<KeyboardEventInit> = {}, target: EventTarget = document.body) => {
@@ -138,3 +138,44 @@ describe('Shortcuts', () => {
     expect(keys.check('ov.compare', ['Shift+Tab']).error).toContain('The browser keeps Shift+Tab');
   });
 });
+
+describe('Mouse rows', () => {
+  let keys: Shortcuts;
+
+  beforeEach(() => {
+    localStorage.clear();
+    TestBed.configureTestingModule({ providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });
+    keys = TestBed.inject(Shortcuts);
+  });
+
+  it('are listed only while the Scratchpad is open', () => {
+    expect(keys.scratchpadOpen()).toBe(false);
+    const off = keys.register('scratchpad', {});
+    expect(keys.scratchpadOpen()).toBe(true);
+    off();
+    expect(keys.scratchpadOpen()).toBe(false);
+  });
+
+  it('change only the held key, and two rows never share one', () => {
+    expect(keys.mouseMod('mouse.add')).toBe('Shift');
+    expect(keys.mouseMod('mouse.zoom')).toBe('Ctrl');
+    keys.setMouseMod('mouse.add', 'Ctrl');
+    expect(keys.mouseMod('mouse.add')).toBe('Ctrl');
+    // Zoom gave Ctrl up and took the key Add to selection had
+    expect(keys.mouseMod('mouse.zoom')).toBe('Shift');
+    expect(JSON.parse(localStorage.getItem('stock-listing-mouse') ?? '{}')).toEqual({ 'mouse.add': 'Ctrl', 'mouse.zoom': 'Shift' });
+    // A row with nothing to change stays as it is
+    keys.setMouseMod('mouse.pan', 'Alt');
+    expect(keys.mouseRows().find(row => row.id === 'mouse.pan')?.mod).toBeUndefined();
+    keys.resetAll();
+    expect(keys.mouseMod('mouse.add')).toBe('Shift');
+  });
+
+  it('reads Ctrl as Cmd too', () => {
+    const plain = { shiftKey: false, ctrlKey: false, metaKey: false, altKey: false };
+    expect(modHeld('Ctrl', { ...plain, metaKey: true })).toBe(true);
+    expect(modHeld('Alt', { ...plain, altKey: true })).toBe(true);
+    expect(modHeld('Shift', plain)).toBe(false);
+  });
+});
+

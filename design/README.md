@@ -29,4 +29,4 @@ Left out on purpose: `C-Signal.dc.html`, an older dark board that was never upgr
 
 ## Things that need the user's yes before building
 
-Storage and the model are approved in principle (Scratchpad boards, shortcuts, theme, files) but the table and field names, the **25 MB file limit** (a placeholder), and the migrations must be confirmed with the user first. The Overview and Scratchpad stay admin only (`adminGuard`) for now.
+Settled since: Scratchpad boards and files are stored on the server (`ScratchBoards`, `ScratchFiles`, both migrations applied) with a **25 MB** file limit. Still to confirm before building: keeping shortcuts, the mouse keys and the theme per person on the server (they live in the browser today). The Overview and Scratchpad stay admin only (`adminGuard`) for now.

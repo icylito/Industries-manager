@@ -83,6 +83,9 @@
     <header class="head">
         <h1 tabindex="-1">{{ d.headline }}</h1>
         <div class="head-actions">
+            <!-- A frozen copy of what is on screen, to the tray on the Scratchpad -->
+            <button type="button" class="btn line small" [disabled]="carrying()" (click)="carry('circle')" title="Put a frozen copy of the circle in the Scratchpad's tray">Carry the circle</button>
+            <button type="button" class="btn line small" [disabled]="carrying()" (click)="carry('list')" title="Put a frozen copy of the list in the Scratchpad's tray">Carry the list</button>
             <!-- No keyboard on a phone, so this button goes there -->
             <button type="button" class="btn line small shortcuts-btn" (click)="keys.togglePanel()" [attr.aria-expanded]="keys.panelOpen()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M7 14h10"/></svg>Shortcuts
