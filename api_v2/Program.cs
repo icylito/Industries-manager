@@ -14,6 +14,9 @@ using Microsoft.AspNetCore.RateLimiting;
 
 
 var builder = WebApplication.CreateBuilder(args);
+// Logs go to the console only. The default Windows Event Log writer needs an elevated window and crashed startup when it was refused
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
 // Pages that may call the API. Cors:Origins in appsettings overrides this list, the Angular dev server is the default.
 var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() is { Length: > 0 } configured
     ? configured

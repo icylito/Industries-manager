@@ -188,6 +188,48 @@ namespace api_v2.Migrations
                     b.ToTable("ScratchBoards");
                 });
 
+            modelBuilder.Entity("api_v2.Model.ScratchFile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StoredName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StoredName")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ScratchFiles");
+                });
+
             modelBuilder.Entity("api_v2.Model.Session", b =>
                 {
                     b.Property<long>("Id")
@@ -304,6 +346,15 @@ namespace api_v2.Migrations
                 });
 
             modelBuilder.Entity("api_v2.Model.ScratchBoard", b =>
+                {
+                    b.HasOne("api_v2.Model.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("api_v2.Model.ScratchFile", b =>
                 {
                     b.HasOne("api_v2.Model.User", null)
                         .WithMany()
