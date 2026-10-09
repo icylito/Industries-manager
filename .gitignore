@@ -21,6 +21,10 @@ HANDOFF.md
 # Copies of the database made by the nightly backup, only the root folder (api_v2/Backups is code)
 /backups/
 /scratchpad-files/
+# The readable JSON copy of every table from the Tables page, the API writes it (UserTables:Mirror)
+/user-tables/
+# The key that signs backups. Whoever holds it can make a backup the app trusts, keep it out of the repo
+/backup-key/
 
 # The checks in testing/: the throwaway API's settings and its backups
 api_v2/appsettings.Throwaway.json

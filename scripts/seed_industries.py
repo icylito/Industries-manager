@@ -138,6 +138,7 @@ class Seeder:
         self.target = 0
         self.kept_sent = 0
         self.kept_stored = 0
+        self.kept_id: int | None = None
         self.progress_every = 2000
         self.next_progress = 2000
 
@@ -236,16 +237,7 @@ class Seeder:
                 status, body = self.request("GET", "/health")
                 health = json.loads(body)
                 if health["state"] == "ready":
-                    print(f"API ready: {health['message']}")
-                    databases = health.get("databases") or {}
-                    live, history = databases.get("live"), databases.get("history")
-                    if not live or not history:
-                        sys.exit("The health check does not name the live database and the history database")
-                    self.databases = databases
-                    print(
-                        f"Writing to {live['database']} on {live['host']} port {live['port']}. "
-                        f"History is {history['database']} on {history['host']} port {history['port']}."
-                    )
+                    print("API ready")
                     return
                 if health["state"] == "failed":
                     sys.exit(f"API reports a failed database: {health['message']}")
@@ -282,6 +274,7 @@ class Seeder:
                         self.stats["kept"] += 1
                         self.kept_sent = len(row["name"])
                         self.kept_stored = len(stored)
+                        self.kept_id = json.loads(body).get("id")
                     else:
                         self.stats["holes"] += 1
                         print(f"  A stored {kind} broke the rule: {row}")
@@ -347,6 +340,17 @@ class Seeder:
                 "This command will not add rows until then."
             )
         print(f"Signed in as {user}")
+        # /health only names the databases to someone signed in
+        status, body = self.request("GET", "/health")
+        databases = json.loads(body).get("databases") or {}
+        live, history = databases.get("live"), databases.get("history")
+        if status != 200 or not live or not history:
+            sys.exit("The health check does not name the live database and the history database")
+        self.databases = databases
+        print(
+            f"Writing to {live['database']} on {live['host']} port {live['port']}. "
+            f"History is {history['database']} on {history['host']} port {history['port']}."
+        )
 
     def place(self) -> str:
         live = self.databases["live"]
@@ -359,14 +363,19 @@ class Seeder:
     def count_line(self) -> str:
         added = self.stats["accepted"]
         kept = self.stats["kept"]
+        removed = self.stats["kept_removed"]
         refused = sum(v for k, v in self.stats.items() if k.startswith("blocked_"))
-        total = self.started + added + kept
+        total = self.started + added + kept - removed
         limit = self.fields["name_max_length"]
         if kept:
             kept_bit = (
-                f"Kept {kept}. Sent {self.kept_sent} characters, stored {self.kept_stored} "
+                f"Sent {self.kept_sent} characters, stored {self.kept_stored} "
                 f"after the space was trimmed, and {limit} is allowed."
             )
+            if removed:
+                kept_bit = f"Trim check passed and its row was deleted. {kept_bit}"
+            else:
+                kept_bit = f"Kept {kept}, the trim check row couldn't be deleted. {kept_bit}"
         else:
             kept_bit = "Kept 0."
         return (
@@ -401,6 +410,12 @@ class Seeder:
                 f"The trailing-space name was not kept as a legal {limit}-character name "
                 f"(sent {len(space_name)} characters)"
             )
+        # The API taking it is the whole check, so the row goes again and the total matches the batch
+        status, body = self.request("DELETE", f"/industries/{self.kept_id}") if self.kept_id else (0, "no id")
+        if status == 200:
+            self.stats["kept_removed"] += 1
+        else:
+            print(f"  Couldn't delete the trim check row {stored} ({status}): {body[:200]}")
         self.send("name_too_long", {"name": letter, "sector": sector, "price": 1, "release": None})
         if self.stats["holes"]:
             sys.exit("The letter-ending name was stored, and it is over the limit")

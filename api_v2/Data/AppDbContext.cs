@@ -13,6 +13,8 @@ DbContext(options){
     public DbSet<UserNote> UserNotes => Set<UserNote>();
     public DbSet<ScratchBoard> ScratchBoards => Set<ScratchBoard>();
     public DbSet<ScratchFile> ScratchFiles => Set<ScratchFile>();
+    public DbSet<UserTable> UserTables => Set<UserTable>();
+    public DbSet<UserTableRow> UserTableRows => Set<UserTableRow>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -23,7 +25,7 @@ DbContext(options){
         model.Entity<DevRequest>().HasIndex(r => r.Status);
         model.Entity<User>().Property(u => u.Username).HasMaxLength(32);
         model.Entity<User>().HasIndex(u => u.Username).IsUnique();
-        model.Entity<User>().ToTable(t => t.HasCheckConstraint("CK_Users_Role", "\"Role\" IN ('admin', 'normal')"));
+        model.Entity<User>().ToTable(t => t.HasCheckConstraint("CK_Users_Role", "\"Role\" IN ('admin', 'manager', 'normal')"));
         model.Entity<Session>().HasIndex(s => s.TokenHash).IsUnique();
         model.Entity<Session>().HasIndex(s => s.UserId);
         model.Entity<Session>().HasOne(s => s.User).WithMany().HasForeignKey(s => s.UserId).OnDelete(DeleteBehavior.Cascade);
@@ -44,5 +46,16 @@ DbContext(options){
         model.Entity<ScratchFile>().HasIndex(f => f.UserId);
         model.Entity<ScratchFile>().HasIndex(f => f.StoredName).IsUnique();
         model.Entity<ScratchFile>().HasOne<User>().WithMany().HasForeignKey(f => f.UserId).OnDelete(DeleteBehavior.Cascade);
+        // Tables made on the Tables page. Data, not real tables, so making one never needs a migration.
+        // The unique name index ignores case and is in the migration as plain SQL, like the industries one.
+        model.Entity<UserTable>().Property(t => t.Name).HasMaxLength(60);
+        model.Entity<UserTable>().Property(t => t.Columns).HasColumnType("jsonb");
+        model.Entity<UserTable>().Property(t => t.CreatedBy).HasMaxLength(32);
+        model.Entity<UserTable>().Property(t => t.Version).IsConcurrencyToken();
+        model.Entity<UserTable>().HasIndex(t => t.DeletedAt);
+        model.Entity<UserTableRow>().Property(r => r.Data).HasColumnType("jsonb");
+        model.Entity<UserTableRow>().Property(r => r.CreatedBy).HasMaxLength(32);
+        model.Entity<UserTableRow>().HasIndex(r => r.TableId);
+        model.Entity<UserTableRow>().HasOne<UserTable>().WithMany().HasForeignKey(r => r.TableId).OnDelete(DeleteBehavior.Cascade);
     }
 }

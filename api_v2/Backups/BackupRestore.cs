@@ -10,14 +10,15 @@ namespace api_v2.Backups;
 public sealed class BackupRefusedException(string message) : Exception(message);
 
 // What POST /backups/{id}/restore gives back
-public sealed record BackupRestoreResult(string Backup, int RowsBefore, int Rows, int RulesVersion, long? CopyId);
+public sealed record BackupRestoreResult(string Backup, int RowsBefore, int Rows, int RulesVersion, long? CopyId, string? UndoBackup = null);
 
-// Puts the table back the way it was in a backup. Accounts and sign ins stay as they are now.
+// Puts everything back the way it was in a backup: the industries, their rules, requests, settings, and every table from
+// the Tables page with its columns and rows. Accounts, sign ins, notes and Scratchpad boards stay as they are now.
 //
 // How it works: the dump is loaded into a scratch database on the same server first, so a dump that can't be
 // read never touches the live one. Then rows, rules, requests and settings are copied over in one transaction,
 // so the live table is either fully swapped or not changed at all. A copy of the table goes to the collector
-// before the swap, so the restore itself can be undone from the History page.
+// before the swap, and a full backup is taken too (kind before-restore), so the whole restore can be undone by restoring that.
 public sealed class BackupRestore(
     BackupService backups,
     DatabaseConnections connections,
@@ -26,13 +27,15 @@ public sealed class BackupRestore(
     RulesService rules,
     SettingsService settings,
     AppLocks locks,
+    api_v2.Tables.UserTableMirror mirror,
     IServiceScopeFactory scopes,
     ILogger<BackupRestore> log)
 {
-    // The tables that come back from a backup. Users and Sessions are left out on purpose:
-    // restoring them would bring back old passwords and sign everyone out.
-    private static readonly string[] Tables = ["Industries", "RuleVersions", "Requests", "Settings"];
-    private static readonly string[] WithIds = ["Industries", "RuleVersions", "Requests"];
+    // The tables that come back from a backup. Users and Sessions are left out on purpose: restoring them would bring
+    // back old passwords and sign everyone out. UserNotes and the Scratchpad belong to people, so they stay too.
+    // UserTables comes before UserTableRows: emptying it empties the rows (cascade), and the rows need their table back first.
+    private static readonly string[] Tables = ["Industries", "RuleVersions", "Requests", "Settings", "UserTables", "UserTableRows"];
+    private static readonly string[] WithIds = ["Industries", "RuleVersions", "Requests", "UserTables", "UserTableRows"];
 
     private const string ScratchDatabase = "main_restore_scratch";
     private static readonly TimeSpan Timeout = TimeSpan.FromMinutes(10);
@@ -86,6 +89,22 @@ public sealed class BackupRestore(
                 throw new BackupRefusedException(LayoutMessage);
             }
 
+            // A full copy of everything as it is now, the History copy below only covers the industries
+            string undoBackup;
+            try
+            {
+                undoBackup = (await backups.RunAsync("before-restore", by, ct)).Id;
+            }
+            catch (BackupBusyException)
+            {
+                throw new BackupRefusedException("Another backup is running. Try the restore again in a minute, nothing was changed");
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                log.LogError(ex, "Full copy before restoring backup {Backup} failed", id);
+                throw new BackupFailedException("Couldn't save a full copy first, so nothing was restored. The details are in the API log");
+            }
+
             long? copyId;
             try
             {
@@ -113,6 +132,14 @@ public sealed class BackupRestore(
             await ReloadAsync(ct);
             try
             {
+                await mirror.RebuildAsync(ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                log.LogWarning(ex, "The restore went through but the table copies in {Folder} weren't rewritten", mirror.Root);
+            }
+            try
+            {
                 await collector.LogChangeAsync(null, "restore-backup", new { Rows = rowsBefore },
                     new { Backup = id, Rows = rows }, rules.Current.Version, by, "done", ct);
             }
@@ -121,7 +148,7 @@ public sealed class BackupRestore(
                 log.LogWarning(ex, "The restore went through but the collector log failed");
             }
             log.LogInformation("Restored backup {Backup}: {Rows} rows, rules version {Version}", id, rows, rules.Current.Version);
-            return new BackupRestoreResult(id, rowsBefore, rows, rules.Current.Version, copyId);
+            return new BackupRestoreResult(id, rowsBefore, rows, rules.Current.Version, copyId, undoBackup);
         }
         finally
         {

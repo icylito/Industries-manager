@@ -649,7 +649,7 @@ Contributor: deepseek flash"
 - Consumes: everything above. It signs in with `scripts/seeding.control.toml` (never printing the password) and reads the app on `http://localhost:4200` with the API on `5005`.
 - Produces: screenshots in the folder given as the first argument, and a non-zero exit when an expectation fails.
 
-- [ ] **Step 1: Write the check**
+- [x] **Step 1: Write the check**
 
 Create `testing/check_ui.mjs`. Playwright is already installed in `testing/`; `createRequire` is used so the script also runs from anywhere:
 
@@ -744,12 +744,12 @@ console.log(fails.length ? `\n${fails.length} failed` : '\nall checks passed');
 process.exit(fails.length ? 1 : 0);
 ```
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
 
 Run from `testing/`: `node check_ui.mjs ..\..\dsh-shots\after` (or any folder you like).
 Expected: every line reads `ok`, then `all checks passed`, exit code 0. Screenshots land in the folder you named.
 
-- [ ] **Step 3: Commit (only if the user asks)**
+- [x] **Step 3: Commit (only if the user asks)**
 
 ```bash
 git add testing/check_ui.mjs
@@ -769,7 +769,7 @@ Contributor: deepseek flash"
 - Consumes: the current state after Tasks 1-7. If Task 2 has not landed, the section will be wrong about the nav.
 - Produces: the brief for the next session. No code depends on it.
 
-- [ ] **Step 1: Add the section**
+- [x] **Step 1: Add the section**
 
 Add a `## The Scratchpad (next session, its own project)` section, in the file's existing style (bold lead-in label, then the rule, short declarative sentences). It must carry:
 
@@ -786,11 +786,11 @@ Add a `## The Scratchpad (next session, its own project)` section, in the file's
   - The "Waiting on the user" item about the Overview says it awaits a design, though the Overview is built and committed.
   - Line 45 pins the commit footer as `Contributor: opus 5.5`, but the repo's recent commits say `coder bot` and today's say `deepseek flash`. Do not pin a stale name: say plainly that the footer names whoever did the work, and keep the rest of the rule (one plain lowercase line, no co-author line).
 
-- [ ] **Step 2: Read it back as a stranger**
+- [x] **Step 2: Read it back as a stranger**
 
 Read the new section alone. It is done when it answers: what, where, what is decided, what is not, and what is essential — with no question left that the next session would have to ask.
 
-- [ ] **Step 3: Commit (only if the user asks)**
+- [x] **Step 3: Commit (only if the user asks)**
 
 ```bash
 git add HANDOFF.md

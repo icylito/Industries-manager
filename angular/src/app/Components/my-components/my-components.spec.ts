@@ -68,6 +68,32 @@ describe('MyComponents', () => {
     expect(confirmSpy).not.toHaveBeenCalled();
   });
 
+  it('sends the row as Edit found it, and offers their version when someone changed it meanwhile', () => {
+    const http = TestBed.inject(HttpTestingController);
+    // jsdom has no scrolling, Edit scrolls the form into view
+    Element.prototype.scrollIntoView ??= () => {};
+    const alpha = { id: 1, name: 'Alpha', sector: 'Public Sector', price: 1, release: null, duplicateOf: null, importedFrom: null, lostFields: null, extra: { ticker: 'AL' } };
+    component.industries.set([alpha]);
+    component.edit(alpha);
+    component.form.controls.price.setValue(2);
+    component.submit();
+    const save = http.expectOne(r => r.method === 'PUT' && r.url.endsWith('/industries/update/1'));
+    expect(save.request.body.price).toBe(2);
+    expect(save.request.body.original).toEqual({ name: 'Alpha', sector: 'Public Sector', price: 1, release: null, extra: { ticker: 'AL' } });
+    save.flush('Someone changed this row since you opened it. Load their version, then make your change again',
+      { status: 409, statusText: 'Conflict' });
+    expect(component.changedMeanwhile()).toBe(true);
+    expect(component.editingId()).toBe(1);
+
+    component.loadTheirVersion();
+    const theirs = { ...alpha, name: 'Alpha Renamed', price: 7 };
+    http.expectOne(r => r.method === 'GET' && r.url.endsWith('/industries/1')).flush(theirs);
+    expect(component.form.controls.name.value).toBe('Alpha Renamed');
+    expect(component.changedMeanwhile()).toBe(false);
+    expect(component.editingOriginal()?.price).toBe(7);
+    expect(component.industries()[0].name).toBe('Alpha Renamed');
+  });
+
   // The Overview opens Browse with filters in the address. The count has to match what the Overview showed.
   describe('filters from the address', () => {
     const row = (id: number, over: object = {}) => ({ id, name: 'Row ' + id, sector: 'Public Sector', price: 1, release: '2012-06-01', duplicateOf: null, importedFrom: null, lostFields: null, extra: null, ...over });

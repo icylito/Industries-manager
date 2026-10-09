@@ -6,6 +6,7 @@ import {
   SettingsImportPreview, VersionDetail, VersionSummary,
 } from '../../models/industry';
 import { IndustryApi, errorText } from '../../services/industry-api';
+import { Auth } from '../../services/auth';
 import { age } from './age';
 
 type Panel =
@@ -21,6 +22,8 @@ type Panel =
 })
 export class HistoryPage implements OnInit {
   private api = inject(IndustryApi);
+  // Managers only get the Backups card here. Saved versions, retention and the settings file stay admin only.
+  auth = inject(Auth);
 
   versions = signal<VersionSummary[]>([]);
   loading = signal(true);
@@ -53,8 +56,9 @@ export class HistoryPage implements OnInit {
   backupError = signal('');
 
   ngOnInit() {
-    this.load();
     this.loadBackups();
+    if (!this.auth.isAdmin()) return;
+    this.load();
     this.api.retention().subscribe({
       next: r => this.setRetention(r.keepVersions, r.keepDays),
       error: () => {},
@@ -88,6 +92,8 @@ export class HistoryPage implements OnInit {
   kindLabel(kind: string): string {
     if (kind === 'nightly') return 'Nightly';
     if (kind === 'manual') return 'Manual';
+    if (kind === 'before-restore') return 'Taken just before a restore';
+    if (kind === 'uploaded') return 'Dropped in from a file';
     return kind;
   }
 
@@ -114,6 +120,61 @@ export class HistoryPage implements OnInit {
         this.backupError.set(errorText(err));
         this.loadBackups();
       },
+    });
+  }
+
+  // The whole backup as one zip, to keep somewhere else and drop back in on this page later
+  downloadZip(entry: BackupEntry) {
+    this.api.downloadFile(this.api.backupZipUrl(entry.id), `backup-${entry.id}.zip`).subscribe({
+      error: (err: HttpErrorResponse) => this.backupError.set(errorText(err, "Couldn't download that backup")),
+    });
+  }
+
+  // Dropping a backup zip in. It is checked by the API and added to the list; restoring it is still the Restore button.
+  dropOver = signal(false);
+  uploading = signal(false);
+  uploadMsg = signal('');
+  uploadError = signal('');
+  justAdded = signal<string | null>(null);
+
+  onDragOver(e: DragEvent) {
+    if (!e.dataTransfer?.types.includes('Files')) return;
+    e.preventDefault();
+    this.dropOver.set(true);
+  }
+
+  onDrop(e: DragEvent) {
+    e.preventDefault();
+    this.dropOver.set(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) this.uploadBackup(file);
+  }
+
+  chooseBackupFile(input: HTMLInputElement) {
+    const file = input.files?.[0];
+    input.value = '';
+    if (file) this.uploadBackup(file);
+  }
+
+  uploadBackup(file: File) {
+    if (this.uploading()) return;
+    this.uploadMsg.set('');
+    this.uploadError.set('');
+    if (!/\.zip$/i.test(file.name)) {
+      this.uploadError.set('Drop the .zip file that Download gave you.');
+      return;
+    }
+    this.uploading.set(true);
+    this.api.uploadBackup(file).subscribe({
+      next: entry => {
+        this.uploading.set(false);
+        this.uploadMsg.set(`Added to the list as the backup from ${this.formatDate(entry.createdAt)}, marked below. Press Restore on it to use it.`);
+        // It sits at the date it was made, which can be far down the list, so it is marked and brought into view
+        this.justAdded.set(entry.id);
+        this.loadBackups();
+        setTimeout(() => document.getElementById('backup-' + entry.id)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 400);
+      },
+      error: (err: HttpErrorResponse) => { this.uploading.set(false); this.uploadError.set(errorText(err, "Couldn't use that file")); },
     });
   }
 
@@ -165,10 +226,13 @@ export class HistoryPage implements OnInit {
         this.restoreBackupBusy.set(false);
         this.restoreAsk.set(null);
         this.restoreBackupDone.set(result);
+        // The restore took a full backup first, so the list has a new one
+        this.loadBackups();
+        this.api.refreshRequestCount();
+        if (!this.auth.isAdmin()) return;
         // The saved versions and the retention boxes come from the restored database now
         this.load();
         this.api.retention().subscribe({ next: r => this.setRetention(r.keepVersions, r.keepDays), error: () => {} });
-        this.api.refreshRequestCount();
       },
       error: (err: HttpErrorResponse) => { this.restoreBackupBusy.set(false); this.restoreBackupError.set(errorText(err)); },
     });
@@ -210,6 +274,9 @@ export class HistoryPage implements OnInit {
 
   // The template can only call members, so the helper is handed to it under the name the row uses
   readonly howOld = age;
+
+  // 50,001 rather than 50001, the same as Browse
+  readonly count = (n: number): string => n.toLocaleString('en-US');
 
   formatDate(iso: string): string {
     return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -280,6 +347,48 @@ export class HistoryPage implements OnInit {
     this.api.pin(v.id, !v.pinned).subscribe({
       next: () => this.versions.update(list => list.map(x => (x.id === v.id ? { ...x, pinned: !v.pinned } : x))),
       error: (err: HttpErrorResponse) => this.notice.set(errorText(err)),
+    });
+  }
+
+  // Ten saved versions a page, newest first. A delete that empties the last page steps back one.
+  versionPage = signal(1);
+  readonly versionSize = 10;
+  versionPages = computed(() => Math.max(1, Math.ceil(this.versions().length / this.versionSize)));
+  pagedVersions = computed(() => {
+    const page = Math.min(this.versionPage(), this.versionPages());
+    const start = (page - 1) * this.versionSize;
+    return this.versions().slice(start, start + this.versionSize);
+  });
+  shownPage = computed(() => Math.min(this.versionPage(), this.versionPages()));
+
+  goToVersionPage(page: number) {
+    this.versionPage.set(Math.max(1, Math.min(page, this.versionPages())));
+    this.confirmingVersion.set(null);
+  }
+
+  // Delete asks in the row first, the same way Browse does, because a deleted version can't come back
+  confirmingVersion = signal<number | null>(null);
+  deletingVersion = signal<number | null>(null);
+
+  deleteVersion(v: VersionSummary) {
+    if (v.pinned || this.deletingVersion() !== null) return;
+    this.deletingVersion.set(v.id);
+    this.notice.set('');
+    this.api.deleteVersion(v.id).subscribe({
+      next: () => {
+        this.deletingVersion.set(null);
+        this.confirmingVersion.set(null);
+        this.versions.update(list => list.filter(x => x.id !== v.id));
+        this.versionPage.set(this.shownPage());
+        if (this.panel()?.version.id === v.id) this.close();
+      },
+      error: (err: HttpErrorResponse) => {
+        this.deletingVersion.set(null);
+        this.confirmingVersion.set(null);
+        this.notice.set(errorText(err, "Couldn't delete that version"));
+        // Pinned by someone else, or already gone: the list shows how things are now
+        if (err.status === 404 || err.status === 409) this.load();
+      },
     });
   }
 

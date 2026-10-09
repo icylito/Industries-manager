@@ -27,7 +27,8 @@ public static class SchemaEndpoints
         {
             await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);
             await rules.LoadAsync(db, ct);
-            if (body.BasedOn is int v && v != rules.Current.Version)
+            if (body.BasedOn is not int v) return NoBasedOn();
+            if (v != rules.Current.Version)
             {
                 return Results.Conflict(
                     "Someone changed the fields since you opened this page. Reload to see their changes, then save again");
@@ -89,7 +90,8 @@ public static class SchemaEndpoints
 
             await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);
             await rules.LoadAsync(db, ct);
-            if (body.BasedOn is int v && v != rules.Current.Version)
+            if (body.BasedOn is not int v) return NoBasedOn();
+            if (v != rules.Current.Version)
             {
                 return Results.Conflict(
                     "Someone changed the fields since you opened this page. Reload to see their changes, then save again");
@@ -130,7 +132,8 @@ public static class SchemaEndpoints
             {
                 return Results.BadRequest($"{field.Label} is built in, only a developer can remove it");
             }
-            if (basedOn is int v && v != rules.Current.Version)
+            if (basedOn is not int v) return NoBasedOn();
+            if (v != rules.Current.Version)
             {
                 return Results.Conflict(
                     "Someone changed the fields since you opened this page. Reload to see their changes, then save again");
@@ -151,6 +154,12 @@ public static class SchemaEndpoints
             return Results.Ok(await rules.DeleteFieldAsync(db, field.Key, field.Label, user.Name, ct));
         }).RequireAdmin();
     }
+
+    // Without the version the page was looking at, two admins saving at once would quietly undo each other
+    private static IResult NoBasedOn() => Results.ValidationProblem(new Dictionary<string, string[]>
+    {
+        ["basedOn"] = ["Reload the Fields page and try again"]
+    });
 
     // While migrations run or after they fail, answer 503 instead of hitting a half ready database
     public static RouteGroupBuilder RequireDatabaseReady(this RouteGroupBuilder group) =>

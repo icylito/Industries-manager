@@ -3,7 +3,7 @@
 Design for the first Scratchpad slice. Written 2026-10-08 for the `scratchpad-canvas` branch.
 Read [OVERVIEW_HANDOFF.md](../../OVERVIEW_HANDOFF.md) for the full brief; this file covers only slice a.
 
-**Nothing is built yet.** This is a spec for review, not a plan of commits.
+**Built since (2026-10-09), and the build moved past parts of this spec.** The save pill has three states (Save, Saved, Failed to save), not four, and the rail uses `/industries/top` and `/industries/by-ids` instead of loading the whole table. Where this file and `OVERVIEW_HANDOFF.md` disagree, the handoff wins.
 
 ## What this slice is
 

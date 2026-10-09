@@ -9,6 +9,8 @@ namespace api_v2.Data;
 public record VersionSummary(long Id, DateTimeOffset CreatedAt, string Reason, string CreatedBy, int RowCount,
     int? RulesVersion, bool Pinned, List<string> Migrations, bool Damaged = false);
 
+public enum VersionRemoval { Removed, NotFound, Pinned }
+
 // One saved version with everything in it, what View, Download, Restore and Import read
 public record VersionDetail(VersionSummary Summary, List<VersionColumn> Columns, string? Rules, List<JsonElement> Rows);
 
@@ -220,6 +222,31 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
         {
             log.LogWarning(ex, "Couldn't remove the unused copy {Version}", id);
         }
+    }
+
+    // Someone pressed Delete on a saved version. A pinned one stays, it has to be unpinned first. The row is locked before
+    // anything goes, so a pin landing at the same moment either wins (nothing deleted) or waits and finds it gone.
+    public async Task<VersionRemoval> RemoveVersionAsync(long id, CancellationToken ct = default)
+    {
+        await using var conn = await OpenAsync(connections.Collector, ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
+        bool pinned;
+        await using (var find = new NpgsqlCommand("SELECT pinned FROM versions WHERE id = @id FOR UPDATE", conn, tx))
+        {
+            find.Parameters.AddWithValue("id", id);
+            var found = await find.ExecuteScalarAsync(ct);
+            if (found is null) return VersionRemoval.NotFound;
+            pinned = (bool)found;
+        }
+        if (pinned) return VersionRemoval.Pinned;
+        await using var delete = new NpgsqlCommand("""
+            DELETE FROM version_rows WHERE version_id = @id;
+            DELETE FROM versions WHERE id = @id;
+            """, conn, tx);
+        delete.Parameters.AddWithValue("id", id);
+        await delete.ExecuteNonQueryAsync(ct);
+        await tx.CommitAsync(ct);
+        return VersionRemoval.Removed;
     }
 
     // Retention after a restore or import, the version the rows came from always stays

@@ -1,3 +1,5 @@
+<!-- Saved versions, retention and the settings file are for admins. A manager only gets the Backups card below. -->
+@if (auth.isAdmin()) {
 <!-- Saved versions from the collector database. Nothing here deletes data without asking. -->
 
 <section class="panel">
@@ -5,14 +7,15 @@
         <div class="panel-title">
             <h2><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>Saved versions</h2>
             @if (!loading() && !error()) {
-                <span class="db-status">{{ versions().length }} saved</span>
+                <span class="db-status">{{ count(versions().length) }} saved</span>
             }
         </div>
     </header>
 
     <p class="intro">A copy of the whole table is saved before the rules change, before the table gets updated,
         and before any restore or import, so you can always go back.
-        <strong>Bring back</strong> adds a version's rows to the table as new rows. <strong>Restore</strong> replaces the whole table with that version.</p>
+        <strong>Bring back</strong> adds a version's rows to the table as new rows. <strong>Restore</strong> replaces the whole table with that version.
+        The bin deletes a version you no longer need, for good. A pinned one has to be unpinned first.</p>
 
     @if (notice()) {
         <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ notice() }}</p>
@@ -36,7 +39,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @for (v of versions(); track v.id) {
+                    @for (v of pagedVersions(); track v.id) {
                         <tr [class.editing]="panel()?.version?.id === v.id">
                             <td class="id">#{{ v.id }}</td>
                             <td class="what">
@@ -51,10 +54,20 @@
                                 </span>
                                 <span class="sub">{{ formatDate(v.createdAt) }} · {{ howOld(v.createdAt) }} · {{ v.damaged ? "Can't be restored or brought back" : v.sameLayout ? 'Same table layout' : 'Other table layout' }}</span>
                             </td>
-                            <td class="num accent">{{ v.rowCount }}<span class="unit-word"> {{ v.rowCount === 1 ? 'row' : 'rows' }}</span></td>
+                            <td class="num accent">{{ count(v.rowCount) }}<span class="unit-word"> {{ v.rowCount === 1 ? 'row' : 'rows' }}</span></td>
                             <td class="actions">
-                                <button type="button" class="edit-btn" [disabled]="busy()" (click)="view(v)">
-                                    <i class="fa-solid fa-eye" aria-hidden="true"></i>View
+                                @if (confirmingVersion() === v.id) {
+                                <span class="confirm-text"><span class="long">Delete version #{{ v.id }} for good?</span><span class="short">Delete #{{ v.id }}?</span></span>
+                                <button type="button" class="edit-btn" [disabled]="deletingVersion() === v.id" (click)="confirmingVersion.set(null)">
+                                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>Cancel
+                                </button>
+                                <button type="button" class="remove-btn confirming" [disabled]="deletingVersion() === v.id" (click)="deleteVersion(v)" [attr.aria-label]="'Delete version ' + v.id">
+                                    @if (deletingVersion() === v.id) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Deleting }
+                                    @else { <i class="fa-solid fa-trash" aria-hidden="true"></i>Delete }
+                                </button>
+                                } @else {
+                                <button type="button" class="edit-btn icon-only" [disabled]="busy()" (click)="view(v)" [attr.aria-label]="'View version ' + v.id" title="View the rows">
+                                    <i class="fa-solid fa-eye" aria-hidden="true"></i>
                                 </button>
                                 <button type="button" class="edit-btn icon-only" (click)="download(v)" aria-label="Download as a spreadsheet" title="Download as a spreadsheet">
                                     <i class="fa-solid fa-download" aria-hidden="true"></i>
@@ -69,12 +82,32 @@
                                 <button type="button" class="remove-btn" [disabled]="v.damaged" (click)="askRestore(v)">
                                     <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore
                                 </button>
+                                <button type="button" class="remove-btn icon-only" [disabled]="v.pinned || busy()" (click)="confirmingVersion.set(v.id)"
+                                    [attr.aria-label]="v.pinned ? 'Pinned, unpin it to delete' : 'Delete version ' + v.id"
+                                    [attr.title]="v.pinned ? 'Pinned, unpin it to delete' : 'Delete this saved version'">
+                                    <i class="fa-solid fa-trash" aria-hidden="true"></i>
+                                </button>
+                                }
                             </td>
                         </tr>
                     }
                 </tbody>
             </table>
         </div>
+        @if (versionPages() > 1) {
+            <footer class="panel-foot">
+                <span>Showing {{ (shownPage() - 1) * versionSize + 1 }} to {{ (shownPage() - 1) * versionSize + pagedVersions().length }} of {{ count(versions().length) }}</span>
+                <div class="pager">
+                    <button type="button" class="icon-btn" aria-label="Previous page of saved versions" [disabled]="shownPage() === 1" (click)="goToVersionPage(shownPage() - 1)">
+                        <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+                    </button>
+                    <span>Page {{ shownPage() }} of {{ versionPages() }}</span>
+                    <button type="button" class="icon-btn" aria-label="Next page of saved versions" [disabled]="shownPage() === versionPages()" (click)="goToVersionPage(shownPage() + 1)">
+                        <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </footer>
+        }
     }
 </section>
 
@@ -306,7 +339,7 @@
     <div class="settings-row">
         <label class="field">
             <span class="field-label">Keep the last</span>
-            <span class="control" [class.empty]="keepVersionsText() === ''">
+            <span class="control">
                 <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
                 <input type="number" min="1" step="1" placeholder="All" [value]="keepVersionsText()"
                     (input)="keepVersionsText.set($any($event.target).value)">
@@ -315,9 +348,9 @@
         </label>
         <label class="field">
             <span class="field-label">Remove versions older than</span>
-            <span class="control" [class.empty]="keepDaysText() === ''">
+            <span class="control">
                 <i class="fa-regular fa-calendar" aria-hidden="true"></i>
-                <input type="number" min="1" step="1" placeholder="Never" [value]="keepDaysText()"
+                <input type="number" min="1" step="1" placeholder="No limit" [value]="keepDaysText()"
                     (input)="keepDaysText.set($any($event.target).value)">
                 <span class="unit">days</span>
             </span>
@@ -385,6 +418,7 @@
         <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ settingsError() }}</p>
     }
 </section>
+}
 
 <!-- Full copies of both databases, outside Postgres -->
 <section class="card">
@@ -392,7 +426,8 @@
         <h2><span class="title-icon"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i></span>Backups</h2>
     </header>
     <p class="intro">{{ backupIntro() }}
-        <strong>Restore</strong> puts the table, its rules, settings and requests back the way they were in that backup. Accounts and sign ins stay as they are now.</p>
+        <strong>Restore</strong> puts the table, its rules, settings, requests and every table on the Tables page back the way they were in that backup.
+        Accounts and sign ins stay as they are now. A full backup of right now is taken first, so a restore can be undone.</p>
     <button type="button" class="add-btn" [disabled]="backingUp()" (click)="backupNow()">
         @if (backingUp()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Backing up... }
         @else { <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>Back up now }
@@ -402,6 +437,26 @@
     }
     @if (backupError()) {
         <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ backupError() }}</p>
+    }
+
+    <!-- A backup zip from Download, dropped back in. The API only accepts one this app made, then it joins the list. -->
+    <div class="drop-zone" [class.over]="dropOver()" (dragover)="onDragOver($event)" (dragleave)="dropOver.set(false)" (drop)="onDrop($event)">
+        <i class="fa-solid fa-file-zipper" aria-hidden="true"></i>
+        @if (uploading()) {
+            <span><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Checking the file</span>
+        } @else {
+            <span>{{ dropOver() ? 'Let go to add it' : 'Drop a backup .zip here, or' }}</span>
+            @if (!dropOver()) {
+                <button type="button" class="link-btn" (click)="backupFile.click()">choose one</button>
+            }
+        }
+        <input #backupFile type="file" accept=".zip,application/zip" hidden (change)="chooseBackupFile(backupFile)">
+    </div>
+    @if (uploadMsg()) {
+        <p class="result small" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ uploadMsg() }}</p>
+    }
+    @if (uploadError()) {
+        <p class="field-error" role="alert"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ uploadError() }}</p>
     }
 
     @if (!backupsLoaded() && !backupError()) {
@@ -420,7 +475,7 @@
                 </thead>
                 <tbody>
                     @for (b of backups(); track b.id) {
-                        <tr>
+                        <tr [id]="'backup-' + b.id" [class.just-added]="justAdded() === b.id">
                             <td class="what">
                                 <span class="reason">{{ formatDate(b.createdAt) }}</span>
                                 <span class="sub">{{ kindLabel(b.kind) }}{{ b.rowCount === null ? '' : ' · ' + b.rowCount + (b.rowCount === 1 ? ' row' : ' rows') }}{{ b.sameLayout === false ? ' · Other table layout' : '' }}</span>
@@ -430,6 +485,8 @@
                                 @if (b.hasExcel) {
                                     <button type="button" class="edit-btn" title="The table at that time, opens in Excel" (click)="downloadBackup(b, 'excel')"><i class="fa-solid fa-file-excel" aria-hidden="true"></i>Excel</button>
                                 }
+                                <button type="button" class="edit-btn" [disabled]="!b.signed" (click)="downloadZip(b)"
+                                    [attr.title]="b.signed ? 'The whole backup as one file, to keep somewhere else and drop back in here later' : 'Made before backups were signed, so it can only be restored from this list, not moved as a file'"><i class="fa-solid fa-file-zipper" aria-hidden="true"></i>Download</button>
                                 <button type="button" class="edit-btn" (click)="downloadBackup(b, 'main')">Main</button>
                                 <button type="button" class="edit-btn" (click)="downloadBackup(b, 'collector')">History</button>
                                 <button type="button" class="remove-btn" [disabled]="restoreBackupBusy() || b.sameLayout === false" (click)="askRestoreBackup(b)"
@@ -446,10 +503,10 @@
 
     @if (restoreAsk(); as ask) {
         <div class="ask" id="restore-backup">
-            <p><i class="fa-solid fa-circle-question" aria-hidden="true"></i>This puts the table back the way it was on {{ formatDate(ask.entry.createdAt) }}:
-                {{ ask.preview.rowCount === null ? 'its rows' : ask.preview.rowCount + (ask.preview.rowCount === 1 ? ' row' : ' rows') }} instead of the {{ ask.preview.currentRows }} in the table now,
-                the rules, how long old versions are kept, and the requests from back then. Accounts and sign ins stay as they are now.
-                The table as it is now gets saved to History first, so you can come back to it.</p>
+            <p><i class="fa-solid fa-circle-question" aria-hidden="true"></i>This puts everything back the way it was on {{ formatDate(ask.entry.createdAt) }}:
+                the industries ({{ ask.preview.rowCount === null ? 'its rows' : ask.preview.rowCount + (ask.preview.rowCount === 1 ? ' row' : ' rows') }} instead of the {{ ask.preview.currentRows }} now),
+                their rules, the requests, the settings, and every table on the Tables page with its columns and rows. Accounts and sign ins stay as they are now.
+                A full backup of right now is taken first, so you can undo this by restoring that one.</p>
             @if (!ask.preview.historyReady) {
                 <p class="hint-line"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>History is offline, so a copy can't be saved first. Wait until it's back.</p>
             }
@@ -472,7 +529,8 @@
     @if (restoreBackupDone(); as done) {
         <p class="result small"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>
             Restored. The table has the {{ done.rows }} rows from that backup now, rules version {{ done.rulesVersion }}.
-            @if (done.copyId) { The table as it was before is saved as version #{{ done.copyId }} at the top. }</p>
+            @if (done.undoBackup) { To undo it, restore the backup marked "Taken just before a restore" at the top of the list. }
+            @if (done.copyId && auth.isAdmin()) { The table as it was before is also saved as version #{{ done.copyId }} in Saved versions. }</p>
     }
     @if (restoreBackupError()) {
         <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ restoreBackupError() }}</p>

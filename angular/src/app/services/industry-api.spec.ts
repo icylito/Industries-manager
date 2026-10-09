@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { IndustryApi, fileNameFrom } from './industry-api';
+import { IndustryApi, errorText, fileNameFrom } from './industry-api';
 import { environment } from '../../environments/environment';
 
 describe('IndustryApi', () => {
@@ -43,5 +43,18 @@ describe('IndustryApi', () => {
     const req = http.expectOne(`${environment.apiUrl}/history/settings/preview`);
     expect(req.request.method).toBe('POST');
     req.flush({ willRemove: 0 });
+  });
+});
+
+// Seen on History with the API stopped: the page said "Failed to fetch", the browser's own words
+describe('errorText', () => {
+  it('says the API could not be reached when nothing came back, whatever the browser put in the body', () => {
+    const err = new HttpErrorResponse({ status: 0, error: new TypeError('Failed to fetch') });
+    expect(errorText(err)).toBe('Could not reach the API. Check if it is running');
+  });
+
+  it('still shows the API\'s own sentence when it answered', () => {
+    const err = new HttpErrorResponse({ status: 409, error: { detail: 'Someone else changed this' } });
+    expect(errorText(err)).toBe('Someone else changed this');
   });
 });

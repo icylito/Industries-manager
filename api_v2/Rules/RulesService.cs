@@ -246,7 +246,7 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
     }
 
     // Stored is the value to keep. A choice is rewritten to the list's own spelling.
-    private static (string? Stored, string? Problem) CheckText(FieldRule rule, string? text, string? keep)
+    internal static (string? Stored, string? Problem) CheckText(FieldRule rule, string? text, string? keep)
     {
         text = string.IsNullOrWhiteSpace(text) ? null : text.Trim();
         if (string.IsNullOrEmpty(text))
@@ -286,7 +286,7 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
     // Digits after the decimal point, not counting trailing zeros
     private static int Decimals(decimal d) => (decimal.GetBits(d / 1.0000000000000000000000000000m)[3] >> 16) & 0xFF;
 
-    private static string? CheckNumber(FieldRule rule, decimal? number)
+    internal static string? CheckNumber(FieldRule rule, decimal? number)
     {
         if (number is not decimal n)
         {
@@ -387,7 +387,7 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
         return errors;
     }
 
-    private static List<string> CheckLimits(string? label, string type, int? maxLength, decimal? min, decimal? max)
+    internal static List<string> CheckLimits(string? label, string type, int? maxLength, decimal? min, decimal? max)
     {
         var problems = new List<string>();
         if (string.IsNullOrWhiteSpace(label) || label.Trim().Length > 40) problems.Add("The label has to be 1 to 40 characters");
@@ -521,7 +521,7 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
 
     // "Stock ticker" becomes "stock_ticker", with a number on the end if it's taken. Letters from other languages stay.
     // taken includes keys already handed out in this batch, so two similar labels don't collide.
-    private static string MakeKey(string label, HashSet<string> taken)
+    internal static string MakeKey(string label, HashSet<string> taken)
     {
         // Accents come off ("Ümläut" becomes "umlaut"), letters and digits from any language stay
         var plain = Regex.Replace(label.Normalize(NormalizationForm.FormKD), @"\p{Mn}+", "");

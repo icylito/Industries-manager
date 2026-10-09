@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 import { MyComponents } from './Components/my-components/my-components';
-import { adminGuard, signedInGuard } from './guards';
+import { adminGuard, managerGuard, signedInGuard } from './guards';
 
 // title and lede fill the page header in app.html. centered puts them over the middle of the page, for the one card pages
 // admin gives a page the slim nav and the admin colours, and drops the page header so the page draws its own title
@@ -17,8 +17,12 @@ export const routes: Routes = [
     { path: 'scratchpad', canActivate: [adminGuard], loadComponent: () => import('./Components/scratchpad/scratchpad').then(m => m.ScratchpadPage), data: { title: 'Scratchpad', lede: 'A board to think with your industries.', admin: true, wide: true } },
     // The People page moved inside Settings, so an old link still lands somewhere useful
     { path: 'users', redirectTo: 'settings' },
-    { path: 'history', canActivate: [adminGuard], loadComponent: () => import('./Components/history/history').then(m => m.HistoryPage), data: { title: 'History', lede: 'Every saved copy of the table. View, download, restore, or bring old rows back.' } },
+    // Managers get only the Backups card on History, admins the whole page
+    { path: 'history', canActivate: [managerGuard], loadComponent: () => import('./Components/history/history').then(m => m.HistoryPage), data: { title: 'History', lede: 'Every saved copy of the table. View, download, restore, or bring old rows back.' } },
     { path: 'fields', canActivate: [adminGuard], loadComponent: () => import('./Components/fields/fields').then(m => m.FieldsPage), data: { title: 'Fields', lede: 'What each column holds and its limits. Every save is a new version.' } },
+    // Tables people make themselves. Everyone signed in can look; managers and admins change them (the API checks too)
+    { path: 'tables', canActivate: [signedInGuard], loadComponent: () => import('./Components/tables/tables').then(m => m.TablesPage), data: { title: 'Tables', lede: 'Tables your team makes, fills and deletes, with no developer needed.' } },
+    { path: 'tables/:id', canActivate: [signedInGuard], loadComponent: () => import('./Components/tables/tables').then(m => m.TablesPage), data: { title: 'Tables', lede: 'Tables your team makes, fills and deletes, with no developer needed.' } },
     { path: 'requests', canActivate: [signedInGuard], loadComponent: () => import('./Components/requests/requests').then(m => m.RequestsPage), data: { title: 'Requests', lede: 'Things that need a developer, each with the steps written out for them.' } },
     { path: '**', redirectTo: '' },
 ];

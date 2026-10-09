@@ -44,6 +44,9 @@ export class IndustryApi {
         create(body: CreateIndustry): Observable<Industry>{
             return this.http.post<Industry>(this.baseUrl, body);
         }
+        getById(id: number): Observable<Industry> {
+            return this.http.get<Industry>(`${this.baseUrl}/${id}`);
+        }
         update(id: number, body: UpdateIndustry): Observable<void>{
             return this.http.put<void>(`${this.baseUrl}/update/${id}`, body);
         }
@@ -81,6 +84,9 @@ export class IndustryApi {
     }
     pin(id: number, pinned: boolean): Observable<void> {
         return this.http.put<void>(`${this.apiUrl}/history/versions/${id}/pin`, { pinned });
+    }
+    deleteVersion(id: number): Observable<{ deleted: number }> {
+        return this.http.delete<{ deleted: number }>(`${this.apiUrl}/history/versions/${id}`);
     }
     restore(id: number, note: string): Observable<RestoreResult> {
         return this.http.post<RestoreResult>(`${this.apiUrl}/history/versions/${id}/restore`, { note });
@@ -125,6 +131,16 @@ export class IndustryApi {
     }
     restoreBackup(id: string, confirm: string): Observable<BackupRestoreResult> {
         return this.http.post<BackupRestoreResult>(`${this.apiUrl}/backups/${id}/restore`, { confirm });
+    }
+    // The whole backup as one signed zip, the same file the drop box takes back
+    backupZipUrl(id: string): string {
+        return `${this.apiUrl}/backups/${id}/download`;
+    }
+    // A backup zip dropped in. It is checked and added to the list; restoring it is a separate step.
+    uploadBackup(file: File): Observable<BackupEntry> {
+        const form = new FormData();
+        form.append('file', file, file.name);
+        return this.http.post<BackupEntry>(`${this.apiUrl}/backups/upload`, form);
     }
 
     // People, admins only
@@ -221,6 +237,9 @@ export function fileNameFrom(disposition: string | null, fallbackName: string): 
 
 // Turns an API error into one plain sentence for the page
 export function errorText(err: HttpErrorResponse, fallback = 'Something went wrong. Try again in a moment'): string {
+    // Nothing came back at all. Checked first: the browser's own error ("Failed to fetch") rides along in the body,
+    // and that is not a sentence for the page
+    if (err?.status === 0) return 'Could not reach the API. Check if it is running';
     const body = err?.error;
     if (typeof body === 'string' && body) return body;
     if (body?.detail) return body.detail;

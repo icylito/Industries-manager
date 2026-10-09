@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Auth } from '../../services/auth';
@@ -33,10 +33,54 @@ export class LoginPage {
   password = signal('');
   busy = signal(false);
   error = signal('');
+  // Seconds left after too many tries. Sign in stays off and the line under the boxes counts down.
+  // Worked out from the end time on every tick, so a tab the browser slows down in the background still shows the
+  // right number, and the end time is kept for this tab so a reload doesn't turn Sign in back on early.
+  wait = signal(0);
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private static readonly waitKey = 'signInWaitUntil';
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => this.stopTimer());
+    let until = 0;
+    try { until = Number(sessionStorage.getItem(LoginPage.waitKey)) || 0; } catch { /* no storage, no carry-over */ }
+    if (until > Date.now()) this.runUntil(until);
+  }
+
+  private startWait(seconds: number) {
+    const until = Date.now() + seconds * 1000;
+    try { sessionStorage.setItem(LoginPage.waitKey, String(until)); } catch { /* the countdown still runs */ }
+    this.runUntil(until);
+  }
+
+  private runUntil(until: number) {
+    this.stopTimer();
+    const tick = () => {
+      const left = Math.ceil((until - Date.now()) / 1000);
+      this.wait.set(Math.max(0, left));
+      if (left <= 0) {
+        this.stopTimer();
+        this.error.set('');
+        try { sessionStorage.removeItem(LoginPage.waitKey); } catch { /* nothing kept */ }
+      }
+    };
+    tick();
+    this.timer = setInterval(tick, 1000);
+  }
+
+  private stopTimer() {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
+
+  waitText(): string {
+    const s = this.wait();
+    return s < 90 ? `Too many tries. Try again in ${s} second${s === 1 ? '' : 's'}` : `Too many tries. Try again in ${Math.ceil(s / 60)} minutes`;
+  }
 
   submit(event: Event) {
     event.preventDefault();
-    if (this.busy()) return;
+    if (this.busy() || this.wait() > 0) return;
     if (!this.username().trim() || !this.password()) {
       this.error.set('Type your username and password');
       return;
@@ -52,6 +96,11 @@ export class LoginPage {
       error: (err: HttpErrorResponse) => {
         this.busy.set(false);
         this.password.set('');
+        if (err.status === 429) {
+          const seconds = Number(err.headers?.get('Retry-After'));
+          this.startWait(Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : 60);
+          return;
+        }
         this.error.set(errorText(err, "Couldn't sign in. Try again in a moment"));
       },
     });

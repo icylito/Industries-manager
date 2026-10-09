@@ -106,6 +106,8 @@ export class Scratchpad {
   // Changes the server has not confirmed, and a version so a save only counts when it covers them all
   private unsaved = false;
   private changeVersion = 0;
+  private inFlight = false;
+  private saveAgain = false;
 
   async load(): Promise<void> {
     this.loading.set(true);
@@ -511,12 +513,21 @@ export class Scratchpad {
     if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = null; }
     if (this.retryTimer) { clearTimeout(this.retryTimer); this.retryTimer = null; }
     if (this.loading() || this.loadError() || this.conflict()) return;
+    // One save at a time. A second one sent before the first answers would carry the same stale updatedAt
+    // and this tab would 409 itself, so it waits and goes out once the first has moved updatedAt on
+    if (this.inFlight) { this.saveAgain = true; return; }
+    this.inFlight = true;
+    this.saveAgain = false;
     const version = this.changeVersion;
     this.saveState.set('save');
     try {
       const answer = await firstValueFrom(this.api.saveBoard(this.board(), this.updatedAt));
       this.updatedAt = answer.updatedAt;
       this.failures = 0;
+      if (this.conflict()) {
+        // Never let a late success hide a conflict: the pill keeps saying the board changed somewhere else
+        return;
+      }
       if (this.changeVersion === version) {
         this.unsaved = false;
         this.saveState.set('saved');
@@ -538,6 +549,11 @@ export class Scratchpad {
       this.unsaved = true;
       this.saveState.set('failed');
       this.scheduleRetry();
+    } finally {
+      this.inFlight = false;
+      // Someone pressed Save, or a timer fired, while this one was out. Send it now with the new updatedAt
+      if (this.saveAgain && this.unsaved && !this.conflict() && this.saveState() !== 'failed') void this.saveNow();
+      this.saveAgain = false;
     }
   }
 

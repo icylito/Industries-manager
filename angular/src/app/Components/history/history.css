@@ -250,11 +250,6 @@ a.add-btn{
     pointer-events: none;
 }
 
-/* An empty box shows its placeholder (All, Never) and no unit, so it never reads "Never days" */
-.control.empty .unit{
-    display: none;
-}
-
 .settings-row input{
     padding-right: 5rem;
 }
@@ -338,4 +333,41 @@ a.add-btn{
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
+}
+
+/* The box a backup zip is dropped on. Dashed until something is dragged over it, then the signal colour. */
+.drop-zone{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    margin: 1rem 0;
+    padding: 1.1rem 1rem;
+    border: 2px dashed var(--border-strong);
+    border-radius: 12px;
+    color: var(--muted);
+    text-align: center;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.drop-zone.over{
+    border-color: var(--signal);
+    background: var(--hover);
+    color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce){
+    .drop-zone{
+        transition: none;
+    }
+}
+
+/* The backup that was just dropped in, so it can be found in a long list */
+table.versions tr.just-added td{
+    background: var(--hover);
+}
+
+table.versions tr.just-added td:first-child{
+    box-shadow: inset 3px 0 0 var(--signal);
 }

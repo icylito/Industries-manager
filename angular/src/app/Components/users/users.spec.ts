@@ -110,11 +110,12 @@ describe('UsersPage row actions', () => {
     expect(row().textContent).not.toContain('Turn off');
   });
 
-  it('offers turn off, make admin and delete account in the menu', () => {
+  // A plain user is offered the two roles they don't have
+  it('offers turn off, make admin, make manager and delete account in the menu', () => {
     setup();
     openMenu();
 
-    expect(items()).toEqual(['Turn off', 'Make admin', 'Rename', 'Notes', 'Delete account']);
+    expect(items()).toEqual(['Turn off', 'Make admin', 'Make manager', 'Rename', 'Notes', 'Delete account']);
   });
 
   // Seen in a real browser: inside the table the menu was clipped by the table's own scroll box, so only a sliver showed

@@ -26,10 +26,12 @@
                     (input)="password.set($any($event.target).value)">
             </span>
         </label>
-        @if (error()) {
+        @if (wait() > 0) {
+            <p class="field-error" role="status"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i>{{ waitText() }}</p>
+        } @else if (error()) {
             <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ error() }}</p>
         }
-        <button type="submit" class="add-btn" [disabled]="busy()">
+        <button type="submit" class="add-btn" [disabled]="busy() || wait() > 0">
             @if (busy()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Signing in... }
             @else { <i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>Sign in }
         </button>

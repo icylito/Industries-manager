@@ -16,10 +16,16 @@ public static class AuthEndpoints
         var auth = app.MapGroup("/auth").RequireDatabaseReady();
 
         // Signs in. A wrong username and a wrong password get the same answer, so nobody can find out which names exist.
-        auth.MapPost("/login", async (LoginBody body, AppDbContext db, CancellationToken ct) =>
+        auth.MapPost("/login", async (LoginBody body, AppDbContext db, LoginFailures failures, HttpContext http, CancellationToken ct) =>
         {
             var username = (body.Username ?? "").Trim().ToLowerInvariant();
             var password = body.Password ?? "";
+            // Too many wrong passwords for this name lately, from anywhere. Asked before the password is checked,
+            // so a guess sent during the wait tells nothing even when it's right.
+            if (failures.WaitFor(username) is { } wait)
+            {
+                return TooManyTries(http, wait);
+            }
             var user = username.Length is > 0 and <= 64 ? await db.Users.FirstOrDefaultAsync(u => u.Username == username, ct) : null;
 
             var ok = false;
@@ -34,6 +40,7 @@ public static class AuthEndpoints
             }
             if (!ok || user is null)
             {
+                if (username.Length is > 0 and <= 64) failures.Failed(username);
                 return Results.Problem("That username and password don't match", statusCode: StatusCodes.Status401Unauthorized,
                     title: "Sign in failed");
             }
@@ -43,6 +50,7 @@ public static class AuthEndpoints
                     title: "Account off");
             }
 
+            failures.Succeeded(username);
             var now = DateTimeOffset.UtcNow;
             if (needsRehash) user.PasswordHash = PasswordHasher.Hash(password);
             user.LastLoginAt = now;
@@ -118,5 +126,16 @@ public static class AuthEndpoints
             await db.Sessions.Where(s => s.UserId == id && s.Id != keep).ExecuteDeleteAsync(ct);
             return Results.Ok(UserService.ToDto(user));
         }).RequireRateLimiting("login");
+    }
+
+    // 429 with Retry-After, so the page can say how long to wait. Used by the per-name count here and the
+    // per-address limit in Program.cs, so both say the same thing.
+    public static IResult TooManyTries(HttpContext http, TimeSpan wait)
+    {
+        var seconds = Math.Max(1, (int)Math.Ceiling(wait.TotalSeconds));
+        http.Response.Headers.RetryAfter = seconds.ToString();
+        var when = seconds < 90 ? $"{seconds} seconds" : $"{(int)Math.Ceiling(seconds / 60.0)} minutes";
+        return Results.Problem($"Too many tries. Try again in {when}", statusCode: StatusCodes.Status429TooManyRequests,
+            title: "Slow down");
     }
 }

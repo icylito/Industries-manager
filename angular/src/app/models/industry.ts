@@ -92,15 +92,17 @@ export interface UpdateIndustry{
     price: number | null;
     release: string | null;
     extra?: Record<string, string | number | null>;
+    // The row as it was when Edit was pressed. The API refuses the save with a 409 if it changed since.
+    original?: { name: string; sector: string | null; price: number | null; release: string | null; extra: Record<string, string | number | null> | null };
 }
 
-// What GET /health returns, see api_v2/Data/DatabaseStatus.cs
+// What GET /health returns, see api_v2/Data/DatabaseStatus.cs. Someone not signed in only gets state, message and history.
 export interface DbHealth {
     state: 'starting' | 'migrating' | 'ready' | 'failed';
     message: string;
-    attempts: number;
-    appliedMigrations: string[];
-    updatedAt: string;
+    attempts?: number;
+    appliedMigrations?: string[];
+    updatedAt?: string;
     history?: { ready: boolean; message: string };
     // Host, port, and database name. Optional so an older health body still loads.
     databases?: {
@@ -244,6 +246,10 @@ export interface BackupEntry {
     rowCount: number | null;
     // False when the table had other columns back then, so Restore isn't offered. Null when the backup didn't record it.
     sameLayout: boolean | null;
+    // Set when the backup was dropped in from a file
+    uploadedAt?: string | null;
+    // Only a signed backup can be downloaded as one file and dropped back in. Older ones still restore from the list.
+    signed?: boolean;
 }
 
 // What GET /backups/{id}/restore/preview says before a restore
@@ -263,6 +269,8 @@ export interface BackupRestoreResult {
     rows: number;
     rulesVersion: number;
     copyId: number | null;
+    // The full backup of everything as it was just before this restore. Restoring it undoes the restore.
+    undoBackup?: string | null;
 }
 
 export interface BackupStatus {
@@ -290,10 +298,13 @@ export interface DevRequest {
 }
 
 // Accounts. The API never sends a password hash.
+// A manager makes and changes tables on the Tables page and restores backups. An admin does that and everything else.
+export type Role = 'admin' | 'manager' | 'normal';
+
 export interface AuthUser {
     id: number;
     username: string;
-    role: 'admin' | 'normal';
+    role: Role;
     disabled: boolean;
     mustChangePassword: boolean;
     createdAt: string;
@@ -320,4 +331,45 @@ export interface LoginResult {
 export interface NewUserResult {
     user: AuthUser;
     temporaryPassword: string;
+}
+
+// A table made on the Tables page. It is data in the API, not a real database table.
+// Columns use the same shape as the Fields page; a removed column stays in the list with hidden set, values kept.
+export interface UserTable {
+    id: number;
+    name: string;
+    columns: FieldRule[];
+    rowCount: number;
+    createdBy: string;
+    createdAt: string;
+    updatedAt: string;
+    deletedAt: string | null;
+    version: number;
+}
+
+// One column as the Tables page sends it. key is empty for a new column, the API makes it from the label.
+export interface ColumnInput {
+    key?: string | null;
+    label: string;
+    type: 'text' | 'number' | 'date';
+    required: boolean;
+    maxLength?: number | null;
+    min?: number | null;
+    max?: number | null;
+    options?: string[] | null;
+}
+
+export interface TableRow {
+    id: number;
+    data: Record<string, string | number | null>;
+    createdBy: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface TableRowsPage {
+    total: number;
+    page: number;
+    size: number;
+    rows: TableRow[];
 }

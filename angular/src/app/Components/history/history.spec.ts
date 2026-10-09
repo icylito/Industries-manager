@@ -3,7 +3,8 @@ import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { HistoryPage } from './history';
-import { BackupEntry, SettingsImportPreview, VersionSummary } from '../../models/industry';
+import { BackupEntry, Role, SettingsImportPreview, VersionSummary } from '../../models/industry';
+import { Auth } from '../../services/auth';
 
 const version = (id: number, damaged = false): VersionSummary => ({
   id, createdAt: '2026-10-06T12:00:00Z', reason: 'Before rules version 2', createdBy: 'local',
@@ -19,11 +20,13 @@ describe('HistoryPage', () => {
   let http: HttpTestingController;
   let backups: BackupEntry[] = [];
 
-  function setup() {
+  // An admin unless a test says otherwise: a manager only gets the Backups card, so nothing else is loaded for them
+  function setup(role: Role = 'admin') {
     TestBed.configureTestingModule({
       imports: [HistoryPage],
       providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
     });
+    TestBed.inject(Auth).user.set({ id: 1, username: 'ada', role, disabled: false, mustChangePassword: false, createdAt: '', lastLoginAt: null });
     http = TestBed.inject(HttpTestingController);
     const fixture = TestBed.createComponent(HistoryPage);
     fixture.detectChanges();
@@ -283,5 +286,137 @@ describe('HistoryPage', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).querySelector('#restore-backup')).toBeNull();
+  });
+
+  it('shows ten saved versions a page and moves between pages', () => {
+    const fixture = setup();
+    const page = fixture.componentInstance;
+    page.versions.set(Array.from({ length: 23 }, (_, i) => version(23 - i)));
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const ids = () => Array.from(el.querySelectorAll('table.versions td.id')).map(td => td.textContent?.trim());
+    expect(ids().length).toBe(10);
+    expect(ids()[0]).toBe('#23');
+    expect(el.textContent).toContain('Page 1 of 3');
+
+    (el.querySelector('[aria-label="Next page of saved versions"]') as HTMLButtonElement).click();
+    (el.querySelector('[aria-label="Next page of saved versions"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(ids()).toEqual(['#3', '#2', '#1']);
+    expect(el.textContent).toContain('Showing 21 to 23 of 23');
+    expect((el.querySelector('[aria-label="Next page of saved versions"]') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('has no pager while every version fits on one page', () => {
+    const fixture = setup();
+    expect((fixture.nativeElement as HTMLElement).querySelector('[aria-label="Next page of saved versions"]')).toBeNull();
+  });
+
+  it('asks in the row before deleting a version, then takes it off the list', () => {
+    const fixture = setup();
+    const page = fixture.componentInstance;
+    const el = fixture.nativeElement as HTMLElement;
+    (el.querySelector('[aria-label="Delete version 1"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    http.expectNone(r => r.method === 'DELETE');
+    expect(el.textContent).toContain('Delete version #1 for good?');
+
+    (el.querySelector('.remove-btn.confirming') as HTMLButtonElement).click();
+    const del = http.expectOne(r => r.method === 'DELETE' && r.url.endsWith('/history/versions/1'));
+    del.flush({ deleted: 1 });
+    fixture.detectChanges();
+    expect(page.versions().map(v => v.id)).toEqual([2]);
+    expect(page.confirmingVersion()).toBeNull();
+  });
+
+  it('steps back a page when a delete empties the last one', () => {
+    const fixture = setup();
+    const page = fixture.componentInstance;
+    page.versions.set(Array.from({ length: 11 }, (_, i) => version(11 - i)));
+    page.goToVersionPage(2);
+    page.deleteVersion(version(1));
+    http.expectOne(r => r.method === 'DELETE').flush({ deleted: 1 });
+    expect(page.versionPages()).toBe(1);
+    expect(page.versionPage()).toBe(1);
+  });
+
+  it('cannot delete a pinned version', () => {
+    const fixture = setup();
+    const page = fixture.componentInstance;
+    page.versions.set([{ ...version(5), pinned: true }]);
+    fixture.detectChanges();
+    const bin = (fixture.nativeElement as HTMLElement).querySelector('[aria-label="Pinned, unpin it to delete"]') as HTMLButtonElement;
+    expect(bin.disabled).toBe(true);
+    page.deleteVersion({ ...version(5), pinned: true });
+    http.expectNone(r => r.method === 'DELETE');
+  });
+
+  it('says why a delete was refused and reloads the list', () => {
+    const fixture = setup();
+    const page = fixture.componentInstance;
+    page.deleteVersion(version(1));
+    http.expectOne(r => r.method === 'DELETE').flush('Version #1 is pinned. Unpin it first if you want to delete it',
+      { status: 409, statusText: 'Conflict' });
+    expect(page.notice()).toContain('pinned');
+    http.expectOne(r => r.method === 'GET' && r.url.endsWith('/history/versions')).flush([{ ...version(1), pinned: true }]);
+    expect(page.versions()[0].pinned).toBe(true);
+  });
+
+  it('writes big row counts with separators', () => {
+    const fixture = setup();
+    fixture.componentInstance.versions.set([{ ...version(1), rowCount: 50001 }]);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('table.versions td.num')?.textContent).toContain('50,001');
+  });
+});
+
+describe('HistoryPage for a manager', () => {
+  let http: HttpTestingController;
+
+  function setup() {
+    TestBed.configureTestingModule({
+      imports: [HistoryPage],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+    });
+    TestBed.inject(Auth).user.set({ id: 2, username: 'max', role: 'manager', disabled: false, mustChangePassword: false, createdAt: '', lastLoginAt: null });
+    http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(HistoryPage);
+    fixture.detectChanges();
+    http.expectOne(r => r.url.endsWith('/backups')).flush({ backups: [backup('2026-10-07_020000_nightly')], status: null });
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('shows only the Backups card and never asks for saved versions or retention', () => {
+    const fixture = setup();
+    http.expectNone(r => r.url.includes('/history/'));
+    const headings = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('h2')).map(h => h.textContent?.trim());
+    expect(headings).toEqual(['Backups']);
+    expect((fixture.nativeElement as HTMLElement).querySelector('.drop-zone')).toBeTruthy();
+  });
+
+  it('sends a dropped zip as a file and says it joined the list', () => {
+    const page = setup().componentInstance;
+    page.uploadBackup(new File(['zip'], 'backup-2026-10-07_020000_nightly.zip', { type: 'application/zip' }));
+    const call = http.expectOne(r => r.method === 'POST' && r.url.endsWith('/backups/upload'));
+    expect(call.request.body instanceof FormData).toBe(true);
+    call.flush({ ...backup('2026-10-09_101500_uploaded'), kind: 'uploaded' });
+    http.expectOne(r => r.url.endsWith('/backups')).flush({ backups: [], status: null });
+    expect(page.uploadMsg()).toContain('Press Restore');
+  });
+
+  it('turns away a file that is not a zip without sending it', () => {
+    const page = setup().componentInstance;
+    page.uploadBackup(new File(['x'], 'notes.txt'));
+    http.expectNone(r => r.url.endsWith('/backups/upload'));
+    expect(page.uploadError()).toContain('.zip');
+  });
+
+  it('shows the plain refusal the API gives for a file it did not make', () => {
+    const page = setup().componentInstance;
+    page.uploadBackup(new File(['zip'], 'other.zip'));
+    http.expectOne(r => r.url.endsWith('/backups/upload'))
+      .flush({ detail: "That file isn't a backup made by this app, so it can't be used. Nothing was changed" }, { status: 400, statusText: 'Bad Request' });
+    expect(page.uploadError()).toContain("isn't a backup made by this app");
   });
 });

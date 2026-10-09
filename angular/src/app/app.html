@@ -48,11 +48,14 @@
                 <a routerLink="/" fragment="add" aria-label="Add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>Add</span></a>
             }
             <!-- Overview and People live in the admin nav and Settings now, so they stay out of this one -->
-            @if (auth.isAdmin()) {
+            @if (auth.isManager()) {
                 <a routerLink="/history" routerLinkActive="active" aria-label="History"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i><span>History</span></a>
+            }
+            @if (auth.isAdmin()) {
                 <a routerLink="/fields" routerLinkActive="active" aria-label="Fields"><i class="fa-solid fa-sliders" aria-hidden="true"></i><span>Fields</span></a>
             }
             @if (auth.isSignedIn()) {
+                <a routerLink="/tables" routerLinkActive="active" aria-label="Tables"><i class="fa-solid fa-table" aria-hidden="true"></i><span>Tables</span></a>
                 <!-- The bell shows how many requests are waiting for a developer -->
                 <a routerLink="/requests" routerLinkActive="active" class="bell"
                     [attr.aria-label]="api.openRequests() ? 'Requests, ' + api.openRequests() + ' open' : 'Requests'">

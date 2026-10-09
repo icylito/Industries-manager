@@ -9,7 +9,7 @@
         </div>
     </header>
 
-    <p class="intro">An admin can change rules, restore history and answer requests. Everyone else can add, edit and delete rows.
+    <p class="intro">An admin can change rules, restore history and answer requests. A manager can make, change and delete tables on the Tables page and restore backups. Everyone else can add, edit and delete rows.
         Nobody can sign up on their own, so make an account for each person here.</p>
 
     @if (shown(); as s) {
@@ -59,7 +59,7 @@
                                     @if (u.hasNotes) { <span class="tag-inline note-tag">Note</span> }
                                 </span>
                             </td>
-                            <td class="role">{{ u.role === 'admin' ? 'Admin' : 'User' }}</td>
+                            <td class="role">{{ roleName(u.role) }}</td>
                             <td class="muted">{{ formatDate(u.lastLoginAt) }}</td>
                             <td class="actions">
                                 @if (u.id !== auth.user()?.id) {
@@ -102,6 +102,7 @@
                 <i class="fa-solid fa-user-shield" aria-hidden="true"></i>
                 <select [value]="newRole()" (change)="newRole.set($any($event.target).value)">
                     <option value="normal">User, can edit rows</option>
+                    <option value="manager">Manager, can also make tables and restore backups</option>
                     <option value="admin">Admin</option>
                 </select>
             </span>
@@ -124,10 +125,15 @@
         } @else {
             <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'off')">Turn off</button>
         }
-        @if (person.role === 'admin') {
-            <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'normal')">Remove admin</button>
-        } @else {
+        <!-- The two roles this person doesn't have -->
+        @if (person.role !== 'admin') {
             <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'admin')">Make admin</button>
+        }
+        @if (person.role !== 'manager') {
+            <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'manager')">Make manager</button>
+        }
+        @if (person.role !== 'normal') {
+            <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'normal')">Make user</button>
         }
         <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'rename')">Rename</button>
         <button type="button" role="menuitem" [disabled]="busy()" (click)="openNotes(person)">Notes@if (person.hasNotes) { <span class="note-dot" aria-hidden="true"></span> }</button>

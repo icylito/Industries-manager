@@ -311,7 +311,7 @@ namespace api_v2.Migrations
 
                     b.ToTable("Users", t =>
                         {
-                            t.HasCheckConstraint("CK_Users_Role", "\"Role\" IN ('admin', 'normal')");
+                            t.HasCheckConstraint("CK_Users_Role", "\"Role\" IN ('admin', 'manager', 'normal')");
                         });
                 });
 
@@ -343,6 +343,84 @@ namespace api_v2.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("UserNotes");
+                });
+
+            modelBuilder.Entity("api_v2.Model.UserTable", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Columns")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<int>("RowCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeletedAt");
+
+                    b.ToTable("UserTables");
+                });
+
+            modelBuilder.Entity("api_v2.Model.UserTableRow", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Data")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("TableId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TableId");
+
+                    b.ToTable("UserTableRows");
                 });
 
             modelBuilder.Entity("api_v2.Model.ScratchBoard", b =>
@@ -379,6 +457,15 @@ namespace api_v2.Migrations
                     b.HasOne("api_v2.Model.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("api_v2.Model.UserTableRow", b =>
+                {
+                    b.HasOne("api_v2.Model.UserTable", null)
+                        .WithMany()
+                        .HasForeignKey("TableId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

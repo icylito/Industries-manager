@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.IO.Compression;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using api_v2.Data;
@@ -16,6 +17,12 @@ public sealed class BackupBusyException : Exception
 
 // A backup or restore that stopped for a reason the page can show as it is. Anything else only goes to the log.
 public sealed class BackupFailedException(string message) : Exception(message);
+
+// An uploaded backup file that was turned away, with the status the page should get. The message is shown as it is.
+public sealed class BackupUploadException(string message, int status) : Exception(message)
+{
+    public int Status { get; } = status;
+}
 
 // Where pg_dump and pg_restore live. Docker means they run inside the database container.
 public readonly record struct DatabaseTool(bool Docker, string? Path)
@@ -37,7 +44,11 @@ public sealed record BackupEntry(
     // Rows in the table when the copy was made. Backups from before this was recorded don't have it.
     int? RowCount = null,
     // The database layout at the time, so a restore knows if the table looked the same
-    List<string>? Migrations = null);
+    List<string>? Migrations = null,
+    // Set for a backup that was dropped in from a file. It is kept 14 days from then, not from when it was made.
+    DateTimeOffset? UploadedAt = null,
+    // Has a signature.json, so its zip can be dropped back in. Backups from before signing don't.
+    bool Signed = false);
 
 // Runs pg_dump for main and the collector, one backup at a time.
 public sealed class BackupService(
@@ -46,6 +57,7 @@ public sealed class BackupService(
     DatabaseConnections connections,
     DatabaseStatus status,
     RulesService rules,
+    BackupSigner signer,
     ILogger<BackupService> log)
 {
     public const string MissingToolMessage =
@@ -61,7 +73,7 @@ public sealed class BackupService(
     public const string ExcelFile = "main.csv";
 
     private static readonly Regex IdPattern = new(
-        @"^\d{4}-\d{2}-\d{2}_\d{6}_(nightly|manual)$",
+        @"^\d{4}-\d{2}-\d{2}_\d{6}_(nightly|manual|before-restore|uploaded)$",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -176,6 +188,8 @@ public sealed class BackupService(
                 rowCount
             }, JsonOptions);
             await File.WriteAllTextAsync(Path.Combine(dir, "backup.json"), json, ct);
+            // Signed last, over every file, so this backup can be downloaded and dropped back in later
+            await signer.SignAsync(dir, ct);
 
             lock (_statusLock)
             {
@@ -229,6 +243,8 @@ public sealed class BackupService(
         var found = new List<BackupEntry>();
         foreach (var dir in Directory.GetDirectories(_folder))
         {
+            // A folder starting with a dot is an upload still being checked
+            if (Path.GetFileName(dir).StartsWith('.')) continue;
             if (TryRead(dir, out var entry))
             {
                 found.Add(entry);
@@ -255,7 +271,11 @@ public sealed class BackupService(
 
     // Deletes copies older than KeepDays. The newest successful copy always stays,
     // and a folder with no readable backup.json is left alone.
-    public void Prune() => PruneDirectory(_folder, _keepDays, DateTimeOffset.UtcNow);
+    public void Prune()
+    {
+        PruneDirectory(_folder, _keepDays, DateTimeOffset.UtcNow);
+        SweepLeftovers();
+    }
 
     public static void PruneDirectory(string folder, int keepDays, DateTimeOffset now)
     {
@@ -267,11 +287,12 @@ public sealed class BackupService(
         var readable = new List<(string Path, DateTimeOffset CreatedAt)>();
         foreach (var dir in Directory.GetDirectories(folder))
         {
-            if (!TryRead(dir, out var entry))
+            if (Path.GetFileName(dir).StartsWith('.') || !TryRead(dir, out var entry))
             {
                 continue;
             }
-            readable.Add((dir, entry.CreatedAt));
+            // An uploaded backup counts from the day it was dropped in, so an old one isn't removed straight away
+            readable.Add((dir, entry.UploadedAt ?? entry.CreatedAt));
         }
         if (readable.Count == 0)
         {
@@ -551,17 +572,20 @@ public sealed class BackupService(
             {
                 return false;
             }
+            var uploaded = ReadUploaded(dir);
             entry = new BackupEntry(
                 Path.GetFileName(dir),
                 createdAt,
-                doc.Kind ?? "",
+                uploaded is null ? doc.Kind ?? "" : "uploaded",
                 doc.By ?? "",
                 doc.MainSize,
                 doc.CollectorSize,
                 doc.RulesVersion,
                 File.Exists(Path.Combine(dir, ExcelFile)),
                 doc.RowCount,
-                doc.Migrations);
+                doc.Migrations,
+                uploaded?.UploadedAt,
+                File.Exists(Path.Combine(dir, BackupSigner.SignatureFile)));
             return true;
         }
         catch (Exception ex) when (ex is JsonException or IOException)
@@ -652,6 +676,164 @@ public sealed class BackupService(
     {
         var lines = text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return lines.Length == 0 ? "" : lines[^1];
+    }
+
+    // ---- moving a backup as one file ----
+
+    // Where an upload is written while it arrives: a dot file beside the backups, on the same disk
+    public string NewUploadPath()
+    {
+        Directory.CreateDirectory(_folder);
+        return Path.Combine(_folder, $".upload-{Guid.NewGuid():N}.zip");
+    }
+
+    // Downloads, uploads and checks that a crash left behind, a day after the fact
+    private void SweepLeftovers()
+    {
+        if (!Directory.Exists(_folder)) return;
+        var cutoff = DateTime.UtcNow.AddDays(-1);
+        foreach (var file in Directory.GetFiles(_folder, ".*.zip"))
+        {
+            if (File.GetLastWriteTimeUtc(file) < cutoff) TryDeleteFile(file);
+        }
+        foreach (var dir in Directory.GetDirectories(_folder, ".*"))
+        {
+            if (Directory.GetLastWriteTimeUtc(dir) < cutoff) DeleteFolder(dir);
+        }
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Still open somewhere, the next sweep takes it
+        }
+    }
+
+    // The backup's files in one zip, written beside the backups (a dot file, so no listing picks it up). The caller
+    // serves it and deletes it. uploaded.json stays out, so the zip carries exactly what was signed.
+    public string? ZipOf(string id)
+    {
+        var dir = FolderOf(id);
+        if (dir is null) return null;
+        var zipPath = Path.Combine(_folder, $".download-{Guid.NewGuid():N}.zip");
+        using (var zip = ZipFile.Open(zipPath, ZipArchiveMode.Create))
+        {
+            foreach (var name in BackupSigner.Files.Append(BackupSigner.SignatureFile))
+            {
+                var path = Path.Combine(dir, name);
+                // The dumps are compressed already, so the zip only stores them
+                if (File.Exists(path)) zip.CreateEntryFromFile(path, name, CompressionLevel.NoCompression);
+            }
+        }
+        return zipPath;
+    }
+
+    // A zip someone dropped in. Unpacked into a dot folder, checked, and only then added to the list as an
+    // uploaded backup. Restoring it is the same Restore button and checks as any other backup. Nothing in the
+    // file reaches pg_restore unless this app's own signature on it is good.
+    public async Task<BackupEntry> ImportAsync(string zipPath, string by, long maxBytes, CancellationToken ct)
+    {
+        Directory.CreateDirectory(_folder);
+        var staging = Path.Combine(_folder, "." + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(staging);
+        try
+        {
+            try
+            {
+                using var zip = ZipFile.OpenRead(zipPath);
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                long total = 0;
+                foreach (var entry in zip.Entries)
+                {
+                    // Only the exact file names a backup has: no folders, no paths, nothing twice
+                    var allowed = BackupSigner.Files.Contains(entry.FullName) || entry.FullName == BackupSigner.SignatureFile;
+                    if (!allowed || !seen.Add(entry.FullName)) throw NotOurs();
+                    if (entry.Length > maxBytes) throw TooBig(maxBytes);
+
+                    await using var source = entry.Open();
+                    await using var target = new FileStream(Path.Combine(staging, entry.FullName), FileMode.CreateNew, FileAccess.Write);
+                    var buffer = new byte[81920];
+                    int read;
+                    // Counted while unpacking, since the sizes a zip claims can't be trusted
+                    while ((read = await source.ReadAsync(buffer, ct)) > 0)
+                    {
+                        total += read;
+                        if (total > maxBytes) throw TooBig(maxBytes);
+                        await target.WriteAsync(buffer.AsMemory(0, read), ct);
+                    }
+                }
+            }
+            catch (InvalidDataException)
+            {
+                throw NotOurs();
+            }
+
+            var mac = await signer.MacOfAsync(staging, ct) ?? throw NotOurs();
+            if (!TryRead(staging, out _)) throw NotOurs();
+
+            foreach (var existing in Directory.GetDirectories(_folder))
+            {
+                if (Path.GetFileName(existing).StartsWith('.')) continue;
+                if (BackupSigner.StoredMac(existing) == mac)
+                {
+                    throw new BackupUploadException($"That backup is already in the list, as {Path.GetFileName(existing)}",
+                        StatusCodes.Status409Conflict);
+                }
+            }
+
+            var uploadedAt = DateTimeOffset.UtcNow;
+            await File.WriteAllTextAsync(Path.Combine(staging, UploadedFile),
+                JsonSerializer.Serialize(new UploadedJson { UploadedAt = uploadedAt, By = by }, JsonOptions), ct);
+
+            string id;
+            while (true)
+            {
+                id = $"{DateTime.Now.ToString("yyyy-MM-dd_HHmmss", CultureInfo.InvariantCulture)}_uploaded";
+                if (!Directory.Exists(Path.Combine(_folder, id))) break;
+                await Task.Delay(250, ct);
+            }
+            Directory.Move(staging, Path.Combine(_folder, id));
+            log.LogInformation("Backup file uploaded by {By} added as {Id}", by, id);
+            return Find(id)!;
+        }
+        finally
+        {
+            DeleteFolder(staging);
+        }
+    }
+
+    private const string UploadedFile = "uploaded.json";
+
+    private static UploadedJson? ReadUploaded(string dir)
+    {
+        var path = Path.Combine(dir, UploadedFile);
+        if (!File.Exists(path)) return null;
+        try
+        {
+            return JsonSerializer.Deserialize<UploadedJson>(File.ReadAllText(path), JsonOptions);
+        }
+        catch (Exception ex) when (ex is JsonException or IOException)
+        {
+            return null;
+        }
+    }
+
+    private static BackupUploadException NotOurs() =>
+        new("That file isn't a backup made by this app, so it can't be used. Nothing was changed", StatusCodes.Status400BadRequest);
+
+    private static BackupUploadException TooBig(long maxBytes) =>
+        new($"That file is bigger than {maxBytes / (1024 * 1024)} MB, so it can't be used. Nothing was changed",
+            StatusCodes.Status413PayloadTooLarge);
+
+    private sealed class UploadedJson
+    {
+        public DateTimeOffset? UploadedAt { get; set; }
+        public string? By { get; set; }
     }
 
     private static void DeleteFolder(string dir)

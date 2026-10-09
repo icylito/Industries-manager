@@ -4,7 +4,7 @@
 <section class="stats">
     <div class="stat">
         <span class="stat-icon"><i class="fa-solid fa-industry" aria-hidden="true"></i></span>
-        <span class="stat-value">{{ loading() ? '--' : industries().length }}</span>
+        <span class="stat-value">{{ loading() ? '--' : count(industries().length) }}</span>
         <span class="stat-label">Industries</span>
     </div>
     <div class="stat">
@@ -151,6 +151,11 @@
                 <button type="button" class="cancel-btn" (click)="cancelEdit()">
                     <i class="fa-solid fa-xmark" aria-hidden="true"></i>Cancel
                 </button>
+                @if (changedMeanwhile()) {
+                    <button type="button" class="cancel-btn" (click)="loadTheirVersion()">
+                        <i class="fa-solid fa-rotate" aria-hidden="true"></i>Load their version
+                    </button>
+                }
             }
             <!-- Always pressable: pressing it with a problem shows the problem under its box instead of doing nothing -->
             <button type="submit" class="add-btn" [disabled]="saving()">
@@ -402,13 +407,13 @@
 
     @if (!loading() && !error()) {
         <footer class="panel-foot">
-            <span>Showing {{ rangeStart() }} to {{ rangeEnd() }} of {{ sorted().length }} entries</span>
+            <span>Showing {{ count(rangeStart()) }} to {{ count(rangeEnd()) }} of {{ count(sorted().length) }} entries</span>
             <div class="pager">
                 <button type="button" class="icon-btn" aria-label="Previous page" [disabled]="currentPage() === 1"
                     (click)="page.set(currentPage() - 1)">
                     <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
                 </button>
-                <span>Page {{ currentPage() }} of {{ pageCount() }}</span>
+                <span>Page {{ count(currentPage()) }} of {{ count(pageCount()) }}</span>
                 <button type="button" class="icon-btn" aria-label="Next page" [disabled]="currentPage() === pageCount()"
                     (click)="page.set(currentPage() + 1)">
                     <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>

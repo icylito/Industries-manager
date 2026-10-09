@@ -36,7 +36,7 @@ public static class UserEndpoints
             var role = body.Role ?? Roles.Normal;
             if (!Roles.IsValid(role))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["role"] = ["The role has to be admin or normal"] });
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["role"] = [Roles.InvalidMessage] });
             }
             if (await db.Users.AnyAsync(u => u.Username == username, ct))
             {
@@ -97,7 +97,7 @@ public static class UserEndpoints
             }
             if (body.Role is not null && !Roles.IsValid(body.Role))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["role"] = ["The role has to be admin or normal"] });
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["role"] = [Roles.InvalidMessage] });
             }
 
             string? renamed = null;

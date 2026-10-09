@@ -221,6 +221,30 @@ describe('Scratchpad', () => {
     expect(pad.saveState()).toBe('saved');
   });
 
+  // On a link slower than the debounce, a second save must wait for the first, or it carries the same stale
+  // updatedAt and this tab refuses itself with a 409
+  it('sends one save at a time, and the next one carries the newer updatedAt', async () => {
+    await open();
+    pad.addPaper('note', { x: 0, y: 0 });
+    const first = pad.saveNow();
+    const request = http.expectOne(url);
+    expect(request.request.body.updatedAt).toBeNull();
+
+    pad.addPaper('text', { x: 300, y: 0 });
+    void pad.saveNow();
+    http.expectNone(url);
+
+    request.flush({ updatedAt: '2026-10-08T00:00:00+00:00' });
+    await first;
+    await vi.advanceTimersByTimeAsync(0);
+    const follow = http.expectOne(url);
+    expect(follow.request.body.updatedAt).toBe('2026-10-08T00:00:00+00:00');
+    follow.flush({ updatedAt: '2026-10-08T00:01:00+00:00' });
+    await vi.advanceTimersByTimeAsync(800);
+    expect(pad.saveState()).toBe('saved');
+    expect(pad.conflict()).toBe(false);
+  });
+
   it('a stale save is refused with 409 and the board is said to have changed elsewhere', async () => {
     await open();
     pad.addPaper('note', { x: 0, y: 0 });

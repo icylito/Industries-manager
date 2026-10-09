@@ -13,6 +13,8 @@ public interface ICurrentUser
     // The username, or "guest" when nobody is signed in
     string Name { get; }
     bool IsAdmin { get; }
+    // A manager, or an admin: the people who make and change tables on the Tables page and restore backups
+    bool IsManager { get; }
     bool IsSignedIn { get; }
     int? Id { get; }
     long? SessionId { get; }
@@ -24,9 +26,14 @@ public interface ICurrentUser
 public static class Roles
 {
     public const string Admin = "admin";
+    // Makes and changes tables on the Tables page and restores backups, nothing else an admin does
+    public const string Manager = "manager";
     public const string Normal = "normal";
 
-    public static bool IsValid(string? role) => role is Admin or Normal;
+    public static bool IsValid(string? role) => role is Admin or Manager or Normal;
+
+    // The plain message when a role isn't one of these
+    public const string InvalidMessage = "The role has to be admin, manager or normal";
 }
 
 public class SessionUser(IHttpContextAccessor http, AppDbContext db) : ICurrentUser
@@ -42,6 +49,7 @@ public class SessionUser(IHttpContextAccessor http, AppDbContext db) : ICurrentU
 
     public string Name => _user?.Username ?? "guest";
     public bool IsAdmin => _user is { Disabled: false, Role: Roles.Admin };
+    public bool IsManager => _user is { Disabled: false, Role: Roles.Admin or Roles.Manager };
     public bool IsSignedIn => _user is { Disabled: false };
     public int? Id => _user?.Id;
     public long? SessionId => _sessionId;
@@ -126,6 +134,24 @@ public static class AdminExtensions
             if (!user.IsAdmin)
             {
                 return Results.Problem("Only an admin can do this", statusCode: StatusCodes.Status403Forbidden,
+                    title: "Not allowed");
+            }
+            return await next(context);
+        });
+    }
+
+    // Managers and admins: making and changing tables on the Tables page, and restoring backups
+    public static TBuilder RequireManager<TBuilder>(this TBuilder builder) where TBuilder : IEndpointConventionBuilder
+    {
+        return builder.AddEndpointFilter(async (context, next) =>
+        {
+            var user = context.HttpContext.RequestServices.GetRequiredService<ICurrentUser>();
+            await user.LoadAsync(context.HttpContext.RequestAborted);
+            if (!user.IsSignedIn) return NotSignedIn();
+            if (user.MustChangePassword) return NeedsNewPassword();
+            if (!user.IsManager)
+            {
+                return Results.Problem("Only a manager or an admin can do this", statusCode: StatusCodes.Status403Forbidden,
                     title: "Not allowed");
             }
             return await next(context);

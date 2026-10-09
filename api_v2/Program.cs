@@ -22,7 +22,7 @@ var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() i
     ? configured
     : ["http://localhost:4200"];
 builder.Services.AddCors(options => options.AddPolicy("Angular", policy =>
-    policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("Content-Disposition")));
+    policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("Content-Disposition", "Retry-After")));
 // A number has to arrive as a number, "5" as text is refused
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.Strict);
@@ -47,8 +47,14 @@ builder.Services.AddSingleton<CollectorStore>();
 builder.Services.AddSingleton<AppLocks>();
 // Where uploaded Scratchpad files live on disk, created on startup. See Data/ScratchFileStore.cs
 builder.Services.AddSingleton<ScratchFileStore>();
+// The readable JSON copy of every table from the Tables page, and the job that writes it on start and empties
+// the bin. See Tables/UserTableMirror.cs and UserTables:Mirror in appsettings.
+builder.Services.AddSingleton<api_v2.Tables.UserTableMirror>();
+builder.Services.AddHostedService<api_v2.Tables.TableBinSweeper>();
 builder.Services.AddSingleton<api_v2.History.TableWriter>();
 builder.Services.AddSingleton<RulesService>();
+// Signs every backup so only this app's own can be dropped back in, see Backups/BackupSigner.cs
+builder.Services.AddSingleton<BackupSigner>();
 builder.Services.AddSingleton<BackupService>();
 builder.Services.AddSingleton<BackupRestore>();
 builder.Services.AddHostedService<BackupScheduler>();
@@ -67,10 +73,12 @@ builder.Services.AddRateLimiter(options =>
         _ => new FixedWindowRateLimiterOptions { PermitLimit = loginTries, Window = TimeSpan.FromMinutes(1) }));
     options.OnRejected = async (context, token) =>
     {
-        await Results.Problem("Too many tries. Wait a minute and try again", statusCode: StatusCodes.Status429TooManyRequests,
-            title: "Slow down").ExecuteAsync(context.HttpContext);
+        var wait = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retry) ? retry : TimeSpan.FromMinutes(1);
+        await api_v2.Endpoints.AuthEndpoints.TooManyTries(context.HttpContext, wait).ExecuteAsync(context.HttpContext);
     };
 });
+// Wrong passwords per username, from any address, see Auth/LoginFailures.cs
+builder.Services.AddSingleton<LoginFailures>();
 
 // Https:Required turns http into a redirect to https and adds HSTS. Off by default so a fresh clone runs with no certificate,
 // start.bat https turns it on together with the https launch profile. See README, Https.
@@ -85,6 +93,10 @@ var app = builder.Build();
 // Make the Scratchpad file folder now, so a bad path or a denied folder fails at startup instead of on the
 // first upload. See Scratchpad:Files in appsettings.
 app.Services.GetRequiredService<ScratchFileStore>();
+// The same for the folder of table copies
+app.Services.GetRequiredService<api_v2.Tables.UserTableMirror>();
+// The backup signing key is made now if there isn't one, so the first backup doesn't wait on it
+app.Services.GetRequiredService<BackupSigner>();
 
 if (httpsRequired)
 {
@@ -122,9 +134,35 @@ app.UseRateLimiter();
 
 // Always 200 so the frontend can read the state, the body says if the database is usable.
 // databases names the live table and the history database. The old fields stay as they are.
-app.MapGet("/health", (DatabaseStatus status, DatabaseConnections connections) =>
+// Someone not signed in only learns if the database is up, which is all the page's badge needs. Signed in, it also
+// names the databases and the migrations applied, which the seeding script prints.
+app.MapGet("/health", async (DatabaseStatus status, DatabaseConnections connections, ICurrentUser user, CancellationToken ct) =>
 {
     var body = System.Text.Json.JsonSerializer.SerializeToNode(status.Snapshot())!.AsObject();
+    var signedIn = false;
+    if (status.State == DatabaseState.Ready)
+    {
+        try
+        {
+            await user.LoadAsync(ct);
+            signedIn = user.IsSignedIn;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // The answer still goes out, just the short one
+        }
+    }
+    if (!signedIn)
+    {
+        var history = body["history"]?.AsObject();
+        return Results.Json(new
+        {
+            state = body["state"]?.GetValue<string>(),
+            // The ready message lists every migration, the others say what's wrong in plain words
+            message = status.State == DatabaseState.Ready ? "Ready" : body["message"]?.GetValue<string>(),
+            history = new { ready = history?["ready"]?.GetValue<bool>() ?? false, message = history?["message"]?.GetValue<string>() ?? "" }
+        });
+    }
     body["databases"] = System.Text.Json.JsonSerializer.SerializeToNode(connections.PublicView());
     return Results.Json(body);
 });
@@ -137,6 +175,7 @@ app.MapBackups();
 app.MapRequests();
 app.MapScratchpad();
 app.MapScratchFiles();
+app.MapUserTables();
 app.MapOpenApi();
 app.UseSwaggerUI(options =>
 {

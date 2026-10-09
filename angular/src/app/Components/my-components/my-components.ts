@@ -49,6 +49,8 @@ export class MyComponents implements OnInit {
   }
 // signals for error, saving, editingId, formError
   industries = signal<Industry[]>([]);
+  // Big counts read as 50,001, not 50001. Done here rather than with the number pipe, which adds weight to the first page
+  readonly count = (n: number): string => n.toLocaleString('en-US');
   loading = signal(true);
   error = signal('');
   saving = signal(false);
@@ -95,8 +97,10 @@ export class MyComponents implements OnInit {
         },
       });
     } else {
-      // update/PUT logic 
-      this.api.update(id, body).subscribe({
+      // update/PUT logic. The row as it was when Edit was pressed goes along, so a change someone made meanwhile isn't overwritten
+      const seen = this.editingOriginal();
+      const original = seen ? { name: seen.name, sector: seen.sector, price: seen.price, release: seen.release, extra: seen.extra } : undefined;
+      this.api.update(id, { ...body, original }).subscribe({
         next: () => {
           this.cancelEdit();
           this.saving.set(false);
@@ -105,6 +109,9 @@ export class MyComponents implements OnInit {
         },
         error: err => {
           this.formError.set(this.errorMessage(err));
+          this.changedMeanwhile.set(err?.status === 409 && /changed this row/.test(this.errorMessage(err)));
+          // Deleted somewhere else while it was open here: it leaves the table now, the message says why
+          if (err?.status === 404) this.industries.update(list => list.filter(x => x.id !== id));
           this.saving.set(false);
         },
       });
@@ -349,8 +356,28 @@ export class MyComponents implements OnInit {
     });
   }
   // Edit button logic
+    // The row as Edit found it, sent with the save, and whether the last save was refused because it changed meanwhile
+    editingOriginal = signal<Industry | null>(null);
+    changedMeanwhile = signal(false);
+
+    // After that refusal: the row as it is now goes into the form and becomes what the next save compares against.
+    // What was typed is lost, the message said so, and the person makes the change again on top of theirs.
+    loadTheirVersion() {
+      const id = this.editingId();
+      if (id === null) return;
+      this.api.getById(id).subscribe({
+        next: row => {
+          this.industries.update(list => list.map(x => (x.id === row.id ? row : x)));
+          this.edit(row);
+        },
+        error: err => this.formError.set(this.errorMessage(err)),
+      });
+    }
+
     edit(item: Industry) {
       this.editingId.set(item.id);
+      this.editingOriginal.set(item);
+      this.changedMeanwhile.set(false);
       this.formError.set('');
       this.form.setValue({
         name: item.name,
@@ -368,6 +395,8 @@ export class MyComponents implements OnInit {
 // Cancel button logic
     cancelEdit() {
       this.editingId.set(null);
+      this.editingOriginal.set(null);
+      this.changedMeanwhile.set(false);
       this.form.reset({ sector: '' });
       this.extraValues.set({});
       this.extraTouched.set(new Set());

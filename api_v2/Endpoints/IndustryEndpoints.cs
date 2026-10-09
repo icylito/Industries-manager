@@ -180,6 +180,12 @@ public static class IndustryEndpoints
                     return Results.NotFound("The row doesn't exist");
                 }
 
+                // Checked under the table lock, so nothing can change the row between this check and the save
+                if (update.Original is { } seen && !SameAs(checker2, seen))
+                {
+                    return Results.Conflict(ChangedMeanwhileMessage);
+                }
+
                 var input = rules.Read(update.Name, update.Sector, update.Price, update.Release, update.Extra, checker2.Sector, checker2.Extra);
                 if (input.Errors.Count > 0)
                 {
@@ -286,6 +292,27 @@ public static class IndustryEndpoints
                 return Results.Ok(new { Deleted = 1, Table = "Industries", Id = id, checker3.Name });
             }).RequireSignIn();
 
+    }
+
+    public const string ChangedMeanwhileMessage =
+        "Someone changed this row since you opened it. Load their version, then make your change again";
+
+    // The row still holds what the page showed. Extra is compared as JSON, so key order and 1 against 1.0 don't count
+    // as a change, and no custom values at all is the same as an empty set of them.
+    private static bool SameAs(Industry row, IndustryOriginal seen)
+    {
+        if (row.Name != seen.Name || (row.Sector ?? "") != (seen.Sector ?? "") || row.Price != seen.Price || row.Release != seen.Release)
+            return false;
+        var now = row.Extra is null ? new JsonObject() : JsonNode.Parse(row.Extra);
+        var then = seen.Extra is { ValueKind: JsonValueKind.Object } e ? JsonNode.Parse(e.GetRawText()) : new JsonObject();
+        return JsonNode.DeepEquals(WithoutNulls(now), WithoutNulls(then));
+    }
+
+    private static JsonNode? WithoutNulls(JsonNode? node)
+    {
+        if (node is not JsonObject obj) return node;
+        foreach (var key in obj.Where(p => p.Value is null).Select(p => p.Key).ToList()) obj.Remove(key);
+        return obj;
     }
 
     public static IndustryDto ToDto(Industry i) => new(i.Id, i.Name, i.Sector, i.Price, i.Release,

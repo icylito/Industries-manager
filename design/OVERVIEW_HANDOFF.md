@@ -287,7 +287,7 @@ Storage format, API shape, the table for scratchpad and shortcuts, how the keybo
 
 ## Session handoff — Scratchpad, 2026-10-08
 
-Branch `scratchpad-canvas`, off local `main`. **Nothing is committed**; every change is in the working tree.
+Branch `scratchpad-canvas`, off local `main`. When this was written nothing was committed; it was all committed afterwards (`066ede9`, then the migration in `0084d98`). See "Update 2026-10-09" at the end for what changed since.
 
 ### Built and verified
 
@@ -309,9 +309,6 @@ Branch `scratchpad-canvas`, off local `main`. **Nothing is committed**; every ch
 
 - The API on `:5005` is the build from *before* the file-storage code, so it matches the database, which has `ScratchBoards` applied and no `ScratchFiles` table. **Do not build the new API until the migration exists**, or its model will not match the database.
 - Everything above is uncommitted on `scratchpad-canvas`.
-
-### What the next agent does, in order
-
 
 ### Coder notes — frontend pass
 
@@ -359,4 +356,10 @@ Batch: save-state rework, Pass F (LINE bar), P/M keys trim, rank removal, 390 px
 **Could NOT check.** The 8 stress specs in services/scratchpad-save.spec.ts are deliberately skipped and were not unskipped or run. `network route --body` cannot set a 409 status, so the conflict needed a real second tab. The in-flight/self-conflict repro uses a patched `window.fetch` to add 1500 ms — an inference about a slow link, not a real slow link. Not covered: a real trackpad pinch, file drop/paste (slice e), a full WCAG sweep, and the API size/item/updatedAt guards.
 
 **Next agent must know.** The conflict path is not finished: when a later save succeeds, clear `conflict` and re-arm saving, or serialise `saveNow()` and advance `updatedAt` per in-flight request, so one tab can never 409 itself. Until then a slow link can silently stop the board saving while the pill says "Saved". Everything else in this batch is verified and can be built on.
+
+## Update 2026-10-09
+
+- **The conflict blocker is fixed in code.** `saveNow()` in `services/scratchpad.ts` sends one save at a time: a save asked for while one is out waits, then goes with the `updatedAt` the first one brought back, so a tab can no longer 409 itself. A success that arrives while `conflict` is set no longer turns the pill to Saved. Covered by the spec "sends one save at a time, and the next one carries the newer updatedAt". `ng test` 142 passed, 8 skipped; `ng build` 441.60 kB, no warnings. **Not yet re-run in a real browser** with the slow-link repro above, which needs a signed-in admin.
+- **The `AddScratchFiles` migration** was committed in `0084d98` and applied to the local database when the API was next started on 2026-10-09.
+- **Still to build:** the page side of files (item e: drop, paste, upload card, refusal toast), the carry tray, and the Mouse rows in the shortcuts panel.
 

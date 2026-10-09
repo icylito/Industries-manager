@@ -1,8 +1,8 @@
 # Settings for the seed script only (seed_industries.py). What the values can be is in config.toml
 [generation]
-count = 50000           # Rows that need to get accepted by the API
-bad_row_rate = 0.15   # Broken rows mixed in to test the rules, 0 turns them off
-seed = 120            # Same number gives the same data, 0 is random every run
+count = 5000          # Rows that need to get accepted by the API
+bad_row_rate = 1     # Broken rows mixed in to test the rules, 0 turns them off
+seed = 520            # Same number gives the same data, 0 is random every run
 null_rate_min = 0.05  # Chance price or release is left empty, each row picks between min and max
 null_rate_max = 0.07
 

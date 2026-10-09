@@ -97,6 +97,22 @@ public static class HistoryEndpoints
         history.MapPut("/versions/{id:long}/pin", async (long id, PinBody body, CollectorStore collector, CancellationToken ct) =>
             await collector.SetPinnedAsync(id, body.Pinned, ct) ? Results.NoContent() : NotFound(id));
 
+        // Delete one saved version for good. Waits for a restore or import that is reading it, and a pinned one stays.
+        history.MapDelete("/versions/{id:long}", async (long id, CollectorStore collector, ICurrentUser user,
+            ILogger<CollectorStore> log, AppLocks locks, CancellationToken ct) =>
+        {
+            await using var tableLock = await locks.TakeAsync(AppLock.Table, ct);
+            switch (await collector.RemoveVersionAsync(id, ct))
+            {
+                case VersionRemoval.NotFound:
+                    return NotFound(id);
+                case VersionRemoval.Pinned:
+                    return Results.Conflict($"Version #{id} is pinned. Unpin it first if you want to delete it");
+            }
+            log.LogInformation("{User} deleted saved version {Version}", user.Name, id);
+            return Results.Ok(new { Deleted = id });
+        });
+
         // Puts the table back the way it was in this version, rows and rules. The current state gets saved first.
         history.MapPost("/versions/{id:long}/restore", async (long id, RestoreBody body, CollectorStore collector,
             TableWriter writer, RulesService rules, AppDbContext db, DatabaseStatus status, ICurrentUser user,

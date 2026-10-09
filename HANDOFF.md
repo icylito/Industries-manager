@@ -8,7 +8,9 @@ Angular 22 page (`angular/`) and .NET 10 minimal API (`api_v2/`) over Postgres. 
 
 ## The Scratchpad (next session, its own project)
 
-A place for an admin to **think with their industries**: pull a few industries onto a board, put notes around them, draw arrows between the ones that belong together, and come back tomorrow to find it as they left it. It is not a report and not a database view. It should feel like a table with paper on it, quick and forgiving, with nothing to learn. Build it in its own session, on its own branch. Nothing here is built yet.
+A place for an admin to **think with their industries**: pull a few industries onto a board, put notes around them, draw arrows between the ones that belong together, and come back tomorrow to find it as they left it. It is not a report and not a database view. It should feel like a table with paper on it, quick and forgiving, with nothing to learn.
+
+**Update 2026-10-09: most of it is built**, on the `scratchpad-canvas` branch and committed: the canvas, select several, groups, rich text, lines, the save pill, the rail, and the file endpoints with their `AddScratchFiles` migration (applied). Not built yet: the page side of files (item e), the carry tray, and the Mouse rows in the shortcuts panel (item g; the Scratchpad keys themselves are in). The latest state, and what was checked, is at the end of `OVERVIEW_HANDOFF.md`. The paragraphs below are the original brief and still hold for what is left.
 
 **Where the design lives.** `design/Scratchpad-Light.dc.html` is the board. `design/README.md` says how to read the `.dc.html` files. The Scratchpad part of `OVERVIEW_HANDOFF.md` is the real brief: the intent, the user's items a to g, and the two round-two tables that say what the board fakes and what to build properly. Where the board and the handoff disagree, the handoff wins. The root copy of `OVERVIEW_HANDOFF.md` is the same file as `design/OVERVIEW_HANDOFF.md`, both are tracked.
 
@@ -24,13 +26,15 @@ A place for an admin to **think with their industries**: pull a few industries o
 
 **Refused.** Word, PowerPoint and Excel files, with the plain message "Word, PowerPoint and Excel files can't go on the board." Everything else the user named is allowed, which is images, GIFs, video, PDF and anything else. **Executables and SVG are the implementer's call**, because the design leaves them open: the board will not preview an SVG since it can carry script. Video and GIF show as a plain card for now; a player is the implementer's call. Do not widen this list without asking.
 
-**What exists today.** No Scratchpad code, route, service or tab anywhere in the repo. The two hooks already waiting for it: the comment in `app.html` beside the admin tabs ("The Scratchpad joins these tabs when that page is built"), and `shortcuts.ts`, where `ADMIN_PAGES` holds one entry and the `Scope` union lists the scopes.
+**What existed when this was written (2026-10-07, now built, see the update above).** No Scratchpad code, route, service or tab anywhere in the repo. The two hooks already waiting for it: the comment in `app.html` beside the admin tabs ("The Scratchpad joins these tabs when that page is built"), and `shortcuts.ts`, where `ADMIN_PAGES` holds one entry and the `Scope` union lists the scopes.
 
 **What it inherits.** Overview and Settings are the admin tabs. History and Fields are on the normal nav, behind `adminGuard`. People, Rename, admin notes and Delete account live inside Settings, and `/users` redirects there. The Scratchpad becomes a third admin tab behind `adminGuard`, adds itself to `ADMIN_PAGES`, and adds a scratchpad scope to the shortcuts. `app.spec.ts` pins the admin tabs to exactly `['Overview', 'Settings']`, so the new tab changes that assertion. Shortcut changes are saved per person on the server, so this needs a table and a migration too, and the Scratchpad must read the customised keys. The database is the user's own PostgreSQL 18, with `main` and `collector`.
 
 **Two faults this file used to carry, corrected on 2026-10-08.** It used to send the reader to a `plan.md` that is not in the repo, and it used to say the Overview page awaited a design. The Overview is built and committed, and the pointers to `plan.md` now say where that material went, so read the note above and the "Where things are" line near the bottom before you follow any older pointer you find elsewhere.
 
 ## Where git stands
+
+**This table is from 2026-10-07 and is out of date.** Main has moved on since, and the Scratchpad work is on `scratchpad-canvas`. Check `git log` and `git branch -a` before trusting any head or PR state below.
 
 | Branch | Head | State |
 |---|---|---|

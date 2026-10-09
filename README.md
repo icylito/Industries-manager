@@ -10,9 +10,12 @@ Working now:
 - History, where every saved copy can be viewed, downloaded, pinned, restored or imported
 - Nightly backups at 2:00, kept for 14 days
 - Requests, for anything that needs a developer
+- The Scratchpad, an admin board for notes, industry cards, groups and lines, saved per person
+- Tables, where managers and admins make their own tables, fill them, and delete them, with no developer
+- Backups that leave as one file and can be dropped back in on History
 
 Not done yet:
-- The Scratchpad page. Its design is in `design/`, and the build brief is in `HANDOFF.md`.
+- Files and pictures on the Scratchpad. The API can store them, the page does not use it yet.
 - Restoring a version saved before a table change needs a developer.
 - A restore brings back the rows and rules of a version, but not its old columns. A developer has to add those back in code.
 
@@ -36,6 +39,10 @@ If the admin password is lost, ask a developer to reset it. The reset is a singl
 
 Nobody can sign up alone. An admin creates each account in Settings, and the new person picks their own password at first sign in. Passwords need at least 10 characters.
 
+Guessing is slowed down. One address gets 5 sign in tries a minute (`Auth:LoginTriesPerMinute`), and one username gets 10 wrong passwords in 15 minutes from anywhere (`Auth:FailedTriesPerName`, `Auth:FailedTriesWindowMinutes`). Past either, the page says how long to wait and keeps Sign in off until then. A right password clears the username's count. The catch: someone guessing at a name can make its owner wait out the 15 minutes.
+
+There are three roles. A **user** can add, edit and delete rows. A **manager** can also make, change and delete tables on the Tables page, and take, download, drop in and restore backups. An **admin** can do everything, including rules, History versions and Settings.
+
 ## The pages
 
 | Page | Address | Who | What it is |
@@ -44,9 +51,11 @@ Nobody can sign up alone. An admin creates each account in Settings, and the new
 | Sign in | `/login` | Anyone | Sign in |
 | Your account | `/account` | Signed in | Your password, and sign out |
 | Overview | `/overview` | Admin | The table at a glance |
+| Scratchpad | `/scratchpad` | Admin | A board to think with your industries |
 | Settings | `/settings` | Admin | Accounts and who can sign in |
-| History | `/history` | Admin | Every saved copy of the table |
+| History | `/history` | Admin, and managers for the Backups part | Every saved copy of the table, and the backups |
 | Fields | `/fields` | Admin | Labels, limits and custom fields |
+| Tables | `/tables` | Signed in to look, manager or admin to change | Tables the team makes itself |
 | Requests | `/requests` | Signed in | Work that needs a developer |
 
 The old `/users` address opens Settings. Every page jumps back to the top after 5 minutes without activity.
@@ -56,7 +65,20 @@ The old `/users` address opens Settings. Every page jumps back to the top after 
 - Adding, editing and deleting rows is saved right away. Each delete says which row went.
 - Every change to the fields saves a copy of the table first.
 - On History, Restore puts a saved version back. The table as it is now is saved first, so the restore can be undone from the same page. Restore asks for a short reason.
-- Backups are listed at the bottom of History. Restoring a backup asks you to type `RESTORE`.
+- Backups are listed at the bottom of History. Restoring a backup asks you to type `RESTORE`. It brings back the industries, their rules, requests, settings and every table from the Tables page. A full backup of right now is taken first, so a restore can be undone by restoring that one.
+- **Download** gives a backup as one `.zip`. Drop that zip on the box on History, on this PC or another one running this app, and it joins the list. Only a zip this app made is accepted: every backup is signed with a key in `backup-key/`, so keep that folder safe and never share it. Backups made before signing can still be restored here, but not downloaded as one file.
+- Deleting a table on the Tables page puts it in the bin for 14 days. **Bring back** returns it with its rows.
+
+## Where the files go
+
+| Folder | What is in it |
+|---|---|
+| `backups/` | The nightly and manual backups, and dropped in ones |
+| `backup-key/` | The key that signs backups. Keep it, and keep it private |
+| `user-tables/` | A readable JSON copy of every table on the Tables page, one file each, plus `_index.json` with sizes. Tables in the bin are in `user-tables/deleted/`. These are copies only: the database is the real storage, and editing a file changes nothing |
+| `scratchpad-files/` | Files put on the Scratchpad |
+
+None of these folders go into git.
 
 ## If something looks wrong
 

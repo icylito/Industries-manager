@@ -18,6 +18,8 @@ export class Auth {
   user = signal<AuthUser | null>(null);
   isSignedIn = computed(() => this.user() !== null);
   isAdmin = computed(() => this.user()?.role === 'admin');
+  // Managers and admins make and change tables on the Tables page and restore backups
+  isManager = computed(() => this.user()?.role === 'admin' || this.user()?.role === 'manager');
   // Set when the page sent someone to the sign in page because their sign in ran out
   expired = signal(false);
 

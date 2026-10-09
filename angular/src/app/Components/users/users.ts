@@ -6,7 +6,7 @@ import { UserNote } from '../../models/industry';
 import { IndustryApi, errorText } from '../../services/industry-api';
 
 // Everything the menu can do to someone. Turning an account back on takes nothing away, so it is the one that does not ask.
-type RowAction = 'reset' | 'off' | 'admin' | 'normal' | 'delete' | 'rename';
+type RowAction = 'reset' | 'off' | 'admin' | 'manager' | 'normal' | 'delete' | 'rename';
 type Pending = { user: AuthUser; action: RowAction };
 
 @Component({
@@ -24,7 +24,7 @@ export class UsersPage implements OnInit {
   busy = signal(false);
 
   newName = signal('');
-  newRole = signal<'normal' | 'admin'>('normal');
+  newRole = signal<'normal' | 'manager' | 'admin'>('normal');
   addError = signal('');
 
   // The question before anything that takes access away
@@ -203,7 +203,10 @@ export class UsersPage implements OnInit {
       case 'reset': return `Are you sure you want to give ${who} a new password? They are signed out everywhere and pick a new one when they next sign in.`;
       case 'off': return `Are you sure you want to turn ${who}'s account off? They are signed out and cannot sign in again until you turn it back on.`;
       case 'admin': return `Are you sure you want to make this user an admin? They will be able to change rules, restore history and answer requests. If you trust this person, go ahead.`;
-      case 'normal': return `Are you sure you want to remove admin from ${who}? They keep their account and can still add and edit rows.`;
+      case 'manager': return p.user.role === 'admin'
+        ? `Are you sure you want to make ${who} a manager instead of an admin? They keep the Tables page and backups, and lose rules, History and Settings.`
+        : `Make ${who} a manager? They will be able to make, change and delete tables, and restore backups.`;
+      case 'normal': return `Are you sure you want to make ${who} a plain user? They keep their account and can still add and edit rows, but not change tables or restore backups.`;
       case 'delete': return `Are you sure you want to delete ${who}'s account? They are signed out at once and cannot sign in again. Their name stays on what History already recorded.`;
       case 'rename': return `Rename ${who}? Signing in uses the new name from now on. Their name in what History already recorded stays as it is.`;
     }
@@ -215,7 +218,8 @@ export class UsersPage implements OnInit {
     if (p.action === 'reset') return 'New password';
     if (p.action === 'off') return 'Turn off';
     if (p.action === 'admin') return 'Make admin';
-    if (p.action === 'normal') return 'Remove admin';
+    if (p.action === 'manager') return 'Make manager';
+    if (p.action === 'normal') return 'Make user';
     if (p.action === 'rename') return 'Rename';
     return 'Delete account';
   }
@@ -223,7 +227,7 @@ export class UsersPage implements OnInit {
   // The actions that take something away get the red button, the rest the filled one
   confirmIsRemoval(): boolean {
     const action = this.pending()?.action;
-    return action === 'off' || action === 'normal' || action === 'delete';
+    return action === 'off' || action === 'normal' || action === 'delete' || (action === 'manager' && this.pending()?.user.role === 'admin');
   }
 
   confirm() {
@@ -242,7 +246,7 @@ export class UsersPage implements OnInit {
       this.change(p.user, { disabled: true });
       return;
     }
-    if (p.action === 'admin' || p.action === 'normal') {
+    if (p.action === 'admin' || p.action === 'manager' || p.action === 'normal') {
       this.change(p.user, { role: p.action });
       return;
     }
@@ -276,6 +280,10 @@ export class UsersPage implements OnInit {
       next: () => { this.busy.set(false); this.pending.set(null); this.load(); },
       error: (err: HttpErrorResponse) => { this.busy.set(false); this.pending.set(null); this.error.set(errorText(err)); },
     });
+  }
+
+  roleName(role: string): string {
+    return role === 'admin' ? 'Admin' : role === 'manager' ? 'Manager' : 'User';
   }
 
   copy(text: string) {

@@ -38,10 +38,35 @@ public class ScratchFileStore
         return Path.Combine(Root, storedName);
     }
 
-    public async Task WriteAsync(string storedName, Stream content, CancellationToken ct)
+    // Writes at most `limit` bytes and answers how many it wrote, or -1 when the content is longer than that.
+    // Nothing is left on disk when it is too long or the write fails, so a refused upload leaves no litter.
+    public async Task<long> WriteAsync(string storedName, Stream content, long limit, CancellationToken ct)
     {
-        await using var target = new FileStream(PathFor(storedName), FileMode.CreateNew, FileAccess.Write, FileShare.None);
-        await content.CopyToAsync(target, ct);
+        var tooBig = false;
+        long total = 0;
+        try
+        {
+            await using (var target = new FileStream(PathFor(storedName), FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                var buffer = new byte[81920];
+                int read;
+                while ((read = await content.ReadAsync(buffer, ct)) > 0)
+                {
+                    total += read;
+                    if (total > limit) { tooBig = true; break; }
+                    await target.WriteAsync(buffer.AsMemory(0, read), ct);
+                }
+            }
+        }
+        catch
+        {
+            Delete(storedName);
+            throw;
+        }
+
+        if (!tooBig) return total;
+        Delete(storedName);
+        return -1;
     }
 
     public void Delete(string storedName)

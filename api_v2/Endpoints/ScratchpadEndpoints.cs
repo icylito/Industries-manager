@@ -48,7 +48,9 @@ public static class ScratchpadEndpoints
             // One board per person, so two saves for the same account take their turn
             await using var boardLock = await locks.TakeAsync(AppLock.Scratchpad, ct);
             var board = await db.ScratchBoards.FirstOrDefaultAsync(b => b.UserId == user.Id, ct);
-            if (body.UpdatedAt is { } sent && board is not null && board.UpdatedAt != sent)
+            // No updatedAt means the page opened before there was a board. If there is one now, another tab or
+            // device made it meanwhile, and saving would write over it.
+            if (board is not null && body.UpdatedAt != board.UpdatedAt)
             {
                 return Results.Problem("This board was changed somewhere else. Reload the page and try again",
                     statusCode: StatusCodes.Status409Conflict, title: "Changed meanwhile");
