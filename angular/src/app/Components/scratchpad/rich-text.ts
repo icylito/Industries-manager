@@ -6,14 +6,18 @@ import { BoardList, TextBlock, TextRun, TextSize } from '../../models/board';
 
 export interface FontGroup { label: string; fonts: string[]; }
 
-// The 28 Google fonts the handoff lists. Only the ones actually used are loaded on the page, see ensureFont;
-// a font list that shows every name in its own face loads them when it opens, see ensureFonts.
+// 48 Google fonts: the 28 the handoff lists and 20 more (docs/2026-10-10-overnight.md), Cairo and Tajawal for Arabic
+// as well. Only the ones actually used are loaded on the page, see ensureFont; a font list that shows every name in
+// its own face loads them when it opens, see ensureFonts. The API keeps the same list (Scratchpad/BoardRules.cs).
 export const FONT_GROUPS: FontGroup[] = [
-  { label: 'Sans serif', fonts: ['Inter', 'Poppins', 'Montserrat', 'Work Sans', 'DM Sans', 'Nunito', 'Lato', 'Open Sans', 'Raleway'] },
-  { label: 'Serif', fonts: ['Playfair Display', 'Merriweather', 'Lora', 'Libre Baskerville', 'Cormorant Garamond', 'Source Serif 4'] },
-  { label: 'Monospace', fonts: ['JetBrains Mono', 'IBM Plex Mono', 'Space Mono'] },
-  { label: 'Display', fonts: ['Oswald', 'Bebas Neue', 'Abril Fatface', 'Lobster'] },
-  { label: 'Handwriting', fonts: ['Caveat', 'Pacifico', 'Shadows Into Light', 'Permanent Marker', 'Dancing Script', 'Indie Flower'] },
+  { label: 'Sans serif', fonts: ['Inter', 'Poppins', 'Montserrat', 'Work Sans', 'DM Sans', 'Nunito', 'Lato', 'Open Sans', 'Raleway',
+    'Roboto', 'Rubik', 'Manrope', 'Cairo', 'Tajawal'] },
+  { label: 'Serif', fonts: ['Playfair Display', 'Merriweather', 'Lora', 'Libre Baskerville', 'Cormorant Garamond', 'Source Serif 4',
+    'EB Garamond', 'Crimson Pro', 'Bitter', 'Noto Serif'] },
+  { label: 'Monospace', fonts: ['JetBrains Mono', 'IBM Plex Mono', 'Space Mono', 'Fira Code', 'Roboto Mono', 'Source Code Pro'] },
+  { label: 'Display', fonts: ['Oswald', 'Bebas Neue', 'Abril Fatface', 'Lobster', 'Anton', 'Alfa Slab One', 'Archivo Black', 'Righteous'] },
+  { label: 'Handwriting', fonts: ['Caveat', 'Pacifico', 'Shadows Into Light', 'Permanent Marker', 'Dancing Script', 'Indie Flower',
+    'Kalam', 'Patrick Hand', 'Gloria Hallelujah', 'Satisfy'] },
 ];
 
 // Only the fonts the list offers are kept. Words pasted in from elsewhere keep their own font's look out, so a
@@ -37,9 +41,10 @@ export const SIZE_STEPS: SizeStep[] = [
 
 const loaded = new Set<string>();
 // Families that come in one weight only
-const ONE_WEIGHT = new Set(['Bebas Neue', 'Abril Fatface', 'Lobster', 'Pacifico', 'Shadows Into Light', 'Permanent Marker', 'Indie Flower']);
+const ONE_WEIGHT = new Set(['Bebas Neue', 'Abril Fatface', 'Lobster', 'Pacifico', 'Shadows Into Light', 'Permanent Marker', 'Indie Flower',
+  'Anton', 'Alfa Slab One', 'Archivo Black', 'Righteous', 'Patrick Hand', 'Gloria Hallelujah', 'Satisfy']);
 
-// Google Fonts loads a family the first time it is used, not all 20 on every page
+// Google Fonts loads a family the first time it is used, not all 48 on every page
 export function ensureFont(family: string): void {
   if (!family || family === 'Inter' || loaded.has(family)) return;
   loaded.add(family);

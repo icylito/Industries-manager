@@ -28,7 +28,7 @@ public static class BoardRules
     private static readonly string[] Aligns = ["left", "center", "right"];
     private static readonly string[] Lists = ["none", "bullet", "number"];
     private static readonly string[] Sizes = ["sm", "base", "lg", "xl"];
-    // The 28 fonts the page's font list offers (angular/src/app/Components/scratchpad/rich-text.ts, FONT_GROUPS)
+    // The 48 fonts the page's font list offers (angular/src/app/Components/scratchpad/rich-text.ts, FONT_GROUPS)
     private static readonly string[] Fonts =
     [
         "Inter", "Poppins", "Montserrat", "Work Sans", "DM Sans", "Nunito", "Lato", "Open Sans", "Raleway",
@@ -36,6 +36,12 @@ public static class BoardRules
         "JetBrains Mono", "IBM Plex Mono", "Space Mono",
         "Oswald", "Bebas Neue", "Abril Fatface", "Lobster",
         "Caveat", "Pacifico", "Shadows Into Light", "Permanent Marker", "Dancing Script", "Indie Flower",
+        // The 20 added on 2026-10-10 (docs/2026-10-10-overnight.md)
+        "Roboto", "Rubik", "Manrope", "Cairo", "Tajawal",
+        "EB Garamond", "Crimson Pro", "Bitter", "Noto Serif",
+        "Fira Code", "Roboto Mono", "Source Code Pro",
+        "Anton", "Alfa Slab One", "Archivo Black", "Righteous",
+        "Kalam", "Patrick Hand", "Gloria Hallelujah", "Satisfy",
     ];
     private static readonly string[] Heads = ["none", "end", "both"];
 

@@ -3,7 +3,7 @@ import { FONT_GROUPS, knownFont, renderBlocks, serializeBlocks } from './rich-te
 
 describe('note fonts', () => {
   it('keeps only the fonts the list offers, spelled the way the list spells them', () => {
-    expect(FONT_GROUPS.flatMap(group => group.fonts).length).toBe(28);
+    expect(FONT_GROUPS.flatMap(group => group.fonts).length).toBe(48);
     expect(knownFont('Caveat')).toBe('Caveat');
     expect(knownFont('jetbrains mono')).toBe('JetBrains Mono');
     expect(knownFont('Wingdings Pro')).toBeUndefined();

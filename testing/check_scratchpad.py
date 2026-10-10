@@ -168,7 +168,7 @@ check("the API knows exactly the page's shortcut ids and their default keys", pa
       sorted(set(page_defaults.items()) ^ set(api_defaults.items())))
 page_fonts = set(re.findall(r"'([A-Za-z0-9 ]+)'", ts_fonts[ts_fonts.index("FONT_GROUPS"):ts_fonts.index("];", ts_fonts.index("FONT_GROUPS"))])) - {"Sans serif", "Serif", "Monospace", "Display", "Handwriting"}
 api_fonts = set(re.findall(r'"([A-Za-z0-9 ]+)"', rules[rules.index("Fonts ="):rules.index("];", rules.index("Fonts ="))]))
-check("the API knows exactly the page's 28 fonts", page_fonts == api_fonts and len(api_fonts) == 28, (sorted(page_fonts ^ api_fonts), len(api_fonts)))
+check("the API knows exactly the page's 48 fonts", page_fonts == api_fonts and len(api_fonts) == 48, (sorted(page_fonts ^ api_fonts), len(api_fonts)))
 mouse_ts = set(i for i in re.findall(r"\{ id: '(mouse\.[a-z]+)'.*?def: '", ts))
 mouse_cs = set(re.findall(r'"(mouse\.[a-z]+)"', cs))
 check("and the mouse rows that can change", mouse_ts == mouse_cs, (mouse_ts, mouse_cs))
