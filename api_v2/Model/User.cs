@@ -22,4 +22,7 @@ public class User
     // When their picture was last set, null without one. The picture itself is in UserAvatars (Model/UserAvatar.cs);
     // the page uses this to know there is one and to fetch it again after a change.
     public DateTimeOffset? AvatarAt { get; set; }
+    // Set by OneUsernameRule on an account whose username was the same as an older account's by the one name rule
+    // (Rules/Names.cs), for an admin to rename or delete. Sign in is unchanged. Cleared once the clash is gone.
+    public bool NameClash { get; set; }
 }

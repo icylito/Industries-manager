@@ -38,7 +38,7 @@ public static class UserEndpoints
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["role"] = [Roles.InvalidMessage] });
             }
-            if (await db.Users.AnyAsync(u => u.Username == username, ct))
+            if (await UserService.UsernameTakenAsync(db, username, null, ct))
             {
                 return Results.Conflict("That username is already taken");
             }
@@ -110,11 +110,13 @@ public static class UserEndpoints
                 }
                 if (!string.Equals(clean, user.Username, StringComparison.Ordinal))
                 {
-                    if (await db.Users.AnyAsync(u => u.Id != id && u.Username == clean, ct))
+                    if (await UserService.UsernameTakenAsync(db, clean, id, ct))
                     {
                         return Results.Conflict("That username is already taken");
                     }
                     renamed = clean;
+                    // The new name was checked against everyone, so this account clashes with no one now
+                    user.NameClash = false;
                 }
             }
 
@@ -143,6 +145,8 @@ public static class UserEndpoints
             {
                 await db.Sessions.Where(s => s.UserId == id).ExecuteDeleteAsync(ct);
             }
+            // A new name can free an account that clashed with the old one
+            if (renamed is not null) await UserService.RefreshNameClashesAsync(db, ct);
             return Results.Ok(UserService.ToDto(user));
         });
 
@@ -164,6 +168,8 @@ public static class UserEndpoints
 
             db.Users.Remove(user);
             await db.SaveChangesAsync(ct);
+            // An account that clashed with this one doesn't any more
+            await UserService.RefreshNameClashesAsync(db, ct);
             return Results.Ok(new { Deleted = 1, user.Username });
         });
 
@@ -202,10 +208,10 @@ public static class UserEndpoints
         });
     }
 
-    // The people list adds one thing to the shared shape, and nothing else
+    // The people list adds whether a note exists to the shared shape, and the one name rule's clash flag
     private static object ToAdminDto(User u, bool hasNotes) => new
     {
-        u.Id, u.Username, u.Role, u.Disabled, u.MustChangePassword, u.CreatedAt, u.LastLoginAt, HasNotes = hasNotes
+        u.Id, u.Username, u.Role, u.Disabled, u.MustChangePassword, u.CreatedAt, u.LastLoginAt, HasNotes = hasNotes, u.NameClash
     };
 
     private static object ToNoteDto(UserNote n) => new { n.Id, n.Text, n.CreatedBy, n.CreatedAt };

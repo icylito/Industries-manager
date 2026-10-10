@@ -370,11 +370,11 @@ public static class UserTableEndpoints
             SELECT "Columns"::text AS "Value" FROM "UserTables" WHERE "Id" = {id} AND "DeletedAt" IS NULL FOR SHARE
             """).ToListAsync(ct)).FirstOrDefault();
 
-    // Live tables only, ignoring case and outer spaces, the same comparison as the unique index
+    // Live tables only, by the one name rule (Names.Key), the same comparison as the unique index
     private static async Task<bool> NameTakenAsync(AppDbContext db, string name, int? exceptId, CancellationToken ct) =>
         await db.Database.SqlQuery<int>($"""
             SELECT count(*)::int AS "Value" FROM "UserTables"
-            WHERE "DeletedAt" IS NULL AND lower(btrim("Name")) = lower(btrim({name})) AND "Id" <> {exceptId ?? 0}
+            WHERE "DeletedAt" IS NULL AND name_key("Name") = name_key({name}) AND "Id" <> {exceptId ?? 0}
             """).SingleAsync(ct) > 0;
 
     // Postgres keeps microseconds, .NET keeps 100 ns ticks: trimmed so a time sent back compares equal (see Scratchpad)

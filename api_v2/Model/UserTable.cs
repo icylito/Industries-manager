@@ -6,7 +6,7 @@ namespace api_v2.Model;
 public class UserTable
 {
     public int Id { get; set; }
-    // Unique among live tables, ignoring case and outer spaces (an index on lower(btrim(Name)))
+    // Unique among live tables by the one name rule (Names.Key, an index on name_key(Name))
     public required string Name { get; set; }
     // The columns as a JSON list of FieldRule ({ key, label, type, required, maxLength, min, max, hidden, options }).
     // Keys are made by the API from the label, never typed by a person.

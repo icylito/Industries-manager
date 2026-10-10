@@ -34,6 +34,7 @@ public static class TableShape
     {
         var name = Names.Clean(raw);
         if (string.IsNullOrEmpty(name)) return (null, "Give the table a name");
+        if (Names.Key(name) == "") return (null, Names.NoKeyMessage);
         if (name.Length > TableLimits.NameLength) return (null, $"A table name can be at most {TableLimits.NameLength} characters");
         return (name, null);
     }
@@ -56,7 +57,8 @@ public static class TableShape
 
         var byKey = current.ToDictionary(c => c.Key);
         var taken = new HashSet<string>(current.Select(c => c.Key));
-        var labels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Column names are names: two are the same when their keys match (Names.Key)
+        var labels = new HashSet<string>();
         var used = new HashSet<string>();
         var result = new List<FieldRule>();
 
@@ -67,7 +69,8 @@ public static class TableShape
             var label = Names.Clean(input.Label) ?? "";
             var problems = RulesService.CheckLimits(label, type, input.MaxLength, input.Min, input.Max);
             if (type is not ("text" or "number" or "date")) problems.Add("Type has to be text, number or date");
-            if (label.Length > 0 && !labels.Add(label)) problems.Add("Two columns can't have the same name");
+            if (label.Length > 0 && Names.Key(label) == "") problems.Add(Names.NoKeyMessage);
+            else if (label.Length > 0 && !labels.Add(Names.Key(label))) problems.Add("Two columns can't have the same name");
 
             var options = (input.Options ?? []).Select(o => Names.Clean(o) ?? "").Where(o => o.Length > 0)
                 .Distinct(StringComparer.OrdinalIgnoreCase).ToList();

@@ -264,6 +264,8 @@ export interface AuthUser {
     displayName?: string | null;
     // When the profile picture was last set, null without one
     avatarAt?: string | null;
+    // The username is the same as an older account's by the one name rule, for an admin to rename or delete
+    nameClash?: boolean;
     // Only the admin list sets this. It says a note exists, never what it says.
     hasNotes?: boolean;
 }

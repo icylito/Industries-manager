@@ -1,4 +1,5 @@
 import { Component, DestroyRef, HostListener, OnInit, inject, signal } from '@angular/core';
+import { nameKey } from '../../services/name-key';
 import { HttpErrorResponse } from '@angular/common/http';
 import { AuthUser } from '../../models/industry';
 import { Auth } from '../../services/auth';
@@ -281,6 +282,12 @@ export class UsersPage implements OnInit {
       next: () => { this.busy.set(false); this.pending.set(null); this.load(); },
       error: (err: HttpErrorResponse) => { this.busy.set(false); this.pending.set(null); this.error.set(errorText(err)); },
     });
+  }
+
+  // The older account a flagged one clashes with, by the one name rule
+  clashesWith(user: AuthUser): string {
+    const key = nameKey(user.username);
+    return this.users().find(other => other.id < user.id && nameKey(other.username) === key)?.username ?? 'another account';
   }
 
   roleName(role: string): string {

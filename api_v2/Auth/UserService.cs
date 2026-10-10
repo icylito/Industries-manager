@@ -1,13 +1,15 @@
 using System.Text.RegularExpressions;
 using api_v2.Data;
 using api_v2.Model;
+using api_v2.Rules;
 using Microsoft.EntityFrameworkCore;
 
 namespace api_v2.Auth;
 
 // What the page gets to see about a person. Never the password hash.
 public record UserDto(int Id, string Username, string Role, bool Disabled, bool MustChangePassword,
-    DateTimeOffset CreatedAt, DateTimeOffset? LastLoginAt, string? DisplayName = null, DateTimeOffset? AvatarAt = null);
+    DateTimeOffset CreatedAt, DateTimeOffset? LastLoginAt, string? DisplayName = null, DateTimeOffset? AvatarAt = null,
+    bool NameClash = false);
 
 public static class UserService
 {
@@ -16,7 +18,7 @@ public static class UserService
     private static readonly HashSet<string> Reserved = ["local", "system", "guest"];
 
     public static UserDto ToDto(User u) =>
-        new(u.Id, u.Username, u.Role, u.Disabled, u.MustChangePassword, u.CreatedAt, u.LastLoginAt, u.DisplayName, u.AvatarAt);
+        new(u.Id, u.Username, u.Role, u.Disabled, u.MustChangePassword, u.CreatedAt, u.LastLoginAt, u.DisplayName, u.AvatarAt, u.NameClash);
 
     // Usernames are saved trimmed and lowercase. Returns the problem in plain words, or null when it's fine.
     public static string? CheckUsername(string? raw, out string clean)
@@ -25,8 +27,24 @@ public static class UserService
         if (clean.Length == 0) return "Type a username";
         if (!NameRule.IsMatch(clean)) return "A username is 3 to 32 letters, digits, dots, dashes or underscores";
         if (Reserved.Contains(clean)) return "That username is kept for the system, pick another";
+        if (Names.Key(clean) == "") return Names.NoKeyMessage;
         return null;
     }
+
+    // True when another account has the same username by the one name rule (Rules/Names.cs): "ali.k" and "ali_k"
+    public static async Task<bool> UsernameTakenAsync(AppDbContext db, string username, int? exceptId, CancellationToken ct) =>
+        await db.Database.SqlQuery<int>($"""
+            SELECT count(*)::int AS "Value" FROM "Users" WHERE name_key("Username") = name_key({username}) AND "Id" <> {exceptId ?? 0}
+            """).SingleAsync(ct) > 0;
+
+    // After a rename or a delete, an account flagged for clashing may not clash any more: its flag clears when no
+    // older account has its username by the one name rule. New clashes are never made, they are refused.
+    public static async Task RefreshNameClashesAsync(AppDbContext db, CancellationToken ct) =>
+        await db.Database.ExecuteSqlRawAsync("""
+            UPDATE "Users" AS u SET "NameClash" = EXISTS (
+                SELECT 1 FROM "Users" AS o WHERE o."Id" < u."Id" AND name_key(o."Username") = name_key(u."Username"))
+            WHERE u."NameClash"
+            """, ct);
 
     // Runs on every start. Makes sure someone can always get in:
     // - Auth:ResetPassword=<username> gives that account a new random password (for a forgotten password)

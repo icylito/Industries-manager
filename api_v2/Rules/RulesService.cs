@@ -342,7 +342,8 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
             return errors;
         }
 
-        var labels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Labels are names: two are the same when their keys match (Names.Key)
+        var labels = new HashSet<string>();
         foreach (var field in incoming)
         {
             var was = current[field.Key];
@@ -353,7 +354,8 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
             if (field.Key == "name" && !field.Required) problems.Add("Name always has to be filled in");
             if (field.Key == "name" && field.MaxLength is not (>= 1 and <= Names.MaxLength))
                 problems.Add("Name can be at most 200 characters");
-            if (!labels.Add(field.Label?.Trim() ?? "")) problems.Add("Two fields can't have the same label");
+            if (!string.IsNullOrWhiteSpace(field.Label) && Names.Key(field.Label) == "") problems.Add(Names.NoKeyMessage);
+            else if (!labels.Add(Names.Key(field.Label))) problems.Add("Two fields can't have the same label");
             if (problems.Count > 0) errors[field.Key] = [.. problems];
         }
         return errors;
@@ -369,7 +371,7 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
     public Dictionary<string, string[]> CheckNewFields(IReadOnlyList<NewField> fields)
     {
         var errors = new Dictionary<string, string[]>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seen = new HashSet<string>();
         var custom = Current.Fields.Count(f => f.Custom);
         for (var i = 0; i < fields.Count; i++)
         {
@@ -377,9 +379,12 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
             var problems = CheckLimits(field.Label, field.Type, field.MaxLength, field.Min, field.Max);
             if (field.Type is not ("text" or "number" or "date")) problems.Add("Type has to be text, number or date");
             var label = field.Label?.Trim() ?? "";
-            if (label.Length > 0 && Current.Fields.Any(f => string.Equals(f.Label.Trim(), label, StringComparison.OrdinalIgnoreCase)))
+            var key = Names.Key(label);
+            if (label.Length > 0 && key == "")
+                problems.Add(Names.NoKeyMessage);
+            else if (label.Length > 0 && Current.Fields.Any(f => Names.Key(f.Label) == key))
                 problems.Add("A field with that label already exists");
-            if (label.Length > 0 && !seen.Add(label))
+            else if (label.Length > 0 && !seen.Add(key))
                 problems.Add("A field with that label already exists");
             if (custom + i + 1 > 30) problems.Add("There can be at most 30 custom fields");
             if (problems.Count > 0) errors[$"fields[{i}]"] = [.. problems];

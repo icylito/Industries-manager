@@ -58,6 +58,10 @@
                                     @if (u.mustChangePassword && !u.disabled) { <span class="tag-inline">Hasn't picked a password yet</span> }
                                     @if (u.hasNotes) { <span class="tag-inline note-tag">Note</span> }
                                 </span>
+                                @if (u.nameClash) {
+                                    <!-- The one name rule: an older account has the same username. Sign in still works. -->
+                                    <span class="name-clash" role="note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>Same name as {{ clashesWith(u) }}. Rename or delete one.</span>
+                                }
                             </td>
                             <td class="role">{{ roleName(u.role) }}</td>
                             <td class="muted">{{ formatDate(u.lastLoginAt) }}</td>

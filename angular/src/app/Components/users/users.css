@@ -15,6 +15,17 @@ tr.dimmed td{
     font-weight: 600;
 }
 
+/* An account whose username is the same as an older one's by the one name rule, until an admin fixes it */
+.name-clash{
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.3rem;
+    color: var(--danger);
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
 /* The temporary password, easy to read out loud */
 .password-line{
     display: flex;

@@ -119,6 +119,10 @@ public static class IndustryEndpoints
                 }
 
                 var name = input.Values["name"] as string ?? "";
+                if (Names.Key(name) == "")
+                {
+                    return Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = [Names.NoKeyMessage] });
+                }
                 if (await Names.TakenAsync(db, name, null, ct))
                 {
                     return Results.Conflict("The name already exists in the database");
@@ -193,6 +197,10 @@ public static class IndustryEndpoints
                 }
 
                 var name = input.Values["name"] as string ?? "";
+                if (Names.Key(name) == "")
+                {
+                    return Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = [Names.NoKeyMessage] });
+                }
                 var renamed = !await Names.SameAsync(db, name, checker2.Name, ct);
                 // A flagged import row keeps its name and its flag while the rest of it gets fixed
                 var staysDuplicate = checker2.DuplicateOf is not null && !renamed;
@@ -354,7 +362,7 @@ public static class IndustryEndpoints
         var flaggedIds = flagged.Select(f => f.Id).ToArray();
         var found = await db.Database.SqlQuery<int>($"""
             SELECT "Id" AS "Value" FROM "Industries"
-            WHERE "DuplicateOf" IS NULL AND lower(btrim("Name")) = lower(btrim({name})) AND "Id" <> ALL({flaggedIds})
+            WHERE "DuplicateOf" IS NULL AND name_key("Name") = name_key({name}) AND "Id" <> ALL({flaggedIds})
             ORDER BY "Id" LIMIT 1
             """).ToListAsync();
         int? newOwner = found.Count == 0 ? null : found[0];

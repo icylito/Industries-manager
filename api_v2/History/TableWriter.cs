@@ -47,7 +47,7 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
         var owners = new Dictionary<string, int>();
         if (!forRestore)
         {
-            await using var cmd = new NpgsqlCommand($"""SELECT "Id", lower(btrim("Name")) FROM "{Table}" WHERE "DuplicateOf" IS NULL""", conn);
+            await using var cmd = new NpgsqlCommand($"""SELECT "Id", name_key("Name") FROM "{Table}" WHERE "DuplicateOf" IS NULL""", conn);
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct)) owners.TryAdd(reader.GetString(1), reader.GetInt32(0));
         }
@@ -208,7 +208,7 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
 
         // Owners get read again inside the transaction so nothing changed since the preview
         var owners = new Dictionary<string, int>();
-        await using (var cmd = new NpgsqlCommand($"""SELECT "Id", lower(btrim("Name")) FROM "{Table}" WHERE "DuplicateOf" IS NULL""", conn, tx))
+        await using (var cmd = new NpgsqlCommand($"""SELECT "Id", name_key("Name") FROM "{Table}" WHERE "DuplicateOf" IS NULL""", conn, tx))
         await using (var reader = await cmd.ExecuteReaderAsync(ct))
         {
             while (await reader.ReadAsync(ct)) owners.TryAdd(reader.GetString(1), reader.GetInt32(0));
