@@ -21,6 +21,12 @@ public static class StateModel
         model.Entity<AppSetting>().Property(s => s.Value).HasColumnType("jsonb");
         model.Entity<DevRequest>().HasIndex(r => r.Status);
         model.Entity<User>().Property(u => u.Username).HasMaxLength(32);
+        model.Entity<User>().Property(u => u.DisplayName).HasMaxLength(60);
+        // A person's profile picture, one row each, gone with the account
+        model.Entity<UserAvatar>().ToTable("UserAvatars");
+        model.Entity<UserAvatar>().HasKey(a => a.UserId);
+        model.Entity<UserAvatar>().Property(a => a.ContentType).HasMaxLength(40);
+        model.Entity<UserAvatar>().HasOne<User>().WithMany().HasForeignKey(a => a.UserId).OnDelete(DeleteBehavior.Cascade);
         model.Entity<User>().HasIndex(u => u.Username).IsUnique();
         model.Entity<User>().ToTable("Users", t => t.HasCheckConstraint("CK_Users_Role", "\"Role\" IN ('admin', 'manager', 'normal')"));
         model.Entity<Session>().HasIndex(s => s.TokenHash).IsUnique();

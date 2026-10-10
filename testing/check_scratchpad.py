@@ -173,6 +173,48 @@ mouse_ts = set(i for i in re.findall(r"\{ id: '(mouse\.[a-z]+)'.*?def: '", ts))
 mouse_cs = set(re.findall(r'"(mouse\.[a-z]+)"', cs))
 check("and the mouse rows that can change", mouse_ts == mouse_cs, (mouse_ts, mouse_cs))
 
+print("\n5b. The profile card: a name and a picture")
+def raw(method, path, data, content_type, token):
+    # The picture goes up as the body itself, not JSON
+    req = urllib.request.Request(t.BASE + path, data=data, method=method)
+    req.add_header("Content-Type", content_type)
+    req.add_header("Authorization", "Bearer " + token)
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return r.status, r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read()
+import zlib, struct
+def png():
+    # A real 1 by 1 PNG, so the bytes are a picture and not only its first eight
+    chunk = lambda kind, body: struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(b"\x00\xff\x00\x00")) + chunk(b"IEND", b"")
+s, b = send("PUT", "/me/profile", {"displayName": "  Ada   Lovelace  "}, admin)
+check("a name is saved tidied, and the username stays", s == 200 and b["displayName"] == "Ada Lovelace" and b["username"] == "admin", (s, b))
+s, b = send("GET", "/auth/me", token=admin)
+check("and /auth/me says it", b.get("displayName") == "Ada Lovelace", b)
+s, b = send("PUT", "/me/profile", {"displayName": "x" * 61}, admin)
+check("a name over 60 characters is refused", s == 400, (s, b))
+s, b = send("PUT", "/me/profile", {"displayName": "   "}, admin)
+check("an empty name puts the username back", s == 200 and b["displayName"] is None, (s, b))
+picture = png()
+s, body = raw("PUT", "/me/avatar", picture, "image/png", admin)
+check("a PNG picture is kept", s == 200 and json.loads(body)["avatarAt"], (s, body[:200]))
+s, body = raw("GET", "/me/avatar", None, "image/png", admin)
+check("and comes back byte for byte", s == 200 and body == picture, (s, len(body)))
+s, body = raw("PUT", "/me/avatar", b"GIF89a not really", "image/png", admin)
+check("bytes that aren't the picture type they claim are refused", s == 400, (s, body[:200]))
+s, body = raw("PUT", "/me/avatar", picture, "image/jpeg", admin)
+check("a PNG sent as JPEG is refused", s == 400, (s, body[:200]))
+s, body = raw("PUT", "/me/avatar", b"\x89PNG\r\n\x1a\n" + b"0" * (301 * 1024), "image/png", admin)
+check("a picture over 300 KB is refused", s == 400, (s, body[:200]))
+s, b = send("DELETE", "/me/avatar", token=admin)
+check("removing the picture clears it", s == 200 and b["avatarAt"] is None, (s, b))
+s, body = raw("GET", "/me/avatar", None, "image/png", admin)
+check("and there is nothing to fetch after", s == 404, s)
+s, body = raw("GET", "/me/avatar", None, "image/png", "not-a-token")
+check("nobody signed out can fetch a picture", s == 401, s)
+
 print("\n6. The file sweep")
 def upload(name, body=b"x" * 64):
     boundary = uuid.uuid4().hex

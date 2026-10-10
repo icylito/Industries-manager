@@ -45,6 +45,8 @@ public static partial class MeEndpoints
     public static void MapMe(this WebApplication app)
     {
         var group = app.MapGroup("/me").RequireDatabaseReady().RequireSignIn();
+        // The name and picture on the profile card, see ProfileEndpoints.cs
+        group.MapProfile();
 
         // Nothing saved yet reads as every default and the computer's own light or dark
         group.MapGet("/settings", async (AppDbContext db, ICurrentUser user, CancellationToken ct) =>

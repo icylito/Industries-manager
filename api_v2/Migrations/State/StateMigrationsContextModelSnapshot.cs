@@ -240,6 +240,9 @@ namespace api_v2.Migrations.State
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTimeOffset?>("AvatarAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -249,6 +252,10 @@ namespace api_v2.Migrations.State
 
                     b.Property<bool>("Disabled")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
 
                     b.Property<DateTimeOffset?>("LastLoginAt")
                         .HasColumnType("timestamp with time zone");
@@ -281,6 +288,28 @@ namespace api_v2.Migrations.State
                         {
                             t.HasCheckConstraint("CK_Users_Role", "\"Role\" IN ('admin', 'manager', 'normal')");
                         });
+                });
+
+            modelBuilder.Entity("api_v2.Model.UserAvatar", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("Bytes")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("UserAvatars", (string)null);
                 });
 
             modelBuilder.Entity("api_v2.Model.UserNote", b =>
@@ -377,6 +406,15 @@ namespace api_v2.Migrations.State
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("api_v2.Model.UserAvatar", b =>
+                {
+                    b.HasOne("api_v2.Model.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("api_v2.Model.UserNote", b =>

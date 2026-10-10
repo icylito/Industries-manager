@@ -16,20 +16,28 @@
     place-items: center;
     min-height: 12rem;
     margin: 10px;
-    overflow: hidden;
     border-radius: 22px;
     background: linear-gradient(160deg, var(--signal), color-mix(in srgb, var(--signal) 55%, var(--text)));
 }
 
-/* Two soft shapes drifting off the right edge, a quiet nod to the layered card the design started from */
-.profile-art::before,
-.profile-art::after{
+/* Two soft shapes drifting off the right edge, a quiet nod to the layered card the design started from. They sit in
+   their own clipped layer, so the picture's menu can hang outside the panel. */
+.profile-shapes{
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+.profile-shapes::before,
+.profile-shapes::after{
     position: absolute;
     border-radius: 50%;
     content: '';
 }
 
-.profile-art::before{
+.profile-shapes::before{
     top: -30%;
     right: -38%;
     width: 75%;
@@ -37,7 +45,7 @@
     background: color-mix(in srgb, var(--paper-amber) 70%, transparent);
 }
 
-.profile-art::after{
+.profile-shapes::after{
     bottom: -35%;
     left: -30%;
     width: 80%;
@@ -45,6 +53,16 @@
     background: color-mix(in srgb, var(--text) 18%, transparent);
 }
 
+/* Over a picture's own colours the shapes are only light, so they never fight the picture */
+.profile-art.tinted .profile-shapes::before{
+    background: color-mix(in srgb, var(--surface) 22%, transparent);
+}
+
+.profile-art.tinted .profile-shapes::after{
+    background: color-mix(in srgb, var(--text) 14%, transparent);
+}
+
+/* The picture, or the initial, is the button that changes it */
 .profile-avatar{
     position: relative;
     z-index: 1;
@@ -52,14 +70,100 @@
     place-items: center;
     width: 5.5rem;
     height: 5.5rem;
+    padding: 0;
     border: 4px solid color-mix(in srgb, var(--surface) 55%, transparent);
     border-radius: 50%;
     background: var(--surface);
     color: var(--signal);
+    font: inherit;
     font-size: 2.3rem;
     font-weight: 800;
     letter-spacing: -0.02em;
     box-shadow: 0 10px 26px var(--focus);
+    cursor: pointer;
+}
+
+.profile-avatar img{
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.profile-avatar:focus-visible{
+    outline: 3px solid var(--surface);
+    outline-offset: 3px;
+}
+
+.profile-avatar:disabled{
+    cursor: progress;
+}
+
+/* A small camera at the picture's edge says it can change, clearer when pointed at */
+.profile-camera{
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    display: grid;
+    place-items: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    border: 2px solid var(--surface);
+    border-radius: 50%;
+    background: var(--text);
+    color: var(--surface);
+    font-size: 0.75rem;
+    opacity: 0.85;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.profile-avatar:hover .profile-camera,
+.profile-avatar:focus-visible .profile-camera,
+.profile-avatar.busy .profile-camera{
+    opacity: 1;
+    transform: scale(1.08);
+}
+
+.profile-menu{
+    position: absolute;
+    top: calc(50% + 3.4rem);
+    left: 50%;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    min-width: 11rem;
+    padding: 0.3rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: var(--pop-shadow);
+    transform: translateX(-50%);
+}
+
+.profile-menu button{
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.55rem 0.7rem;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+
+.profile-menu button:hover,
+.profile-menu button:focus-visible{
+    background: var(--hover);
+    outline: none;
+}
+
+.profile-menu button.danger{
+    color: var(--danger);
 }
 
 .profile-main{
@@ -83,23 +187,72 @@
 }
 
 .profile-name{
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
     margin: 0;
-    overflow: hidden;
     color: var(--text);
     font-size: 1.55rem;
     letter-spacing: -0.02em;
+}
+
+.profile-name-text{
+    overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* The pencil beside the name, and Save and Cancel while it changes */
+.profile-icon-btn{
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.profile-icon-btn:hover{
+    background: var(--hover);
+    color: var(--text);
+}
+
+.profile-icon-btn:focus-visible{
+    outline: 2px solid var(--signal);
+    outline-offset: 1px;
+}
+
+.profile-rename{
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.profile-name-box{
+    width: min(16rem, 100%);
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--signal);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 1.2rem;
+    font-weight: 700;
+    outline: none;
 }
 
 .profile-role{
     display: inline-block;
     margin-top: 0.3rem;
     color: var(--muted);
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
+    font-size: 0.82rem;
+    font-weight: 600;
 }
 
 .profile-actions{
@@ -168,7 +321,8 @@
 }
 
 @media (prefers-reduced-motion: reduce){
-    .profile-btn{
+    .profile-btn,
+    .profile-camera{
         transition: none;
     }
 }

@@ -260,6 +260,10 @@ export interface AuthUser {
     mustChangePassword: boolean;
     createdAt: string;
     lastLoginAt: string | null;
+    // The name shown on the profile card, null shows the username. Never used to sign in.
+    displayName?: string | null;
+    // When the profile picture was last set, null without one
+    avatarAt?: string | null;
     // Only the admin list sets this. It says a note exists, never what it says.
     hasNotes?: boolean;
 }

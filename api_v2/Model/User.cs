@@ -8,7 +8,7 @@ public class User
     public required string Username { get; set; }
     // pbkdf2-sha256$iterations$salt$hash, see Auth/PasswordHasher.cs
     public required string PasswordHash { get; set; }
-    // admin or normal
+    // admin, manager or normal
     public required string Role { get; set; }
     public bool Disabled { get; set; }
     // Set for a new account or after a reset, the person has to pick their own password first
@@ -17,4 +17,9 @@ public class User
     public required string CreatedBy { get; set; }
     public DateTimeOffset? PasswordChangedAt { get; set; }
     public DateTimeOffset? LastLoginAt { get; set; }
+    // The name the person shows, set on their profile card. Null shows the username. Never used to sign in.
+    public string? DisplayName { get; set; }
+    // When their picture was last set, null without one. The picture itself is in UserAvatars (Model/UserAvatar.cs);
+    // the page uses this to know there is one and to fetch it again after a change.
+    public DateTimeOffset? AvatarAt { get; set; }
 }

@@ -7,7 +7,7 @@ namespace api_v2.Auth;
 
 // What the page gets to see about a person. Never the password hash.
 public record UserDto(int Id, string Username, string Role, bool Disabled, bool MustChangePassword,
-    DateTimeOffset CreatedAt, DateTimeOffset? LastLoginAt);
+    DateTimeOffset CreatedAt, DateTimeOffset? LastLoginAt, string? DisplayName = null, DateTimeOffset? AvatarAt = null);
 
 public static class UserService
 {
@@ -16,7 +16,7 @@ public static class UserService
     private static readonly HashSet<string> Reserved = ["local", "system", "guest"];
 
     public static UserDto ToDto(User u) =>
-        new(u.Id, u.Username, u.Role, u.Disabled, u.MustChangePassword, u.CreatedAt, u.LastLoginAt);
+        new(u.Id, u.Username, u.Role, u.Disabled, u.MustChangePassword, u.CreatedAt, u.LastLoginAt, u.DisplayName, u.AvatarAt);
 
     // Usernames are saved trimmed and lowercase. Returns the problem in plain words, or null when it's fine.
     public static string? CheckUsername(string? raw, out string clean)
