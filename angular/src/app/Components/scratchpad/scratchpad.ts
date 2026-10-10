@@ -1,39 +1,35 @@
 import { Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
-import { HttpErrorResponse, HttpEventType } from '@angular/common/http';
-import { Subscription, firstValueFrom } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 import { NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { Industry } from '../../models/industry';
 import { BoardItem, FileItem, NoteTone, PaperItem, Snapshot, TextAlign } from '../../models/board';
-import { IndustryApi, errorText } from '../../services/industry-api';
+import { IndustryApi } from '../../services/industry-api';
 import { Shortcuts, modHeld } from '../../services/shortcuts';
 import { BoardEngine } from '../../board/board-engine';
 import { BoardsStore } from '../../board/boards-store';
 import { TrayStore } from '../../board/tray-store';
-import { ScratchApi } from '../../board/scratch-api';
-import { KINDS, fileView, kindOf } from '../../board/item-kinds';
+import { KINDS, kindOf } from '../../board/item-kinds';
 import { Rect, bounds, clampZoom, linePath, strokePath, viewOnto, worldFromScreen, zoomAround } from '../../board/geometry';
 import { BoardTool, Draft, Gesture, PointerCtx, STROKE_WIDTH, TOOLS, ToolUi, hitTest, isEditable, panGesture } from '../../board/tools';
-import { NoteEditor } from './note-editor';
+import { BoardItemView } from './board-item';
+import { CompanyRail, INDUSTRY_DRAG, RailRow, placeIndustry } from './company-rail';
+import { FileCards } from './file-cards';
+import { PageNotice } from './page-notice';
 import { BoardHistory } from './board-history';
-import { MAX_FILE_MB, nameForPasted, refusalFor, sizeText, typeLabel } from './board-files';
+import { MAX_FILE_MB, nameForPasted } from './board-files';
 import { FONT_GROUPS, ensureFont, ensureFonts, fontCss } from './rich-text';
-import { SNAP_DRAG, snapCircle, snapShade, snapWhen } from '../carry-tray/snapshot-look';
-
-// A file's upload while the page is open. Gone after a reload: a card whose upload never finished says so.
-interface Upload { pct: number; failed: boolean; }
-
-// A company dragged from the rail onto the board
-const INDUSTRY_DRAG = 'application/x-scratchpad-industry';
+import { SNAP_DRAG, snapWhen } from '../carry-tray/snapshot-look';
 
 // The Scratchpad: one endless board at a time, picked from the person's boards on the History tab. Everything
 // that changes the board goes through the board engine (board/board-engine.ts), and everything the pointer does
-// on the board is a tool in board/tools.ts. This page draws the board, routes events, and owns the side panels.
+// on the board is a tool in board/tools.ts. Each thing is drawn by board-item.ts, the companies by company-rail.ts
+// and files are looked after by file-cards.ts. This page lays out the board, routes events, and owns the bars.
 // See OVERVIEW_HANDOFF.md for the feel this must keep.
 @Component({
   selector: 'app-scratchpad',
-  imports: [NoteEditor, BoardHistory, NgTemplateOutlet, RouterLink],
+  imports: [BoardItemView, CompanyRail, BoardHistory, NgTemplateOutlet, RouterLink],
+  providers: [FileCards, PageNotice],
   templateUrl: './scratchpad.html',
   styleUrl: './scratchpad.css',
 })
@@ -41,7 +37,8 @@ export class ScratchpadPage {
   protected board = inject(BoardEngine);
   protected boards = inject(BoardsStore);
   protected tray = inject(TrayStore);
-  private scratch = inject(ScratchApi);
+  protected files = inject(FileCards);
+  protected notice = inject(PageNotice);
   private api = inject(IndustryApi);
   protected shortcuts = inject(Shortcuts);
   private router = inject(Router);
@@ -68,36 +65,20 @@ export class ScratchpadPage {
   lineFrom = signal<string | null>(null);
   private gesture: Gesture | null = null;
 
-  // The rail never loads the table. With no search it shows the 3 most expensive rows, and says so;
-  // typing swaps them for up to 10 name matches. See OVERVIEW_HANDOFF.md, "the companies rail".
-  static readonly TOP = 3;
-  static readonly MATCHES = 10;
-  search = signal('');
-  matches = signal<Industry[]>([]);
-  railLoading = signal(true);
-  railError = signal(false);
-  railHelper = computed(() => (this.search().trim() ? 'Drag one onto the board, or press +.' : 'Most expensive first. Search for any other.'));
-  private railTimer: ReturnType<typeof setTimeout> | null = null;
-  private railCall: Subscription | null = null;
-
-  // Files: the upload of each card while it runs, the pictures and videos fetched for showing, and the toast
-  uploads = signal<Record<string, Upload>>({});
-  private pendingFiles = new Map<string, File>();
-  previews = signal<Record<number, string>>({});
-  private previewAsked = new Set<number>();
-  videos = signal<Record<number, string | 'loading'>>({});
-  notice = signal<string[]>([]);
-  private noticeTimer: ReturnType<typeof setTimeout> | null = null;
+  // Where a file being dragged over the page is
   fileOver = signal<'none' | 'page' | 'button' | 'board'>('none');
   readonly maxFileMb = MAX_FILE_MB;
-  protected readonly typeLabel = typeLabel;
-  protected readonly sizeText = sizeText;
-  protected readonly fileView = fileView;
-  protected readonly snapWhen = snapWhen;
-  protected readonly snapShade = snapShade;
-  protected readonly snapCircle = snapCircle;
-  protected readonly strokePath = strokePath;
   protected readonly strokeWidth = STROKE_WIDTH;
+  // The stroke being drawn grows in place, so it is worked out afresh each time
+  protected readonly strokePath = strokePath;
+  protected readonly snapWhen = snapWhen;
+  // A stroke's points never change in place (a change makes a new array), so its path is worked out once
+  private strokePaths = new WeakMap<number[], string>();
+  protected strokeD(points: number[]): string {
+    let d = this.strokePaths.get(points);
+    if (d === undefined) this.strokePaths.set(points, (d = strokePath(points)));
+    return d;
+  }
 
   fontsOpen = signal(false);
   protected readonly fontGroups = FONT_GROUPS;
@@ -182,11 +163,10 @@ export class ScratchpadPage {
     setLineFrom: id => this.lineFrom.set(id),
     lineAdded: () => setTimeout(() => (document.querySelector('.line-label') as HTMLInputElement | null)?.focus(), 0),
     shapeDone: () => this.tool.set('select'),
-    notice: line => this.showNotice([line]),
+    notice: line => this.notice.show([line]),
   };
 
   constructor() {
-    this.loadRail();
     void this.tray.load();
     // While this page is open, a snapshot on the tray can be put on the board with its +
     this.tray.placer.set(snap => this.placeSnap(snap));
@@ -204,21 +184,6 @@ export class ScratchpadPage {
       if (state === 'saved' && id != null) untracked(() => this.boards.touched(id, this.board.doc().items.length));
     });
 
-    // A picture card shows its preview, fetched once with the sign in, since an <img> can't send it
-    effect(() => {
-      for (const item of this.board.doc().items) {
-        if (item.type === 'file' && item.fileId != null && fileView(item) === 'image') this.askPreview(item.fileId);
-      }
-    });
-    // A video taken off the board lets go of the memory it was playing from
-    effect(() => {
-      const onBoard = new Set(this.board.doc().items.flatMap(item => (item.type === 'file' && item.fileId != null ? [item.fileId] : [])));
-      const playing = untracked(() => this.videos());
-      const gone = Object.keys(playing).map(Number).filter(id => !onBoard.has(id));
-      if (gone.length === 0) return;
-      for (const id of gone) if (playing[id] !== 'loading') URL.revokeObjectURL(playing[id]);
-      untracked(() => this.videos.update(all => { const next = { ...all }; for (const id of gone) delete next[id]; return next; }));
-    });
     // Fonts used on the board are loaded once, so a note in Caveat shows in Caveat after a reload
     effect(() => {
       for (const item of this.board.doc().items) {
@@ -244,7 +209,7 @@ export class ScratchpadPage {
     for (const [name, fn] of listen) document.addEventListener(name, fn);
     // Closing the tab or reloading while a change or an upload is on its way: the browser asks first
     const onLeave = (event: BeforeUnloadEvent) => {
-      if (!this.board.hasUnsaved() && this.pendingFiles.size === 0) return;
+      if (!this.board.hasUnsaved() && !this.files.uploading) return;
       event.preventDefault();
       event.returnValue = '';
     };
@@ -288,11 +253,6 @@ export class ScratchpadPage {
       wheelNode?.removeEventListener('wheel', onWheel);
       this.gesture?.cancel();
       this.tray.placer.set(null);
-      for (const url of Object.values(this.previews())) URL.revokeObjectURL(url);
-      for (const url of Object.values(this.videos())) if (url !== 'loading') URL.revokeObjectURL(url);
-      if (this.noticeTimer) clearTimeout(this.noticeTimer);
-      if (this.railTimer) clearTimeout(this.railTimer);
-      this.railCall?.unsubscribe();
       // The board is let go at once, and whatever is waiting is saved in the background
       this.board.leave();
     });
@@ -313,7 +273,7 @@ export class ScratchpadPage {
     if (this.board.boardId() != null && this.board.boardId() !== id && this.board.status() === 'ready') {
       const saved = await this.board.close();
       if (!saved) {
-        this.showNotice(["This board couldn't be saved, so it stays open. Try again before opening another."]);
+        this.notice.show(["This board couldn't be saved, so it stays open. Try again before opening another."]);
         void this.router.navigate([], { queryParams: { board: this.board.boardId() }, queryParamsHandling: 'merge', replaceUrl: true });
         return;
       }
@@ -341,15 +301,14 @@ export class ScratchpadPage {
     const id = this.wanted();
     if (id != null) void this.board.open(id).then(ok => { if (ok) void this.refreshCards(); });
     else void this.openWanted(null);
-    this.loadRail();
   }
 
   async keepMine(): Promise<void> {
     const id = await this.board.keepMineAsNewBoard();
-    if (id == null) { this.showNotice(["Couldn't make the new board. Try again in a moment."]); return; }
+    if (id == null) { this.notice.show(["Couldn't make the new board. Try again in a moment."]); return; }
     void this.boards.load();
     void this.router.navigate([], { queryParams: { board: id }, queryParamsHandling: 'merge', replaceUrl: true });
-    this.showNotice(['Your changes are kept as a new board, "' + this.board.boardName() + '". The other one is as it was saved elsewhere.']);
+    this.notice.show(['Your changes are kept as a new board, "' + this.board.boardName() + '". The other one is as it was saved elsewhere.']);
   }
 
   // Cards show what the table says now. Only the companies on the board are asked for, never the table.
@@ -522,50 +481,6 @@ export class ScratchpadPage {
     this.board.setView(viewOnto(box, size, 0.65));
   }
 
-  // ---- the rail ----
-
-  onSearch(value: string): void {
-    this.search.set(value);
-    if (this.railTimer) clearTimeout(this.railTimer);
-    // A short pause, so a typed word is one request rather than one per letter
-    this.railTimer = setTimeout(() => this.loadRail(), 250);
-  }
-
-  loadRail(): void {
-    const query = this.search().trim();
-    this.railCall?.unsubscribe();
-    this.railLoading.set(true);
-    const call = query ? this.api.searchIndustries(query, ScratchpadPage.MATCHES) : this.api.topIndustries(ScratchpadPage.TOP);
-    this.railCall = call.subscribe({
-      next: rows => { this.matches.set(rows); this.railLoading.set(false); this.railError.set(false); },
-      error: () => { this.matches.set([]); this.railLoading.set(false); this.railError.set(true); },
-    });
-  }
-
-  // A card added from the top list carries its place in that list (#1..#3). One added from a search has no rank.
-  private rankOf(row: Industry): number | null {
-    if (this.search().trim()) return null;
-    const at = this.matches().findIndex(one => one.id === row.id);
-    return at >= 0 ? at + 1 : null;
-  }
-
-  onBoard(row: Industry): boolean {
-    return this.board.industryIds().has(row.id);
-  }
-
-  addIndustry(row: Industry & { rank?: number | null }, center?: { x: number; y: number }): void {
-    if (this.onBoard(row) || this.board.status() !== 'ready') return;
-    this.board.place('industry', center ? { center } : 'auto', {
-      industryId: row.id, name: row.name, sector: row.sector, price: row.price, rank: row.rank !== undefined ? row.rank : this.rankOf(row),
-    });
-  }
-
-  onRailDragStart(event: DragEvent, row: Industry): void {
-    if (!event.dataTransfer) return;
-    event.dataTransfer.setData(INDUSTRY_DRAG, JSON.stringify({ ...row, rank: this.rankOf(row) }));
-    event.dataTransfer.effectAllowed = 'copy';
-  }
-
   // ---- dropping and pasting ----
 
   private worldAt(clientX: number, clientY: number): { x: number; y: number } | null {
@@ -600,13 +515,13 @@ export class ScratchpadPage {
     const company = event.dataTransfer?.getData(INDUSTRY_DRAG);
     if (company) {
       try {
-        this.addIndustry(JSON.parse(company) as Industry & { rank: number | null }, at);
+        placeIndustry(this.board, JSON.parse(company) as RailRow, at ? { center: at } : 'auto');
       } catch {
         // Not something this page put there
       }
       return;
     }
-    this.addFiles(Array.from(event.dataTransfer?.files ?? []), at);
+    this.files.add(Array.from(event.dataTransfer?.files ?? []), at);
   }
 
   // Off the tray and onto the board, as a frozen card. Undo puts it back in the tray.
@@ -614,7 +529,7 @@ export class ScratchpadPage {
     if (this.board.status() !== 'ready') return;
     if (this.tab() !== 'board') this.showTab('board');
     this.board.place('snap', center ? { center } : 'auto', { snap });
-    void this.tray.drop(snap.id);
+    this.tray.placed(this.board.lastStep(), snap);
   }
 
   onButtonDragOver(event: DragEvent): void {
@@ -631,13 +546,13 @@ export class ScratchpadPage {
     event.preventDefault();
     event.stopPropagation();
     this.fileOver.set('none');
-    this.addFiles(Array.from(event.dataTransfer?.files ?? []));
+    this.files.add(Array.from(event.dataTransfer?.files ?? []));
   }
 
   onPick(input: HTMLInputElement): void {
     const files = Array.from(input.files ?? []);
     input.value = '';
-    this.addFiles(files);
+    this.files.add(files);
   }
 
   // Ctrl+V with a picture on the clipboard puts it on the board. Pasting into a note or a box stays theirs.
@@ -646,131 +561,7 @@ export class ScratchpadPage {
     const files = Array.from(event.clipboardData?.files ?? []).filter(file => file.type.startsWith('image/'));
     if (files.length === 0) return;
     event.preventDefault();
-    this.addFiles(files.map(file => new File([file], nameForPasted(file), { type: file.type })));
-  }
-
-  // Each file is checked, then goes on the board at once and uploads in the background. Several dropped
-  // together land side by side from the drop point, never on top of each other.
-  addFiles(files: File[], at?: { x: number; y: number }): void {
-    if (this.board.status() !== 'ready') return;
-    const refused: string[] = [];
-    let left: number | null = null;
-    for (const file of files) {
-      const why = refusalFor(file);
-      if (why) { refused.push(why); continue; }
-      const contentType = file.type || 'application/octet-stream';
-      const width = KINDS.file.size({ contentType }).w;
-      if (at && left === null) left = at.x - width / 2;
-      const center = at && left !== null ? { x: left + width / 2, y: at.y } : null;
-      if (left !== null) left += width + 24;
-      const id = this.board.place('file', center ? { center } : 'auto', { name: file.name, contentType, sizeBytes: file.size });
-      this.upload(id, file);
-    }
-    if (refused.length) this.showNotice(refused);
-  }
-
-  private upload(itemId: string, file: File, boardId = this.board.boardId()): void {
-    this.pendingFiles.set(itemId, file);
-    this.setUpload(itemId, { pct: 0, failed: false });
-    this.scratch.uploadFile(file).subscribe({
-      next: event => {
-        if (event.type === HttpEventType.UploadProgress && event.total) {
-          this.setUpload(itemId, { pct: Math.round((event.loaded / event.total) * 100), failed: false });
-        } else if (event.type === HttpEventType.Response && event.body) {
-          // The board it was dropped on, even if another is open by now or the page has closed
-          this.board.fileStored(itemId, event.body, boardId);
-          this.pendingFiles.delete(itemId);
-          this.setUpload(itemId, null);
-        }
-      },
-      error: (err: HttpErrorResponse) => {
-        // A refusal from the API (it checks again) is said in the toast; anything else waits on the card for Try again
-        if (err.status === 400 || err.status === 413) this.showNotice([errorText(err, "Couldn't upload " + file.name)]);
-        this.setUpload(itemId, { pct: 0, failed: true });
-      },
-    });
-  }
-
-  retryUpload(itemId: string): void {
-    const file = this.pendingFiles.get(itemId);
-    if (file) this.upload(itemId, file);
-  }
-
-  private setUpload(itemId: string, state: Upload | null): void {
-    this.uploads.update(all => {
-      const next = { ...all };
-      if (state) next[itemId] = state; else delete next[itemId];
-      return next;
-    });
-  }
-
-  // How a file card reads under its name: uploading, failed, never finished, or its size and type
-  fileMeta(item: FileItem): { text: string; bad: boolean } {
-    const up = this.uploads()[item.id];
-    if (up?.failed) return { text: "Couldn't upload", bad: true };
-    if (up) return { text: 'Uploading ' + up.pct + '%', bad: false };
-    if (item.fileId == null) return { text: "Couldn't upload. Remove it and add the file again", bad: true };
-    return { text: typeLabel(item.name) + ', ' + sizeText(item.sizeBytes), bad: false };
-  }
-
-  canRetry(item: FileItem): boolean {
-    return !!this.uploads()[item.id]?.failed && this.pendingFiles.has(item.id);
-  }
-
-  private askPreview(fileId: number): void {
-    if (this.previewAsked.has(fileId)) return;
-    this.previewAsked.add(fileId);
-    this.scratch.fileBlob(fileId).subscribe({
-      next: blob => this.previews.update(all => ({ ...all, [fileId]: URL.createObjectURL(blob) })),
-      // No preview: the card falls back to the plain file look
-      error: () => {},
-    });
-  }
-
-  // A video is fetched only when someone presses Play, since it can be big, then plays in place
-  playVideo(item: FileItem): void {
-    const id = item.fileId;
-    if (id == null || this.videos()[id]) return;
-    this.videos.update(all => ({ ...all, [id]: 'loading' }));
-    this.scratch.fileBlob(id).subscribe({
-      next: blob => this.videos.update(all => ({ ...all, [id]: URL.createObjectURL(blob) })),
-      error: (err: HttpErrorResponse) => {
-        this.videos.update(all => { const next = { ...all }; delete next[id]; return next; });
-        this.showNotice([errorText(err, "Couldn't play " + item.name)]);
-      },
-    });
-  }
-
-  // Open a picture or a PDF in a new tab, anything else downloads with its own name
-  openFile(item: FileItem): void {
-    if (item.fileId == null) return;
-    this.scratch.fileBlob(item.fileId).subscribe({
-      next: blob => {
-        const url = URL.createObjectURL(blob);
-        if (fileView(item) === 'image' || item.contentType === 'application/pdf') {
-          window.open(url, '_blank', 'noopener');
-        } else {
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = item.name || 'file';
-          link.click();
-        }
-        setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      },
-      error: (err: HttpErrorResponse) => this.showNotice([errorText(err, "Couldn't open " + (item.name || 'that file'))]),
-    });
-  }
-
-  // The toast names exactly what happened, can be closed, and goes on its own after 10 seconds
-  showNotice(lines: string[]): void {
-    this.notice.set(lines);
-    if (this.noticeTimer) clearTimeout(this.noticeTimer);
-    this.noticeTimer = setTimeout(() => this.notice.set([]), 10_000);
-  }
-
-  dismissNotice(): void {
-    this.notice.set([]);
-    if (this.noticeTimer) clearTimeout(this.noticeTimer);
+    this.files.add(files.map(file => new File([file], nameForPasted(file), { type: file.type })));
   }
 
   fileButtonLabel = computed(() => {
@@ -866,18 +657,8 @@ export class ScratchpadPage {
     }, 0);
   }
 
-  priceLabel(price: number | null): string {
-    return price === null || price === undefined ? 'No price' : '$' + price.toFixed(3);
-  }
-
-  rowPrice(row: Industry): string {
-    return this.priceLabel(row.price);
-  }
-
-  // The template draws each kind its own way; these narrow an item for it
-  tiltOf(item: BoardItem): string | null { return (item.type === 'note' || item.type === 'text') && item.tilt ? 'rotate(' + item.tilt + 'deg)' : null; }
+  // The bar above the board narrows the one picked thing with these
   asFile(item: BoardItem): FileItem | null { return item.type === 'file' ? item : null; }
-  resizable(item: BoardItem): boolean { return !!KINDS[item.type].minSize; }
   tone(item: BoardItem): NoteTone | null { return 'tone' in item ? item.tone : null; }
   kindLabel(item: BoardItem): string { return KINDS[item.type].label; }
 }

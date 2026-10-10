@@ -66,6 +66,35 @@ describe('Settings per person', () => {
     expect(puts[0].request.body.theme).toBe('light');
   });
 
+  it("never carries another person's settings up from a shared browser, and starts them on the defaults", async () => {
+    localStorage.setItem('stock-listing-settings-owner', '9');
+    localStorage.setItem('stock-listing-shortcuts', JSON.stringify({ 'sp.select': ['X'] }));
+    localStorage.setItem('stock-listing-theme', 'dark');
+    const store = TestBed.inject(SettingsStore);
+    TestBed.inject(Auth).user.set(user);
+    TestBed.tick();
+    http.expectOne(me).flush({ shortcuts: {}, mouse: {}, theme: null, updatedAt: null });
+    await tick();
+    http.expectNone(r => r.method === 'PUT');
+    expect(store.theme()).toBeNull();
+    expect(store.shortcuts()).toEqual({});
+    expect(localStorage.getItem('stock-listing-settings-owner')).toBe('3');
+  });
+
+  it('keeps a setting changed while they load, and sends it on top of the rest from the server', async () => {
+    const store = TestBed.inject(SettingsStore);
+    TestBed.inject(Auth).user.set(user);
+    TestBed.tick();
+    const load = http.expectOne(me);
+    store.set('theme', 'light');
+    load.flush({ shortcuts: { 'sp.hand': ['Q'] }, mouse: {}, theme: 'dark', updatedAt: 'u' });
+    await tick();
+    expect(store.theme()).toBe('light');
+    expect(store.shortcuts()).toEqual({ 'sp.hand': ['Q'] });
+    const put = http.expectOne(r => r.method === 'PUT');
+    expect(put.request.body).toEqual({ shortcuts: { 'sp.hand': ['Q'] }, mouse: {}, theme: 'light' });
+  });
+
   it('leaves Ctrl+A to a note while typing, and gives it to the board otherwise', () => {
     const keys = TestBed.inject(Shortcuts);
     const run = vi.fn();
@@ -91,9 +120,30 @@ describe('Carry tray', () => {
     const snap = { id: 's1', kind: 'list' as const, title: 'Top 3', takenAt: 't', numbers: [] };
     const withSnap = { version: 1 as const, items: [{ id: 'i', type: 'snap' as const, x: 0, y: 0, w: 1, h: 1, snap }], lines: [], groups: [] };
     const without = { version: 1 as const, items: [], lines: [], groups: [] };
-    tray.follow({ before: withSnap, after: without });
-    expect(http.expectOne(r => r.method === 'POST').request.body).toEqual(snap);
-    tray.follow({ before: without, after: withSnap });
+    const session = {};
+    tray.placed({ session, n: 3 }, snap);
     http.expectOne(r => r.method === 'DELETE' && r.url.endsWith('/tray/s1'));
+    tray.follow({ before: withSnap, after: without, step: { session, n: 3 } });
+    expect(http.expectOne(r => r.method === 'POST').request.body).toEqual(snap);
+    tray.follow({ before: without, after: withSnap, step: { session, n: 3 } });
+    http.expectOne(r => r.method === 'DELETE' && r.url.endsWith('/tray/s1'));
+  });
+
+  it('leaves the tray alone when a snapshot card is deleted and the delete is redone', () => {
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const http = TestBed.inject(HttpTestingController);
+    const tray = TestBed.inject(TrayStore);
+    const snap = { id: 's1', kind: 'list' as const, title: 'Top 3', takenAt: 't', numbers: [] };
+    const withSnap = { version: 1 as const, items: [{ id: 'i', type: 'snap' as const, x: 0, y: 0, w: 1, h: 1, snap }], lines: [], groups: [] };
+    const without = { version: 1 as const, items: [], lines: [], groups: [] };
+    const session = {};
+    tray.placed({ session, n: 3 }, snap);
+    http.expectOne(r => r.method === 'DELETE');
+    // Step 5 deleted the card: undo and redo of it are not the placing
+    tray.follow({ before: without, after: withSnap, step: { session, n: 5 } });
+    tray.follow({ before: withSnap, after: without, step: { session, n: 5 } });
+    // A placing on a board left behind doesn't count on the next one either
+    tray.follow({ before: withSnap, after: without, step: { session: {}, n: 3 } });
+    http.verify();
   });
 });

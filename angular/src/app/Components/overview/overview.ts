@@ -163,9 +163,11 @@ export class OverviewPage implements OnInit {
       };
     this.carrying.set(true);
     const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 's' + Date.now();
-    const ok = await this.tray.carry({ id, kind, ...snap, takenAt: new Date().toISOString(), split: d.dim.id, pick: picked });
+    const carried = await this.tray.carry({ id, kind, ...snap, takenAt: new Date().toISOString(), split: d.dim.id, pick: picked });
     this.carrying.set(false);
-    this.toast.say(ok ? 'Carried. It waits in the tray at the bottom of the page.' : "Couldn't carry it. Check the connection, then try again.");
+    if (!carried) this.toast.say("Couldn't carry it. Check the connection, then try again.");
+    else if (carried.dropped) this.toast.say('Carried. The tray holds 20, so the oldest snapshot in it was let go to make room.');
+    else this.toast.say('Carried. It waits in the tray at the bottom of the page.');
   }
 
   // The circle card and the list card can be dragged onto the carry tray, as well as the Carry buttons

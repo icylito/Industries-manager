@@ -52,6 +52,11 @@ export function screenFromWorld(p: Point, view: BoardView): Point {
   return { x: p.x * view.zoom + view.x, y: p.y * view.zoom + view.y };
 }
 
+// A distance on screen as a distance on the board
+export function worldLength(d: Point, view: BoardView): Point {
+  return { x: d.x / view.zoom, y: d.y / view.zoom };
+}
+
 // A new zoom that keeps the board point under the screen point where it is, so zooming never loses the place
 export function zoomAround(view: BoardView, zoom: number, at: Point): BoardView {
   const next = clampZoom(zoom);

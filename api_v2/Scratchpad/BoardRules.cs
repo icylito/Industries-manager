@@ -1,14 +1,13 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 
 namespace api_v2.Scratchpad;
 
 // What a Scratchpad board may hold. The board is one free form JSON document, so it is checked by hand here,
 // in one place: each kind of thing on the board has its own rule in ItemRules, and lines and groups are checked
 // against the things they point at. The page keeps the same shapes in angular/src/app/models/board.ts.
-public static partial class BoardRules
+public static class BoardRules
 {
     public const int MaxBytes = 1_000_000;
     public const int MaxItems = 500;
@@ -29,6 +28,15 @@ public static partial class BoardRules
     private static readonly string[] Aligns = ["left", "center", "right"];
     private static readonly string[] Lists = ["none", "bullet", "number"];
     private static readonly string[] Sizes = ["sm", "base", "lg", "xl"];
+    // The 28 fonts the page's font list offers (angular/src/app/Components/scratchpad/rich-text.ts, FONT_GROUPS)
+    private static readonly string[] Fonts =
+    [
+        "Inter", "Poppins", "Montserrat", "Work Sans", "DM Sans", "Nunito", "Lato", "Open Sans", "Raleway",
+        "Playfair Display", "Merriweather", "Lora", "Libre Baskerville", "Cormorant Garamond", "Source Serif 4",
+        "JetBrains Mono", "IBM Plex Mono", "Space Mono",
+        "Oswald", "Bebas Neue", "Abril Fatface", "Lobster",
+        "Caveat", "Pacifico", "Shadows Into Light", "Permanent Marker", "Dancing Script", "Indie Flower",
+    ];
     private static readonly string[] Heads = ["none", "end", "both"];
 
     // One rule per kind of thing. A rule answers null when the thing is fine, or the plain reason it is not.
@@ -144,7 +152,7 @@ public static partial class BoardRules
         {
             return "A thing on the board is in an impossible place";
         }
-        if (w < 0 || h < 0 || w > Biggest || h > Biggest) return "A thing on the board is an impossible size";
+        if (w < 1 || h < 1 || w > Biggest || h > Biggest) return "A thing on the board is an impossible size";
         return rule(item);
     }
 
@@ -164,7 +172,7 @@ public static partial class BoardRules
             {
                 if (runNode is not JsonObject run || !Text(run["text"], 0, MaxText)) return "A note could not be read";
                 length += run["text"]!.GetValue<string>().Length;
-                if (run["font"] is not null && !(Text(run["font"], 1, 40) && FontName().IsMatch(run["font"]!.GetValue<string>()))) return "A note uses a font this page does not know";
+                if (run["font"] is not null && !OneOf(run["font"], Fonts)) return "A note uses a font this page does not know";
                 if (run["size"] is not null && !OneOf(run["size"], Sizes)) return "A note could not be read";
             }
         }
@@ -234,7 +242,4 @@ public static partial class BoardRules
     private static (string? Json, Dictionary<string, string[]> Errors) Fail(string key, string message) =>
         (null, new() { [key] = [message] });
 
-    // Font family names as Google Fonts spells them: letters, digits and spaces
-    [GeneratedRegex("^[A-Za-z0-9 ]+$")]
-    private static partial Regex FontName();
 }

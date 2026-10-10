@@ -63,39 +63,7 @@
     } @else {
     <div class="scratch-body">
         <aside class="rail">
-            <label class="rail-title" for="sp-find">Companies</label>
-            <span class="rail-search">
-                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-                <input id="sp-find" type="search" placeholder="Search the table" autocomplete="off"
-                    [value]="search()" (input)="onSearch($any($event.target).value)">
-            </span>
-            <p class="rail-helper">{{ railHelper() }}</p>
-            <ul class="rail-list" [attr.aria-busy]="railLoading()">
-                @for (row of matches(); track row.id) {
-                    <li [class.on-board]="onBoard(row)" [attr.draggable]="!onBoard(row)" (dragstart)="onRailDragStart($event, row)">
-                        <span class="rail-text">
-                            <span class="rail-name">{{ row.name }}</span>
-                            <span class="rail-meta">{{ row.sector ?? 'No sector' }}</span>
-                        </span>
-                        <span class="rail-price">{{ rowPrice(row) }}</span>
-                        <button type="button" class="rail-add" [disabled]="onBoard(row) || board.status() !== 'ready'"
-                            [attr.aria-label]="onBoard(row) ? row.name + ' is on the board' : 'Add ' + row.name + ' to the board'"
-                            [attr.title]="onBoard(row) ? 'Already on the board' : 'Add to the board'" (click)="addIndustry(row)">
-                            <i class="fa-solid" [class.fa-plus]="!onBoard(row)" [class.fa-check]="onBoard(row)" aria-hidden="true"></i>
-                        </button>
-                    </li>
-                } @empty {
-                    @if (railLoading()) {
-                        <li class="rail-empty">Looking...</li>
-                    } @else if (railError()) {
-                        <li class="rail-empty">Couldn't load the companies. <button type="button" class="link" (click)="loadRail()">Try again</button></li>
-                    } @else if (search().trim()) {
-                        <li class="rail-empty">Nothing matches your search.</li>
-                    } @else {
-                        <li class="rail-empty">No company has a price yet. Search for one by name.</li>
-                    }
-                }
-            </ul>
+            <app-company-rail></app-company-rail>
 
             <div class="rail-paper">
                 <span class="rail-title">Paper</span>
@@ -207,8 +175,8 @@
                         @case ('file') {
                             @if (asFile(one); as file) {
                                 <span class="ctx-label">File</span>
-                                <span class="ctx-text clip">{{ file.name }}, {{ fileMeta(file).text }}</span>
-                                <button type="button" class="tool push" [disabled]="file.fileId == null" (click)="openFile(file)">Open</button>
+                                <span class="ctx-text clip">{{ file.name }}, {{ files.meta(file, files.uploads()[file.id]).text }}</span>
+                                <button type="button" class="tool push" [disabled]="file.fileId == null" (click)="files.open(file)">Open</button>
                                 <button type="button" class="tool danger" (click)="board.removeSelection()">Remove from board</button>
                             }
                         }
@@ -304,94 +272,12 @@
                             @if (item.type === 'stroke') {
                                 <svg class="stroke" [attr.data-item]="item.id" [class.selected]="board.isPicked(item.id)" [class.marker]="item.kind === 'marker'"
                                     [style.left.px]="item.x" [style.top.px]="item.y" [attr.width]="item.w" [attr.height]="item.h" [attr.viewBox]="'0 0 ' + item.w + ' ' + item.h">
-                                    <path class="stroke-hit" [attr.d]="strokePath(item.points)" [attr.stroke-width]="strokeWidth[item.kind] + 10"></path>
-                                    <path class="stroke-ink" [attr.d]="strokePath(item.points)" [attr.stroke-width]="strokeWidth[item.kind]"></path>
+                                    <path class="stroke-hit" [attr.d]="strokeD(item.points)" [attr.stroke-width]="strokeWidth[item.kind] + 10"></path>
+                                    <path class="stroke-ink" [attr.d]="strokeD(item.points)" [attr.stroke-width]="strokeWidth[item.kind]"></path>
                                 </svg>
                             } @else {
-                                <div class="item" [attr.data-item]="item.id" [attr.data-kind]="item.type" [class.selected]="board.isPicked(item.id)"
-                                    [class.amber]="tone(item) === 'amber'" [class.gray]="tone(item) === 'gray'" [class.ink]="tone(item) === 'ink'"
-                                    [class.picture]="item.type === 'file' && fileView(item) === 'image'"
-                                    [class.video]="item.type === 'file' && fileView(item) === 'video'"
-                                    [class.failed]="item.type === 'file' && fileMeta(item).bad"
-                                    [class.link-from]="lineFrom() === item.id"
-                                    [style.left.px]="item.x" [style.top.px]="item.y" [style.width.px]="item.w"
-                                    [style.min-height.px]="item.type === 'rect' ? null : item.h"
-                                    [style.height.px]="item.type === 'rect' ? item.h : null"
-                                    [style.transform]="tiltOf(item)">
-                                    @if (item.type === 'industry') {
-                                            <span class="card-top">
-                                                @if (item.rank) { <span class="card-rank">#{{ item.rank }}</span> }
-                                                <span class="card-price">{{ priceLabel(item.price) }}</span>
-                                            </span>
-                                            <span class="card-name">{{ item.name }}</span>
-                                            <span class="card-meta">{{ item.sector ?? 'No sector' }}</span>
-                                    } @else if (item.type === 'snap') {
-                                            <span class="snap-top">
-                                                <span class="snap-kind">Snapshot</span>
-                                                <span class="snap-frozen">
-                                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>Frozen
-                                                </span>
-                                            </span>
-                                            <span class="snap-title">{{ item.snap.title }}</span>
-                                            <span class="snap-body">
-                                                @if (item.snap.kind === 'circle') {
-                                                    <span class="snap-circle" aria-hidden="true" [style.background]="snapCircle(item.snap)"><span></span></span>
-                                                }
-                                                <span class="snap-legend">
-                                                    @for (one of item.snap.numbers.slice(0, 6); track $index) {
-                                                        <span class="snap-row">
-                                                            @if (item.snap.kind === 'circle') { <span class="snap-swatch" [style.background]="snapShade(item.snap, $index)"></span> }
-                                                            <span class="snap-label" [class.on]="one.label === item.snap.pick">{{ one.label }}</span>
-                                                            <span class="snap-value">{{ one.value }}</span>
-                                                        </span>
-                                                    }
-                                                    @if (item.snap.numbers.length > 6) { <span class="snap-more">and {{ item.snap.numbers.length - 6 }} more</span> }
-                                                    @if (item.snap.numbers.length === 0) { <span class="snap-more">Nothing was shown.</span> }
-                                                </span>
-                                            </span>
-                                            <span class="snap-when">From the Overview, {{ snapWhen(item.snap.takenAt) }}</span>
-                                    } @else if (item.type === 'file') {
-                                            @if (fileView(item) === 'image' && item.fileId != null && previews()[item.fileId]) {
-                                                <img class="file-picture" [src]="previews()[item.fileId]" [alt]="item.name" draggable="false">
-                                            } @else if (fileView(item) === 'video' && item.fileId != null) {
-                                                @if (videos()[item.fileId]; as src) {
-                                                    @if (src === 'loading') {
-                                                        <span class="file-video wait">Loading the video...</span>
-                                                    } @else {
-                                                        <video class="file-video" [src]="src" controls autoplay playsinline></video>
-                                                    }
-                                                } @else {
-                                                    <button type="button" class="file-video play" (click)="playVideo(item)" [attr.aria-label]="'Play ' + item.name">
-                                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>
-                                                        Play
-                                                    </button>
-                                                }
-                                            } @else {
-                                                <span class="file-type" aria-hidden="true">
-                                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h8.5L19 7v14.5H6z"/><path d="M14.5 2.5V7H19"/></svg>
-                                                    <span>{{ typeLabel(item.name) }}</span>
-                                                </span>
-                                            }
-                                            <span class="file-text">
-                                                <span class="file-name">{{ item.name }}</span>
-                                                <span class="file-meta" [class.bad]="fileMeta(item).bad">{{ fileMeta(item).text }}</span>
-                                                @if (uploads()[item.id]; as up) {
-                                                    @if (!up.failed) {
-                                                        <span class="file-bar" aria-hidden="true"><span [style.width.%]="up.pct"></span></span>
-                                                    }
-                                                }
-                                                @if (canRetry(item)) {
-                                                    <button type="button" class="file-retry" (click)="retryUpload(item.id)">Try again</button>
-                                                }
-                                            </span>
-                                    } @else if (item.type === 'note' || item.type === 'text') {
-                                                <span class="grip" aria-hidden="true">&bull;&bull;&bull;</span>
-                                                <app-note-editor [item]="item"></app-note-editor>
-                                    }
-                                    @if (resizable(item) && board.isPicked(item.id) && pickedCount() === 1) {
-                                        <span class="resize" [attr.data-grip]="item.id" title="Drag to resize" aria-hidden="true"></span>
-                                    }
-                                </div>
+                                <app-board-item [item]="item" [picked]="board.isPicked(item.id)" [linkFrom]="lineFrom() === item.id"
+                                    [alone]="pickedCount() === 1"></app-board-item>
                             }
                         }
 
@@ -466,12 +352,12 @@
     </div>
     }
 
-    @if (notice().length) {
+    @if (notice.lines().length) {
         <div class="toast" role="alert">
             <span class="toast-lines">
-                @for (line of notice(); track $index) { <span>{{ line }}</span> }
+                @for (line of notice.lines(); track $index) { <span>{{ line }}</span> }
             </span>
-            <button type="button" class="toast-close" (click)="dismissNotice()" aria-label="Dismiss this message">
+            <button type="button" class="toast-close" (click)="notice.dismiss()" aria-label="Dismiss this message">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
         </div>

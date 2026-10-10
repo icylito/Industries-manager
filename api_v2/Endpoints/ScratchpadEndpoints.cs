@@ -53,6 +53,7 @@ public static class ScratchpadEndpoints
 
         group.MapPost("/boards", async (NewBoard body, AppDbContext db, ICurrentUser user, AppLocks locks, CancellationToken ct) =>
         {
+            if (NameOf(body.Name) is { Length: > MaxName }) return NameTooLong();
             var name = NameOf(body.Name) ?? "New board";
             var document = EmptyDocument;
             if (body.Document is { ValueKind: not JsonValueKind.Null and not JsonValueKind.Undefined } given)
@@ -126,6 +127,7 @@ public static class ScratchpadEndpoints
             {
                 var name = NameOf(body.Name);
                 if (name is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = ["Give the board a name"] });
+                if (name.Length > MaxName) return NameTooLong();
                 await mine.ExecuteUpdateAsync(s => s.SetProperty(b => b.Name, name), ct);
             }
             if (body.Pinned is bool pinned) await mine.ExecuteUpdateAsync(s => s.SetProperty(b => b.Pinned, pinned), ct);
@@ -217,14 +219,17 @@ public static class ScratchpadEndpoints
         }
     }
 
-    // A name as the History tab shows it: trimmed, no control characters, at most 60 characters, or null when empty
+    // A name as the History tab shows it: trimmed and without control characters, or null when empty.
+    // Longer than 60 is refused rather than cut, so a name is never saved other than as it was typed.
     private static string? NameOf(string? name)
     {
         if (name is null) return null;
         var clean = new string(name.Where(c => !char.IsControl(c)).ToArray()).Trim();
-        if (clean.Length == 0) return null;
-        return clean.Length > MaxName ? clean[..MaxName].TrimEnd() : clean;
+        return clean.Length == 0 ? null : clean;
     }
+
+    private static IResult NameTooLong() =>
+        Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = [$"A board name is at most {MaxName} characters"] });
 
     // Postgres keeps microseconds but .NET carries 100-nanosecond ticks, so drop the sub-microsecond part.
     // Without this the updatedAt a save answers would not equal the one a later read gives back, and the

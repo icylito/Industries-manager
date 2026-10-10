@@ -26,5 +26,5 @@
         </div>
     }
     <div class="editor" #editor contenteditable="true" [style.text-align]="item().align ?? null" role="textbox" aria-multiline="true" aria-label="Note text"
-        (focus)="onFocus()" (blur)="onBlur()" (input)="onInput()"></div>
+        (focus)="onFocus()" (blur)="onBlur()" (input)="onInput()" (keydown)="onKeydown($event)"></div>
 </div>

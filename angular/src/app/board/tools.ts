@@ -1,7 +1,7 @@
 import { BoardView } from '../models/board';
 import type { BoardEngine, Tx } from './board-engine';
 import { KINDS, newId } from './item-kinds';
-import { Point, Rect, intersects, rectFrom, simplify, worldFromScreen } from './geometry';
+import { Point, Rect, intersects, rectFrom, simplify, worldFromScreen, worldLength } from './geometry';
 
 // What the pointer does on the board, one small piece per tool. The page turns a pointer event into a PointerCtx
 // and hands it to the tool in hand; everything after that (what is picked, what moves, what is drawn) is here,
@@ -123,8 +123,8 @@ function dragGesture(start: PointerCtx, ids: string[], engine: BoardEngine, ui: 
           engine.setSelection(moving);
         }
       }
-      const zoom = ui.view().zoom;
-      tx.apply({ op: 'move', positions: moving.map(id => ({ id, x: origins.get(id)!.x + dx / zoom, y: origins.get(id)!.y + dy / zoom })) });
+      const by = worldLength({ x: dx, y: dy }, ui.view());
+      tx.apply({ op: 'move', positions: moving.map(id => ({ id, x: origins.get(id)!.x + by.x, y: origins.get(id)!.y + by.y })) });
     },
     up: () => tx.commit(),
     cancel: () => tx.cancel(),
@@ -140,9 +140,9 @@ function resizeGesture(start: PointerCtx, id: string, engine: BoardEngine, ui: T
   const origin = { w: item.w, h: item.h };
   return {
     move: c => {
-      const zoom = ui.view().zoom;
-      const w = Math.max(min.w, origin.w + (c.screen.x - start.screen.x) / zoom);
-      const h = Math.max(min.h, origin.h + (c.screen.y - start.screen.y) / zoom);
+      const by = worldLength({ x: c.screen.x - start.screen.x, y: c.screen.y - start.screen.y }, ui.view());
+      const w = Math.max(min.w, origin.w + by.x);
+      const h = Math.max(min.h, origin.h + by.y);
       tx.apply({ op: 'resize', id, w: Math.round(w), h: Math.round(h) });
     },
     up: () => tx.commit(),
@@ -162,7 +162,8 @@ function boxGesture(start: PointerCtx, engine: BoardEngine, ui: ToolUi): Gesture
       if (box.w < DRAG_START && box.h < DRAG_START) return;
       const view = ui.view();
       const corner = worldFromScreen(box, view);
-      const area = { x: corner.x, y: corner.y, w: box.w / view.zoom, h: box.h / view.zoom };
+      const size = worldLength({ x: box.w, y: box.h }, view);
+      const area = { x: corner.x, y: corner.y, w: size.x, h: size.y };
       const touched = engine.doc().items.filter(item => intersects(item, area)).map(item => item.id);
       engine.setSelection([...kept, ...touched]);
     },

@@ -20,6 +20,11 @@ describe('comboOf', () => {
     expect(comboOf(press('g'))).toBe('G');
     expect(comboOf(press('ArrowLeft', { altKey: true }))).toBe('Alt+Left');
     expect(comboOf(press('Shift'))).toBeNull();
+    // Only keys every keyboard has, the same list the API keeps
+    expect(comboOf(press('F5'))).toBe('F5');
+    expect(comboOf(press('PageDown', { ctrlKey: true }))).toBe('Ctrl+PageDown');
+    expect(comboOf(press('AudioVolumeUp'))).toBeNull();
+    expect(comboOf(press('ContextMenu', { shiftKey: true }))).toBeNull();
     expect(showKey('Alt+Left')).toBe('Alt+←');
     expect(capsOf(['G', 'O']).map(c => c.text)).toEqual(['G', 'then', 'O']);
   });
@@ -131,6 +136,19 @@ describe('Shortcuts', () => {
     keys.onKey(press('g'), 3000);
     keys.onKey(press('s'), 3200);
     expect(go).toHaveBeenLastCalledWith('/scratchpad');
+  });
+
+  it('redoes with Ctrl+Shift+Z and Cmd+Shift+Z as well as Ctrl+Y, unless another function has taken that key', () => {
+    const redo: string[] = [];
+    keys.register('scratchpad', { 'sp.redo': () => redo.push('redo') });
+    keys.onKey(press('z', { ctrlKey: true, shiftKey: true }));
+    keys.onKey(press('z', { metaKey: true, shiftKey: true }));
+    keys.onKey(press('y', { ctrlKey: true }));
+    expect(redo.length).toBe(3);
+    keys.assign('sp.zoomSel', ['Ctrl+Shift+Z']);
+    keys.register('scratchpad', { 'sp.redo': () => redo.push('redo'), 'sp.zoomSel': () => redo.push('zoom') });
+    keys.onKey(press('z', { ctrlKey: true, shiftKey: true }));
+    expect(redo.at(-1)).toBe('zoom');
   });
 
   it('refuses Tab and Shift+Tab like the other keys the browser keeps', () => {

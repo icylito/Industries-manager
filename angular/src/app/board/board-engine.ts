@@ -23,8 +23,10 @@ export interface Tx {
 // Where a new thing goes: the nearest free spot on screen, or centred on a point (where something was dropped)
 export type Placement = 'auto' | { center: Point };
 
-// What an undo or redo changed, so the page can follow it outside the board (the carry tray)
-export interface Change { before: BoardDocument; after: BoardDocument; }
+// What an undo or redo changed, so the page can follow it outside the board (the carry tray). step names the
+// undo step undone or redone, the same as lastStep() answered just after it was made.
+export interface Change { before: BoardDocument; after: BoardDocument; step: StepRef; }
+export interface StepRef { session: object; n: number; }
 
 const HISTORY_CAP = 100;
 const VIEW_SAVE_MS = 1500;
@@ -38,6 +40,8 @@ interface Session {
   sync: BoardSync;
   past: BoardDocument[];
   future: BoardDocument[];
+  // Steps that fell off the start of past at the cap, so a step's number never changes
+  dropped: number;
   tx: OpenTx | null;
   viewTimer: ReturnType<typeof setTimeout> | null;
   viewWaiting: BoardView | null;
@@ -107,7 +111,7 @@ export class BoardEngine {
       this.view.set(tidyView(answer.view));
       this.boardName.set(answer.name);
       const sync = new BoardSync((document, updatedAt) => this.api.saveBoard(id, document, updatedAt), () => this.doc(), answer.updatedAt);
-      this.session.set({ id, sync, past: [], future: [], tx: null, viewTimer: null, viewWaiting: null, nudge: null });
+      this.session.set({ id, sync, past: [], future: [], dropped: 0, tx: null, viewTimer: null, viewWaiting: null, nudge: null });
       this.clearSelection();
       this.readHistory();
       this.external.update(n => n + 1);
@@ -216,6 +220,12 @@ export class BoardEngine {
       this.doc.set(next);
       session.sync.changed(false);
     }
+  }
+
+  // The undo step just made, so something outside the board can tell later whether an undo or redo is that step
+  lastStep(): StepRef | null {
+    const session = this.session();
+    return session ? { session, n: session.dropped + session.past.length } : null;
   }
 
   undo(): Change | null {
@@ -449,7 +459,10 @@ export class BoardEngine {
     }
     if (this.doc() === tx.base) return;
     session.past.push(tx.base);
-    if (session.past.length > HISTORY_CAP) session.past.shift();
+    if (session.past.length > HISTORY_CAP) {
+      session.past.shift();
+      session.dropped += 1;
+    }
     session.future = [];
     this.readHistory();
     session.sync.changed(true);
@@ -463,8 +476,10 @@ export class BoardEngine {
     const session = this.session();
     if (!session) return null;
     this.commitOpen();
-    const target = session[from].pop();
-    if (!target) return null;
+    if (session[from].length === 0) return null;
+    // Undo takes back step number past.length, redo makes step past.length + 1 again
+    const step = { session, n: session.dropped + session.past.length + (from === 'future' ? 1 : 0) };
+    const target = session[from].pop()!;
     const before = this.doc();
     session[to].push(before);
     this.doc.set(target);
@@ -474,7 +489,7 @@ export class BoardEngine {
     this.readHistory();
     this.external.update(n => n + 1);
     session.sync.changed(true);
-    return { before, after: target };
+    return { before, after: target, step };
   }
 
   private setPicked(ids: string[]): void {

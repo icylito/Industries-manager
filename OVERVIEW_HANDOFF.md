@@ -402,6 +402,7 @@ The user's direction for this round: the Scratchpad is a genuine scratchpad wher
 - `ops.ts` is the only code that edits a document: pure, never edits its input, shares untouched parts, gives the same document back when nothing changed.
 - `item-kinds.ts` holds what each kind of thing is (size, resize floor, paper colour, which bar, how an old saved one opens). `models/board.ts` is a real union of kinds.
 - `geometry.ts` (boxes, camera, lines edge to edge, free space, stroke thinning) and `tools.ts` (select, hand, line, pen, marker, box, each a small adapter turning pointer events into ops) have no DOM, so they are tested with plain objects. The page's pointer code is a router over them.
+- The page (`Components/scratchpad/`) is split the same way: `board-item.ts` draws one thing for its kind (OnPush, so panning moves one layer and redraws nothing: 16 ms a move with 500 things, was about 117), `company-rail.ts` is the companies list, `file-cards.ts` looks after uploads, previews and videos, `page-notice.ts` is the toast. `scratchpad.ts` lays out the board and routes events.
 - Bugs this removed at the root: undo moved the camera; undo dropped a carried snapshot; undo brought back stale prices; edits after a 409 were silently thrown away; a carry during a save said it failed; clicking a note's words started a drag; every pan re-sent the whole board; the 2 minute save lived on the page. API: the Scratchpad lock was one lock for everyone (now one per person); lines, groups and the tray were never checked (now `Scratchpad/BoardRules.cs`, one rule per kind).
 
 **Model change** (migration `NamedBoardsSettingsTray`, shown to and approved by the user, rehearsed with `check_migration.py`: forward, back, forward clean, Down keeps each person's first board)
@@ -417,15 +418,24 @@ The user's direction for this round: the Scratchpad is a genuine scratchpad wher
 - Shortcuts, mouse keys and theme on the server; this browser's copy is applied first (no flash) and carried up once to an account that has none.
 - After a 409 the pill offers "Keep mine as a new board" (nothing lost, nothing overwritten) or "Reload (lose N changes)". A board the API refuses (over 500 things) says why and stops retrying until the next change.
 
+**After the critic's first grade** (4.0 out of 10, held down by two ways of losing work)
+- Leaving the Scratchpad by the menu and coming back works and saves: leaving lets go of the board at once and saves what was waiting in the background (`BoardSync.drain`); opening the same board again waits for that save.
+- An upload that finishes after another board was opened, or after the page closed, lands on the board it was dropped on.
+- Drawing stops at the limit with a word, instead of the board refusing to save. A board deleted somewhere else says so and offers Keep mine. The open board can't be deleted from History, and History opens on the page holding it. Renaming the open board renames the chip at the top. A video's memory is let go when its card goes. Closing the tab with work on its way asks first.
+- Settings on a shared browser stay with the person they belong to (the browser notes whose they are); a setting changed while they load is kept. Ctrl+Shift+Z redoes, and on a Mac Cmd+Z, Cmd+Shift+Z and Cmd+Y work too.
+- Ctrl+B in a note is its own undo step; Ctrl+I and Ctrl+U, which a note can't keep, do nothing. Notes keep only the 28 fonts the list offers.
+- The tray says when carrying a 21st snapshot lets the oldest go. Undo and redo move a snapshot between board and tray only for the step that put it on the board: redoing a delete of its card leaves the tray alone.
+- The API refuses what the plan said it would: sizes under 1, fonts not on the list, two mouse rows holding one key, keys no keyboard has (the page only records the same named keys), the same key twice for one function, and board names over 60 characters (refused, no longer cut).
+
 **Different from the plans, on purpose**
 - The board's view is saved on the server per board with a PATCH (debounced), not in browser storage, so a board opens where it was left on any browser.
 - While typing, every Ctrl key still works except the board's edit keys (Ctrl+A, D, G, [ and ]), which leave the text box its own.
 - On a phone the tray sits under the page instead of riding over the board.
 
 **Checked**
-- `ng test` 210 passed (engine, ops, geometry, tools, the 8 save cases that were skipped before, settings, tray, page); `ng build` 464.5 kB initial, no warnings; `dotnet build -c Release` 0 warnings.
-- `check_migration.py` MIGRATION OK; `check_scratchpad.py` SCRATCHPAD OK (49 checks, twice in a row); `check_fixes.py`'s Scratchpad part moved to per-board saves.
-- Real Chromium against the throwaway API: 37 checks of every tool, key, the History tab, the tray on three pages, reload, dark mode, 1366 and 390 wide with no sideways scroll and no page errors (three runs in a row). Stress: 500 things, 48,000 stroke points and 400 lines open in about 2.5 s; 40 drag steps in under 1 s; key bursts; a slow link (saves held 1.5 s) ends at Saved with both changes; the API down shows Failed to save and Try again recovers; two tabs: the stale one is refused and Keep mine leaves the other copy untouched.
+- `ng test` 225 passed (engine, ops, geometry with screen and board round trips and edge-to-edge crossings worked out by hand, tools, the 8 save cases that were skipped before, settings on a shared browser, Ctrl+Shift+Z, fonts, tray, page); `ng build` 465.9 kB initial, no warnings; `dotnet build -c Release` 0 warnings.
+- `check_migration.py` MIGRATION OK, and it now checks that going forward moves the view and the tray out of each board's document and going back puts them in again; `check_scratchpad.py` SCRATCHPAD OK (61 checks); `check_fixes.py`'s Scratchpad part moved to per-board saves.
+- Real Chromium against the throwaway API: 37 checks of every tool, key, the History tab, the tray on three pages, reload, dark mode, 1366 and 390 wide with no sideways scroll and no page errors (three runs in a row). Stress: 500 things, 48,000 stroke points and 400 lines open in about 2.5 s; 40 drag steps in under 1 s; key bursts; a slow link (saves held 1.5 s) ends at Saved with both changes; the API down shows Failed to save and Try again recovers; two tabs: the stale one is refused and Keep mine leaves the other copy untouched. After the critic's grade: away and back by the menu, uploads landing after a board switch or the page closing (8 checks); panning 500 things, Ctrl+B undo, the tray's limit and snapshot redo (13 checks).
 
 **Still open**
 - Story mode (play the arrows in order) is the next round, by the user's choice.

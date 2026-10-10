@@ -28,8 +28,14 @@ public static partial class MeEndpoints
         "sp.back", "sp.front",
     ];
 
-    // The Mouse rows whose held key can change, and the keys they can hold
-    public static readonly string[] KnownMouseRows = ["mouse.add", "mouse.zoom", "mouse.dup"];
+    // The Mouse rows whose held key can change, with the key each holds until changed (MOUSE_ROWS in shortcuts.ts)
+    private static readonly Dictionary<string, string> MouseDefaults = new()
+    {
+        ["mouse.add"] = "Shift",
+        ["mouse.zoom"] = "Ctrl",
+        ["mouse.dup"] = "Alt",
+    };
+    public static IEnumerable<string> KnownMouseRows => MouseDefaults.Keys;
     private static readonly string[] MouseKeys = ["Shift", "Ctrl", "Alt"];
     private static readonly string[] Themes = ["light", "dark"];
 
@@ -103,7 +109,7 @@ public static partial class MeEndpoints
                 if (key.ValueKind != JsonValueKind.String || !Combo().IsMatch(key.GetString()!)) return null;
                 keys.Add(key.GetString());
             }
-            if (keys.Count > 2) return null;
+            if (keys.Count > 2 || keys.Count != keys.Select(k => k!.GetValue<string>()).Distinct().Count()) return null;
             clean[entry.Name] = keys;
         }
         return clean.ToJsonString();
@@ -117,16 +123,19 @@ public static partial class MeEndpoints
         var clean = new JsonObject();
         foreach (var entry in given.Value.EnumerateObject())
         {
-            if (!KnownMouseRows.Contains(entry.Name) || entry.Value.ValueKind != JsonValueKind.String) return null;
+            if (!MouseDefaults.ContainsKey(entry.Name) || entry.Value.ValueKind != JsonValueKind.String) return null;
             var key = entry.Value.GetString()!;
             if (!MouseKeys.Contains(key)) return null;
             clean[entry.Name] = key;
         }
+        // Two rows holding one key would make one gesture do two things
+        var held = MouseDefaults.Select(row => clean[row.Key]?.GetValue<string>() ?? row.Value).ToList();
+        if (held.Distinct().Count() != held.Count) return null;
         return clean.ToJsonString();
     }
 
-    // One key press the way the page writes it: held keys, then one character or a named key, like
-    // "Ctrl+Shift+G", "?", "Esc" or "Plus"
-    [GeneratedRegex(@"^(?:(?:Ctrl|Alt|Shift|Cmd)\+){0,4}(?:[!-~]|[A-Za-z][A-Za-z0-9]{1,11})$")]
+    // One key press the way the page writes it (comboOf in shortcuts.ts): held keys each at most once and in that
+    // order, then one character or one of the named keys the page knows, like "Ctrl+Shift+G", "?", "Esc" or "Plus"
+    [GeneratedRegex(@"^(?:Ctrl\+)?(?:Alt\+)?(?:Shift\+)?(?:Cmd\+)?(?:[!-~]|Esc|Left|Right|Up|Down|Space|Plus|Enter|Tab|Backspace|Delete|Insert|Home|End|PageUp|PageDown|F[1-9]|F1[0-2])$")]
     private static partial Regex Combo();
 }

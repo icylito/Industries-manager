@@ -44,6 +44,13 @@ s, got = send("GET", f"/scratchpad/boards/{board}", token=admin)
 check("the view is kept and tidied (zoom to 4, far off place brought back)", got["view"]["zoom"] == 4 and abs(got["view"]["y"]) <= 4e6, got["view"])
 check("renaming, pinning and moving the view leave updatedAt alone, so the open tab can still save",
       got["updatedAt"] == saved["updatedAt"], (got["updatedAt"], saved["updatedAt"]))
+s, b = send("PATCH", f"/scratchpad/boards/{board}", {"name": "n" * 61}, admin)
+check("a name over 60 characters is refused, not cut", s == 400, (s, b))
+s, b = send("POST", "/scratchpad/boards", {"name": "n" * 61}, admin)
+check("on a new board too", s == 400, (s, b))
+s, b = send("PATCH", f"/scratchpad/boards/{board}", {"name": "n" * 60}, admin)
+check("60 is fine", s == 200 and b["name"] == "n" * 60, (s, b))
+send("PATCH", f"/scratchpad/boards/{board}", {"name": "Energy, part 2"}, admin)
 s, b = send("DELETE", f"/scratchpad/boards/{board}", token=admin)
 check("a pinned board can't be deleted", s == 409, (s, b))
 s, rows = send("GET", "/scratchpad/boards", token=admin)
@@ -91,6 +98,10 @@ cases = [
     ("a thing in two groups", {**EMPTY, "items": [note("a"), note("b"), note("c")], "groups": [
         {"id": "g", "name": "", "itemIds": ["a", "b"]}, {"id": "h", "name": "", "itemIds": ["b", "c"]}]}, 400),
     ("a note over 10,000 characters across its runs", {**EMPTY, "items": [note("a", blocks=[{"id": "x", "list": "none", "runs": [{"text": "y" * 6000}, {"text": "y" * 5000}]}])]}, 400),
+    ("a note in a font from the list", {**EMPTY, "items": [note("a", blocks=[{"id": "x", "list": "none", "runs": [{"text": "y", "font": "Caveat"}]}])]}, 200),
+    ("a note in a font the list doesn't offer", {**EMPTY, "items": [note("a", blocks=[{"id": "x", "list": "none", "runs": [{"text": "y", "font": "Wingdings Pro"}]}])]}, 400),
+    ("a thing 0 wide", {**EMPTY, "items": [note("a", w=0)]}, 400),
+    ("a thing 0 high", {**EMPTY, "items": [note("a", h=0)]}, 400),
     ("a note in a font name with odd characters", {**EMPTY, "items": [note("a", blocks=[{"id": "x", "list": "none", "runs": [{"text": "y", "font": "Inter;<x>"}]}])]}, 400),
 ]
 for label, doc, want in cases:
@@ -114,15 +125,19 @@ s, b = send("POST", "/scratchpad/tray", {"id": "bad", "kind": "pie", "title": "x
 check("a snapshot of a kind the page doesn't know is refused", s == 400, (s, b))
 
 print("\n5. A person's own settings")
-s, b = send("PUT", "/me/settings", {"shortcuts": {"sp.select": ["X"], "nav.overview": ["G", "V"], "sp.hand": []}, "mouse": {"mouse.dup": "Shift"}, "theme": "dark"}, admin)
+s, b = send("PUT", "/me/settings", {"shortcuts": {"sp.select": ["X"], "nav.overview": ["G", "V"], "sp.hand": []}, "mouse": {"mouse.dup": "Shift", "mouse.add": "Alt"}, "theme": "dark"}, admin)
 check("keys, mouse keys and the theme save", s == 200, (s, b))
 s, got = send("GET", "/me/settings", token=admin)
-check("and come back the same", got["shortcuts"]["sp.select"] == ["X"] and got["mouse"] == {"mouse.dup": "Shift"} and got["theme"] == "dark", got)
+check("and come back the same", got["shortcuts"]["sp.select"] == ["X"] and got["mouse"] == {"mouse.dup": "Shift", "mouse.add": "Alt"} and got["theme"] == "dark", got)
 for label, body in [
     ("an unknown function", {"shortcuts": {"sp.fly": ["F"]}, "mouse": {}, "theme": None}),
     ("three keys in a row", {"shortcuts": {"sp.select": ["A", "B", "C"]}, "mouse": {}, "theme": None}),
     ("a key that isn't a key", {"shortcuts": {"sp.select": ["Ctrl+<script>"]}, "mouse": {}, "theme": None}),
     ("a held key that isn't Shift, Ctrl or Alt", {"shortcuts": {}, "mouse": {"mouse.add": "Hyper"}, "theme": None}),
+    ("two mouse rows holding one key", {"shortcuts": {}, "mouse": {"mouse.add": "Alt"}, "theme": None}),
+    ("a named key no keyboard has", {"shortcuts": {"sp.pen": ["Ctrl+Shift+Alt+Cmd+ABCDEFGHIJKL"]}, "mouse": {}, "theme": None}),
+    ("a held key twice", {"shortcuts": {"sp.pen": ["Ctrl+Ctrl+P"]}, "mouse": {}, "theme": None}),
+    ("the same key twice for one function", {"shortcuts": {"sp.pen": ["P", "P"]}, "mouse": {}, "theme": None}),
     ("a theme that isn't light or dark", {"shortcuts": {}, "mouse": {}, "theme": "sepia"}),
 ]:
     s, b = send("PUT", "/me/settings", body, admin)
@@ -133,11 +148,16 @@ send("PUT", "/me/settings", {"shortcuts": {}, "mouse": {}, "theme": None}, admin
 here = os.path.dirname(os.path.abspath(__file__))
 ts = open(os.path.join(here, "..", "angular", "src", "app", "services", "shortcuts.ts"), encoding="utf-8").read()
 cs = open(os.path.join(here, "..", "api_v2", "Endpoints", "MeEndpoints.cs"), encoding="utf-8").read()
+ts_fonts = open(os.path.join(here, "..", "angular", "src", "app", "Components", "scratchpad", "rich-text.ts"), encoding="utf-8").read()
+rules = open(os.path.join(here, "..", "api_v2", "Scratchpad", "BoardRules.cs"), encoding="utf-8").read()
 page_ids = set(re.findall(r"\{ id: '([a-z]+\.[A-Za-z0-9]+)'", ts)) | {f"ov.slice{n}" for n in range(1, 6)}
 page_ids = {i for i in page_ids if not i.startswith("mouse.") and i != "ov.slice"}
 api_block = cs[cs.index("KnownCommands"):cs.index("];", cs.index("KnownCommands"))]
 api_ids = set(re.findall(r'"([a-z]+\.[A-Za-z0-9]+)"', api_block))
 check("the API knows exactly the page's shortcut ids", page_ids == api_ids, (sorted(page_ids - api_ids), sorted(api_ids - page_ids)))
+page_fonts = set(re.findall(r"'([A-Za-z0-9 ]+)'", ts_fonts[ts_fonts.index("FONT_GROUPS"):ts_fonts.index("];", ts_fonts.index("FONT_GROUPS"))])) - {"Sans serif", "Serif", "Monospace", "Display", "Handwriting"}
+api_fonts = set(re.findall(r'"([A-Za-z0-9 ]+)"', rules[rules.index("Fonts ="):rules.index("];", rules.index("Fonts ="))]))
+check("the API knows exactly the page's 28 fonts", page_fonts == api_fonts and len(api_fonts) == 28, (sorted(page_fonts ^ api_fonts), len(api_fonts)))
 mouse_ts = set(i for i in re.findall(r"\{ id: '(mouse\.[a-z]+)'.*?def: '", ts))
 mouse_cs = set(re.findall(r'"(mouse\.[a-z]+)"', cs))
 check("and the mouse rows that can change", mouse_ts == mouse_cs, (mouse_ts, mouse_cs))

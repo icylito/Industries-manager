@@ -9,6 +9,9 @@ import { BoardEngine } from '../../board/board-engine';
 import { ScratchApi } from '../../board/scratch-api';
 import { environment } from '../../../environments/environment';
 import { refusalFor, sizeText, typeLabel } from './board-files';
+import { By } from '@angular/platform-browser';
+import { CompanyRail } from './company-rail';
+import { FileCards } from './file-cards';
 
 const url = environment.apiUrl + '/scratchpad';
 const row = (id: number, name: string, price: number | null) => ({
@@ -62,7 +65,11 @@ describe('Scratchpad page', () => {
     await tick();
     http.match(r => r.url.endsWith('/industries/by-ids')).forEach(r => r.flush([]));
     fixture.detectChanges();
-    return { fixture, page: fixture.componentInstance, board: TestBed.inject(BoardEngine), el: fixture.nativeElement as HTMLElement };
+    return {
+      fixture, page: fixture.componentInstance, board: TestBed.inject(BoardEngine), el: fixture.nativeElement as HTMLElement,
+      files: fixture.debugElement.injector.get(FileCards),
+      rail: fixture.debugElement.query(By.directive(CompanyRail)).componentInstance as CompanyRail,
+    };
   }
 
   it('opens the board named in the address, with its name and the empty board hint', async () => {
@@ -95,11 +102,11 @@ describe('Scratchpad page', () => {
   });
 
   it('shows the three most expensive and says so, and a search swaps them for matches', async () => {
-    const { fixture, page, el } = await open();
+    const { fixture, rail, el } = await open();
     vi.useFakeTimers();
     expect(el.querySelectorAll('.rail-list li').length).toBe(3);
     expect(el.textContent).toContain('Most expensive first.');
-    page.onSearch('alp');
+    rail.onSearch('alp');
     vi.advanceTimersByTime(300);
     const search = http.expectOne(r => r.url.endsWith('/industries/search'));
     expect(search.request.params.get('q')).toBe('alp');
@@ -111,9 +118,9 @@ describe('Scratchpad page', () => {
   });
 
   it('puts a company on once, with its rank from the top list, and turns its + off', async () => {
-    const { fixture, page, board, el } = await open();
-    page.addIndustry(row(2, 'Beta', 8));
-    page.addIndustry(row(2, 'Beta', 8));
+    const { fixture, rail, board, el } = await open();
+    rail.addIndustry(row(2, 'Beta', 8));
+    rail.addIndustry(row(2, 'Beta', 8));
     fixture.detectChanges();
     const items = board.doc().items;
     expect(items.length).toBe(1);
@@ -124,9 +131,9 @@ describe('Scratchpad page', () => {
   });
 
   it('refuses Office and text files in a toast that names them, and puts nothing on the board', async () => {
-    const { fixture, page, board, el } = await open();
+    const { fixture, files, board, el } = await open();
     vi.useFakeTimers();
-    page.addFiles([new File(['x'], 'Quarterly report.docx'), new File(['x'], 'notes.txt')]);
+    files.add([new File(['x'], 'Quarterly report.docx'), new File(['x'], 'notes.txt')]);
     fixture.detectChanges();
     http.expectNone(r => r.url.endsWith('/scratchpad/files'));
     const toast = el.querySelector('.toast')?.textContent ?? '';
@@ -139,8 +146,8 @@ describe('Scratchpad page', () => {
   });
 
   it('puts a file on at once, shows its upload, and keeps the id the API gives back', async () => {
-    const { fixture, page, board, el } = await open();
-    page.addFiles([new File(['%PDF'], 'plan.pdf', { type: 'application/pdf' })]);
+    const { fixture, page, files, board, el } = await open();
+    files.add([new File(['%PDF'], 'plan.pdf', { type: 'application/pdf' })]);
     fixture.detectChanges();
     const item = board.doc().items[0];
     expect(item.type === 'file' && item.fileId).toBeNull();
@@ -167,10 +174,10 @@ describe('Scratchpad page', () => {
   });
 
   it('shows a failed upload on the card with Try again, and Try again sends it again', async () => {
-    const { fixture, page, el } = await open();
+    const { fixture, files, el } = await open();
     // jsdom can't pass a Blob through the test HTTP client, so the picture's bytes come from a stub
     vi.spyOn(TestBed.inject(ScratchApi), 'fileBlob').mockReturnValue(of(new Blob(['gif'])));
-    page.addFiles([new File(['gif'], 'loop.gif', { type: 'image/gif' })]);
+    files.add([new File(['gif'], 'loop.gif', { type: 'image/gif' })]);
     http.expectOne(r => r.url.endsWith('/scratchpad/files')).flush('down', { status: 503, statusText: 'Unavailable' });
     fixture.detectChanges();
     expect(el.querySelector('.item[data-kind="file"].failed')).toBeTruthy();

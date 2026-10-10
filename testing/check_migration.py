@@ -6,7 +6,7 @@
 #   set MIGRATION=AddScratchFiles & python3 -I check_migration.py      any other one, by its name
 # Stop the throwaway API first: it applies migrations when it starts and writes while the check compares.
 # Throwaway only, like the other checks. It ends with the database at the migration it checked.
-import difflib, os, re, shutil, subprocess, sys, time
+import difflib, json, os, re, shutil, subprocess, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ.setdefault("ADMIN_PASSWORD", "unused")  # t.py asks for it, this check never signs in
 import t
@@ -95,11 +95,31 @@ def user_tables_back(normal):
 
 # Named boards: Down keeps each person's first board and loses the boards made since, names, pins and settings.
 # Run with EXPECT_CHANGED=ScratchBoards,ScratchFiles, since every board and file row gains new columns going forward.
+# Before going forward, the first board is given a view and a tray inside its document, the way the older page kept
+# them, so going forward can be seen moving them out. Its own document is put back as it was at the very end.
+OLD_PARTS = {"view": {"x": 12, "y": 34, "zoom": 1.5},
+             "tray": [{"id": "migration-check", "kind": "list", "title": "Migration check", "takenAt": "2026-10-10T09:00:00Z",
+                       "numbers": [{"label": "Alpha", "value": "$1.000"}], "split": "sector", "pick": None}]}
+old_document = None
+
+def named_boards_prepare():
+    global old_document
+    first = sql(t.MAIN_DB, """SELECT "Id" FROM "ScratchBoards" ORDER BY "Id" LIMIT 1""")
+    if not first:
+        return
+    old_document = (first, sql(t.MAIN_DB, f"""SELECT "Document"::text FROM "ScratchBoards" WHERE "Id" = {first}"""))
+    parts = json.dumps(OLD_PARTS).replace("'", "''")
+    sql(t.MAIN_DB, f"""UPDATE "ScratchBoards" SET "Document" = "Document" || '{parts}'::jsonb WHERE "Id" = {first}""")
+
 def named_boards_forward():
     person = sql(t.MAIN_DB, """SELECT "UserId" FROM "ScratchBoards" ORDER BY "Id" LIMIT 1""")
     if not person:
         return None
     first = sql(t.MAIN_DB, f"""SELECT "Id" FROM "ScratchBoards" WHERE "UserId" = {person} ORDER BY "Id" LIMIT 1""")
+    view = json.loads(sql(t.MAIN_DB, f"""SELECT coalesce("View"::text, 'null') FROM "ScratchBoards" WHERE "Id" = {first}"""))
+    check("going forward moves where the board was left out of its document", view == OLD_PARTS["view"], view)
+    tray = json.loads(sql(t.MAIN_DB, f"""SELECT "Items"::text FROM "ScratchTrays" WHERE "UserId" = {person}""") or "null")
+    check("and the carry tray into the person's own tray", tray == OLD_PARTS["tray"], tray)
     sql(t.MAIN_DB, f"""UPDATE "ScratchBoards" SET "Pinned" = true, "Name" = 'Kept' WHERE "Id" = {first}""")
     sql(t.MAIN_DB, f"""INSERT INTO "ScratchBoards" ("UserId", "Name", "Pinned", "Document", "CreatedAt", "UpdatedAt")
                        VALUES ({person}, 'Migration check', false, '{{"version":1,"items":[],"lines":[],"groups":[]}}', now(), now())""")
@@ -114,9 +134,21 @@ def named_boards_back(kept):
     person, first = kept
     left = sql(t.MAIN_DB, f"""SELECT string_agg("Id"::text, ',') FROM "ScratchBoards" WHERE "UserId" = {person}""")
     check("going back keeps only the person's first board", left == first, left)
+    document = json.loads(sql(t.MAIN_DB, f"""SELECT "Document"::text FROM "ScratchBoards" WHERE "Id" = {first}"""))
+    check("with its document whole, and the view and tray back inside it",
+          document == {**json.loads(old_document[1]), **OLD_PARTS}, str(document)[:300])
 
+def named_boards_tidy():
+    if not old_document:
+        return
+    first, text = old_document
+    sql(t.MAIN_DB, f"""UPDATE "ScratchBoards" SET "Document" = '{text.replace("'", "''")}'::jsonb WHERE "Id" = {first}""")
+    sql(t.MAIN_DB, """UPDATE "ScratchTrays" SET "Items" = coalesce((SELECT jsonb_agg(x) FROM jsonb_array_elements("Items") x
+                      WHERE x->>'id' <> 'migration-check'), '[]'::jsonb)""")
+
+# (forward, back), and optionally what to set up before going forward and what to tidy at the very end
 FIXTURES = {"AddUserTablesAndManager": (user_tables_forward, user_tables_back),
-            "NamedBoardsSettingsTray": (named_boards_forward, named_boards_back)}
+            "NamedBoardsSettingsTray": (named_boards_forward, named_boards_back, named_boards_prepare, named_boards_tidy)}
 
 # Which migration, and the one before it
 names = sorted(f[:-3] for f in os.listdir(os.path.join(API, "Migrations")) if re.fullmatch(r"\d{14}_\w+\.cs", f))
@@ -144,6 +176,9 @@ subprocess.run(["dotnet", "build", API, "-c", "Release", "-v", "q", "-nologo"], 
 if now[-1] == target:
     print(f"  {t.MAIN_DB} already has {short}, taking it back first ({update(previous):.1f}s)")
 
+fixture = FIXTURES.get(short)
+if fixture and len(fixture) > 2: fixture[2]()
+
 print("\nbefore")
 before = snapshot()
 print(f"  {len(before['rows'])} tables, {len(before['layout'])} layout lines")
@@ -161,7 +196,6 @@ check("every row that was there before is untouched", not moved, moved)
 new_tables = sorted(set(forward["rows"]) - set(before["rows"]))
 if new_tables: print("  new tables: " + ", ".join(new_tables))
 
-fixture = FIXTURES.get(short)
 kept = fixture[0]() if fixture else None
 
 print("\nback")
@@ -184,6 +218,8 @@ check("the layout matches the first forward", again["layout"] == forward["layout
       layout_diff(forward["layout"], again["layout"]))
 check("every table and row matches the first forward", again["rows"] == forward["rows"],
       changed(forward["rows"], again["rows"]))
+
+if fixture and len(fixture) > 3: fixture[3]()
 
 print("\n" + (f"{len(fails)} failed" if fails else "MIGRATION OK"))
 sys.exit(1 if fails else 0)

@@ -1,7 +1,7 @@
 import { Component, DestroyRef, ElementRef, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { PaperItem, TextSize } from '../../models/board';
 import { BoardEngine, Tx } from '../../board/board-engine';
-import { worldFromScreen } from '../../board/geometry';
+import { worldFromScreen, worldLength } from '../../board/geometry';
 import { FONT_GROUPS, SIZE_STEPS, ensureFont, renderBlocks, serializeBlocks, sizeToExec } from './rich-text';
 
 // One note or text box, edited in place. The words picked get bold, highlight, a font and a size, all
@@ -68,6 +68,17 @@ export class NoteEditor {
     this.store();
   }
 
+  // The browser's own Ctrl+B would land inside the typing burst, so Ctrl+Z after bolding would take the typed words
+  // too: it goes through format instead, its own undo step. Italic and underline aren't kept in a note's runs, so
+  // the browser's Ctrl+I and Ctrl+U are stopped rather than showing a look that is gone after a reload.
+  onKeydown(event: KeyboardEvent): void {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+    const key = event.key.toLowerCase();
+    if (key !== 'b' && key !== 'i' && key !== 'u') return;
+    event.preventDefault();
+    if (key === 'b') this.format('bold', undefined, false);
+  }
+
   onBlur(): void {
     this.focused = false;
     const el = this.editor()?.nativeElement;
@@ -129,8 +140,8 @@ export class NoteEditor {
     else if (rect.right > box.right - 8) dx = box.right - 8 - rect.right;
     if (rect.top < box.top + 8) dy = box.top + 8 - rect.top;
     if (dx === 0 && dy === 0) return;
-    const zoom = this.board.view().zoom;
-    this.barPos.set({ x: spot.x + dx / zoom, y: spot.y + dy / zoom });
+    const by = worldLength({ x: dx, y: dy }, this.board.view());
+    this.barPos.set({ x: spot.x + by.x, y: spot.y + by.y });
   }
 
   // The offset is multiplied by the counter-scale, so the gap between the bar and the words is the same
@@ -145,12 +156,13 @@ export class NoteEditor {
     return getComputedStyle(document.documentElement).getPropertyValue('--mark').trim() || '#ffe58a';
   }
 
-  format(command: string, value?: string): void {
+  // restore puts back the words picked before a press on the bar took the focus; a key press keeps the caret as it is
+  format(command: string, value?: string, restore = true): void {
     const el = this.editor()?.nativeElement;
     if (!el) return;
     el.focus();
     const selection = window.getSelection();
-    if (this.saved && selection) {
+    if (restore && this.saved && selection) {
       selection.removeAllRanges();
       selection.addRange(this.saved);
     }

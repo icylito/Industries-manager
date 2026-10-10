@@ -55,8 +55,8 @@ export const COMMANDS: Command[] = [
   { id: 'sp.rect', name: 'Box', desc: 'On the Scratchpad, drag to draw a box around an area.', scope: 'scratchpad', def: ['R'] },
   { id: 'sp.sticky', name: 'New sticky note', desc: 'On the Scratchpad, add a sticky note.', scope: 'scratchpad', def: ['N'] },
   { id: 'sp.text', name: 'New text box', desc: 'On the Scratchpad, add a text box.', scope: 'scratchpad', def: ['T'] },
-  { id: 'sp.undo', name: 'Undo', desc: 'On the Scratchpad, take back the last change.', scope: 'scratchpad', def: ['Ctrl+Z'] },
-  { id: 'sp.redo', name: 'Redo', desc: 'On the Scratchpad, bring back what was taken back.', scope: 'scratchpad', def: ['Ctrl+Y'], alias: ['Ctrl+Shift+Z', 'Cmd+Shift+Z'] },
+  { id: 'sp.undo', name: 'Undo', desc: 'On the Scratchpad, take back the last change.', scope: 'scratchpad', def: ['Ctrl+Z'], alias: ['Cmd+Z'] },
+  { id: 'sp.redo', name: 'Redo', desc: 'On the Scratchpad, bring back what was taken back.', scope: 'scratchpad', def: ['Ctrl+Y'], alias: ['Ctrl+Shift+Z', 'Shift+Cmd+Z', 'Cmd+Y'] },
   { id: 'sp.group', name: 'Group', desc: 'On the Scratchpad, group the things picked under a name.', scope: 'scratchpad', def: ['Ctrl+G'], notInText: true },
   { id: 'sp.ungroup', name: 'Ungroup', desc: 'On the Scratchpad, let the picked group go. Its things stay where they are.', scope: 'scratchpad', def: ['Ctrl+Shift+G'], notInText: true },
   { id: 'sp.duplicate', name: 'Duplicate', desc: 'On the Scratchpad, put copies of the picked things beside them.', scope: 'scratchpad', def: ['Ctrl+D'], notInText: true },
@@ -91,6 +91,9 @@ interface KeyLike {
   metaKey: boolean;
 }
 
+const NAMED_KEYS = new Set(['Esc', 'Left', 'Right', 'Up', 'Down', 'Space', 'Plus', 'Enter', 'Tab', 'Backspace', 'Delete', 'Insert',
+  'Home', 'End', 'PageUp', 'PageDown', ...Array.from({ length: 12 }, (_, i) => 'F' + (i + 1))]);
+
 // One key press as text, like "Ctrl+Z", "G" or "Esc". Letters are upper case, symbols are as typed.
 // Shift only counts on a letter or a named key, so "?" is "?" and not "Shift+?".
 export function comboOf(e: KeyLike): string | null {
@@ -98,6 +101,8 @@ export function comboOf(e: KeyLike): string | null {
   if (k === 'Control' || k === 'Shift' || k === 'Alt' || k === 'Meta') return null;
   const names: Record<string, string> = { Escape: 'Esc', ArrowLeft: 'Left', ArrowRight: 'Right', ArrowUp: 'Up', ArrowDown: 'Down', ' ': 'Space', '+': 'Plus' };
   const name = names[k] ?? (k.length === 1 ? k.toUpperCase() : k);
+  // Only keys every keyboard has, the same list the API keeps (Combo in api_v2/Endpoints/MeEndpoints.cs)
+  if (name.length > 1 && !NAMED_KEYS.has(name)) return null;
   const letter = k.length === 1 && /[a-z]/i.test(k);
   const mods: string[] = [];
   if (e.ctrlKey) mods.push('Ctrl');

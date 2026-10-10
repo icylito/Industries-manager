@@ -126,121 +126,11 @@
     text-transform: uppercase;
 }
 
-.rail-search{
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 0 0.75rem 0.5rem;
-    padding: 0.45rem 0.65rem;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--bg);
-    color: var(--muted);
-}
-
-.rail-search input{
-    width: 100%;
-    min-width: 0;
-    border: 0;
-    background: none;
-    color: var(--text);
-    font: inherit;
-    outline: none;
-}
-
 .rail-helper{
     margin: 0 0.9rem 0.55rem;
     color: var(--muted);
     font-size: 0.78rem;
     line-height: 1.45;
-}
-
-/* Paper sits straight under the list, as in the design; the keys note takes the room left at the bottom */
-.rail-list{
-    flex: 0 1 auto;
-    min-height: 0;
-    margin: 0;
-    padding: 0 0.6rem;
-    list-style: none;
-    overflow-y: auto;
-}
-
-.rail-list li{
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.4rem;
-    padding: 0.45rem 0.5rem 0.45rem 0.7rem;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: var(--bg);
-}
-
-.rail-list li:hover{
-    border-color: var(--border-strong);
-}
-
-.rail-text{
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-width: 0;
-}
-
-.rail-name{
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 0.9rem;
-    font-weight: 600;
-}
-
-.rail-meta{
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--muted);
-    font-size: 0.76rem;
-}
-
-.rail-price{
-    flex: 0 0 auto;
-    font-size: 0.85rem;
-    font-variant-numeric: tabular-nums;
-}
-
-.rail-add{
-    flex: 0 0 auto;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-    border: 1px solid var(--border-strong);
-    border-radius: 999px;
-    background: var(--surface);
-    color: var(--text);
-    cursor: pointer;
-}
-
-.rail-add:hover:not(:disabled){
-    border-color: var(--signal);
-    color: var(--signal);
-}
-
-.rail-add:disabled{
-    border-color: var(--border);
-    color: var(--muted);
-    cursor: default;
-}
-
-.rail-list li[draggable='true']{
-    cursor: grab;
-}
-
-/* Already on the board: still listed, dimmed, and its + turns into a tick */
-.rail-list li.on-board{
-    opacity: 0.6;
 }
 
 /* Sticky notes, text boxes, and files or pictures */
@@ -302,12 +192,6 @@
     .paper-btn{
         transition: none;
     }
-}
-
-.rail-empty{
-    padding: 0.6rem 0.25rem;
-    color: var(--muted);
-    font-size: 0.85rem;
 }
 
 .rail-keys{
@@ -738,41 +622,6 @@ a.tool{
     box-shadow: var(--pop-shadow);
 }
 
-/* A card added from the top list shows its place in it on the left; one from a search has none */
-.card-top{
-    display: flex;
-    align-items: baseline;
-    justify-content: flex-end;
-    gap: 0.5rem;
-}
-
-.card-rank{
-    margin-right: auto;
-    color: var(--signal);
-    font-size: 0.75rem;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-}
-
-.card-name{
-    font-weight: 700;
-    font-size: 0.95rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.card-meta{
-    color: var(--muted);
-    font-size: 0.8rem;
-}
-
-.card-price{
-    font-size: 0.9rem;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-}
-
 /* Four papers, as in the design: white, grey, ink and orange. The folded corner takes the paper's own colour.
    Notes, text boxes and drawn boxes all take them. */
 .item{
@@ -822,11 +671,6 @@ a.tool{
     pointer-events: none;
 }
 
-.item.ink .grip{
-    color: var(--accent-text);
-    opacity: 0.7;
-}
-
 /* A file or a picture. A picture shows its preview over the name; anything else a slim card with its type. */
 .item[data-kind='file']{
     display: flex;
@@ -844,97 +688,6 @@ a.tool{
 .item[data-kind='file'].failed{
     border-color: var(--danger);
     box-shadow: inset 4px 0 0 var(--danger), var(--pop-shadow);
-}
-
-.file-picture{
-    display: block;
-    width: 100%;
-    height: 150px;
-    object-fit: cover;
-    background: var(--surface-2);
-    pointer-events: none;
-}
-
-.file-type{
-    flex: 0 0 76px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    background: var(--surface-2);
-    color: var(--text-2);
-}
-
-.item[data-kind='file'].picture .file-type{
-    flex: 0 0 150px;
-}
-
-.file-type span{
-    font-size: 0.65rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-}
-
-.file-text{
-    flex: 1 1 auto;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 3px;
-    padding: 0.6rem 0.75rem;
-}
-
-.file-name{
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 0.82rem;
-    font-weight: 700;
-}
-
-.file-meta{
-    color: var(--muted);
-    font-size: 0.7rem;
-}
-
-.file-meta.bad{
-    color: var(--danger);
-    font-weight: 600;
-}
-
-.file-bar{
-    display: block;
-    height: 4px;
-    border-radius: 999px;
-    background: var(--track);
-    overflow: hidden;
-}
-
-.file-bar span{
-    display: block;
-    height: 4px;
-    background: var(--signal);
-    transition: width 0.2s ease;
-}
-
-.file-retry{
-    align-self: flex-start;
-    padding: 0.15rem 0.65rem;
-    border: 0;
-    border-radius: 999px;
-    background: var(--danger-bg);
-    color: var(--danger-on);
-    font: inherit;
-    font-size: 0.7rem;
-    font-weight: 700;
-    cursor: pointer;
-}
-
-.file-retry:focus-visible{
-    outline: 2px solid var(--danger);
-    outline-offset: 2px;
 }
 
 /* A file dragged over the board */
@@ -1025,17 +778,6 @@ a.tool{
 
 .item[data-kind='text']{
     border-style: dashed;
-}
-
-.grip{
-    display: block;
-    margin-bottom: 0.15rem;
-    color: var(--muted);
-    font-size: 0.75rem;
-    letter-spacing: 0.18em;
-    text-align: center;
-    cursor: grab;
-    user-select: none;
 }
 
 /* The outline hugs the members, and the name chip is the handle that moves the whole group */
@@ -1134,121 +876,6 @@ a.tool{
     border-radius: 14px;
     background: var(--surface);
     box-shadow: var(--pop-shadow);
-}
-
-.snap-top{
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-}
-
-.snap-kind{
-    color: var(--muted);
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.snap-frozen{
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 1px 8px;
-    border: 1px solid var(--border-strong);
-    border-radius: 999px;
-    color: var(--text-2);
-    font-size: 0.68rem;
-    font-weight: 600;
-}
-
-.snap-title{
-    display: -webkit-box;
-    overflow: hidden;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    font-size: 0.88rem;
-    font-weight: 800;
-    line-height: 1.25;
-}
-
-.snap-body{
-    flex: 1 1 auto;
-    min-height: 0;
-    display: flex;
-    align-items: center;
-    gap: 0.85rem;
-}
-
-.snap-circle{
-    flex: 0 0 84px;
-    width: 84px;
-    height: 84px;
-    border-radius: 999px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.snap-circle span{
-    width: 50px;
-    height: 50px;
-    border-radius: 999px;
-    background: var(--surface);
-}
-
-.snap-legend{
-    flex: 1 1 auto;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.snap-row{
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-    font-size: 0.74rem;
-}
-
-.snap-swatch{
-    flex: 0 0 auto;
-    width: 10px;
-    height: 10px;
-    border-radius: 3px;
-}
-
-.snap-label{
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.snap-label.on{
-    color: var(--signal);
-    font-weight: 700;
-}
-
-.snap-value{
-    flex: 0 0 auto;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-}
-
-.snap-more,
-.snap-when{
-    color: var(--faint);
-    font-size: 0.7rem;
-}
-
-.rail-add:focus-visible{
-    outline: 2px solid var(--signal);
-    outline-offset: 2px;
 }
 
 /* ---- The Board and History tabs, and the board's name ---- */
@@ -1369,20 +996,6 @@ a.tool{
     stroke-dasharray: 6 4;
 }
 
-/* The grip in the corner of the one picked note, text box or drawn box */
-.resize{
-    position: absolute;
-    right: -7px;
-    bottom: -7px;
-    z-index: 2;
-    width: 14px;
-    height: 14px;
-    border: 2px solid var(--signal);
-    border-radius: 4px;
-    background: var(--surface);
-    cursor: nwse-resize;
-}
-
 /* A line picked, or reached with Tab */
 .line-ink.on{
     stroke: var(--signal);
@@ -1401,38 +1014,6 @@ a.tool{
 /* A video plays in place, fetched only when Play is pressed */
 .item[data-kind='file'].video{
     flex-direction: column;
-}
-
-.file-video{
-    display: block;
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    border: none;
-    border-radius: 10px 10px 0 0;
-    background: var(--accent);
-    color: var(--accent-text);
-    font: inherit;
-    font-weight: 600;
-}
-
-.file-video.play{
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.3rem;
-    cursor: pointer;
-}
-
-.file-video.wait{
-    display: grid;
-    place-items: center;
-    font-size: 0.85rem;
-}
-
-.file-video.play:focus-visible{
-    outline: 2px solid var(--signal);
-    outline-offset: -4px;
 }
 
 @media (max-width: 560px){
@@ -1466,21 +1047,6 @@ a.tool{
     .rail-keys,
     .bar-hint{
         display: none;
-    }
-
-    .rail-helper{
-        margin-bottom: 0.4rem;
-        font-size: 0.72rem;
-    }
-
-    .rail-list{
-        max-height: 7rem;
-    }
-
-    .rail-list li{
-        margin-bottom: 0.3rem;
-        padding-top: 0.3rem;
-        padding-bottom: 0.3rem;
     }
 
     /* Sticky note, text box and file in one short row */
