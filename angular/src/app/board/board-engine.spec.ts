@@ -87,7 +87,7 @@ describe('Board engine', () => {
 
     it('gives an upload id and fresh prices to every board in the history, never as a step', async () => {
       await open([{ id: 'c', type: 'industry', x: 0, y: 0, w: 1, h: 1, industryId: 4, name: 'Old', sector: null, price: 1, rank: null }]);
-      const fileId = board.place('file', 'auto', { name: 'a.png', contentType: 'image/png', sizeBytes: 3 });
+      const fileId = board.place('file', 'auto', { name: 'a.png', contentType: 'image/png', sizeBytes: 3 })!;
       board.fileStored(fileId, { id: 9, name: 'a.png', contentType: 'image/png', sizeBytes: 3 });
       board.refreshCards([{ id: 4, name: 'New', sector: null, price: 2 }]);
       board.undo();
@@ -195,6 +195,76 @@ describe('Board engine', () => {
       expect(TestBed.inject(Toast).message()).toContain('kept as a new board, "Ideas (my copy)"');
     });
 
+    it('keeps a left board\'s changes waiting when no new board can be made, and opening it again offers the choice', async () => {
+      await open([note('a')]);
+      board.apply({ op: 'move', positions: [{ id: 'a', x: 40, y: 0 }] });
+      vi.advanceTimersByTime(700);
+      puts()[0].flush('stale', { status: 409, statusText: 'Conflict' });
+      await vi.advanceTimersByTimeAsync(0);
+      board.leave();
+      await vi.advanceTimersByTimeAsync(0);
+      http.expectOne(r => r.method === 'POST' && r.url === url)
+        .flush({ detail: 'You can keep at most 100 boards. Delete one you no longer need first.' }, { status: 409, statusText: 'Conflict' });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(TestBed.inject(Toast).message()).toContain('at most 100 boards');
+      // Long after the toast went, the board opens as it was left, with the conflict and its choices
+      await vi.advanceTimersByTimeAsync(60_000);
+      const back = board.open(1);
+      http.expectOne(`${url}/1`).flush({ id: 1, name: 'Ideas', pinned: false, view: null, createdAt: 'c', updatedAt: 't9',
+        document: { version: 1, items: [note('a')], lines: [], groups: [] } });
+      expect(await back).toBe(true);
+      expect(board.doc().items[0].x).toBe(40);
+      expect(board.conflict()).toBe('changed');
+      expect(board.canUndo()).toBe(true);
+      const kept = board.keepMineAsNewBoard();
+      const made = http.expectOne(r => r.method === 'POST' && r.url === url);
+      expect(made.request.body.document.items[0].x).toBe(40);
+      made.flush({ id: 2, name: 'Ideas (my copy)', pinned: false, createdAt: 'c', updatedAt: 'n1', things: 1 });
+      expect(await kept).toBe(2);
+    });
+
+    it('opens a left board as it was left even when its save finishes while the board is loading', async () => {
+      await open([note('a')]);
+      board.apply({ op: 'move', positions: [{ id: 'a', x: 40, y: 0 }] });
+      board.leave();
+      await vi.advanceTimersByTimeAsync(0);
+      const put = puts()[0];
+      const back = board.open(1);
+      const get = http.expectOne(`${url}/1`);
+      // The save lands first, then the GET answers with the copy from before it
+      await answer(put, 't1');
+      get.flush({ id: 1, name: 'Ideas', pinned: false, view: null, createdAt: 'c', updatedAt: 't0',
+        document: { version: 1, items: [note('a')], lines: [], groups: [] } });
+      expect(await back).toBe(true);
+      expect(board.doc().items[0].x).toBe(40);
+      expect(board.save()).toBe('saved');
+      board.apply({ op: 'move', positions: [{ id: 'a', x: 41, y: 0 }] });
+      vi.advanceTimersByTime(700);
+      expect(puts()[0].request.body.updatedAt).toBe('t1');
+    });
+
+    it('says why Keep mine could not make the new board', async () => {
+      await open([note('a')]);
+      board.apply({ op: 'move', positions: [{ id: 'a', x: 5, y: 0 }] });
+      vi.advanceTimersByTime(700);
+      puts()[0].flush('changed', { status: 409, statusText: 'Conflict' });
+      await vi.advanceTimersByTimeAsync(0);
+      const kept = board.keepMineAsNewBoard();
+      http.expectOne(r => r.method === 'POST' && r.url === url)
+        .flush({ detail: 'You can keep at most 100 boards. Delete one you no longer need first.' }, { status: 409, statusText: 'Conflict' });
+      expect(await kept).toContain('at most 100 boards');
+      expect(board.conflict()).toBe('changed');
+    });
+
+    it('refuses a thing past the 500 a board holds, and says so', async () => {
+      await open(Array.from({ length: 500 }, (_, i) => note('n' + i)));
+      expect(board.place('note', 'auto', {})).toBeNull();
+      expect(board.duplicate(['n0'], { x: 24, y: 24 }).size).toBe(0);
+      expect(board.doc().items.length).toBe(500);
+      expect(board.canUndo()).toBe(false);
+      expect(TestBed.inject(Toast).message()).toContain('at most 500 things');
+    });
+
     it('refuses a copy that would take the board past the drawing it can hold, and says so', async () => {
       const stroke = (id: string): BoardItem => ({ id, type: 'stroke', kind: 'pen', x: 0, y: 0, w: 10, h: 10, points: new Array(4000).fill(1) });
       await open(Array.from({ length: 25 }, (_, i) => stroke('s' + i)));
@@ -217,7 +287,7 @@ describe('Board engine', () => {
 
     it('lands an upload on the board it was dropped on, after the page closed', async () => {
       await open([]);
-      const id = board.place('file', 'auto', { name: 'a.png', contentType: 'image/png', sizeBytes: 3 });
+      const id = board.place('file', 'auto', { name: 'a.png', contentType: 'image/png', sizeBytes: 3 })!;
       board.leave();
       await vi.advanceTimersByTimeAsync(0);
       board.fileStored(id, { id: 77, name: 'a.png', contentType: 'image/png', sizeBytes: 3 }, 1);

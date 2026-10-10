@@ -170,6 +170,16 @@ export class BoardSync {
     return !!this.drained && !this.closed;
   }
 
+  // A left board whose changes found no home (no new board could be made) is opened again: saving comes back to
+  // life as it stopped, conflict and all, so the page offers its choices again and nothing is lost
+  reopen(read: () => BoardDocument): void {
+    if (!this.closed) return;
+    this.closed = false;
+    this.drained = null;
+    this.read = read;
+    this.periodic = setInterval(() => { if (this.unsaved && !this.conflict()) void this.saveNow(); }, PERIODIC_SAVE_MS);
+  }
+
   // The board being left is opened again before its save finished: saving goes back to the open board, with what
   // is waiting, its place in the server's history and its count of changes, as if it had never been left
   resume(read: () => BoardDocument): void {

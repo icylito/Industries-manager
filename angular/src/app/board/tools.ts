@@ -67,6 +67,8 @@ const MAX_POINTS = 2000;
 // The API's limit for drawing on one board (api_v2/Scratchpad/BoardRules.cs), checked here first so a board never
 // stops saving because of one more stroke
 export const MAX_BOARD_POINTS = 50_000;
+// Things one board holds, the same as the API's BoardRules.MaxItems
+export const MAX_BOARD_ITEMS = 500;
 // A press that moves less than this many pixels is a click, not a drag
 const DRAG_START = 3;
 
@@ -118,9 +120,10 @@ function dragGesture(start: PointerCtx, ids: string[], engine: BoardEngine, ui: 
         started = true;
         if (start.duplicating) {
           const idFor = engine.duplicate(ids, { x: 0, y: 0 }, tx);
+          // Refused (the board is full): nothing moves, and what was picked stays picked
           moving = [...idFor.values()];
           origins = new Map([...idFor].map(([from, to]) => [to, origins.get(from)!]));
-          engine.setSelection(moving);
+          if (moving.length) engine.setSelection(moving);
         }
       }
       const by = worldLength({ x: dx, y: dy }, ui.view());

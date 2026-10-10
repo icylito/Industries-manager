@@ -6,9 +6,10 @@ export class Toast {
   message = signal('');
   private timer?: ReturnType<typeof setTimeout>;
 
-  say(text: string) {
+  // long: something the person must read and act on, kept on screen long enough to read
+  say(text: string, stay: 'short' | 'long' = 'short') {
     this.message.set(text);
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.message.set(''), 2400);
+    this.timer = setTimeout(() => this.message.set(''), stay === 'long' ? 12_000 : 2400);
   }
 }

@@ -84,7 +84,8 @@ export function renderBlocks(blocks: TextBlock[]): string {
   return blocks.map(block =>
     '<div class="blk" data-list="' + block.list + '">' +
       // An empty line keeps a <br>, or it folds to nothing and the first key typed lands outside it as a new line
-      (block.runs.some(run => run.text) ? block.runs.map(runHtml).join('') : '<br>') +
+      // A line ending in a break needs one more, as the browser shows a line's last <br> as nothing
+      (block.runs.some(run => run.text) ? block.runs.map(runHtml).join('') + (block.runs.at(-1)?.text.endsWith('\n') ? '<br>' : '') : '<br>') +
     '</div>').join('');
 }
 
@@ -154,6 +155,8 @@ export function serializeBlocks(root: HTMLElement): TextBlock[] {
   const push = (el: HTMLElement, list: BoardList) => {
     const runs: TextRun[] = [];
     collectRuns(el, {}, runs);
+    // A line's last <br> is the browser's way of holding an empty line open, not a line of its own
+    if (runs.length && runs[runs.length - 1].text === '\n') runs.pop();
     out.push({ id: newBlockId(), list, runs: runs.length ? runs : [{ text: '' }] });
   };
   for (const node of Array.from(root.childNodes)) {

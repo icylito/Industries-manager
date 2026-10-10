@@ -74,6 +74,8 @@ if s in (200, 201):
         check(f"{method} on another person's board answers 404", s == 404, (s, b))
     s, rows = send("GET", "/scratchpad/boards", token=other)
     check("their list doesn't show it", all(r["id"] != board for r in rows), rows)
+    s, b = send("DELETE", f"/users/{made_user['user']['id']}", token=admin)
+    check("the second account is deleted again", s in (200, 204), (s, b))
 else:
     print(f"  (couldn't make a second account: {s} {made_user}, skipped)")
 
@@ -141,6 +143,8 @@ for label, body in [
     ("a held key twice", {"shortcuts": {"sp.pen": ["Ctrl+Ctrl+P"]}, "mouse": {}, "theme": None}),
     ("the same key twice for one function", {"shortcuts": {"sp.pen": ["P", "P"]}, "mouse": {}, "theme": None}),
     ("one key for two functions on one page", {"shortcuts": {"sp.pen": ["Q"], "sp.marker": ["Q"]}, "mouse": {}, "theme": None}),
+    ("a key another function on the page has by default", {"shortcuts": {"sp.pen": ["M"]}, "mouse": {}, "theme": None}),
+    ("a two key sequence that starts with a default key", {"shortcuts": {"sp.pen": ["G", "O"]}, "mouse": {}, "theme": None}),
     ("a key that starts another function's two key sequence", {"shortcuts": {"nav.next": ["Q"], "sp.pen": ["Q", "W"]}, "mouse": {}, "theme": None}),
     ("a theme that isn't light or dark", {"shortcuts": {}, "mouse": {}, "theme": "sepia"}),
 ]:
@@ -154,11 +158,14 @@ ts = open(os.path.join(here, "..", "angular", "src", "app", "services", "shortcu
 cs = open(os.path.join(here, "..", "api_v2", "Endpoints", "MeEndpoints.cs"), encoding="utf-8").read()
 ts_fonts = open(os.path.join(here, "..", "angular", "src", "app", "Components", "scratchpad", "rich-text.ts"), encoding="utf-8").read()
 rules = open(os.path.join(here, "..", "api_v2", "Scratchpad", "BoardRules.cs"), encoding="utf-8").read()
-page_ids = set(re.findall(r"\{ id: '([a-z]+\.[A-Za-z0-9]+)'", ts)) | {f"ov.slice{n}" for n in range(1, 6)}
-page_ids = {i for i in page_ids if not i.startswith("mouse.") and i != "ov.slice"}
-api_block = cs[cs.index("KnownCommands"):cs.index("];", cs.index("KnownCommands"))]
-api_ids = set(re.findall(r'"([a-z]+\.[A-Za-z0-9]+)"', api_block))
-check("the API knows exactly the page's shortcut ids", page_ids == api_ids, (sorted(page_ids - api_ids), sorted(api_ids - page_ids)))
+# Each command with its default keys: ('sp.pen', ('P',)), from the page's COMMANDS and the API's CommandDefaults
+page_defaults = {i: tuple(re.findall(r"'([^']+)'", d)) for i, d in re.findall(r"\{ id: '([a-z]+\.[A-Za-z0-9]+)'[^\n]*?def: \[([^\]]*(?:\][^,\]]*)?)\]", ts)}
+page_defaults.update({f"ov.slice{n}": (str(n),) for n in range(1, 6)})
+page_defaults.pop("ov.slice", None)
+api_block = cs[cs.index("CommandDefaults = new()"):cs.index("};", cs.index("CommandDefaults = new()"))]
+api_defaults = {i: tuple(re.findall(r'"([^"]+)"', d)) for i, d in re.findall(r'\["([a-z]+\.[A-Za-z0-9]+)"\] = \[(.*?)\](?:,|\s*$)', api_block, re.M)}
+check("the API knows exactly the page's shortcut ids and their default keys", page_defaults == api_defaults,
+      sorted(set(page_defaults.items()) ^ set(api_defaults.items())))
 page_fonts = set(re.findall(r"'([A-Za-z0-9 ]+)'", ts_fonts[ts_fonts.index("FONT_GROUPS"):ts_fonts.index("];", ts_fonts.index("FONT_GROUPS"))])) - {"Sans serif", "Serif", "Monospace", "Display", "Handwriting"}
 api_fonts = set(re.findall(r'"([A-Za-z0-9 ]+)"', rules[rules.index("Fonts ="):rules.index("];", rules.index("Fonts ="))]))
 check("the API knows exactly the page's 28 fonts", page_fonts == api_fonts and len(api_fonts) == 28, (sorted(page_fonts ^ api_fonts), len(api_fonts)))

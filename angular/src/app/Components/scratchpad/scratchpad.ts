@@ -305,7 +305,7 @@ export class ScratchpadPage {
 
   async keepMine(): Promise<void> {
     const id = await this.board.keepMineAsNewBoard();
-    if (id == null) { this.notice.show(["Couldn't make the new board. Try again in a moment."]); return; }
+    if (typeof id === 'string') { this.notice.show([/[.!?]$/.test(id) ? id : id + '.']); return; }
     void this.boards.load();
     void this.router.navigate([], { queryParams: { board: id }, queryParamsHandling: 'merge', replaceUrl: true });
     this.notice.show(['Your changes are kept as a new board, "' + this.board.boardName() + '". The other one is as it was saved elsewhere.']);
@@ -529,7 +529,8 @@ export class ScratchpadPage {
   placeSnap(snap: Snapshot, center?: { x: number; y: number }): void {
     if (this.board.status() !== 'ready') return;
     if (this.tab() !== 'board') this.showTab('board');
-    this.board.place('snap', center ? { center } : 'auto', { snap });
+    // A full board refuses it, and then it stays in the tray
+    if (this.board.place('snap', center ? { center } : 'auto', { snap }) == null) return;
     this.tray.placed(this.board.lastStep(), snap);
   }
 

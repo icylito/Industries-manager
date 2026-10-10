@@ -209,7 +209,7 @@ describe('Scratchpad page', () => {
 
   it('gives a picked note the TEXT bar: bold, alignment and paper for the whole note, each one undo step', async () => {
     const { fixture, page, board, el } = await open();
-    const id = board.place('note', 'auto', {});
+    const id = board.place('note', 'auto', {})!;
     board.apply({ op: 'patch', ids: [id], patch: { blocks: [{ id: 'b', list: 'none', runs: [{ text: 'slow movers' }] }] } });
     fixture.detectChanges();
     expect(el.querySelector('.ctx-label')?.textContent).toBe('Text');
@@ -244,7 +244,7 @@ describe('Scratchpad page', () => {
   it('nudges with the arrow keys, a burst being one undo step, and Delete removes what is picked', async () => {
     const { page, board } = await open();
     vi.useFakeTimers();
-    const id = board.place('note', 'auto', {});
+    const id = board.place('note', 'auto', {})!;
     const start = board.doc().items[0];
     const key = (k: string, shift = false) => document.dispatchEvent(new KeyboardEvent('keydown', { key: k, shiftKey: shift, bubbles: true }));
     key('ArrowRight'); key('ArrowRight'); key('ArrowDown', true);

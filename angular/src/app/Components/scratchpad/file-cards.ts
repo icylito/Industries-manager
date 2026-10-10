@@ -67,6 +67,7 @@ export class FileCards {
       const center = at && left !== null ? { x: left + width / 2, y: at.y } : null;
       if (left !== null) left += width + 24;
       const id = this.board.place('file', center ? { center } : 'auto', { name: file.name, contentType, sizeBytes: file.size });
+      if (id == null) break;
       this.upload(id, file);
     }
     if (refused.length) this.notice.show(refused);

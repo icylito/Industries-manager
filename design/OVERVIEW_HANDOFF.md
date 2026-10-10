@@ -435,6 +435,13 @@ The user's direction for this round: the Scratchpad is a genuine scratchpad wher
 - The API refuses one key for two functions that can fire on the same page (or a key that starts another's two key sequence).
 - A new note's empty line is drawn with a `<br>`, so the first word typed goes into it rather than making a second, empty line.
 
+**After the critic's third grade** (raw 97 of 100, held at 4 by one way of losing work; taken as a pass)
+- A board left while "changed somewhere else" showed, whose "(my copy)" board can't be made (100 boards, or the connection gone), keeps its changes: opening it again shows it as it was left, with Reload or Keep mine as a new board. The message says why the copy failed and stays on screen long enough to read. They last until the page reloads.
+- Coming back quickly on a slow link opens the board as it was left even when its save lands while the board loads, so no false "changed somewhere else".
+- Keep mine as a new board says the API's reason when it can't (the 100 boards limit), not "try again".
+- A board takes no 501st thing: adding, dropping, copying or placing a snapshot is refused with a word, a refused snapshot stays in the tray, and Alt + drag refused keeps what was picked.
+- `check_scratchpad.py` deletes the second account it makes.
+
 **Different from the plans, on purpose**
 - The board's view is saved on the server per board with a PATCH (debounced), not in browser storage, so a board opens where it was left on any browser.
 - While typing, every Ctrl key still works except the board's edit keys (Ctrl+A, D, G, [ and ]), which leave the text box its own.

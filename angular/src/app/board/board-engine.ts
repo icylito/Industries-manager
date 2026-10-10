@@ -5,7 +5,8 @@ import { BoardDocument, BoardItem, BoardItemType, BoardView, ItemOf, ScratchFile
 import { ScratchApi } from './scratch-api';
 import { BoardSync, Conflict, DrainEnd, SaveState } from './board-sync';
 import { Toast } from '../services/toast';
-import { MAX_BOARD_POINTS } from './tools';
+import { errorText } from '../services/industry-api';
+import { MAX_BOARD_ITEMS, MAX_BOARD_POINTS } from './tools';
 import { Op, Position, applyOp, copiesOf, emptyDocument, openDocument } from './ops';
 import { KINDS, newId } from './item-kinds';
 import { Point, bestBend, bounds, freeSpot, tidyView } from './geometry';
@@ -48,8 +49,9 @@ interface Session {
   nudge: { tx: OpenTx; timer: ReturnType<typeof setTimeout> } | null;
 }
 
-// A board that was left while its save was still on its way: the session as it was, the board as it was left
-interface Leaving { session: Session; doc: BoardDocument; name: string; }
+// A board that was left while its save was still on its way: the session as it was, the board as it was left.
+// stranded: saving could not go on and no new board could be made, so the changes wait here for the person.
+interface Leaving { session: Session; doc: BoardDocument; name: string; stranded?: boolean; }
 
 class OpenTx implements Tx {
   open = true;
@@ -104,19 +106,23 @@ export class BoardEngine {
     this.dispose();
     this.status.set('loading');
     this.boardId.set(id);
+    // Left a moment ago and its save isn't through (the API was away, say), or its changes found no home: the
+    // server's copy is behind, so the board opens as it was left and its save carries on from there. Taken now,
+    // before the server answers, so a save that ends while the board loads can't leave it behind.
+    const left = this.leaving.get(id);
+    const away = left && (left.stranded || left.session.sync.draining) ? left : undefined;
+    if (away) this.leaving.delete(id);
     try {
       const answer = await firstValueFrom(this.api.board(id));
-      if (this.boardId() !== id) return false;
+      if (this.boardId() !== id) { if (away) this.leaving.set(id, away); return false; }
       if (!answer.document || answer.document.version !== 1 || !Array.isArray(answer.document.items)) throw new Error('unreadable');
       this.view.set(tidyView(answer.view));
       this.boardName.set(answer.name);
-      // Left a moment ago and its save isn't through (the API was away, say): the server's copy is behind, so the
-      // board opens as it was left and its save carries on from there. Otherwise, as the server has it.
-      const away = this.leaving.get(id);
-      if (away?.session.sync.draining) {
-        this.leaving.delete(id);
+      if (away) {
         this.doc.set(away.doc);
-        away.session.sync.resume(() => this.doc());
+        // Still saving: carry on. Its save ended while this loaded, or it was stranded: bring saving back to life.
+        if (away.session.sync.draining) away.session.sync.resume(() => this.doc());
+        else away.session.sync.reopen(() => this.doc());
         this.session.set(away.session);
       } else {
         this.doc.set(openDocument(answer.document));
@@ -129,6 +135,7 @@ export class BoardEngine {
       this.status.set('ready');
       return true;
     } catch {
+      if (away) this.leaving.set(id, away);
       if (this.boardId() === id) this.status.set('error');
       return false;
     }
@@ -180,11 +187,17 @@ export class BoardEngine {
       return;
     }
     const name = (away.name + ' (my copy)').slice(0, 60);
+    const why = away.session.sync.conflict() === 'deleted' ? 'was deleted somewhere else' : 'was changed somewhere else';
     try {
       await firstValueFrom(this.api.createBoard(name, away.doc));
-      this.toast.say('"' + away.name + '" was changed somewhere else, so your changes are kept as a new board, "' + name + '".');
-    } catch {
-      this.toast.say('Your last changes to "' + away.name + '" could not be saved anywhere yet. Check the connection, then open the board again.');
+      this.toast.say('"' + away.name + '" ' + why + ', so your changes are kept as a new board, "' + name + '".', 'long');
+    } catch (error) {
+      // Nowhere to put them yet: they wait here, and opening the board again offers Reload or Keep mine again
+      away.stranded = true;
+      if (!this.leaving.has(away.session.id)) this.leaving.set(away.session.id, away);
+      const reason = error instanceof HttpErrorResponse ? errorText(error, 'the new board could not be made') : 'the new board could not be made';
+      this.toast.say('"' + away.name + '" ' + why + ' and your changes could not be kept as a new board (' + reason.replace(/\.$/, '')
+        + '). They wait on "' + away.name + '" until this page reloads: open it again to choose.', 'long');
     }
   }
 
@@ -195,10 +208,10 @@ export class BoardEngine {
   }
 
   // After a conflict: everything on this page becomes a new board, so nothing is lost and nothing is overwritten.
-  // Undo history comes along. Answers the new board's id.
-  async keepMineAsNewBoard(): Promise<number | null> {
+  // Undo history comes along. Answers the new board's id, or why it could not be made.
+  async keepMineAsNewBoard(): Promise<number | string> {
     const session = this.session();
-    if (!session) return null;
+    if (!session) return 'No board is open';
     this.commitOpen();
     const name = (this.boardName() + ' (my copy)').slice(0, 60);
     try {
@@ -209,8 +222,10 @@ export class BoardEngine {
       this.boardName.set(made.name);
       this.setView(this.view());
       return made.id;
-    } catch {
-      return null;
+    } catch (error) {
+      // Why, in the API's words (the 100 boards limit, say)
+      const fallback = "Couldn't make the new board. Try again in a moment";
+      return error instanceof HttpErrorResponse ? errorText(error, fallback) : fallback;
     }
   }
 
@@ -266,8 +281,9 @@ export class BoardEngine {
     return this.step('future', 'past');
   }
 
-  // A new thing, in free space or where it was dropped, picked so it can be used straight away
-  place<T extends BoardItemType>(type: T, placement: Placement, init: Partial<ItemOf<T>>, options: { back?: boolean } = {}): string {
+  // A new thing, in free space or where it was dropped, picked so it can be used straight away. Answers its id,
+  // or null when the board is full and it was refused with a word.
+  place<T extends BoardItemType>(type: T, placement: Placement, init: Partial<ItemOf<T>>, options: { back?: boolean } = {}): string | null {
     const kind = KINDS[type];
     const size = { w: init.w ?? kind.size(init as never).w, h: init.h ?? kind.size(init as never).h };
     const spot = placement === 'auto'
@@ -275,6 +291,7 @@ export class BoardEngine {
       : { x: placement.center.x - size.w / 2, y: placement.center.y - size.h / 2 };
     const item = { ...kind.defaults(), ...init, id: newId(), type, x: spot.x, y: spot.y, w: size.w, h: size.h } as unknown as BoardItem;
     this.apply({ op: 'add', items: [item], back: options.back });
+    if (!this.doc().items.some(one => one.id === item.id)) return null;
     this.pick(item.id);
     return item.id;
   }
@@ -287,6 +304,10 @@ export class BoardEngine {
     const { op, idFor } = copiesOf(this.doc(), ids, offset, newId);
     if (op.items.length === 0) return idFor;
     const points = (items: readonly BoardItem[]) => items.reduce((sum, item) => sum + (item.type === 'stroke' ? item.points.length / 2 : 0), 0);
+    if (this.doc().items.length + op.items.length > MAX_BOARD_ITEMS) {
+      this.full();
+      return new Map();
+    }
     if (points(this.doc().items) + points(op.items) > MAX_BOARD_POINTS) {
       this.toast.say('Copying that would take the board past the drawing it can hold. Delete a drawing, or start a new board.');
       return new Map();
@@ -475,10 +496,16 @@ export class BoardEngine {
   // ---- inside ----
 
   private live(op: Op): void {
+    // Every new thing comes through here, so a board never takes more than it can save
+    if (op.op === 'add' && this.doc().items.length + op.items.length > MAX_BOARD_ITEMS) { this.full(); return; }
     const next = applyOp(this.doc(), op);
     if (next === this.doc()) return;
     this.doc.set(next);
     this.session()?.sync.changed(false);
+  }
+
+  private full(): void {
+    this.toast.say('A board holds at most ' + MAX_BOARD_ITEMS + ' things. Delete some, or start a new board.');
   }
 
   private finish(tx: OpenTx, keep: boolean): void {

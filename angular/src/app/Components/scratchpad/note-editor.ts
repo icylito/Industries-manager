@@ -168,8 +168,11 @@ export class NoteEditor {
     }
     // One undo step per formatting press: the typing before it is its own step
     this.endBurst();
+    // A press that changes nothing kept (bold with nothing picked, in an empty note) is no undo step
+    const shape = () => JSON.stringify(serializeBlocks(el).map(block => [block.list, block.runs]));
+    const before = shape();
     document.execCommand(command, false, value);
-    this.store();
+    if (shape() !== before) this.store();
     this.endBurst();
     this.updateBar();
   }
