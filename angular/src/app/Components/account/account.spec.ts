@@ -138,7 +138,7 @@ describe('AccountPage picture and name', () => {
     expect(el.querySelector('.profile-initial')?.textContent?.trim()).toBe('A');
   });
 
-  it('changes the name shown, and the username stays under it', async () => {
+  it('changes the name shown, and the line under it follows it with the role', async () => {
     const { fixture, el, http } = render(null);
     (el.querySelector('.profile-name .profile-icon-btn') as HTMLButtonElement).click();
     fixture.detectChanges();
@@ -151,6 +151,6 @@ describe('AccountPage picture and name', () => {
     await new Promise(done => setTimeout(done, 0));
     fixture.detectChanges();
     expect(el.querySelector('.profile-name-text')?.textContent?.trim()).toBe('Ada Lovelace');
-    expect(el.querySelector('.profile-role')?.textContent).toContain('@ada');
+    expect(el.querySelector('.profile-role')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('@Ada Lovelace · Admin');
   });
 });

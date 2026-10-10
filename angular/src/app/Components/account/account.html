@@ -41,7 +41,8 @@
                             <button type="button" class="profile-icon-btn" title="Change the name you show" aria-label="Change the name you show" (click)="startNaming()"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>
                         </h2>
                     }
-                    <span class="profile-role">&#64;{{ user.username }} &middot; {{ roleLabel() }}</span>
+                    <!-- @ is who they are (the name they show), the dot their role -->
+                    <span class="profile-role">&#64;{{ user.displayName || user.username }} &middot; {{ roleLabel() }}</span>
                 </div>
                 <div class="profile-actions">
                     @if (!user.mustChangePassword) {
