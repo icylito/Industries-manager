@@ -119,7 +119,7 @@ public static class IndustryEndpoints
                 }
 
                 var name = input.Values["name"] as string ?? "";
-                if (Names.Key(name) == "")
+                if (Names.HasNoLetters(name))
                 {
                     return Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = [Names.NoKeyMessage] });
                 }
@@ -197,11 +197,11 @@ public static class IndustryEndpoints
                 }
 
                 var name = input.Values["name"] as string ?? "";
-                if (Names.Key(name) == "")
+                if (Names.HasNoLetters(name))
                 {
                     return Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = [Names.NoKeyMessage] });
                 }
-                var renamed = !await Names.SameAsync(db, name, checker2.Name, ct);
+                var renamed = !Names.Same(name, checker2.Name);
                 // A flagged import row keeps its name and its flag while the rest of it gets fixed
                 var staysDuplicate = checker2.DuplicateOf is not null && !renamed;
                 if (!staysDuplicate && await Names.TakenAsync(db, name, id, ct))
@@ -362,7 +362,7 @@ public static class IndustryEndpoints
         var flaggedIds = flagged.Select(f => f.Id).ToArray();
         var found = await db.Database.SqlQuery<int>($"""
             SELECT "Id" AS "Value" FROM "Industries"
-            WHERE "DuplicateOf" IS NULL AND name_key("Name") = name_key({name}) AND "Id" <> ALL({flaggedIds})
+            WHERE "DuplicateOf" IS NULL AND "Name" COLLATE name_rule = {name} AND "Id" <> ALL({flaggedIds})
             ORDER BY "Id" LIMIT 1
             """).ToListAsync();
         int? newOwner = found.Count == 0 ? null : found[0];

@@ -8,8 +8,8 @@ using NpgsqlTypes;
 
 namespace api_v2.Rules;
 
-// Names are cleaned before they are saved. Two names are compared by their key (Key below): in Postgres with the
-// function name_key when the database holds them, in C# with Key for lists the page sends, like field labels.
+// Names are cleaned before they are saved. Two names are compared by the one name rule (Same below): in Postgres with
+// the collation name_rule when the database holds them, in C# for lists the page sends, like field labels.
 public static class Names
 {
     // 200 characters is at most 800 bytes, under the 2704 byte limit of the name index
@@ -36,20 +36,22 @@ public static class Names
     }
 
     // One name rule for everything with a name: companies, tables, fields, columns and accounts. Two names are the
-    // same when they match after ignoring capital letters, accents, spaces, punctuation and symbols, in any script:
-    // "Acme, Inc.", "ACME inc" and "acme-inc" are one name, "شركة" stays "شركة". The database has the same rule as
-    // the function name_key (Migrations/*_OneNameRule.cs), which the unique indexes use, so the two never disagree.
-    // An empty key (a name of only symbols) is no name at all.
-    public static string Key(string? name)
-    {
-        if (string.IsNullOrEmpty(name)) return "";
-        var builder = new StringBuilder(name.Length);
-        foreach (var ch in name.ToLowerInvariant().Normalize(NormalizationForm.FormKD))
-        {
-            if (char.IsLetterOrDigit(ch)) builder.Append(ch);
-        }
-        return builder.ToString();
-    }
+    // same when they match ignoring capital letters, accents, spaces, punctuation and symbols, in any script, by ICU,
+    // the Unicode library Postgres, .NET and browsers all use: "Acme, Inc.", "ACME inc" and "acme-inc" are one name,
+    // "ΟΔΟΣ" and "οδος" are one, but Hindi "काम" and "कम" stay two words. The database has the same rule as the
+    // collation name_rule (Migrations/*_OneNameRule.cs, locale und-u-ka-shifted-ks-level1-kv-currency), which the
+    // unique indexes use; the page has it in services/name-key.ts. testing/check_names.py checks the three agree.
+    private static readonly CompareInfo Rule = CultureInfo.InvariantCulture.CompareInfo;
+    private const CompareOptions RuleOptions = CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace
+        | CompareOptions.IgnoreSymbols | CompareOptions.IgnoreKanaType | CompareOptions.IgnoreWidth;
+
+    public static bool Same(string? a, string? b) => Rule.Compare(a ?? "", b ?? "", RuleOptions) == 0;
+
+    // A name of only symbols, spaces or punctuation is no name at all
+    public static bool HasNoLetters(string? name) => Same(name, "");
+
+    // A value two names share exactly when they are the same name, for grouping names in memory
+    public static string Key(string? name) => Convert.ToHexString(Rule.GetSortKey(name ?? "", RuleOptions).KeyData);
 
     public const string NoKeyMessage = "A name needs at least one letter or digit";
 
@@ -68,28 +70,12 @@ public static class Names
     {
         var count = await db.Database.SqlQuery<int>($"""
             SELECT count(*)::int AS "Value" FROM "Industries"
-            WHERE "DuplicateOf" IS NULL AND name_key("Name") = name_key({name}) AND "Id" <> {exceptId ?? 0}
+            WHERE "DuplicateOf" IS NULL AND "Name" COLLATE name_rule = {name} AND "Id" <> {exceptId ?? 0}
             """).SingleAsync(ct);
         return count > 0;
     }
 
-    public static async Task<bool> SameAsync(AppDbContext db, string a, string b, CancellationToken ct = default)
-    {
-        return await db.Database.SqlQuery<bool>($"""
-            SELECT name_key({a}) = name_key({b}) AS "Value"
-            """).SingleAsync(ct);
-    }
-
-    public static async Task<Dictionary<string, string>> KeysAsync(NpgsqlConnection conn, NpgsqlTransaction? tx,
-        IEnumerable<string> names, CancellationToken ct = default)
-    {
-        var list = names.Distinct().ToArray();
-        var map = new Dictionary<string, string>();
-        if (list.Length == 0) return map;
-        await using var cmd = new NpgsqlCommand("""SELECT n, name_key(n) FROM unnest(@names) AS n""", conn, tx);
-        cmd.Parameters.Add(new NpgsqlParameter("names", NpgsqlDbType.Array | NpgsqlDbType.Text) { Value = list });
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct)) map[reader.GetString(0)] = reader.GetString(1);
-        return map;
-    }
+    // The key of each name, for grouping a batch of names by the rule
+    public static Dictionary<string, string> Keys(IEnumerable<string> names) =>
+        names.Distinct().ToDictionary(name => name, Key);
 }

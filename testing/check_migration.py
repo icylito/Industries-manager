@@ -113,7 +113,8 @@ def named_boards_tidy():
 
 # The one name rule. Before going forward: two companies and two live tables whose names differ only in case,
 # spaces and symbols. Going forward flags the later company as a copy of the first and adds the later table's number
-# to its name; going back puts the older indexes on and keeps those flags and names (its Down says so).
+# to its name (with a count when that name is taken too); going back puts the older indexes on and keeps those flags
+# and names (its Down says so).
 # Run with EXPECT_CHANGED=Industries,UserTables.
 name_rule = {}
 
@@ -126,13 +127,19 @@ def one_name_prepare():
     for name in ("Rule Table", "rule-table!"):
         name_rule[name] = sql(t.MAIN_DB, f"""INSERT INTO "UserTables" ("Name", "Columns", "RowCount", "CreatedBy", "CreatedAt", "UpdatedAt", "Version")
             VALUES ('{name}', '[]', 0, 'check', now(), now(), 1) RETURNING "Id" """).splitlines()[0]
+    # A third table already holding the name the rename would first pick ("rule-table! (id)" is "Rule Table (id)"
+    # by the rule), so the rename has to keep looking (critic, round 1, D1)
+    taken = f"Rule Table ({name_rule['rule-table!']})"
+    sql(t.MAIN_DB, f"""INSERT INTO "UserTables" ("Name", "Columns", "RowCount", "CreatedBy", "CreatedAt", "UpdatedAt", "Version")
+        VALUES ('{taken}', '[]', 0, 'check', now(), now(), 1)""")
 
 def one_name_forward():
     first, later = name_rule["Rule Check Co."], name_rule["rule-check co"]
     flag = sql(t.MAIN_DB, f"""SELECT coalesce("DuplicateOf"::text, 'none') FROM "Industries" WHERE "Id" = {later}""")
     check("going forward flags the later company as a copy of the first", flag == first, flag)
     renamed = sql(t.MAIN_DB, f"""SELECT "Name" FROM "UserTables" WHERE "Id" = {name_rule['rule-table!']}""")
-    check("and adds the later table's number to its name", renamed == f"rule-table! ({name_rule['rule-table!']})", renamed)
+    check("and gives the later table a name no other table has, its number and a count",
+          renamed == f"rule-table! ({name_rule['rule-table!']}-2)", renamed)
     try:
         sql(t.MAIN_DB, """INSERT INTO "UserTables" ("Name", "Columns", "RowCount", "CreatedBy", "CreatedAt", "UpdatedAt", "Version")
                           VALUES ('RULE  table', '[]', 0, 'check', now(), now(), 1)""")

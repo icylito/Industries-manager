@@ -27,14 +27,14 @@ public static class UserService
         if (clean.Length == 0) return "Type a username";
         if (!NameRule.IsMatch(clean)) return "A username is 3 to 32 letters, digits, dots, dashes or underscores";
         if (Reserved.Contains(clean)) return "That username is kept for the system, pick another";
-        if (Names.Key(clean) == "") return Names.NoKeyMessage;
+        if (Names.HasNoLetters(clean)) return Names.NoKeyMessage;
         return null;
     }
 
     // True when another account has the same username by the one name rule (Rules/Names.cs): "ali.k" and "ali_k"
     public static async Task<bool> UsernameTakenAsync(AppDbContext db, string username, int? exceptId, CancellationToken ct) =>
         await db.Database.SqlQuery<int>($"""
-            SELECT count(*)::int AS "Value" FROM "Users" WHERE name_key("Username") = name_key({username}) AND "Id" <> {exceptId ?? 0}
+            SELECT count(*)::int AS "Value" FROM "Users" WHERE "Username" COLLATE name_rule = {username} AND "Id" <> {exceptId ?? 0}
             """).SingleAsync(ct) > 0;
 
     // After a rename or a delete, an account flagged for clashing may not clash any more: its flag clears when no
@@ -42,7 +42,7 @@ public static class UserService
     public static async Task RefreshNameClashesAsync(AppDbContext db, CancellationToken ct) =>
         await db.Database.ExecuteSqlRawAsync("""
             UPDATE "Users" AS u SET "NameClash" = EXISTS (
-                SELECT 1 FROM "Users" AS o WHERE o."Id" < u."Id" AND name_key(o."Username") = name_key(u."Username"))
+                SELECT 1 FROM "Users" AS o WHERE o."Id" < u."Id" AND o."Username" COLLATE name_rule = u."Username")
             WHERE u."NameClash"
             """, ct);
 

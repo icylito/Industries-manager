@@ -131,7 +131,7 @@ public static class HistoryEndpoints
             var plan = await writer.PlanAsync(v, forRestore: true, ct);
 
             // Refuse before anything is saved, so a refused restore leaves no copy behind
-            if (await writer.HasNameClashAsync(plan, ct)) return Results.Conflict(SameNameMessage);
+            if (TableWriter.HasNameClash(plan)) return Results.Conflict(SameNameMessage);
 
             long? copyId;
             try

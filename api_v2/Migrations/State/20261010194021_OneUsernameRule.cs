@@ -13,13 +13,17 @@ namespace api_v2.Migrations.State
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // The one name rule (Rules/Names.cs, Names.Key) as a database function, so unique indexes can use it:
-            // lowercase, accents taken apart and dropped, and everything that isn't a letter or a digit removed.
-            // Both chains make it (CREATE OR REPLACE), whichever comes first.
+            // The one name rule (Rules/Names.cs) as an ICU collation, so unique indexes and comparisons can use it: equal
+            // ignoring case and accents (level1) and spaces, punctuation, symbols and currency signs (ka-shifted up to
+            // kv-currency). Not deterministic, so two different strings can be one name. Both chains make it if it
+            // isn't there yet, whichever comes first.
             migrationBuilder.Sql("""
-                CREATE OR REPLACE FUNCTION name_key(text) RETURNS text
-                LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
-                AS $$ SELECT regexp_replace(normalize(lower($1), NFKD), '[^[:alnum:]]', '', 'g') $$;
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_collation WHERE collname = 'name_rule') THEN
+                        CREATE COLLATION name_rule (provider = icu, locale = 'und-u-ka-shifted-ks-level1-kv-currency', deterministic = false);
+                    END IF;
+                END $$;
                 """);
 
             migrationBuilder.AddColumn<bool>(
@@ -31,9 +35,9 @@ namespace api_v2.Migrations.State
 
             migrationBuilder.Sql("""
                 UPDATE "Users" AS u SET "NameClash" = true
-                WHERE EXISTS (SELECT 1 FROM "Users" AS o WHERE o."Id" < u."Id" AND name_key(o."Username") = name_key(u."Username"));
+                WHERE EXISTS (SELECT 1 FROM "Users" AS o WHERE o."Id" < u."Id" AND o."Username" COLLATE name_rule = u."Username");
 
-                CREATE UNIQUE INDEX "IX_Users_NameKey" ON "Users" (name_key("Username")) WHERE NOT "NameClash";
+                CREATE UNIQUE INDEX "IX_Users_NameRule" ON "Users" ("Username" COLLATE name_rule) WHERE NOT "NameClash";
                 """);
         }
 
@@ -41,19 +45,19 @@ namespace api_v2.Migrations.State
         // Going back loses the clash flags; usernames themselves are untouched
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.Sql("""DROP INDEX IF EXISTS "IX_Users_NameKey";""");
+            migrationBuilder.Sql("""DROP INDEX IF EXISTS "IX_Users_NameRule";""");
 
             migrationBuilder.DropColumn(
                 name: "NameClash",
                 table: "Users");
 
-            // The function goes only when no index of either chain still uses it
+            // The collation goes only when no index of either chain still uses it
             migrationBuilder.Sql("""
                 DO $$
                 BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM pg_depend d JOIN pg_proc p ON p.oid = d.refobjid
-                                   WHERE p.proname = 'name_key' AND d.classid = 'pg_class'::regclass) THEN
-                        DROP FUNCTION IF EXISTS name_key(text);
+                    IF NOT EXISTS (SELECT 1 FROM pg_depend d JOIN pg_collation c ON c.oid = d.refobjid
+                                   WHERE c.collname = 'name_rule' AND d.classid = 'pg_class'::regclass) THEN
+                        DROP COLLATION IF EXISTS name_rule;
                     END IF;
                 END $$;
                 """);

@@ -1,5 +1,5 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { nameKey } from '../../services/name-key';
+import { hasNoLetters, sameName } from '../../services/name-key';
 import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FieldRule, NewField, RuleSet } from '../../models/industry';
@@ -239,8 +239,8 @@ export class FieldsPage implements OnInit {
     if (this.hasHidden(label)) return "The label can't contain line breaks or hidden characters";
     const taken = [...this.draft().map(f => f.label), ...this.queue().map(f => f.label)];
     // Labels are names: the one name rule decides when two are the same (services/name-key.ts)
-    if (!nameKey(label)) return 'A name needs at least one letter or digit';
-    if (taken.some(existing => nameKey(existing) === nameKey(label))) {
+    if (hasNoLetters(label)) return 'A name needs at least one letter or digit';
+    if (taken.some(existing => sameName(existing, label))) {
       return 'A field with that label already exists';
     }
     const type = this.newType();

@@ -47,9 +47,9 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
         var owners = new Dictionary<string, int>();
         if (!forRestore)
         {
-            await using var cmd = new NpgsqlCommand($"""SELECT "Id", name_key("Name") FROM "{Table}" WHERE "DuplicateOf" IS NULL""", conn);
+            await using var cmd = new NpgsqlCommand($"""SELECT "Id", "Name" FROM "{Table}" WHERE "DuplicateOf" IS NULL ORDER BY "Id" """, conn);
             await using var reader = await cmd.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct)) owners.TryAdd(reader.GetString(1), reader.GetInt32(0));
+            while (await reader.ReadAsync(ct)) owners.TryAdd(Names.Key(reader.GetString(1)), reader.GetInt32(0));
         }
 
         var fields = rules.Current.Fields;
@@ -169,10 +169,30 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
                 keepDuplicate, keepImported));
         }
 
+        // A version saved under the older, looser name rule can hold two originals today's rule says are one name.
+        // The later becomes a copy of the earlier, the same as OneNameRule did to the live table, so the version can
+        // still be restored and nothing in it is lost.
+        if (forRestore)
+        {
+            var firstWith = new Dictionary<string, int>();
+            foreach (var i in Enumerable.Range(0, planned.Count).OrderBy(i => planned[i].OldId ?? int.MaxValue))
+            {
+                var row = planned[i];
+                if (row.Skip is not null || row.KeepDuplicateOf is not null || row.OldId is not int oldId
+                    || string.IsNullOrEmpty(row.Name) || Names.HasNoLetters(row.Name)) continue;
+                var key = Names.Key(row.Name);
+                if (firstWith.TryGetValue(key, out var first))
+                {
+                    row.Problems.Add(new("black", $"Same name as row #{first} by today's name rule, so it comes back as a copy of it"));
+                    planned[i] = row with { KeepDuplicateOf = first };
+                }
+                else firstWith[key] = oldId;
+            }
+        }
+
         if (!forRestore)
         {
-            var keys = await Names.KeysAsync(conn, null,
-                planned.Where(p => p.Skip is null && !string.IsNullOrEmpty(p.Name)).Select(p => p.Name!), ct);
+            var keys = Names.Keys(planned.Where(p => p.Skip is null && !string.IsNullOrEmpty(p.Name)).Select(p => p.Name!));
             for (var i = 0; i < planned.Count; i++)
             {
                 var row = planned[i];
@@ -208,10 +228,10 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
 
         // Owners get read again inside the transaction so nothing changed since the preview
         var owners = new Dictionary<string, int>();
-        await using (var cmd = new NpgsqlCommand($"""SELECT "Id", name_key("Name") FROM "{Table}" WHERE "DuplicateOf" IS NULL""", conn, tx))
+        await using (var cmd = new NpgsqlCommand($"""SELECT "Id", "Name" FROM "{Table}" WHERE "DuplicateOf" IS NULL ORDER BY "Id" """, conn, tx))
         await using (var reader = await cmd.ExecuteReaderAsync(ct))
         {
-            while (await reader.ReadAsync(ct)) owners.TryAdd(reader.GetString(1), reader.GetInt32(0));
+            while (await reader.ReadAsync(ct)) owners.TryAdd(Names.Key(reader.GetString(1)), reader.GetInt32(0));
         }
 
         var rows = plan.Rows.Where(r => r.Skip is null).ToList();
@@ -220,7 +240,7 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
             await tx.CommitAsync(ct);
             return [];
         }
-        var keys = await Names.KeysAsync(conn, tx, rows.Where(r => !string.IsNullOrEmpty(r.Name)).Select(r => r.Name!), ct);
+        var keys = Names.Keys(rows.Where(r => !string.IsNullOrEmpty(r.Name)).Select(r => r.Name!));
         var ids = await NextIdsAsync(conn, tx, rows.Count, ct);
 
         var planned = new List<(PlannedRow Row, int Id, int? DuplicateOf, int? ImportedFrom)>(rows.Count);
@@ -266,17 +286,14 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
     }
 
     // True when two rows that would be restored as originals share a name, the unique index would refuse that.
-    // Flagged copies keep their flag and don't count, same as the index.
-    public async Task<bool> HasNameClashAsync(ImportPlan plan, CancellationToken ct)
+    // Flagged copies keep their flag and don't count, nor do names of only symbols, same as the index. PlanAsync
+    // already flags the later of two names the one name rule says are the same, so this is only a last guard.
+    public static bool HasNameClash(ImportPlan plan)
     {
-        var names = plan.Rows.Where(r => r.Skip is null && r.KeepDuplicateOf is null && !string.IsNullOrEmpty(r.Name))
+        var names = plan.Rows.Where(r => r.Skip is null && r.KeepDuplicateOf is null && !string.IsNullOrEmpty(r.Name) && !Names.HasNoLetters(r.Name))
             .Select(r => r.Name!).ToList();
-        if (names.Count < 2) return false;
-        await using var conn = new NpgsqlConnection(connections.Main);
-        await conn.OpenAsync(ct);
-        var keys = await Names.KeysAsync(conn, null, names, ct);
         var seen = new HashSet<string>();
-        return names.Any(n => !seen.Add(keys[n]));
+        return names.Any(n => !seen.Add(Names.Key(n)));
     }
 
     // Swaps every row in the table for the version's rows, keeping their old ids.

@@ -22,7 +22,7 @@ public static class StateModel
         model.Entity<DevRequest>().HasIndex(r => r.Status);
         model.Entity<User>().Property(u => u.Username).HasMaxLength(32);
         model.Entity<User>().Property(u => u.DisplayName).HasMaxLength(60);
-        // The unique index on name_key(Username) that skips flagged clashes is plain SQL in OneUsernameRule
+        // The unique index on Username with the collation name_rule, skipping flagged clashes, is plain SQL in OneUsernameRule
         model.Entity<User>().Property(u => u.NameClash).HasDefaultValue(false);
         // A person's profile picture, one row each, gone with the account
         model.Entity<UserAvatar>().ToTable("UserAvatars");

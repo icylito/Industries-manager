@@ -103,7 +103,7 @@
 
                     @if (deleting()?.key === f.key) {
                         <div class="ask">
-                            <p><i class="fa-solid fa-circle-question" aria-hidden="true"></i>Delete {{ f.label }}? Its values go from every row. A copy is saved first, so History can bring them back.</p>
+                            <p><i class="fa-solid fa-circle-question" aria-hidden="true"></i>Delete {{ f.label }}? Its values go from every row; History keeps a copy.</p>
                             <div class="confirm-row end">
                                 <button type="button" class="cancel-btn" [disabled]="deleteBusy()" (click)="deleting.set(null)">Cancel</button>
                                 <button type="button" class="add-btn danger" [disabled]="deleteBusy()" (click)="confirmDelete()">

@@ -354,7 +354,7 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
             if (field.Key == "name" && !field.Required) problems.Add("Name always has to be filled in");
             if (field.Key == "name" && field.MaxLength is not (>= 1 and <= Names.MaxLength))
                 problems.Add("Name can be at most 200 characters");
-            if (!string.IsNullOrWhiteSpace(field.Label) && Names.Key(field.Label) == "") problems.Add(Names.NoKeyMessage);
+            if (!string.IsNullOrWhiteSpace(field.Label) && Names.HasNoLetters(field.Label)) problems.Add(Names.NoKeyMessage);
             else if (!labels.Add(Names.Key(field.Label))) problems.Add("Two fields can't have the same label");
             if (problems.Count > 0) errors[field.Key] = [.. problems];
         }
@@ -380,7 +380,7 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
             if (field.Type is not ("text" or "number" or "date")) problems.Add("Type has to be text, number or date");
             var label = field.Label?.Trim() ?? "";
             var key = Names.Key(label);
-            if (label.Length > 0 && key == "")
+            if (label.Length > 0 && Names.HasNoLetters(label))
                 problems.Add(Names.NoKeyMessage);
             else if (label.Length > 0 && Current.Fields.Any(f => Names.Key(f.Label) == key))
                 problems.Add("A field with that label already exists");

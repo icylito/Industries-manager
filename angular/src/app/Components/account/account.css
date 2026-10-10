@@ -249,7 +249,10 @@
 
 .profile-role{
     display: inline-block;
+    max-width: 100%;
     margin-top: 0.3rem;
+    /* A long name with no spaces wraps rather than pushing the page sideways on a phone */
+    overflow-wrap: anywhere;
     color: var(--muted);
     font-size: 0.82rem;
     font-weight: 600;

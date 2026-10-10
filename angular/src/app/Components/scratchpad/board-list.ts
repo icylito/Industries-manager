@@ -45,7 +45,7 @@ export class BoardList {
       const row = this.list()?.nativeElement.querySelector<HTMLElement>('[aria-current="true"]')
         ?? this.list()?.nativeElement.querySelector<HTMLElement>('.bl-name');
       row?.focus();
-      row?.scrollIntoView({ block: 'nearest' });
+      row?.scrollIntoView?.({ block: 'nearest' });
     }, 0);
   }
 
