@@ -16,6 +16,13 @@ export const FONT_GROUPS: FontGroup[] = [
   { label: 'Handwriting', fonts: ['Caveat', 'Pacifico', 'Shadows Into Light', 'Permanent Marker', 'Dancing Script', 'Indie Flower'] },
 ];
 
+// Only the fonts the list offers are kept. Words pasted in from elsewhere keep their own font's look out, so a
+// note never carries a font this page can't show, and the API (Scratchpad/BoardRules.cs) refuses any other.
+const KNOWN_FONTS = new Map(FONT_GROUPS.flatMap(group => group.fonts).map(font => [font.toLowerCase(), font]));
+export function knownFont(name: string): string | undefined {
+  return KNOWN_FONTS.get(name.toLowerCase());
+}
+
 export function ensureFonts(): void {
   for (const group of FONT_GROUPS) for (const font of group.fonts) ensureFont(font);
 }
@@ -106,11 +113,11 @@ function lookOf(el: HTMLElement, inherited: Look): Look {
   const style = el.style;
   if (style.fontWeight === 'bold' || Number(style.fontWeight) >= 600) look.bold = true;
   if (style.backgroundColor && style.backgroundColor !== 'transparent' && style.backgroundColor !== 'rgba(0, 0, 0, 0)') look.highlight = true;
-  if (style.fontFamily) look.font = style.fontFamily.replace(/["']/g, '').split(',')[0].trim();
+  if (style.fontFamily) look.font = knownFont(style.fontFamily.replace(/["']/g, '').split(',')[0].trim()) ?? look.font;
   if (style.fontSize) look.size = sizeFromCss(style.fontSize) ?? look.size;
   if (tag === 'FONT') {
     const face = el.getAttribute('face');
-    if (face) look.font = face;
+    if (face) look.font = knownFont(face.replace(/["']/g, '').split(',')[0].trim()) ?? look.font;
     const size = el.getAttribute('size');
     if (size) look.size = sizeFromExec(size);
   }

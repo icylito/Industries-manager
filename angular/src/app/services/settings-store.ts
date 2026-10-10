@@ -19,6 +19,9 @@ export interface MySettings {
 }
 
 const KEYS = { shortcuts: 'stock-listing-shortcuts', mouse: 'stock-listing-mouse', theme: 'stock-listing-theme' } as const;
+// Whose settings this browser holds: an account id, or nothing when they were made signed out. A browser two
+// people share never carries one person's keys into the other's account.
+const OWNER = 'stock-listing-settings-owner';
 const SAVE_MS = 600;
 
 @Service()
@@ -32,6 +35,9 @@ export class SettingsStore {
   readonly theme = signal<ThemeChoice>(readLocal('theme', null));
 
   private loadedFor: number | null = null;
+  private loading: number | null = null;
+  // A change made while the person's settings were on their way: it is newer, so it wins over what arrives
+  private changedWhileLoading = new Set<keyof MySettings>();
   private timer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
@@ -45,28 +51,49 @@ export class SettingsStore {
   set<K extends keyof MySettings>(key: K, value: MySettings[K]): void {
     (this[key] as WritableSignal<MySettings[K]>).set(value);
     writeLocal(key, value);
-    if (this.loadedFor == null) return;
+    const id = this.auth.user()?.id ?? null;
+    // Signed out, the change stays in this browser and keeps whoever it belonged to
+    if (id == null) return;
+    if (this.loadedFor !== id) {
+      // Not loaded yet, or the first try failed: try again, and this change goes up once it has
+      this.changedWhileLoading.add(key);
+      if (this.loading !== id) void this.fetch(id);
+      return;
+    }
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => void this.send(), SAVE_MS);
   }
 
   private async fetch(id: number | null): Promise<void> {
     this.loadedFor = null;
+    this.loading = id;
     if (id == null) return;
     try {
       const saved = await firstValueFrom(this.http.get<MySettings & { updatedAt: string | null }>(this.url));
       if (this.auth.user()?.id !== id) return;
       this.loadedFor = id;
-      if (saved.updatedAt == null) {
-        // Nothing on the server yet: what this browser had goes up, once
+      const owner = readOwner();
+      // What this browser holds belongs to this person, or to nobody signed in, or to someone else
+      const mine = owner === null || owner === id;
+      const changed = new Set(this.changedWhileLoading);
+      this.changedWhileLoading.clear();
+      setOwner(id);
+      if (saved.updatedAt == null && mine) {
+        // A first sign in with nothing on the server: what this browser had, made by this person or signed out, goes up
         if (Object.keys(this.shortcuts()).length || Object.keys(this.mouse()).length || this.theme()) await this.send();
         return;
       }
-      this.adopt('shortcuts', saved.shortcuts ?? {});
-      this.adopt('mouse', saved.mouse ?? {});
-      this.adopt('theme', saved.theme ?? null);
+      // The server's, or the defaults when the server has nothing and the browser held someone else's. A setting
+      // changed here while they were on their way is newer, so it stays and goes up.
+      const fresh = saved.updatedAt == null;
+      if (!changed.has('shortcuts')) this.adopt('shortcuts', fresh ? {} : saved.shortcuts ?? {});
+      if (!changed.has('mouse')) this.adopt('mouse', fresh ? {} : saved.mouse ?? {});
+      if (!changed.has('theme')) this.adopt('theme', fresh ? null : saved.theme ?? null);
+      if (changed.size) await this.send();
     } catch {
-      // The server didn't answer: this browser's settings stay, and nothing is sent until it does
+      // The server didn't answer: this browser's settings stay, and the next change tries again
+    } finally {
+      if (this.loading === id) this.loading = null;
     }
   }
 
@@ -106,5 +133,22 @@ function writeLocal<K extends keyof MySettings>(key: K, value: MySettings[K]): v
     }
   } catch {
     // Blocked storage, the choice lasts until the page is closed
+  }
+}
+
+function readOwner(): number | null {
+  try {
+    const raw = localStorage.getItem(OWNER);
+    return raw == null ? null : Number(raw);
+  } catch {
+    return null;
+  }
+}
+
+function setOwner(id: number | null): void {
+  try {
+    if (id == null) localStorage.removeItem(OWNER); else localStorage.setItem(OWNER, String(id));
+  } catch {
+    // Blocked storage: nothing is kept to carry anywhere
   }
 }

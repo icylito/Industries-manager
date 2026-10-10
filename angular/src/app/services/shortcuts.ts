@@ -28,6 +28,9 @@ export interface Command {
   def: string[];
   // A Ctrl key the text box keeps while someone is typing in it: inside a note Ctrl+A selects its words, not the board
   notInText?: boolean;
+  // A second key that also runs it, the way people expect from other programs (Ctrl+Shift+Z redoes as well as
+  // Ctrl+Y). Not listed in the panel and never in the way: a key someone binds to another function wins.
+  alias?: string[];
 }
 
 export const COMMANDS: Command[] = [
@@ -53,7 +56,7 @@ export const COMMANDS: Command[] = [
   { id: 'sp.sticky', name: 'New sticky note', desc: 'On the Scratchpad, add a sticky note.', scope: 'scratchpad', def: ['N'] },
   { id: 'sp.text', name: 'New text box', desc: 'On the Scratchpad, add a text box.', scope: 'scratchpad', def: ['T'] },
   { id: 'sp.undo', name: 'Undo', desc: 'On the Scratchpad, take back the last change.', scope: 'scratchpad', def: ['Ctrl+Z'] },
-  { id: 'sp.redo', name: 'Redo', desc: 'On the Scratchpad, bring back what was taken back.', scope: 'scratchpad', def: ['Ctrl+Y'] },
+  { id: 'sp.redo', name: 'Redo', desc: 'On the Scratchpad, bring back what was taken back.', scope: 'scratchpad', def: ['Ctrl+Y'], alias: ['Ctrl+Shift+Z', 'Cmd+Shift+Z'] },
   { id: 'sp.group', name: 'Group', desc: 'On the Scratchpad, group the things picked under a name.', scope: 'scratchpad', def: ['Ctrl+G'], notInText: true },
   { id: 'sp.ungroup', name: 'Ungroup', desc: 'On the Scratchpad, let the picked group go. Its things stay where they are.', scope: 'scratchpad', def: ['Ctrl+Shift+G'], notInText: true },
   { id: 'sp.duplicate', name: 'Duplicate', desc: 'On the Scratchpad, put copies of the picked things beside them.', scope: 'scratchpad', def: ['Ctrl+D'], notInText: true },
@@ -293,7 +296,8 @@ export class Shortcuts {
       const hit = live.find(c => keys[c.id].length === 2 && keys[c.id][0] === pending.combo && keys[c.id][1] === combo);
       if (hit) { e.preventDefault(); this.run(hit, e); return; }
     }
-    const single = live.find(c => keys[c.id].length === 1 && keys[c.id][0] === combo);
+    const single = live.find(c => keys[c.id].length === 1 && keys[c.id][0] === combo)
+      ?? live.find(c => c.alias?.includes(combo) && !Object.values(keys).some(k => k.length === 1 && k[0] === combo));
     if (single) { e.preventDefault(); this.run(single, e); return; }
     if (live.some(c => keys[c.id].length === 2 && keys[c.id][0] === combo)) {
       e.preventDefault();
