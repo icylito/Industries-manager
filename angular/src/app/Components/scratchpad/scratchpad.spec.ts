@@ -14,6 +14,11 @@ import { CompanyRail } from './company-rail';
 import { FileCards } from './file-cards';
 
 const url = environment.apiUrl + '/scratchpad';
+// The boards the sidebar lists: the open one, and a pinned one changed earlier
+const boardList = [
+  { id: 1, name: 'My board', pinned: false, createdAt: 'a', updatedAt: '2026-10-09T08:00:00Z', things: 0 },
+  { id: 2, name: 'Energy story', pinned: true, createdAt: 'a', updatedAt: '2026-10-08T08:00:00Z', things: 12 },
+];
 const row = (id: number, name: string, price: number | null) => ({
   id, name, sector: 'Public Sector', price, release: null, duplicateOf: null, importedFrom: null, lostFields: null, extra: null,
 });
@@ -55,6 +60,7 @@ describe('Scratchpad page', () => {
     const fixture = TestBed.createComponent(ScratchpadPage);
     fixture.detectChanges();
     http.expectOne(r => r.url.endsWith('/industries/top')).flush(top);
+    http.match(url + '/boards').forEach(r => r.flush(boardList));
     http.match(url + '/tray').forEach(r => r.flush({ items: [] }));
     await tick();
     http.expectOne(url + '/boards/1').flush({
@@ -277,26 +283,38 @@ describe('Scratchpad page', () => {
     expect(pill).toContain('Reload (lose 2 changes)');
   });
 
-  it('lists the boards on the History tab and opens one', async () => {
+  it('lists the boards in the sidebar, pinned first, and opens one', async () => {
     const { fixture, el } = await open();
-    params.next(convertToParamMap({ board: '1', tab: 'history' }));
     fixture.detectChanges();
-    http.expectOne(url + '/boards').flush([
-      { id: 1, name: 'My board', pinned: false, createdAt: 'a', updatedAt: '2026-10-09T08:00:00Z', things: 0 },
-      { id: 2, name: 'Energy story', pinned: true, createdAt: 'a', updatedAt: '2026-10-08T08:00:00Z', things: 12 },
-    ]);
-    await tick();
-    fixture.detectChanges();
-    const rows = Array.from(el.querySelectorAll('.bh-row')).map(one => one.textContent ?? '');
-    expect(rows[0]).toContain('Energy story');
-    expect(rows[0]).toContain('12 things');
-    expect(rows[1]).toContain('Open now');
-    // A pinned board can't be deleted until it is unpinned
-    expect((el.querySelectorAll('.bh-row')[0].querySelector('.bh-btn.danger') as HTMLButtonElement).disabled).toBe(true);
+    const rows = Array.from(el.querySelectorAll('.bl-row'));
+    expect(rows[0].textContent).toContain('Energy story');
+    expect(rows[0].querySelector('.bl-name')?.getAttribute('title')).toContain('12 things');
+    expect(rows[1].classList.contains('current')).toBe(true);
+    // A pinned board can't be deleted until it is unpinned, and the open one can't be deleted either
+    expect((rows[0].querySelector('.bl-icon-btn.danger') as HTMLButtonElement).disabled).toBe(true);
+    expect((rows[1].querySelector('.bl-icon-btn.danger') as HTMLButtonElement).disabled).toBe(true);
 
-    (el.querySelector('.bh-name') as HTMLButtonElement).click();
+    (rows[0].querySelector('.bl-name') as HTMLButtonElement).click();
     await tick();
     expect(params.value.get('board')).toBe('2');
+  });
+
+  it('opens and closes a sidebar section on its heading', async () => {
+    const { fixture, el } = await open();
+    const companies = Array.from(el.querySelectorAll('app-explorer-section')).find(one => one.textContent?.includes('Companies'))!;
+    const toggle = companies.querySelector('.ex-toggle') as HTMLButtonElement;
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    toggle.click();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect((companies.querySelector('.ex-body') as HTMLElement).hidden).toBe(true);
+  });
+
+  it('turns an old link to the History tab into the open Boards section', async () => {
+    const { fixture } = await open();
+    params.next(convertToParamMap({ board: '1', tab: 'history' }));
+    fixture.detectChanges();
+    await tick();
     expect(params.value.get('tab')).toBeNull();
   });
 });

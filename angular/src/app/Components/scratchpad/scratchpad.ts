@@ -16,19 +16,20 @@ import { BoardItemView } from './board-item';
 import { CompanyRail, INDUSTRY_DRAG, RailRow, placeIndustry } from './company-rail';
 import { FileCards } from './file-cards';
 import { PageNotice } from './page-notice';
-import { BoardHistory } from './board-history';
+import { BoardList } from './board-list';
+import { ExplorerSection } from './explorer-section';
 import { MAX_FILE_MB, nameForPasted } from './board-files';
 import { FONT_GROUPS, ensureFont, ensureFonts, fontCss } from './rich-text';
 import { SNAP_DRAG, snapWhen } from '../carry-tray/snapshot-look';
 
-// The Scratchpad: one endless board at a time, picked from the person's boards on the History tab. Everything
+// The Scratchpad: one endless board at a time, picked from the person's boards in the sidebar. Everything
 // that changes the board goes through the board engine (board/board-engine.ts), and everything the pointer does
 // on the board is a tool in board/tools.ts. Each thing is drawn by board-item.ts, the companies by company-rail.ts
 // and files are looked after by file-cards.ts. This page lays out the board, routes events, and owns the bars.
 // See OVERVIEW_HANDOFF.md for the feel this must keep.
 @Component({
   selector: 'app-scratchpad',
-  imports: [BoardItemView, CompanyRail, BoardHistory, NgTemplateOutlet, RouterLink],
+  imports: [BoardItemView, CompanyRail, BoardList, ExplorerSection, NgTemplateOutlet, RouterLink],
   providers: [FileCards, PageNotice],
   templateUrl: './scratchpad.html',
   styleUrl: './scratchpad.css',
@@ -48,9 +49,18 @@ export class ScratchpadPage {
   private canvas = viewChild<ElementRef<HTMLElement>>('canvas');
   protected readonly Math = Math;
 
-  // Board or History, and the board asked for, from the address so Back works and a link opens the same board
+  // The board asked for, from the address so Back works and a link opens the same board
   private query = toSignal(this.route.queryParamMap, { initialValue: this.route.snapshot.queryParamMap });
-  tab = computed(() => (this.query().get('tab') === 'history' ? 'history' : 'board'));
+  private boardsSection = viewChild<ExplorerSection>('boardsSection');
+  private boardList = viewChild<BoardList>('boardList');
+  // An old link to the History tab opens the Boards section instead
+  private oldHistoryLink = effect(() => {
+    if (this.query().get('tab') !== 'history') return;
+    untracked(() => {
+      setTimeout(() => this.showBoards(), 0);
+      void this.router.navigate([], { queryParams: { tab: null }, queryParamsHandling: 'merge', replaceUrl: true });
+    });
+  });
   private wanted = computed(() => {
     const id = Number(this.query().get('board'));
     return Number.isInteger(id) && id > 0 ? id : null;
@@ -287,13 +297,15 @@ export class ScratchpadPage {
     }
   }
 
-  // From the History tab: open this board on the Board tab
+  // From the Boards section: open this board
   openBoard(id: number): void {
     void this.router.navigate([], { queryParams: { board: id, tab: null }, queryParamsHandling: 'merge' });
   }
 
-  showTab(tab: 'board' | 'history'): void {
-    void this.router.navigate([], { queryParams: { tab: tab === 'history' ? 'history' : null }, queryParamsHandling: 'merge' });
+  // The board name at the top, or "See all your boards": open the Boards section and go to the open board's row
+  showBoards(): void {
+    this.boardsSection()?.show();
+    this.boardList()?.focusCurrent();
   }
 
   retryOpen(): void {
@@ -358,7 +370,7 @@ export class ScratchpadPage {
   // Space (pan), Delete (remove) and the arrows (nudge) are kept for the browser by the shortcuts panel, so the
   // board takes care of those itself, and only when the person is not typing
   private boardKeyDown(event: KeyboardEvent): void {
-    if (this.tab() !== 'board' || isEditable(event.target) || this.shortcuts.panelOpen()) return;
+    if (isEditable(event.target) || this.shortcuts.panelOpen()) return;
     if (event.code === 'Space') {
       this.spaceDown.set(true);
       event.preventDefault();
@@ -528,7 +540,6 @@ export class ScratchpadPage {
   // Off the tray and onto the board, as a frozen card. Undo puts it back in the tray.
   placeSnap(snap: Snapshot, center?: { x: number; y: number }): void {
     if (this.board.status() !== 'ready') return;
-    if (this.tab() !== 'board') this.showTab('board');
     // A full board refuses it, and then it stays in the tray
     if (this.board.place('snap', center ? { center } : 'auto', { snap }) == null) return;
     this.tray.placed(this.board.lastStep(), snap);
@@ -544,11 +555,25 @@ export class ScratchpadPage {
     if (this.fileOver() === 'button') this.fileOver.set('page');
   }
 
-  onButtonDrop(event: DragEvent): void {
+  // The Images section's drop zone takes pictures. Anything else is told where it goes instead.
+  onImageDrop(event: DragEvent): void {
     event.preventDefault();
     event.stopPropagation();
     this.fileOver.set('none');
-    this.files.add(Array.from(event.dataTransfer?.files ?? []));
+    this.addImages(Array.from(event.dataTransfer?.files ?? []));
+  }
+
+  onPickImages(input: HTMLInputElement): void {
+    const files = Array.from(input.files ?? []);
+    input.value = '';
+    this.addImages(files);
+  }
+
+  private addImages(files: File[]): void {
+    const pictures = files.filter(file => file.type.startsWith('image/'));
+    const others = files.length - pictures.length;
+    if (pictures.length) this.files.add(pictures);
+    if (others) this.notice.show([(others === 1 ? 'One file is' : others + ' files are') + " not a picture, so it wasn't added here. Use + File under Add, or drop it on the board."]);
   }
 
   onPick(input: HTMLInputElement): void {
@@ -559,16 +584,16 @@ export class ScratchpadPage {
 
   // Ctrl+V with a picture on the clipboard puts it on the board. Pasting into a note or a box stays theirs.
   private onPaste(event: ClipboardEvent): void {
-    if (isEditable(event.target) || this.tab() !== 'board') return;
+    if (isEditable(event.target)) return;
     const files = Array.from(event.clipboardData?.files ?? []).filter(file => file.type.startsWith('image/'));
     if (files.length === 0) return;
     event.preventDefault();
     this.files.add(files.map(file => new File([file], nameForPasted(file), { type: file.type })));
   }
 
-  fileButtonLabel = computed(() => {
+  dropLabel = computed(() => {
     const over = this.fileOver();
-    return over === 'button' ? 'Release to add it' : over === 'none' ? '+ File or image' : 'Drop files here';
+    return over === 'button' ? 'Let go to add it' : over === 'none' ? 'Drop pictures here, or click' : 'Drop pictures here';
   });
 
   // ---- paper colours and the TEXT bar ----

@@ -2,8 +2,8 @@
     <header class="head">
         <div class="head-title">
             <h1>
-                @if (tab() === 'board' && board.boardName()) {
-                    <button type="button" class="board-chip" (click)="showTab('history')" title="See all your boards">
+                @if (board.boardName()) {
+                    <button type="button" class="board-chip" (click)="showBoards()" title="See all your boards">
                         <span class="board-name">{{ board.boardName() }}</span>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
                     </button>
@@ -11,10 +11,6 @@
                     Think with your industries.
                 }
             </h1>
-            <div class="tabs" role="tablist" aria-label="Scratchpad">
-                <button type="button" role="tab" class="tab" [class.on]="tab() === 'board'" [attr.aria-selected]="tab() === 'board'" (click)="showTab('board')">Board</button>
-                <button type="button" role="tab" class="tab" [class.on]="tab() === 'history'" [attr.aria-selected]="tab() === 'history'" (click)="showTab('history')">History</button>
-            </div>
         </div>
         <div class="head-side">
             <button type="button" class="ghost" (click)="shortcuts.togglePanel()" [attr.aria-expanded]="shortcuts.panelOpen()">
@@ -58,26 +54,47 @@
         </div>
     </header>
 
-    @if (tab() === 'history') {
-        <app-board-history [current]="board.boardId()" (opened)="openBoard($event)"></app-board-history>
-    } @else {
     <div class="scratch-body">
-        <aside class="rail">
-            <app-company-rail></app-company-rail>
+        <!-- One sidebar, top to bottom, like an editor's Explorer: each section opens and closes on its heading -->
+        <aside class="rail" aria-label="Scratchpad sidebar">
+            <span class="rail-head">Explorer</span>
 
-            <div class="rail-paper">
-                <span class="rail-title">Paper</span>
+            <app-explorer-section key="boards" heading="Boards" #boardsSection>
+                <button exAction type="button" class="ex-btn" [disabled]="boardList.making()" (click)="boardList.newBoard()" title="New board" aria-label="New board">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                </button>
+                <app-board-list #boardList [current]="board.boardId()" (opened)="openBoard($event)"></app-board-list>
+            </app-explorer-section>
+
+            <app-explorer-section key="companies" heading="Companies">
+                <app-company-rail></app-company-rail>
+            </app-explorer-section>
+
+            <app-explorer-section key="add" heading="Add">
                 <div class="paper-row">
-                    <button type="button" class="paper-btn" [disabled]="board.status() !== 'ready'" (click)="board.place('note', 'auto', {})">+ Sticky note</button>
-                    <button type="button" class="paper-btn" [disabled]="board.status() !== 'ready'" (click)="board.place('text', 'auto', {})">+ Text box</button>
+                    <button type="button" class="paper-btn" [disabled]="board.status() !== 'ready'" (click)="board.place('note', 'auto', {})">+ Sticky</button>
+                    <button type="button" class="paper-btn" [disabled]="board.status() !== 'ready'" (click)="board.place('text', 'auto', {})">+ Text</button>
+                    <button type="button" class="paper-btn" [disabled]="board.status() !== 'ready'" (click)="filePick.click()">+ File</button>
                 </div>
-                <button type="button" class="paper-btn file-btn" [class.page]="fileOver() === 'page' || fileOver() === 'board'" [class.over]="fileOver() === 'button'"
-                    [disabled]="board.status() !== 'ready'"
-                    (click)="filePick.click()" (dragover)="onButtonDragOver($event)" (dragleave)="onButtonDragLeave()" (drop)="onButtonDrop($event)">{{ fileButtonLabel() }}</button>
                 <input #filePick type="file" multiple hidden aria-label="Choose files to put on the board" (change)="onPick(filePick)">
-                <p class="rail-helper">Or drop it on the board, or paste a picture. Images, GIFs, video, PDF and more, up to {{ maxFileMb }} MB each. Word, PowerPoint and Excel files can't go on the board.</p>
-            </div>
-            <p class="rail-keys">Keys: V select, H hand, L line, P pen, M marker, R box, N sticky, T text. Arrows nudge, Ctrl+D copies, Ctrl+G groups. Esc goes back to select, Delete removes what is picked.</p>
+                <p class="rail-helper">Images, GIFs, video, PDF and more, up to {{ maxFileMb }} MB each. Word, PowerPoint and Excel files can't go on the board.</p>
+            </app-explorer-section>
+
+            <app-explorer-section key="images" heading="Images">
+                <button type="button" class="drop-zone" [class.page]="fileOver() === 'page' || fileOver() === 'board'" [class.over]="fileOver() === 'button'"
+                    [disabled]="board.status() !== 'ready'"
+                    (click)="imagePick.click()" (dragover)="onButtonDragOver($event)" (dragleave)="onButtonDragLeave()" (drop)="onImageDrop($event)">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-9 9"/></svg>
+                    <span class="drop-main">{{ dropLabel() }}</span>
+                    <span class="drop-sub">PNG, JPG, GIF or WebP, up to {{ maxFileMb }} MB</span>
+                </button>
+                <input #imagePick type="file" accept="image/*" multiple hidden aria-label="Choose pictures to put on the board" (change)="onPickImages(imagePick)">
+                <p class="rail-helper">Or drop a picture straight onto the board, or paste one.</p>
+            </app-explorer-section>
+
+            <app-explorer-section key="keys" heading="Keys" [startOpen]="false">
+                <p class="rail-keys">V select, H hand, L line, P pen, M marker, R box, N sticky, T text. Arrows nudge, Ctrl+D copies, Ctrl+G groups. Esc goes back to select, Delete removes what is picked.</p>
+            </app-explorer-section>
         </aside>
 
         <section class="stage">
@@ -262,7 +279,7 @@
                 } @else if (board.status() === 'error') {
                     <div class="state">Couldn't open this board.
                         <button type="button" class="link" (click)="retryOpen()">Try again</button>
-                        <button type="button" class="link" (click)="showTab('history')">See all your boards</button>
+                        <button type="button" class="link" (click)="showBoards()">See all your boards</button>
                     </div>
                 } @else if (board.status() !== 'ready') {
                     <div class="state">Loading your board...</div>
@@ -350,7 +367,6 @@
             </div>
         </section>
     </div>
-    }
 
     @if (notice.lines().length) {
         <div class="toast" role="alert">

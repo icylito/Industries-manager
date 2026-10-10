@@ -10,7 +10,7 @@ Working now:
 - History, where every saved copy can be viewed, downloaded, pinned, restored or imported
 - Nightly backups at 2:00, kept for 14 days
 - Requests, for anything that needs a developer
-- The Scratchpad, an admin scratchpad for working ideas out: industry cards, notes, pictures and videos, pen and marker drawings, boxes, groups, and arrows with labels to tell the story. Each person keeps several boards, listed on its History tab to open, rename, pin or delete. Undo works on everything.
+- The Scratchpad, an admin scratchpad for working ideas out: industry cards, notes, pictures and videos, pen and marker drawings, boxes, groups, and arrows with labels to tell the story. Each person keeps several boards, listed in its sidebar to open, rename, pin or delete, with a drop zone for pictures. Undo works on everything.
 - A carry tray along the bottom of every admin page. The Overview's circle or list goes in, frozen, and comes off onto a board.
 - Your shortcut keys, the Scratchpad's mouse keys and light or dark are saved to your account, so they follow you to any browser.
 - Tables, where managers and admins make their own tables, fill them, and delete them, with no developer

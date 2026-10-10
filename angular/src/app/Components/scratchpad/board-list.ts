@@ -1,27 +1,23 @@
-import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { Component, ElementRef, inject, input, output, signal, viewChild } from '@angular/core';
 import { BoardsStore } from '../../board/boards-store';
 import { BoardEngine } from '../../board/board-engine';
 import { BoardSummary } from '../../models/board';
 
-// The Scratchpad's History tab: every board the person keeps, pinned ones first, then the most recently
-// changed. Open, rename in place, pin, and delete with a question in the row. A pinned board can't be deleted
-// until it is unpinned, the same rule as pinned versions on the History page.
+// The Boards section of the Scratchpad's sidebar: every board the person keeps, pinned ones first, then the most
+// recently changed. Click one to open it. Rename, pin and delete sit at the end of each row, and a delete asks
+// in the row. A pinned board can't be deleted until it is unpinned, the same rule as pinned versions on History.
 @Component({
-  selector: 'app-board-history',
-  templateUrl: './board-history.html',
-  styleUrl: './board-history.css',
+  selector: 'app-board-list',
+  templateUrl: './board-list.html',
+  styleUrl: './board-list.css',
 })
-export class BoardHistory {
+export class BoardList {
   protected boards = inject(BoardsStore);
   private engine = inject(BoardEngine);
   current = input<number | null>(null);
   opened = output<number>();
 
-  static readonly PAGE = 10;
-  page = signal(0);
-  pages = computed(() => Math.max(1, Math.ceil(this.boards.sorted().length / BoardHistory.PAGE)));
-  shownPage = computed(() => Math.min(this.page(), this.pages() - 1));
-  paged = computed(() => this.boards.sorted().slice(this.shownPage() * BoardHistory.PAGE, (this.shownPage() + 1) * BoardHistory.PAGE));
+  private list = viewChild<ElementRef<HTMLElement>>('list');
 
   renaming = signal<number | null>(null);
   confirming = signal<number | null>(null);
@@ -30,11 +26,7 @@ export class BoardHistory {
   making = signal(false);
 
   constructor() {
-    // The list opens on the page that holds the board being worked on
-    void this.boards.load().then(() => {
-      const at = this.boards.sorted().findIndex(board => board.id === this.current());
-      if (at >= 0) this.page.set(Math.floor(at / BoardHistory.PAGE));
-    });
+    void this.boards.load();
   }
 
   async newBoard(): Promise<void> {
@@ -47,11 +39,21 @@ export class BoardHistory {
     this.opened.emit(made);
   }
 
+  // The board chip at the top of the page brings the person here: the open board's row takes the focus
+  focusCurrent(): void {
+    setTimeout(() => {
+      const row = this.list()?.nativeElement.querySelector<HTMLElement>('[aria-current="true"]')
+        ?? this.list()?.nativeElement.querySelector<HTMLElement>('.bl-name');
+      row?.focus();
+      row?.scrollIntoView({ block: 'nearest' });
+    }, 0);
+  }
+
   startRename(board: BoardSummary): void {
     this.confirming.set(null);
     this.renaming.set(board.id);
     setTimeout(() => {
-      const box = document.querySelector('.bh-rename') as HTMLInputElement | null;
+      const box = this.list()?.nativeElement.querySelector<HTMLInputElement>('.bl-rename');
       box?.focus();
       box?.select();
     }, 0);
@@ -80,20 +82,20 @@ export class BoardHistory {
     this.busy.set(null);
     this.confirming.set(null);
     this.message.set(failed ?? '"' + board.name + '" is deleted. Its files stay for 7 days in case you need them.');
-    // A delete that empties the last page steps back one
-    if (this.page() > this.pages() - 1) this.page.set(this.pages() - 1);
   }
 
-  when(iso: string): string {
+  // What the row says when the pointer rests on it
+  about(board: BoardSummary): string {
+    const things = board.things === 0 ? 'Empty' : board.things === 1 ? '1 thing' : board.things + ' things';
+    return board.name + '\n' + things + ', changed ' + this.when(board.updatedAt) + (board.pinned ? '\nPinned' : '');
+  }
+
+  private when(iso: string): string {
     const at = new Date(iso);
     const today = new Date();
     const day = at.toDateString() === today.toDateString()
-      ? 'Today'
+      ? 'today'
       : at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: at.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
-    return day + ', ' + at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  }
-
-  things(n: number): string {
-    return n === 0 ? 'Empty' : n === 1 ? '1 thing' : n + ' things';
+    return day + ' at ' + at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   }
 }

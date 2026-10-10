@@ -19,7 +19,15 @@ export class BoardsStore {
   readonly sorted = computed(() => [...this.list()].sort((a, b) =>
     Number(b.pinned) - Number(a.pinned) || b.updatedAt.localeCompare(a.updatedAt) || b.id - a.id));
 
-  async load(): Promise<boolean> {
+  // Asked for twice at once (the sidebar and the page opening), the list is fetched once
+  private loadingNow: Promise<boolean> | null = null;
+
+  load(): Promise<boolean> {
+    this.loadingNow ??= this.fetch().finally(() => { this.loadingNow = null; });
+    return this.loadingNow;
+  }
+
+  private async fetch(): Promise<boolean> {
     this.loading.set(true);
     try {
       this.list.set(await firstValueFrom(this.api.boards()));

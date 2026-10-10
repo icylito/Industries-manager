@@ -1,8 +1,7 @@
-<!-- The companies at the top of the Scratchpad's rail: the top 3 by price, or up to 10 matching the search -->
-<label class="rail-title" for="sp-find">Companies</label>
+<!-- The Companies section of the Scratchpad's sidebar: the top 3 by price, or up to 10 matching the search -->
 <span class="rail-search">
     <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-    <input id="sp-find" type="search" placeholder="Search the table" autocomplete="off"
+    <input id="sp-find" type="search" aria-label="Search the companies" placeholder="Search the table" autocomplete="off"
         [value]="search()" (input)="onSearch($any($event.target).value)">
 </span>
 <p class="rail-helper">{{ railHelper() }}</p>

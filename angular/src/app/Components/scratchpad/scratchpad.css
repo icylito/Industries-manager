@@ -104,102 +104,157 @@
     min-height: 0;
 }
 
-/* The list of companies to pull onto the board */
+/* The sidebar: sections stacked top to bottom, each opening and closing on its heading, like an editor's Explorer.
+   It scrolls on its own when the open sections are taller than the page. */
 .rail{
     display: flex;
     flex-direction: column;
     flex: 0 0 17rem;
     min-width: 0;
-    padding: 0.85rem 0 0;
     border: 1px solid var(--border);
     border-radius: 14px;
     background: var(--surface);
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
-.rail-title{
-    margin: 0 0.9rem 0.5rem;
+.rail-head{
+    padding: 0.7rem 0.9rem 0.55rem;
     color: var(--muted);
     font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+}
+
+/* The + at the right of a section heading (New board) */
+.ex-btn{
+    display: grid;
+    place-items: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.ex-btn:hover:not(:disabled){
+    background: var(--focus);
+    color: var(--text);
+}
+
+.ex-btn:focus-visible{
+    outline: 2px solid var(--signal);
+    outline-offset: -2px;
+}
+
+.ex-btn:disabled{
+    opacity: 0.4;
+    cursor: default;
 }
 
 .rail-helper{
-    margin: 0 0.9rem 0.55rem;
+    margin: 0.5rem 0.9rem 0;
     color: var(--muted);
-    font-size: 0.78rem;
+    font-size: 0.76rem;
     line-height: 1.45;
 }
 
-/* Sticky notes, text boxes, and files or pictures */
-.rail-paper{
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin: 0.4rem 0.75rem 0;
-    padding-top: 0.8rem;
-    border-top: 1px solid var(--border);
-}
-
-.rail-paper .rail-title,
-.rail-paper .rail-helper{
-    margin: 0;
-}
-
+/* Sticky note, text box and file */
 .paper-row{
     display: flex;
-    gap: 0.5rem;
+    gap: 0.4rem;
+    margin: 0 0.75rem;
 }
 
 .paper-btn{
     flex: 1 1 0;
-    padding: 0.6rem 0.5rem;
+    padding: 0.5rem 0.3rem;
     border: 1px solid var(--border-strong);
-    border-radius: 12px;
+    border-radius: 10px;
     background: var(--surface);
     color: var(--text);
     font: inherit;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     font-weight: 700;
     cursor: pointer;
     transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.paper-btn:hover{
+.paper-btn:hover:not(:disabled){
     border-color: var(--text);
 }
 
-.paper-btn:focus-visible{
+.paper-btn:focus-visible,
+.drop-zone:focus-visible{
     outline: 2px solid var(--signal);
     outline-offset: 2px;
 }
 
-/* While a file is dragged anywhere on the page the field becomes a drop target, and fills when it is over it */
-.file-btn.page{
-    border: 1px dashed var(--signal);
+/* Pictures dropped here, or picked by clicking. While a file is dragged anywhere on the page it shows it takes
+   one, and fills when the file is over it. */
+.drop-zone{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    margin: 0 0.75rem;
+    padding: 1rem 0.75rem;
+    border: 1.5px dashed var(--border-strong);
+    border-radius: 12px;
+    background: var(--surface-2);
+    color: var(--muted);
+    font: inherit;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.drop-zone:hover:not(:disabled){
+    border-color: var(--text);
+    color: var(--text);
+}
+
+.drop-zone:disabled{
+    opacity: 0.5;
+    cursor: default;
+}
+
+.drop-main{
+    color: var(--text);
+    font-size: 0.84rem;
+    font-weight: 700;
+}
+
+.drop-sub{
+    font-size: 0.72rem;
+}
+
+.drop-zone.page{
+    border-color: var(--signal);
     background: var(--focus);
 }
 
-.file-btn.over{
-    border: 1px solid var(--signal);
+.drop-zone.over{
+    border-style: solid;
+    border-color: var(--signal);
     background: var(--focus);
     box-shadow: 0 0 0 3px var(--signal);
 }
 
 @media (prefers-reduced-motion: reduce){
-    .paper-btn{
+    .paper-btn,
+    .drop-zone{
         transition: none;
     }
 }
 
 .rail-keys{
-    margin: auto 0.9rem 0.9rem;
-    padding-top: 0.7rem;
-    border-top: 1px solid var(--border);
+    margin: 0 0.9rem;
     color: var(--muted);
-    font-size: 0.72rem;
+    font-size: 0.74rem;
     line-height: 1.5;
 }
 
@@ -915,32 +970,6 @@ a.tool{
     white-space: nowrap;
 }
 
-.tabs{
-    display: inline-flex;
-    padding: 0.2rem;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--surface);
-}
-
-.tab{
-    padding: 0.35rem 0.85rem;
-    border: none;
-    border-radius: 999px;
-    background: none;
-    color: var(--muted);
-    font: inherit;
-    font-size: 0.88rem;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.tab.on{
-    background: var(--accent);
-    color: var(--accent-text);
-}
-
-.tab:focus-visible,
 .board-chip:focus-visible{
     outline: 2px solid var(--signal);
     outline-offset: 2px;
@@ -1035,35 +1064,18 @@ a.tool{
         font-size: 0.82rem;
     }
 
-    /* Keep the board on the first screen: a short rail, no keys block, compact bars */
-    .rail{
-        max-height: none;
-        padding-top: 0.6rem;
-    }
-
-    /* The helper under the search stays, it says why these three rows are listed */
-    .rail-paper .rail-helper,
-    .rail-paper .rail-title,
-    .rail-keys,
+    /* Keep the board on the first screen: compact bars, no tool hint */
     .bar-hint{
         display: none;
-    }
-
-    /* Sticky note, text box and file in one short row */
-    .rail-paper{
-        flex-direction: row;
-        gap: 0.4rem;
-        margin-bottom: 0.6rem;
-        padding-top: 0.5rem;
-    }
-
-    .paper-row{
-        display: contents;
     }
 
     .paper-btn{
         padding: 0.45rem 0.3rem;
         font-size: 0.75rem;
+    }
+
+    .drop-zone{
+        padding: 0.6rem;
     }
 
     .bar,
