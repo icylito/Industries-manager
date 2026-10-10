@@ -18,16 +18,17 @@ describe('Board tools', () => {
   let draft: Draft | null;
   let from: string | null;
   let shapes: number;
+  let notices: string[];
   const ui: ToolUi = {
     view: () => view, setView: v => (view = v), setBox: b => (box = b), setDraft: d => (draft = d),
-    lineFrom: () => from, setLineFrom: id => (from = id), lineAdded: () => {}, shapeDone: () => shapes++,
+    lineFrom: () => from, setLineFrom: id => (from = id), lineAdded: () => {}, shapeDone: () => shapes++, notice: line => notices.push(line),
   };
   const at = (x: number, y: number, hit: Hit = { kind: 'empty' }, extra: Partial<PointerCtx> = {}): PointerCtx =>
     ({ screen: { x, y }, world: worldFromScreen({ x, y }, view), hit, button: 0, adding: false, duplicating: false, ...extra });
 
   beforeEach(async () => {
     view = { x: 0, y: 0, zoom: 1 };
-    box = null; draft = null; from = null; shapes = 0;
+    box = null; draft = null; from = null; shapes = 0; notices = [];
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
     board = TestBed.inject(BoardEngine);
     const opened = board.open(1);
@@ -105,6 +106,19 @@ describe('Board tools', () => {
     expect(stroke.x).toBeLessThan(500);
     board.undo();
     expect(board.doc().items.length).toBe(2);
+  });
+
+  it('stops a stroke at its length limit and a board at its drawing limit, and says so', () => {
+    const long = TOOLS.pen.down(at(0, 0), board, ui)!;
+    for (let i = 1; i <= 2100; i++) long.move(at(i * 2, (i % 2) * 5));
+    long.up(at(0, 0));
+    expect(notices[0]).toContain('as long as one stroke can be');
+    const stroke = board.doc().items.find(i => i.type === 'stroke');
+    expect(stroke && stroke.type === 'stroke' && stroke.points.length / 2).toBeLessThanOrEqual(2000);
+    const full = Array.from({ length: 25 }, (_, n) => ({ id: 'full' + n, type: 'stroke' as const, kind: 'pen' as const, x: 0, y: 0, w: 1, h: 1, points: new Array(4000).fill(1) }));
+    board.apply({ op: 'add', items: full });
+    expect(TOOLS.pen.down(at(5, 5), board, ui)).toBeNull();
+    expect(notices.at(-1)).toContain('holds as much drawing as it can');
   });
 
   it('draws a box behind everything, and goes back to Select', () => {

@@ -182,6 +182,7 @@ export class ScratchpadPage {
     setLineFrom: id => this.lineFrom.set(id),
     lineAdded: () => setTimeout(() => (document.querySelector('.line-label') as HTMLInputElement | null)?.focus(), 0),
     shapeDone: () => this.tool.set('select'),
+    notice: line => this.showNotice([line]),
   };
 
   constructor() {
@@ -209,6 +210,15 @@ export class ScratchpadPage {
         if (item.type === 'file' && item.fileId != null && fileView(item) === 'image') this.askPreview(item.fileId);
       }
     });
+    // A video taken off the board lets go of the memory it was playing from
+    effect(() => {
+      const onBoard = new Set(this.board.doc().items.flatMap(item => (item.type === 'file' && item.fileId != null ? [item.fileId] : [])));
+      const playing = untracked(() => this.videos());
+      const gone = Object.keys(playing).map(Number).filter(id => !onBoard.has(id));
+      if (gone.length === 0) return;
+      for (const id of gone) if (playing[id] !== 'loading') URL.revokeObjectURL(playing[id]);
+      untracked(() => this.videos.update(all => { const next = { ...all }; for (const id of gone) delete next[id]; return next; }));
+    });
     // Fonts used on the board are loaded once, so a note in Caveat shows in Caveat after a reload
     effect(() => {
       for (const item of this.board.doc().items) {
@@ -232,6 +242,13 @@ export class ScratchpadPage {
       ['drop', onDrop as EventListener], ['paste', onPaste as EventListener], ['keydown', onKeyDown as EventListener], ['keyup', onKeyUp as EventListener],
     ];
     for (const [name, fn] of listen) document.addEventListener(name, fn);
+    // Closing the tab or reloading while a change or an upload is on its way: the browser asks first
+    const onLeave = (event: BeforeUnloadEvent) => {
+      if (!this.board.hasUnsaved() && this.pendingFiles.size === 0) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onLeave);
 
     const off = this.shortcuts.register('scratchpad', {
       'sp.select': () => this.setTool('select'),
@@ -267,6 +284,7 @@ export class ScratchpadPage {
     this.destroy.onDestroy(() => {
       off();
       for (const [name, fn] of listen) document.removeEventListener(name, fn);
+      window.removeEventListener('beforeunload', onLeave);
       wheelNode?.removeEventListener('wheel', onWheel);
       this.gesture?.cancel();
       this.tray.placer.set(null);
@@ -275,8 +293,8 @@ export class ScratchpadPage {
       if (this.noticeTimer) clearTimeout(this.noticeTimer);
       if (this.railTimer) clearTimeout(this.railTimer);
       this.railCall?.unsubscribe();
-      // Whatever is waiting is sent as the page closes
-      void this.board.close();
+      // The board is let go at once, and whatever is waiting is saved in the background
+      this.board.leave();
     });
   }
 
@@ -651,7 +669,7 @@ export class ScratchpadPage {
     if (refused.length) this.showNotice(refused);
   }
 
-  private upload(itemId: string, file: File): void {
+  private upload(itemId: string, file: File, boardId = this.board.boardId()): void {
     this.pendingFiles.set(itemId, file);
     this.setUpload(itemId, { pct: 0, failed: false });
     this.scratch.uploadFile(file).subscribe({
@@ -659,7 +677,8 @@ export class ScratchpadPage {
         if (event.type === HttpEventType.UploadProgress && event.total) {
           this.setUpload(itemId, { pct: Math.round((event.loaded / event.total) * 100), failed: false });
         } else if (event.type === HttpEventType.Response && event.body) {
-          this.board.fileStored(itemId, event.body);
+          // The board it was dropped on, even if another is open by now or the page has closed
+          this.board.fileStored(itemId, event.body, boardId);
           this.pendingFiles.delete(itemId);
           this.setUpload(itemId, null);
         }

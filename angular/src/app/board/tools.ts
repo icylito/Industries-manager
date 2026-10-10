@@ -45,6 +45,8 @@ export interface ToolUi {
   lineAdded(id: string): void;
   // A box is drawn: go back to Select, so the next press picks rather than draws again
   shapeDone(): void;
+  // A plain line for the toast: a stroke at its length limit, or a board with as much drawing as it can hold
+  notice(line: string): void;
 }
 
 export type Draft = { kind: 'stroke'; mode: 'pen' | 'marker'; points: number[] } | { kind: 'rect'; rect: Rect };
@@ -62,6 +64,9 @@ export interface Tool {
 // How wide each stroke is drawn, in board units. The marker is see-through and in the signal colour.
 export const STROKE_WIDTH = { pen: 2.5, marker: 16 } as const;
 const MAX_POINTS = 2000;
+// The API's limit for drawing on one board (api_v2/Scratchpad/BoardRules.cs), checked here first so a board never
+// stops saving because of one more stroke
+export const MAX_BOARD_POINTS = 50_000;
 // A press that moves less than this many pixels is a click, not a drag
 const DRAG_START = 3;
 
@@ -221,13 +226,24 @@ function strokeTool(mode: 'pen' | 'marker'): Tool {
   return {
     down: (c, engine, ui) => {
       if (c.hit.kind === 'control') return null;
+      const used = engine.doc().items.reduce((sum, item) => sum + (item.type === 'stroke' ? item.points.length / 2 : 0), 0);
+      if (used >= MAX_BOARD_POINTS - 2) {
+        ui.notice('This board holds as much drawing as it can. Delete a drawing, or start a new board, to draw more.');
+        return null;
+      }
       const points = [c.world.x, c.world.y];
+      let full = false;
       ui.setDraft({ kind: 'stroke', mode, points });
       return {
         move: m => {
           const zoom = ui.view().zoom;
           const lastX = points[points.length - 2], lastY = points[points.length - 1];
-          if (points.length / 2 >= MAX_POINTS || Math.hypot(m.world.x - lastX, m.world.y - lastY) < 1.5 / zoom) return;
+          if (Math.hypot(m.world.x - lastX, m.world.y - lastY) < 1.5 / zoom) return;
+          if (points.length / 2 >= Math.min(MAX_POINTS, MAX_BOARD_POINTS - used)) {
+            if (!full) ui.notice('That stroke is as long as one stroke can be. Let go and start another to keep drawing.');
+            full = true;
+            return;
+          }
           points.push(m.world.x, m.world.y);
           ui.setDraft({ kind: 'stroke', mode, points: [...points] });
         },

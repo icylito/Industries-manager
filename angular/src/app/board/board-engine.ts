@@ -1,8 +1,9 @@
 import { Service, computed, inject, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { BoardDocument, BoardItem, BoardItemType, BoardView, ItemOf, ScratchFileInfo } from '../models/board';
 import { ScratchApi } from './scratch-api';
-import { BoardSync, SaveState } from './board-sync';
+import { BoardSync, Conflict, SaveState } from './board-sync';
 import { Op, Position, applyOp, copiesOf, emptyDocument, openDocument } from './ops';
 import { KINDS, newId } from './item-kinds';
 import { Point, bestBend, bounds, freeSpot, tidyView } from './geometry';
@@ -28,6 +29,8 @@ export interface Change { before: BoardDocument; after: BoardDocument; }
 const HISTORY_CAP = 100;
 const VIEW_SAVE_MS = 1500;
 const NUDGE_QUIET_MS = 500;
+// How long opening a board waits for the same board's last save from before, when it was left a moment ago
+const LEFT_SAVE_WAIT_MS = 10_000;
 
 // One open board and everything that goes with it. Thrown away whole when another board opens.
 interface Session {
@@ -68,8 +71,10 @@ export class BoardEngine {
   readonly external = signal(0);
 
   private session = signal<Session | null>(null);
+  // Boards that were left (the page closed) with saves still on their way, by board id
+  private leaving = new Map<number, { sync: BoardSync; doc: BoardDocument; done: Promise<void> }>();
   readonly save = computed<SaveState>(() => this.session()?.sync.state() ?? 'saved');
-  readonly conflict = computed(() => this.session()?.sync.conflict() ?? false);
+  readonly conflict = computed<Conflict | null>(() => this.session()?.sync.conflict() ?? null);
   readonly unsavedSteps = computed(() => this.session()?.sync.unsavedSteps() ?? 0);
   readonly saveProblem = computed(() => this.session()?.sync.problem() ?? null);
 
@@ -91,6 +96,10 @@ export class BoardEngine {
     this.status.set('loading');
     this.boardId.set(id);
     try {
+      // Left a moment ago with a save on its way: wait for it, so the board opens as it was left
+      const away = this.leaving.get(id);
+      if (away) await Promise.race([away.done, new Promise(resolve => setTimeout(resolve, LEFT_SAVE_WAIT_MS))]);
+      if (this.boardId() !== id) return false;
       const answer = await firstValueFrom(this.api.board(id));
       if (this.boardId() !== id) return false;
       if (!answer.document || answer.document.version !== 1 || !Array.isArray(answer.document.items)) throw new Error('unreadable');
@@ -120,6 +129,29 @@ export class BoardEngine {
     const saved = session.sync.conflict() ? false : await session.sync.flush();
     if (saved) this.dispose();
     return saved;
+  }
+
+  // The page is closing. The board is let go at once, so coming back opens it fresh, and whatever was waiting is
+  // saved in the background: it keeps trying while the API is away, and an upload that finishes later still lands.
+  leave(): void {
+    const session = this.session();
+    if (session) {
+      this.commitOpen();
+      if (session.nudge) clearTimeout(session.nudge.timer);
+      this.sendView(session);
+      const away = { sync: session.sync, doc: this.doc(), done: Promise.resolve() };
+      away.done = session.sync.drain(() => away.doc).then(() => {
+        if (this.leaving.get(session.id) === away) this.leaving.delete(session.id);
+      });
+      this.leaving.set(session.id, away);
+      this.session.set(null);
+    }
+    this.boardId.set(null);
+    this.boardName.set('');
+    this.status.set('idle');
+    this.doc.set(emptyDocument());
+    this.clearSelection();
+    this.readHistory();
   }
 
   // Reload after a conflict: the board as the server has it, and the changes here are dropped
@@ -260,12 +292,38 @@ export class BoardEngine {
     }));
   }
 
-  // An upload finished: the card learns its file's id
-  fileStored(itemId: string, stored: ScratchFileInfo): void {
-    this.amend(doc => applyOp(doc, {
+  // An upload finished: the card learns its file's id, on the board it was dropped on, wherever that board is now.
+  // Open: changed here. Left a moment ago and still saving: changed in what is being saved. Closed: changed on the
+  // server. So a picture is never left as "Couldn't upload" because someone moved on while it was on its way.
+  fileStored(itemId: string, stored: ScratchFileInfo, boardId: number | null = this.boardId()): void {
+    const change = (doc: BoardDocument) => applyOp(doc, {
       op: 'patch', ids: [itemId],
       patch: { fileId: stored.id, contentType: stored.contentType, sizeBytes: stored.sizeBytes },
-    }));
+    });
+    if (boardId == null) return;
+    if (this.session()?.id === boardId) { this.amend(change); return; }
+    const away = this.leaving.get(boardId);
+    if (away?.sync.draining) {
+      away.doc = change(away.doc);
+      away.sync.changedWhileLeaving();
+      return;
+    }
+    void this.changeSaved(boardId, change);
+  }
+
+  // A change to a board that isn't open: read it, change it, save it, once more if another save got in between
+  private async changeSaved(id: number, change: (doc: BoardDocument) => BoardDocument): Promise<void> {
+    for (let tries = 0; tries < 3; tries++) {
+      try {
+        if (this.session()?.id === id) { this.amend(change); return; }
+        const answer = await firstValueFrom(this.api.board(id));
+        const next = change(openDocument(answer.document));
+        await firstValueFrom(this.api.saveBoard(id, next, answer.updatedAt));
+        return;
+      } catch (error) {
+        if (!(error instanceof HttpErrorResponse && error.status === 409)) return;
+      }
+    }
   }
 
   // ---- the view: never in history, never a save of the board ----
@@ -281,6 +339,11 @@ export class BoardEngine {
   }
 
   // ---- saving ----
+
+  // Something the server doesn't have yet, on the open board or on one left a moment ago
+  hasUnsaved(): boolean {
+    return !!this.session()?.sync.unsaved || [...this.leaving.values()].some(away => away.sync.draining && away.sync.unsaved);
+  }
 
   saveNow(): void { void this.session()?.sync.saveNow(); }
   retrySave(): void { void this.session()?.sync.retryNow(); }

@@ -22,12 +22,14 @@
                 Shortcuts
             </button>
             @if (board.status() === 'ready') {
-                @if (board.conflict()) {
+                @if (board.conflict(); as conflict) {
                     <span class="pill bad" role="status">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5M12 16h.01"/></svg>
-                        This board was changed somewhere else.
+                        {{ conflict === 'deleted' ? 'This board was deleted somewhere else.' : 'This board was changed somewhere else.' }}
                         <button type="button" class="try" (click)="keepMine()">Keep mine as a new board</button>
-                        <button type="button" class="try" (click)="retryOpen()">Reload{{ board.unsavedSteps() ? ' (lose ' + board.unsavedSteps() + (board.unsavedSteps() === 1 ? ' change)' : ' changes)') : '' }}</button>
+                        @if (conflict === 'changed') {
+                            <button type="button" class="try" (click)="retryOpen()">Reload{{ board.unsavedSteps() ? ' (lose ' + board.unsavedSteps() + (board.unsavedSteps() === 1 ? ' change)' : ' changes)') : '' }}</button>
+                        }
                     </span>
                 } @else {
                     @switch (board.save()) {

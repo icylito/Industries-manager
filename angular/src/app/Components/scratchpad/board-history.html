@@ -53,8 +53,8 @@
                             <button type="button" class="bh-btn" [disabled]="busy() === board.id" [attr.aria-pressed]="board.pinned" (click)="togglePin(board)">
                                 {{ board.pinned ? 'Unpin' : 'Pin' }}
                             </button>
-                            <button type="button" class="bh-btn danger" [disabled]="board.pinned"
-                                [attr.title]="board.pinned ? 'Unpin it first' : 'Delete this board'"
+                            <button type="button" class="bh-btn danger" [disabled]="board.pinned || board.id === current()"
+                                [attr.title]="board.pinned ? 'Unpin it first' : board.id === current() ? 'Open another board first' : 'Delete this board'"
                                 (click)="confirming.set(board.id); renaming.set(null)">Delete</button>
                         </span>
                     }

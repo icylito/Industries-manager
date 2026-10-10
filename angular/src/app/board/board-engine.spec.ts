@@ -127,6 +127,70 @@ describe('Board engine', () => {
     });
   });
 
+  describe('leaving and coming back', () => {
+    it('lets go of the board when the page closes, saves what was waiting, and opens it fresh on return', async () => {
+      await open([note('a')]);
+      board.apply({ op: 'move', positions: [{ id: 'a', x: 40, y: 0 }] });
+      board.leave();
+      expect(board.boardId()).toBeNull();
+      expect(board.status()).toBe('idle');
+      // Coming back before the save has gone out waits for it
+      const back = board.open(1);
+      await vi.advanceTimersByTimeAsync(0);
+      http.expectNone(r => r.method === 'GET' && r.url === `${url}/1`);
+      const put = puts();
+      expect(put.length).toBe(1);
+      expect(put[0].request.body.document.items[0].x).toBe(40);
+      put[0].flush({ updatedAt: 't1' });
+      await vi.advanceTimersByTimeAsync(0);
+      http.expectOne(`${url}/1`).flush({ id: 1, name: 'Ideas', pinned: false, view: null, createdAt: 'c', updatedAt: 't1',
+        document: { version: 1, items: [note('a', 40)], lines: [], groups: [] } });
+      expect(await back).toBe(true);
+      // And everything works again: a change is a step and saves with the new updatedAt
+      board.apply({ op: 'move', positions: [{ id: 'a', x: 41, y: 0 }] });
+      expect(board.canUndo()).toBe(true);
+      vi.advanceTimersByTime(700);
+      expect(puts()[0].request.body.updatedAt).toBe('t1');
+    });
+
+    it('keeps retrying a left board while the API is away', async () => {
+      await open([note('a')]);
+      board.apply({ op: 'move', positions: [{ id: 'a', x: 40, y: 0 }] });
+      board.leave();
+      await vi.advanceTimersByTimeAsync(0);
+      puts()[0].flush('down', { status: 503, statusText: 'Unavailable' });
+      await vi.advanceTimersByTimeAsync(2000);
+      const again = puts();
+      expect(again.length).toBe(1);
+      expect(again[0].request.body.document.items[0].x).toBe(40);
+    });
+
+    it('lands an upload on the board it was dropped on, after the page closed', async () => {
+      await open([]);
+      const id = board.place('file', 'auto', { name: 'a.png', contentType: 'image/png', sizeBytes: 3 });
+      board.leave();
+      await vi.advanceTimersByTimeAsync(0);
+      board.fileStored(id, { id: 77, name: 'a.png', contentType: 'image/png', sizeBytes: 3 }, 1);
+      const first = puts()[0];
+      await answer(first, 't1');
+      await vi.advanceTimersByTimeAsync(800);
+      const second = puts();
+      expect(second.length).toBe(1);
+      expect(second[0].request.body.document.items[0].fileId).toBe(77);
+    });
+
+    it('lands an upload on a board that is closed by reading, changing and saving it', async () => {
+      await open([]);
+      board.fileStored('f', { id: 9, name: 'b.png', contentType: 'image/png', sizeBytes: 3 }, 5);
+      http.expectOne(`${url}/5`).flush({ id: 5, name: 'Other', pinned: false, view: null, createdAt: 'c', updatedAt: 'u5',
+        document: { version: 1, items: [{ id: 'f', type: 'file', x: 0, y: 0, w: 1, h: 1, fileId: null, name: 'b.png', contentType: 'image/png', sizeBytes: 3 }], lines: [], groups: [] } });
+      await vi.advanceTimersByTimeAsync(0);
+      const put = http.expectOne(r => r.method === 'PUT' && r.url === `${url}/5`);
+      expect(put.request.body.updatedAt).toBe('u5');
+      expect(put.request.body.document.items[0].fileId).toBe(9);
+    });
+  });
+
   describe('saving', () => {
     it('sends one save for a burst of typing, after it goes quiet, and only then says Saved', async () => {
       await open([note('a')]);
@@ -218,13 +282,24 @@ describe('Board engine', () => {
       vi.advanceTimersByTime(700);
       puts()[0].flush('changed', { status: 409, statusText: 'Conflict' });
       await vi.advanceTimersByTimeAsync(0);
-      expect(board.conflict()).toBe(true);
+      expect(board.conflict()).toBe('changed');
       board.apply({ op: 'move', positions: [{ id: 'a', x: 6, y: 0 }] });
       board.saveNow();
       vi.advanceTimersByTime(300_000);
       expect(puts()).toEqual([]);
       expect(board.unsavedSteps()).toBe(2);
       expect(await board.close()).toBe(false);
+    });
+
+    it('says when the board was deleted somewhere else, and stops saving into it', async () => {
+      await open([note('a')]);
+      board.apply({ op: 'move', positions: [{ id: 'a', x: 5, y: 0 }] });
+      vi.advanceTimersByTime(700);
+      puts()[0].flush('gone', { status: 404, statusText: 'Not Found' });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(board.conflict()).toBe('deleted');
+      vi.advanceTimersByTime(120_000);
+      expect(puts()).toEqual([]);
     });
 
     it('keeps changes a stale tab could not save as a new board, history and all', async () => {
@@ -239,7 +314,7 @@ describe('Board engine', () => {
       expect(create.request.body.document.items[0].x).toBe(5);
       create.flush({ id: 2, name: 'Ideas (my copy)', pinned: false, createdAt: 'c', updatedAt: 'n1', things: 1 });
       expect(await kept).toBe(2);
-      expect(board.conflict()).toBe(false);
+      expect(board.conflict()).toBeNull();
       expect(board.save()).toBe('saved');
       expect(board.canUndo()).toBe(true);
       board.apply({ op: 'move', positions: [{ id: 'a', x: 9, y: 0 }] });

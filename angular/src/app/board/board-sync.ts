@@ -7,21 +7,22 @@ import { errorText } from '../services/industry-api';
 // The pill next to Shortcuts. Three states, one rule: nothing is called Saved until the server says so.
 // See OVERVIEW_HANDOFF.md, "the save state".
 export type SaveState = 'save' | 'saved' | 'failed';
+// Why saving stopped for good: another tab or device saved first (409), or the board was deleted (404)
+export type Conflict = 'changed' | 'deleted';
 
 export const SAVE_DEBOUNCE_MS = 700;
 export const PERIODIC_SAVE_MS = 120_000;
 const RETRY_MAX_MS = 30_000;
 
-// Saving one open board. Made when the board opens and thrown away when it closes, so nothing (a timer, a late
-// answer, a count) from one board can leak into the next. Only the board engine makes these.
+// Saving one open board. Made when the board opens and thrown away once everything it was given is saved, so
+// nothing (a timer, a late answer, a count) from one board can leak into the next. Only the board engine makes these.
 export class BoardSync {
   readonly state = signal<SaveState>('saved');
-  // Another tab or device saved this board first (409). Saving stops, nothing is overwritten, and changes go on
-  // being counted so the page can say what Reload would lose.
-  readonly conflict = signal(false);
+  // Saving stops, nothing is overwritten, and changes go on being counted so the page can say what Reload would lose
+  readonly conflict = signal<Conflict | null>(null);
   readonly unsavedSteps = signal(0);
-  // The API refused the board itself (too many things, a drawing too long). Retrying can't help, so it waits for
-  // the next change, and the pill says why.
+  // The API refused the board itself (too many things). Retrying can't help, so it waits for the next change,
+  // and the pill says why.
   readonly problem = signal<string | null>(null);
 
   private version = 0;
@@ -33,6 +34,8 @@ export class BoardSync {
   private retry: ReturnType<typeof setTimeout> | null = null;
   private periodic: ReturnType<typeof setInterval>;
   private closed = false;
+  // Set while the board is being left: called once nothing is waiting any more, or saving can't go on
+  private drained: (() => void) | null = null;
 
   constructor(
     private send: (document: BoardDocument, updatedAt: string | null) => Observable<{ updatedAt: string }>,
@@ -55,8 +58,7 @@ export class BoardSync {
     if (this.conflict()) return;
     this.problem.set(null);
     if (this.state() !== 'failed') this.state.set('save');
-    if (this.debounce) clearTimeout(this.debounce);
-    this.debounce = setTimeout(() => { void this.saveNow(); }, SAVE_DEBOUNCE_MS);
+    this.later(SAVE_DEBOUNCE_MS);
   }
 
   // Send now. One save at a time: a second one sent before the first answers would carry the same stale
@@ -80,6 +82,7 @@ export class BoardSync {
       await this.saveNow();
     }
     this.again = false;
+    if (!this.unsaved || this.conflict() || this.problem()) this.settle();
   }
 
   private async sendOnce(): Promise<void> {
@@ -97,30 +100,30 @@ export class BoardSync {
       if (this.conflict()) return;
       // Something changed while this was out, so nothing is confirmed yet and another save follows
       this.state.set(this.unsaved ? 'save' : 'saved');
-      if (this.unsaved) this.changedAgain();
+      if (this.unsaved) this.later(SAVE_DEBOUNCE_MS);
     } catch (error) {
       if (this.closed) return;
-      if (error instanceof HttpErrorResponse && error.status === 409) {
+      const status = error instanceof HttpErrorResponse ? error.status : -1;
+      if (status === 409 || status === 404) {
         // Never pretend this one saved, and don't retry into the same wall
-        this.conflict.set(true);
+        this.conflict.set(status === 409 ? 'changed' : 'deleted');
         this.state.set('failed');
         return;
       }
-      if (error instanceof HttpErrorResponse && error.status === 400) {
-        this.problem.set(errorText(error, "This board can't be saved as it is"));
+      if (status === 400) {
+        this.problem.set(errorText(error as HttpErrorResponse, "This board can't be saved as it is"));
         this.state.set('failed');
         return;
       }
       this.failures += 1;
       this.state.set('failed');
-      const wait = Math.min(RETRY_MAX_MS, 1500 * 2 ** Math.min(this.failures - 1, 5));
-      this.retry = setTimeout(() => { void this.saveNow(); }, wait);
+      this.retry = setTimeout(() => { void this.saveNow(); }, Math.min(RETRY_MAX_MS, 1500 * 2 ** Math.min(this.failures - 1, 5)));
     }
   }
 
-  private changedAgain(): void {
+  private later(ms: number): void {
     if (this.debounce) clearTimeout(this.debounce);
-    this.debounce = setTimeout(() => { void this.saveNow(); }, SAVE_DEBOUNCE_MS);
+    this.debounce = setTimeout(() => { void this.saveNow(); }, ms);
   }
 
   // Try again, pressed by the person: straight away, with the waiting reset
@@ -129,7 +132,7 @@ export class BoardSync {
     return this.saveNow();
   }
 
-  // Before the board closes: send what is waiting and say whether it all reached the server
+  // Before another board opens: send what is waiting and say whether it all reached the server
   async flush(): Promise<boolean> {
     for (let tries = 0; tries < 3 && this.unsaved && !this.conflict() && !this.closed; tries++) {
       if (this.inFlight) await this.inFlight;
@@ -139,6 +142,30 @@ export class BoardSync {
     return !this.unsaved;
   }
 
+  // The board is being left: from now on this saves the board as it was left, keeps retrying on its own while
+  // the API is away, and closes once everything reached the server or saving can't go on (a conflict, a refusal).
+  // The promise says when, so opening the same board again can wait for it.
+  drain(left: () => BoardDocument): Promise<void> {
+    this.read = left;
+    return new Promise(done => {
+      this.drained = () => { this.drained = null; this.close(); done(); };
+      if (!this.unsaved || this.conflict() || this.problem()) this.settle();
+      else void this.saveNow();
+    });
+  }
+
+  // A change to a board that is being left: an upload finishing after the page closed
+  changedWhileLeaving(): void {
+    if (!this.drained || this.closed) return;
+    this.version += 1;
+    this.problem.set(null);
+    this.later(0);
+  }
+
+  get draining(): boolean {
+    return !!this.drained && !this.closed;
+  }
+
   // The new board a stale tab's changes were kept as: it saves to there from now on
   movedTo(send: (document: BoardDocument, updatedAt: string | null) => Observable<{ updatedAt: string }>, updatedAt: string): void {
     this.send = send;
@@ -146,7 +173,8 @@ export class BoardSync {
     this.savedVersion = this.version;
     this.unsavedSteps.set(0);
     this.failures = 0;
-    this.conflict.set(false);
+    this.conflict.set(null);
+    this.problem.set(null);
     this.state.set('saved');
   }
 
@@ -155,5 +183,9 @@ export class BoardSync {
     if (this.debounce) clearTimeout(this.debounce);
     if (this.retry) clearTimeout(this.retry);
     clearInterval(this.periodic);
+  }
+
+  private settle(): void {
+    if (this.drained && !this.inFlight && !this.debounce) this.drained();
   }
 }

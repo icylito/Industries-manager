@@ -1,5 +1,6 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { BoardsStore } from '../../board/boards-store';
+import { BoardEngine } from '../../board/board-engine';
 import { BoardSummary } from '../../models/board';
 
 // The Scratchpad's History tab: every board the person keeps, pinned ones first, then the most recently
@@ -12,6 +13,7 @@ import { BoardSummary } from '../../models/board';
 })
 export class BoardHistory {
   protected boards = inject(BoardsStore);
+  private engine = inject(BoardEngine);
   current = input<number | null>(null);
   opened = output<number>();
 
@@ -28,7 +30,11 @@ export class BoardHistory {
   making = signal(false);
 
   constructor() {
-    void this.boards.load();
+    // The list opens on the page that holds the board being worked on
+    void this.boards.load().then(() => {
+      const at = this.boards.sorted().findIndex(board => board.id === this.current());
+      if (at >= 0) this.page.set(Math.floor(at / BoardHistory.PAGE));
+    });
   }
 
   async newBoard(): Promise<void> {
@@ -56,7 +62,10 @@ export class BoardHistory {
     this.renaming.set(null);
     const name = value.trim();
     if (!name || name === board.name) return;
-    this.message.set((await this.boards.rename(board.id, name)) ?? '');
+    const failed = await this.boards.rename(board.id, name);
+    this.message.set(failed ?? '');
+    // The open board's name at the top follows
+    if (!failed && this.engine.boardId() === board.id) this.engine.rename(name.slice(0, 60));
   }
 
   async togglePin(board: BoardSummary): Promise<void> {
