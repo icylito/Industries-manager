@@ -5,74 +5,21 @@
 #   python3 -I check_migration.py                       the newest migration
 #   set MIGRATION=AddScratchFiles & python3 -I check_migration.py      any other one, by its name
 # Stop the throwaway API first: it applies migrations when it starts and writes while the check compares.
-# Throwaway only, like the other checks. It ends with the database at the migration it checked.
-import difflib, json, os, re, shutil, subprocess, sys, time
+# Throwaway only, like the other checks. Both throwaway databases are dumped first and loaded back at the end, since
+# going back loses what the Down names (KEEP=1 leaves the database at the migration it checked instead).
+import json, os, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-os.environ.setdefault("ADMIN_PASSWORD", "unused")  # t.py asks for it, this check never signs in
-import t
+import pg, t
+from pg import API, changed, layout_diff, sql, applied, snapshot
 
-ROOT = os.path.dirname(t.HERE)
-API = os.path.join(ROOT, "api_v2")
-PASSWORD = os.environ.get("PGPASSWORD", "postgres")
-CONNECTION = f"Host=localhost;Port=5433;Database={t.MAIN_DB};Username=postgres;Password={PASSWORD}"
-
-fails = []
-def check(label, ok, detail=""):
-    print(("  ok   " if ok else "  FAIL ") + label + ("" if ok else f"  [{str(detail)[:600]}]"))
-    if not ok: fails.append(label)
-
-def run(args):
-    # psql and pg_dump on this machine if there are any, otherwise the ones in the throwaway container
-    if shutil.which(args[0]):
-        cmd = [args[0], "-h", "localhost", "-p", "5433", "-U", "postgres"] + args[1:]
-        env = dict(os.environ, PGPASSWORD=PASSWORD)
-    else:
-        cmd = ["docker", "exec", "stock-listing-db", args[0], "-U", "postgres"] + args[1:]
-        env = None
-    return subprocess.run(cmd, env=env, capture_output=True, text=True, encoding="utf-8", check=True).stdout
-
-def sql(db, q):
-    return run(["psql", "-d", db, "-qAt", "-c", q]).strip()
-
-def applied():
-    return sql(t.MAIN_DB, 'SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY 1').splitlines()
-
-def layout():
-    # pg_dump 17.6 and newer write a random \restrict key on every dump, so it and the comments are left out
-    text = run(["pg_dump", "-d", t.MAIN_DB, "--schema-only", "--no-owner", "--no-privileges"])
-    return [line for line in text.splitlines()
-            if line.strip() and not line.startswith(("--", "\\restrict", "\\unrestrict", "SET ", "SELECT pg_catalog.set_config"))]
-
-def rows(db):
-    # Row count and an md5 over every row in a fixed order, for every table but the migration list itself
-    tables = sql(db, "SELECT format('%I.%I', schemaname, tablename) FROM pg_tables "
-                     "WHERE schemaname NOT IN ('pg_catalog', 'information_schema') ORDER BY 1").splitlines()
-    out = {}
-    for name in tables:
-        if name.endswith('"__EFMigrationsHistory"'): continue
-        out[f"{db}.{name}"] = sql(db, f"SELECT count(*) || ' rows ' || md5(coalesce(string_agg(x::text, '|' ORDER BY x::text), '')) FROM {name} x")
-    return out
-
-def snapshot():
-    return {"applied": applied(), "layout": layout(), "rows": {**rows(t.MAIN_DB), **rows(t.COLLECTOR_DB)}}
-
-def changed(before, after, tables=None):
-    keys = tables if tables is not None else sorted(set(before) | set(after))
-    return {k: (before.get(k), after.get(k)) for k in keys if before.get(k) != after.get(k)}
-
-def layout_diff(a, b):
-    return "\n".join(list(difflib.unified_diff(a, b, "before", "after", lineterm="", n=0))[:30])
+check = pg.Checks()
+fails = check.fails
 
 def update(to):
-    started = time.time()
-    done = subprocess.run(["dotnet", "ef", "database", "update", to, "--project", API, "--configuration", "Release",
-                           "--no-build", "--connection", CONNECTION],
-                          cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
-                          env=dict(os.environ, ASPNETCORE_ENVIRONMENT="Throwaway"))
-    if done.returncode != 0:
-        # The connection string carries the password, so it never gets printed
-        sys.exit(f"dotnet ef database update {to} failed:\n" + (done.stdout + done.stderr).replace(PASSWORD, "***")[-3000:])
-    return time.time() - started
+    try:
+        return pg.update(to)
+    except RuntimeError as e:
+        sys.exit(str(e))
 
 # What a migration's Down is allowed to lose, set up after going forward and looked at after going back.
 # A migration without an entry here must come back with nothing lost at all.
@@ -151,7 +98,7 @@ FIXTURES = {"AddUserTablesAndManager": (user_tables_forward, user_tables_back),
             "NamedBoardsSettingsTray": (named_boards_forward, named_boards_back, named_boards_prepare, named_boards_tidy)}
 
 # Which migration, and the one before it
-names = sorted(f[:-3] for f in os.listdir(os.path.join(API, "Migrations")) if re.fullmatch(r"\d{14}_\w+\.cs", f))
+names = pg.migrations()
 wanted = os.environ.get("MIGRATION") or names[-1]
 found = [n for n in names if wanted in (n, n.split("_", 1)[1])]
 if not found: sys.exit(f"There's no migration called {wanted} in api_v2/Migrations")
@@ -160,10 +107,7 @@ short = target.split("_", 1)[1]
 previous = names[names.index(target) - 1] if names.index(target) > 0 else "0"
 print(f"Checking {short} on {t.MAIN_DB} (5433). Going back means going to {previous.split('_', 1)[-1]}.")
 
-others = sql("postgres", f"SELECT count(*) FROM pg_stat_activity WHERE datname IN ('{t.MAIN_DB}', '{t.COLLECTOR_DB}')")
-if others != "0":
-    sys.exit(f"{others} connection(s) are open on the throwaway databases. Stop the throwaway API first, "
-             "it applies migrations when it starts and writes while this check compares")
+pg.nobody_connected(t.MAIN_DB, t.COLLECTOR_DB)
 
 now = applied()
 if not now or now[-1] not in (target, previous):
@@ -171,7 +115,13 @@ if not now or now[-1] not in (target, previous):
              "Start the throwaway API once to bring it up to date, then stop it and run this again")
 
 print("building the API (Release)")
-subprocess.run(["dotnet", "build", API, "-c", "Release", "-v", "q", "-nologo"], check=True, capture_output=True)
+pg.build()
+safe = os.path.join(t.BACKUPS, "dumps", "migration-" + time.strftime("%Y-%m-%d_%H%M%S"))
+os.makedirs(safe, exist_ok=True)
+pg.dump(t.MAIN_DB, os.path.join(safe, "main.dump"))
+pg.dump(t.COLLECTOR_DB, os.path.join(safe, "collector.dump"))
+print(f"  both databases dumped to {safe} first")
+start = snapshot()
 
 if now[-1] == target:
     print(f"  {t.MAIN_DB} already has {short}, taking it back first ({update(previous):.1f}s)")
@@ -220,6 +170,14 @@ check("every table and row matches the first forward", again["rows"] == forward[
       changed(forward["rows"], again["rows"]))
 
 if fixture and len(fixture) > 3: fixture[3]()
+
+if os.environ.get("KEEP") != "1":
+    pg.restore(os.path.join(safe, "main.dump"), t.MAIN_DB)
+    pg.restore(os.path.join(safe, "collector.dump"), t.COLLECTOR_DB)
+    ended = snapshot()
+    print()
+    check("the throwaway databases are loaded back from the dump, every row as at the start",
+          ended["rows"] == start["rows"] and ended["applied"] == start["applied"], changed(start["rows"], ended["rows"]))
 
 print("\n" + (f"{len(fails)} failed" if fails else "MIGRATION OK"))
 sys.exit(1 if fails else 0)
