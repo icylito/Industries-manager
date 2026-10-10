@@ -62,12 +62,22 @@ def sequences(db):
 def sql(db, q):
     return run(["psql", "-d", db, "-qAt", "-c", q]).strip()
 
-def applied(db=t.MAIN_DB):
-    return sql(db, 'SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY 1').splitlines()
+# The two migration chains (api_v2/Data/MigrationContexts.cs): the data, which travels in time, and what is always
+# current. Each has its own context, history table and folder.
+CHAINS = {
+    "data": ("DataMigrationsContext", "__EFMigrationsHistory", "Migrations"),
+    "state": ("StateMigrationsContext", "__StateMigrationsHistory", os.path.join("Migrations", "State")),
+}
+HISTORY_TABLES = {history for _, history, _ in CHAINS.values()}
 
-def migrations():
-    # Every migration in api_v2/Migrations, oldest first
-    return sorted(f[:-3] for f in os.listdir(os.path.join(API, "Migrations")) if re.fullmatch(r"\d{14}_\w+\.cs", f))
+def applied(db=t.MAIN_DB, chain="data"):
+    history = CHAINS[chain][1]
+    if sql(db, f"SELECT to_regclass('public.\"{history}\"') IS NULL") == "t": return []
+    return sql(db, f'SELECT "MigrationId" FROM "{history}" ORDER BY 1').splitlines()
+
+def migrations(chain="data"):
+    # Every migration in the chain's folder, oldest first
+    return sorted(f[:-3] for f in os.listdir(os.path.join(API, CHAINS[chain][2])) if re.fullmatch(r"\d{14}_\w+\.cs", f))
 
 def short(name):
     return name.split("_", 1)[-1]
@@ -86,12 +96,12 @@ def layout(db=t.MAIN_DB):
             if line.strip() and not line.startswith(("--", "\\restrict", "\\unrestrict", "SET ", "SELECT pg_catalog.set_config"))]
 
 def rows(db, label=None):
-    # Row count and an md5 over every row in a fixed order, for every table but the migration list itself
+    # Row count and an md5 over every row in a fixed order, for every table but the migration lists themselves
     tables = sql(db, "SELECT format('%I.%I', schemaname, tablename) FROM pg_tables "
                      "WHERE schemaname NOT IN ('pg_catalog', 'information_schema') ORDER BY 1").splitlines()
     out = {}
     for name in tables:
-        if name.endswith('"__EFMigrationsHistory"'): continue
+        if any(name.endswith(f'"{history}"') for history in HISTORY_TABLES): continue
         out[f"{label or db}.{name}"] = sql(db, f"SELECT count(*) || ' rows ' || md5(coalesce(string_agg(x::text, '|' ORDER BY x::text), '')) FROM {name} x")
     return out
 
@@ -100,7 +110,7 @@ def counts(picture):
 
 def snapshot(main=t.MAIN_DB, collector=t.COLLECTOR_DB):
     # Labelled by role, so a copy restored under another name compares with the original
-    return {"applied": applied(main), "layout": layout(main),
+    return {"applied": applied(main), "state": applied(main, "state"), "layout": layout(main),
             "rows": {**rows(main, "main"), **rows(collector, "collector")}}
 
 def changed(before, after, tables=None):
@@ -116,11 +126,11 @@ def tables_in(layout_lines):
 def build():
     subprocess.run(["dotnet", "build", API, "-c", "Release", "-v", "q", "-nologo"], check=True, capture_output=True)
 
-def update(to, db=t.MAIN_DB):
-    # to is a migration's full name, or "0" for none at all
+def update(to, db=t.MAIN_DB, chain="data"):
+    # to is a migration's full name in that chain, or "0" for none at all
     started = time.time()
     done = subprocess.run(["dotnet", "ef", "database", "update", to, "--project", API, "--configuration", "Release",
-                           "--no-build", "--connection", connection(db)],
+                           "--no-build", "--context", CHAINS[chain][0], "--connection", connection(db)],
                           cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
                           env=dict(os.environ, ASPNETCORE_ENVIRONMENT="Throwaway"))
     if done.returncode != 0:

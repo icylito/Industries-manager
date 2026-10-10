@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using api_v2.Rules;
 using Npgsql;
 
@@ -6,6 +8,8 @@ namespace api_v2.Data;
 
 // Applies any pending migrations when the API starts. Runs in the background so
 // the API is already listening and /health can report progress or failure.
+// Two chains: the data's (DataMigrationsContext), which a copy in History guards, then what is always current
+// (StateMigrationsContext), which changes no data, so it needs no copy. See Data/MigrationContexts.cs.
 public class MigrationService(
     IServiceScopeFactory scopes,
     DatabaseStatus status,
@@ -35,10 +39,12 @@ public class MigrationService(
                 using (var scope = scopes.CreateScope())
                 {
                     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                    var data = scope.ServiceProvider.GetRequiredService<DataMigrationsContext>();
+                    var state = scope.ServiceProvider.GetRequiredService<StateMigrationsContext>();
 
                     status.Set(DatabaseState.Migrating, "Checking the database", attempt);
-                    var pending = (await db.Database.GetPendingMigrationsAsync(ct)).ToList();
-                    var appliedBefore = (await db.Database.GetAppliedMigrationsAsync(ct)).ToList();
+                    var pending = (await data.Database.GetPendingMigrationsAsync(ct)).ToList();
+                    var appliedBefore = (await data.Database.GetAppliedMigrationsAsync(ct)).ToList();
 
                     if (pending.Count > 0 && appliedBefore.Count > 0)
                     {
@@ -69,7 +75,12 @@ public class MigrationService(
                     status.Set(DatabaseState.Migrating,
                         pending.Count == 0 ? "Checking the database" : $"Applying {pending.Count} migration(s)", attempt);
 
-                    await db.Database.MigrateAsync(ct);
+                    await data.Database.MigrateAsync(ct);
+                    // Before its first run the state chain has no history table, and EF reading a missing one logs a
+                    // failed query in the API window. Making the empty table first keeps the window clean.
+                    await state.GetService<IHistoryRepository>().CreateIfNotExistsAsync(ct);
+                    var statePending = (await state.Database.GetPendingMigrationsAsync(ct)).ToList();
+                    await state.Database.MigrateAsync(ct);
                     await rules.LoadAsync(db, ct);
                     // The sector list is saved with a table copy, so it needs history. When history isn't set up yet
                     // it waits for BringHistoryUpAsync, so a slow history database never holds the main one back.
@@ -81,10 +92,12 @@ public class MigrationService(
                     // Someone must always be able to sign in, see UserService.EnsureAdminAsync
                     await Auth.UserService.EnsureAdminAsync(db, config, log, ct);
 
-                    var applied = (await db.Database.GetAppliedMigrationsAsync(ct)).ToList();
-                    var message = pending.Count == 0
+                    // The data chain's list is the layout backups and History versions are compared by
+                    var applied = (await data.Database.GetAppliedMigrationsAsync(ct)).ToList();
+                    var all = pending.Concat(statePending).ToList();
+                    var message = all.Count == 0
                         ? "Database is up to date"
-                        : $"Applied {string.Join(", ", pending)}";
+                        : $"Applied {string.Join(", ", all)}";
                     if (!collectorReady)
                     {
                         status.SetHistory(false, "Checking the history database");

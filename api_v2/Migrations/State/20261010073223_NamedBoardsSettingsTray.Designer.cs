@@ -10,9 +10,9 @@ using api_v2.Data;
 
 #nullable disable
 
-namespace api_v2.Migrations
+namespace api_v2.Migrations.State
 {
-    [DbContext(typeof(AppDbContext))]
+    [DbContext(typeof(StateMigrationsContext))]
     [Migration("20261010073223_NamedBoardsSettingsTray")]
     partial class NamedBoardsSettingsTray
     {

@@ -90,5 +90,5 @@ None of these folders go into git.
 ## For anyone who wants to try it
 
 - Setup, database settings and the seed script are in `HANDOFF.md` and `docker_setup.md`.
-- Changing the shape of the table needs a migration. Run `.\migrate.ps1 -Name YourChangeName` in `api_v2`, then restart the API.
+- Changing the shape of a table needs a migration, in one of two chains. Only the data travels in time: the industries, their rules and the Tables page are the data chain (`.\migrate.ps1 -Context Data -Name YourChangeName` in `api_v2`). Accounts, notes, the Scratchpad, requests and settings are always current and have their own chain (`-Context State`), so going back on the data never touches them. Restart the API and it applies both.
 - The API runs on http://localhost:5005 with Swagger at http://localhost:5005/swagger/index.html.

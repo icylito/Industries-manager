@@ -11,7 +11,7 @@ using api_v2.Data;
 
 namespace api_v2.Migrations
 {
-    [DbContext(typeof(AppDbContext))]
+    [DbContext(typeof(DataMigrationsContext))]
     [Migration("20260926170102_InitialCreate")]
     partial class InitialCreate
     {

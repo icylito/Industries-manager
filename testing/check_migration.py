@@ -4,41 +4,58 @@
 #   where the first forward did. Each step is timed.
 #   python3 -I check_migration.py                       the newest migration
 #   set MIGRATION=AddScratchFiles & python3 -I check_migration.py      any other one, by its name
+#   set CHAIN=state & set MIGRATION=NamedBoardsSettingsTray & ...     one in the chain of what is always current
 # Stop the throwaway API first: it applies migrations when it starts and writes while the check compares.
 # Throwaway only, like the other checks. Both throwaway databases are dumped first and loaded back at the end, since
 # going back loses what the Down names (KEEP=1 leaves the database at the migration it checked instead).
 import json, os, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pg, t
-from pg import API, changed, layout_diff, sql, applied, snapshot
+from pg import API, changed, layout_diff, sql, snapshot
 
 check = pg.Checks()
 fails = check.fails
 
+# The data chain, or with CHAIN=state the chain of what is always current (api_v2/Migrations/State)
+CHAIN = os.environ.get("CHAIN", "data")
+if CHAIN not in pg.CHAINS: sys.exit(f"CHAIN is data or state, not {CHAIN}")
+LIST = "applied" if CHAIN == "data" else "state"
+
+def applied():
+    return pg.applied(chain=CHAIN)
+
 def update(to):
     try:
-        return pg.update(to)
+        return pg.update(to, chain=CHAIN)
     except RuntimeError as e:
         sys.exit(str(e))
 
 # What a migration's Down is allowed to lose, set up after going forward and looked at after going back.
 # A migration without an entry here must come back with nothing lost at all.
+# The Tables page: going back loses every table made on it (its Down says so). A manager made before going forward
+# stays a manager going back, since accounts are always current and belong to the state chain (api_v2/Data/StateModel.cs).
+manager = None
+
+def user_tables_prepare():
+    global manager
+    manager = sql(t.MAIN_DB, """SELECT "Id" FROM "Users" WHERE "Role" = 'normal' ORDER BY "Id" LIMIT 1""") or None
+    if manager:
+        sql(t.MAIN_DB, f"""UPDATE "Users" SET "Role" = 'manager' WHERE "Id" = {manager}""")
+
 def user_tables_forward():
-    normal = sql(t.MAIN_DB, """SELECT "Id" FROM "Users" WHERE "Role" = 'normal' ORDER BY "Id" LIMIT 1""")
-    if normal:
-        sql(t.MAIN_DB, f"""UPDATE "Users" SET "Role" = 'manager' WHERE "Id" = {normal}""")
     table = sql(t.MAIN_DB, """INSERT INTO "UserTables" ("Name", "Columns", "RowCount", "CreatedBy", "CreatedAt", "UpdatedAt", "Version")
                               VALUES ('Migration check', '[]', 1, 'check', now(), now(), 1) RETURNING "Id" """).splitlines()[0]
     sql(t.MAIN_DB, f"""INSERT INTO "UserTableRows" ("TableId", "Data", "CreatedBy", "CreatedAt", "UpdatedAt")
                        VALUES ({table}, '{{}}', 'check', now(), now())""")
-    return normal
 
-def user_tables_back(normal):
-    if not normal:
-        print("  (no normal account in the throwaway database, so the manager going back to normal wasn't tried. check_tables.py makes one)")
+def user_tables_back(_):
+    gone = sql(t.MAIN_DB, """SELECT to_regclass('public."UserTables"') IS NULL""")
+    check("going back loses the tables made on the Tables page, as its Down says", gone == "t", gone)
+    if not manager:
+        print("  (no normal account in the throwaway database, so a manager going back wasn't tried. check_tables.py makes one)")
         return
-    role = sql(t.MAIN_DB, f"""SELECT "Role" FROM "Users" WHERE "Id" = {normal}""")
-    check("the manager made after going forward is a normal account again", role == "normal", role)
+    role = sql(t.MAIN_DB, f"""SELECT "Role" FROM "Users" WHERE "Id" = {manager}""")
+    check("a manager stays a manager, accounts never go back", role == "manager", role)
 
 # Named boards: Down keeps each person's first board and loses the boards made since, names, pins and settings.
 # Run with EXPECT_CHANGED=ScratchBoards,ScratchFiles, since every board and file row gains new columns going forward.
@@ -94,11 +111,11 @@ def named_boards_tidy():
                       WHERE x->>'id' <> 'migration-check'), '[]'::jsonb)""")
 
 # (forward, back), and optionally what to set up before going forward and what to tidy at the very end
-FIXTURES = {"AddUserTablesAndManager": (user_tables_forward, user_tables_back),
+FIXTURES = {"AddUserTablesAndManager": (user_tables_forward, user_tables_back, user_tables_prepare),
             "NamedBoardsSettingsTray": (named_boards_forward, named_boards_back, named_boards_prepare, named_boards_tidy)}
 
 # Which migration, and the one before it
-names = pg.migrations()
+names = pg.migrations(CHAIN)
 wanted = os.environ.get("MIGRATION") or names[-1]
 found = [n for n in names if wanted in (n, n.split("_", 1)[1])]
 if not found: sys.exit(f"There's no migration called {wanted} in api_v2/Migrations")
@@ -137,8 +154,8 @@ print("\nforward")
 took = update(target)
 print(f"  took {took:.1f}s")
 forward = snapshot()
-check("the migration list gained exactly this one", forward["applied"] == before["applied"] + [target],
-      forward["applied"][-3:])
+check("the migration list gained exactly this one", forward[LIST] == before[LIST] + [target],
+      forward[LIST][-3:])
 allowed = [x.strip() for x in os.environ.get("EXPECT_CHANGED", "").split(",") if x.strip()]
 moved = {k: v for k, v in changed(before["rows"], forward["rows"], before["rows"].keys()).items()
          if not any(k.endswith(f'"{a}"') for a in allowed)}
@@ -152,7 +169,7 @@ print("\nback")
 took = update(previous)
 print(f"  took {took:.1f}s")
 back = snapshot()
-check("the migration list is what it was before", back["applied"] == before["applied"], back["applied"][-3:])
+check("the migration list is what it was before", back[LIST] == before[LIST], back[LIST][-3:])
 check("the layout is exactly what it was before", back["layout"] == before["layout"],
       layout_diff(before["layout"], back["layout"]))
 check("every table and row is exactly what it was before", back["rows"] == before["rows"],
@@ -163,7 +180,7 @@ print("\nforward again")
 took = update(target)
 print(f"  took {took:.1f}s")
 again = snapshot()
-check("the migration list matches the first forward", again["applied"] == forward["applied"], again["applied"][-3:])
+check("the migration list matches the first forward", again[LIST] == forward[LIST], again[LIST][-3:])
 check("the layout matches the first forward", again["layout"] == forward["layout"],
       layout_diff(forward["layout"], again["layout"]))
 check("every table and row matches the first forward", again["rows"] == forward["rows"],
@@ -177,7 +194,7 @@ if os.environ.get("KEEP") != "1":
     ended = snapshot()
     print()
     check("the throwaway databases are loaded back from the dump, every row as at the start",
-          ended["rows"] == start["rows"] and ended["applied"] == start["applied"], changed(start["rows"], ended["rows"]))
+          ended["rows"] == start["rows"] and ended[LIST] == start[LIST], changed(start["rows"], ended["rows"]))
 
 print("\n" + (f"{len(fails)} failed" if fails else "MIGRATION OK"))
 sys.exit(1 if fails else 0)

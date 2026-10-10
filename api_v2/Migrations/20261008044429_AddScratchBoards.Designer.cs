@@ -12,7 +12,7 @@ using api_v2.Data;
 
 namespace api_v2.Migrations
 {
-    [DbContext(typeof(AppDbContext))]
+    [DbContext(typeof(DataMigrationsContext))]
     [Migration("20261008044429_AddScratchBoards")]
     partial class AddScratchBoards
     {

@@ -1,4 +1,4 @@
-# Every migration, down and up: the throwaway database walks back one migration at a time to the oldest layout,
+# Every data migration, down and up: the throwaway database walks back one migration at a time to the oldest layout,
 # then forward one at a time to the newest, then the same again in one jump each way. At every step:
 #   the migration list is right, every table the migration doesn't name keeps every row exactly (a count and an
 #   md5), what the tables it does name lose going back is listed, and on the way up each layout is exactly the one
@@ -9,6 +9,9 @@
 # flags the later one as a copy instead of stopping.
 #   python3 -I check_migration_walk.py                  down to the oldest migration and back
 #   set FLOOR=AddUsersAndSessions & python3 -I ...      down to that one instead
+# Only the data travels in time: at every step the tables that are always current (accounts, notes, the Scratchpad,
+# requests, settings, see api_v2/Data/StateModel.cs) must keep every row. And a new database built by both migration
+# chains must come out exactly like the one that was upgraded.
 # Stop the throwaway API first. A dump of both throwaway databases is taken before anything moves and loaded back
 # at the end (KEEP=1 leaves the database as the walk left it), because going back past a table drops its rows.
 import os, re, sys, time
@@ -39,8 +42,11 @@ print(f"  both databases dumped to {safe} first")
 original = pg.snapshot()
 
 def step(to):
+    return step_on(to, t.MAIN_DB, "data")
+
+def step_on(to, db, chain):
     try:
-        return pg.update(to), None
+        return pg.update(to, db, chain), None
     except RuntimeError as e:
         return None, str(e)
 
@@ -59,6 +65,13 @@ def company(name, column):
 
 def table_of(key):
     return key.rsplit(".", 1)[-1].strip('"')
+
+# The tables the state chain owns, from api_v2/Data/StateModel.cs
+STATE_TABLES = {"Users", "Sessions", "UserNotes", "UserSettings", "ScratchBoards", "ScratchFiles", "ScratchTrays", "Requests", "Settings"}
+
+def state_kept(before, after):
+    moved = {k: v for k, v in pg.changed(before, after).items() if table_of(k) in STATE_TABLES}
+    check("    accounts, notes, the Scratchpad, requests and settings keep every row", not moved, moved)
 
 def untouched_same(before, after, names_touched, what):
     moved = {k: v for k, v in pg.changed(before, after, before.keys()).items() if table_of(k) not in names_touched}
@@ -101,6 +114,7 @@ for i in range(high, low, -1):
     print(f"  {pg.short(migration)} back in {took:.1f}s")
     check(f"    the list ends at {pg.short(to)}", picture["applied"] == names[:i], picture["applied"][-2:])
     untouched_same(pictures[migration]["rows"], picture["rows"], named, "    every table it doesn't name keeps every row")
+    state_kept(pictures[migration]["rows"], picture["rows"])
     for line in losses(pictures[migration]["rows"], picture["rows"], named): print("    " + line)
     pictures[to] = picture
     reached = i - 1
@@ -136,6 +150,7 @@ for i in range(reached + 1, high + 1):
         check("    the layout is exactly the one this step had on the way down", picture["layout"] == pictures[migration]["layout"],
               pg.layout_diff(pictures[migration]["layout"], picture["layout"]))
     untouched_same(before["rows"], picture["rows"], named, "    every table it doesn't name keeps every row")
+    state_kept(before["rows"], picture["rows"])
 
 print(f"\nback at {pg.short(top)}")
 check("'Walk priced' keeps the price set in the old layout", company("Walk priced", "Price") == "123.45", company("Walk priced", "Price"))
@@ -173,6 +188,19 @@ if names.index(unique) > reached:
           later == first and company("Walk Twin", "DuplicateOf") == "null", (first, later))
     took, failed = step(top)
     check(f"and on up to {pg.short(top)}", not failed, failed)
+
+# ---- a new database built by both chains looks exactly like the upgraded one ----
+print("\na new database built by both chains")
+fresh = t.MAIN_DB + "_fresh"
+pg.drop(fresh)
+pg.sql("postgres", f'CREATE DATABASE "{fresh}"')
+took_data, failed = step_on(top, fresh, "data")
+check(f"the data chain builds it ({took_data or 0:.1f}s)", not failed, failed)
+took_state, failed = step_on(pg.migrations("state")[-1], fresh, "state")
+check(f"then the state chain ({took_state or 0:.1f}s)", not failed, failed)
+check("its layout is exactly the upgraded database's", pg.layout(fresh) == pg.layout(),
+      pg.layout_diff(pg.layout(), pg.layout(fresh)))
+pg.drop(fresh)
 
 # ---- put back ----
 if os.environ.get("KEEP") != "1":

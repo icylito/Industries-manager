@@ -11,7 +11,7 @@ using api_v2.Data;
 
 namespace api_v2.Migrations
 {
-    [DbContext(typeof(AppDbContext))]
+    [DbContext(typeof(DataMigrationsContext))]
     [Migration("20260927043251_RenameIndustries")]
     partial class RenameIndustries
     {

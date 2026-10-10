@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace api_v2.Migrations
+namespace api_v2.Migrations.State
 {
     /// <inheritdoc />
     public partial class NamedBoardsSettingsTray : Migration

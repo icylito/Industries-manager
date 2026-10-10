@@ -36,6 +36,10 @@ builder.Services.AddSingleton(connections);
 // EnableRetryOnFailure retries a query up to 3 times on transient errors like a dropped connection
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connections.Main,
     npgsql => npgsql.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null)));
+// The two migration chains, only used to migrate: the data's, and what is always current with its own history table
+builder.Services.AddDbContext<DataMigrationsContext>(options => options.UseNpgsql(connections.Main));
+builder.Services.AddDbContext<StateMigrationsContext>(options => options.UseNpgsql(connections.Main,
+    npgsql => npgsql.MigrationsHistoryTable(StateMigrationsContext.HistoryTable)));
 
 // Auto migration, applies pending migrations on startup and tracks the result for /health
 builder.Services.AddSingleton<DatabaseStatus>();

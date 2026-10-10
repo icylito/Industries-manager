@@ -12,10 +12,6 @@ namespace api_v2.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropCheckConstraint(
-                name: "CK_Users_Role",
-                table: "Users");
-
             migrationBuilder.CreateTable(
                 name: "UserTables",
                 columns: table => new
@@ -59,11 +55,6 @@ namespace api_v2.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
-            migrationBuilder.AddCheckConstraint(
-                name: "CK_Users_Role",
-                table: "Users",
-                sql: "\"Role\" IN ('admin', 'manager', 'normal')");
-
             migrationBuilder.CreateIndex(
                 name: "IX_UserTableRows_TableId",
                 table: "UserTableRows",
@@ -81,8 +72,9 @@ namespace api_v2.Migrations
         }
 
         /// <inheritdoc />
-        // WARNING: going back past this migration deletes every table made on the Tables page, with all its rows,
-        // and turns every manager into a normal account. To undo it without losing them, restore a backup instead.
+        // WARNING: going back past this migration deletes every table made on the Tables page, with all its rows.
+        // To undo it without losing them, restore a backup instead. The manager role it once added to accounts is
+        // always current, so since the split it belongs to the state chain and going back leaves it alone.
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql("""DROP INDEX IF EXISTS "IX_UserTables_Name_IgnoreCase";""");
@@ -92,18 +84,6 @@ namespace api_v2.Migrations
 
             migrationBuilder.DropTable(
                 name: "UserTables");
-
-            migrationBuilder.DropCheckConstraint(
-                name: "CK_Users_Role",
-                table: "Users");
-
-            // The old rule only allows admin and normal, so managers have to become normal first or it fails
-            migrationBuilder.Sql("""UPDATE "Users" SET "Role" = 'normal' WHERE "Role" = 'manager';""");
-
-            migrationBuilder.AddCheckConstraint(
-                name: "CK_Users_Role",
-                table: "Users",
-                sql: "\"Role\" IN ('admin', 'normal')");
         }
     }
 }
