@@ -43,6 +43,12 @@ public class MigrationService(
                     var state = scope.ServiceProvider.GetRequiredService<StateMigrationsContext>();
 
                     status.Set(DatabaseState.Migrating, "Checking the database", attempt);
+                    // Before its first run the state chain has no history table, and EF reading a missing one logs a
+                    // failed query in the API window. Making the empty table first keeps the window clean.
+                    await state.GetService<IHistoryRepository>().CreateIfNotExistsAsync(ct);
+                    var stateSteps = state.Database.GetMigrations().ToList();
+                    status.SetStateSteps(stateSteps);
+                    if (await data.GetService<IHistoryRepository>().ExistsAsync(ct)) await HandOverAsync(state, stateSteps, ct);
                     var pending = (await data.Database.GetPendingMigrationsAsync(ct)).ToList();
                     var appliedBefore = (await data.Database.GetAppliedMigrationsAsync(ct)).ToList();
 
@@ -76,9 +82,6 @@ public class MigrationService(
                         pending.Count == 0 ? "Checking the database" : $"Applying {pending.Count} migration(s)", attempt);
 
                     await data.Database.MigrateAsync(ct);
-                    // Before its first run the state chain has no history table, and EF reading a missing one logs a
-                    // failed query in the API window. Making the empty table first keeps the window clean.
-                    await state.GetService<IHistoryRepository>().CreateIfNotExistsAsync(ct);
                     var statePending = (await state.Database.GetPendingMigrationsAsync(ct)).ToList();
                     await state.Database.MigrateAsync(ct);
                     await rules.LoadAsync(db, ct);
@@ -140,6 +143,22 @@ public class MigrationService(
                 return;
             }
         }
+    }
+
+    // A database that ran a step before the chains were split has it in the data chain's history. Those steps belong to
+    // the state chain now, so their record moves there, in one go, and they are never run a second time.
+    private async Task HandOverAsync(StateMigrationsContext state, List<string> stateSteps, CancellationToken ct)
+    {
+        var steps = stateSteps.ToArray();
+        await using var tx = await state.Database.BeginTransactionAsync(ct);
+        var moved = await state.Database.ExecuteSqlAsync($$"""
+            INSERT INTO "__StateMigrationsHistory" ("MigrationId", "ProductVersion")
+            SELECT "MigrationId", "ProductVersion" FROM "__EFMigrationsHistory" WHERE "MigrationId" = ANY({{steps}})
+            ON CONFLICT ("MigrationId") DO NOTHING
+            """, ct);
+        await state.Database.ExecuteSqlAsync($"""DELETE FROM "__EFMigrationsHistory" WHERE "MigrationId" = ANY({steps})""", ct);
+        await tx.CommitAsync(ct);
+        if (moved > 0) log.LogInformation("Moved {Count} step(s) the data chain had run before the split to the state chain", moved);
     }
 
     // History keeps retrying after the main database is already usable.

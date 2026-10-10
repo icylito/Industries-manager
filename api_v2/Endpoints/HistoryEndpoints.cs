@@ -51,12 +51,11 @@ public static class HistoryEndpoints
         // Saved versions, newest first. SameLayout says if the table looked the same back then.
         history.MapGet("/versions", async (CollectorStore collector, DatabaseStatus status, CancellationToken ct) =>
         {
-            var current = status.AppliedMigrations.ToHashSet();
             var versions = await collector.ListVersionsAsync(ct);
             return Results.Ok(versions.Select(v => new
             {
                 v.Id, v.CreatedAt, v.Reason, v.CreatedBy, v.RowCount, v.RulesVersion, v.Pinned, v.Damaged,
-                SameLayout = !v.Damaged && current.SetEquals(v.Migrations)
+                SameLayout = !v.Damaged && status.SameLayout(v.Migrations)
             }));
         });
 
@@ -69,7 +68,7 @@ public static class HistoryEndpoints
             {
                 v.Summary.Id, v.Summary.CreatedAt, v.Summary.Reason, v.Summary.CreatedBy, v.Summary.RowCount,
                 v.Summary.RulesVersion, v.Summary.Pinned, v.Summary.Damaged,
-                SameLayout = status.AppliedMigrations.ToHashSet().SetEquals(v.Summary.Migrations),
+                SameLayout = status.SameLayout(v.Summary.Migrations),
                 Columns = v.Columns.Select(c => c.Name),
                 Rules = v.Rules is null ? null : RulesService.ParseFields(v.Rules),
                 v.Rows
@@ -372,12 +371,13 @@ public static class HistoryEndpoints
 
                 int? requestId = null;
                 var current = status.AppliedMigrations.ToList();
-                if (!current.ToHashSet().SetEquals(v.Summary.Migrations))
+                var then = status.DataSteps(v.Summary.Migrations);
+                if (!status.SameLayout(v.Summary.Migrations))
                 {
                     var request = await RequestService.CreateAsync(db, locks, "restore-layout",
                         $"Bring back the table layout of version #{id}",
                         $"Version #{id} was restored, but the table looked different back then. Its rows were fitted into today's layout. A developer is needed to bring the old layout back.",
-                        Drafts.RestoreLayout(id, v.Summary.Migrations.Except(current), current.Except(v.Summary.Migrations)),
+                        Drafts.RestoreLayout(id, then.Except(current), current.Except(then)),
                         user.Name, ct: ct);
                     requestId = request.Request.Id;
                 }

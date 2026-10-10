@@ -44,7 +44,7 @@ public sealed class BackupRestore(
 
     // True when the backup's layout matches today's database, null when the backup didn't record it
     public bool? SameLayout(BackupEntry entry) =>
-        entry.Migrations is null ? null : status.AppliedMigrations.ToHashSet().SetEquals(entry.Migrations);
+        entry.Migrations is null ? null : status.SameLayout(entry.Migrations);
 
     public async Task<BackupRestoreResult> RunAsync(string id, string by, CancellationToken ct)
     {
@@ -81,7 +81,7 @@ public sealed class BackupRestore(
 
             // The dump's own record of its layout is what counts, backup.json is only the quick check
             var dumped = await MigrationsAsync(source, ct);
-            if (!status.AppliedMigrations.ToHashSet().SetEquals(dumped))
+            if (!status.SameLayout(dumped))
             {
                 throw new BackupRefusedException(LayoutMessage);
             }

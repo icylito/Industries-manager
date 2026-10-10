@@ -12,6 +12,9 @@ public class DatabaseStatus
     public string Message { get; private set; } = "Waiting to connect to the database";
     public int Attempts { get; private set; }
     public IReadOnlyList<string> AppliedMigrations { get; private set; } = [];
+    // The steps of the state chain (what is always current). They never change the data's layout, so a backup or a
+    // History version that recorded one in its list (made before the chains were split) still has the same layout.
+    private HashSet<string> _stateSteps = [];
     public DateTimeOffset UpdatedAt { get; private set; } = DateTimeOffset.UtcNow;
     public bool HistoryReady { get; private set; }
     public string HistoryMessage { get; private set; } = "";
@@ -29,6 +32,26 @@ public class DatabaseStatus
             UpdatedAt = DateTimeOffset.UtcNow;
         }
     }
+
+    public void SetStateSteps(IEnumerable<string> steps)
+    {
+        lock (_lock)
+        {
+            _stateSteps = steps.ToHashSet();
+        }
+    }
+
+    // A recorded list of migrations without the state chain's steps: the data layout it describes
+    public IReadOnlyList<string> DataSteps(IEnumerable<string> recorded)
+    {
+        lock (_lock)
+        {
+            return recorded.Where(step => !_stateSteps.Contains(step)).ToList();
+        }
+    }
+
+    // True when a backup or a History version was made with the data laid out as it is now
+    public bool SameLayout(IEnumerable<string> recorded) => AppliedMigrations.ToHashSet().SetEquals(DataSteps(recorded));
 
     public void SetHistory(bool ready, string message)
     {
