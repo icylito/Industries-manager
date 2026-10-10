@@ -15,4 +15,7 @@ public class ScratchFile
     // A GUID plus extension, the only name on disk. Unique, so two uploads can never collide.
     public required string StoredName { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    // When the sweep first found no board of the person's using this file. Cleared if a board uses it again.
+    // Seven days after this the file is deleted for good, see Scratchpad/ScratchFileSweeper.cs.
+    public DateTimeOffset? OrphanedAt { get; set; }
 }

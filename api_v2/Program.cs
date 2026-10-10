@@ -47,6 +47,7 @@ builder.Services.AddSingleton<CollectorStore>();
 builder.Services.AddSingleton<AppLocks>();
 // Where uploaded Scratchpad files live on disk, created on startup. See Data/ScratchFileStore.cs
 builder.Services.AddSingleton<ScratchFileStore>();
+builder.Services.AddHostedService<api_v2.Scratchpad.ScratchFileSweeper>();
 // The readable JSON copy of every table from the Tables page, and the job that writes it on start and empties
 // the bin. See Tables/UserTableMirror.cs and UserTables:Mirror in appsettings.
 builder.Services.AddSingleton<api_v2.Tables.UserTableMirror>();
@@ -174,7 +175,7 @@ app.MapHistory();
 app.MapBackups();
 app.MapRequests();
 app.MapScratchpad();
-app.MapScratchFiles();
+app.MapMe();
 app.MapUserTables();
 app.MapOpenApi();
 app.UseSwaggerUI(options =>

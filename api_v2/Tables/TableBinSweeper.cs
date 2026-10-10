@@ -15,11 +15,7 @@ public sealed class TableBinSweeper(
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
-        while (status.State != DatabaseState.Ready)
-        {
-            if (status.State == DatabaseState.Failed) return;
-            await Task.Delay(TimeSpan.FromSeconds(2), ct);
-        }
+        if (!await status.WaitUntilReadyAsync(ct)) return;
 
         try
         {

@@ -1,190 +1,243 @@
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using api_v2.Auth;
 using api_v2.Data;
 using api_v2.Model;
+using api_v2.Scratchpad;
 using Microsoft.EntityFrameworkCore;
 
 namespace api_v2.Endpoints;
 
 // What the page sends when it saves a board. updatedAt is the value it last read, so a save from a stale
-// tab is refused instead of quietly writing over a newer board. See docs/plans/2026-10-08-scratchpad-canvas.md
-public record ScratchBoardBody(JsonElement Document, DateTimeOffset? UpdatedAt);
+// tab is refused instead of quietly writing over a newer board.
+public record BoardSave(JsonElement Document, DateTimeOffset? UpdatedAt);
+// A new board. With a document it starts as a copy of that, which is how "Keep mine as a new board" keeps
+// changes a stale tab could not save.
+public record NewBoard(string? Name, JsonElement? Document);
+// Renaming, pinning and where the person left the board. None of these is a change to the board itself.
+public record BoardChange(string? Name, bool? Pinned, JsonElement? View);
 
+// One row of the History tab
+public record BoardSummary(int Id, string Name, bool Pinned, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, int Things);
+
+// The Scratchpad: a person's boards (each one endless canvas), their carry tray, and the files on their boards.
+// Admin only for now, and every board, tray and file is the person's own: someone else's board answers 404.
 public static class ScratchpadEndpoints
 {
-    // A fresh board: nothing on it, top left, at 100%
-    private const string EmptyDocument = """{"version":1,"view":{"x":0,"y":0,"zoom":1},"items":[]}""";
-    private const int MaxBytes = 1_000_000;
-    private const int MaxItems = 500;
-    private const int MaxText = 10_000;
-    private const double MinZoom = 0.1;
-    private const double MaxZoom = 4.0;
-    // What may sit on the board. snap and file are reserved for later slices, see the brief.
-    private static readonly string[] KnownTypes = ["industry", "note", "text", "snap", "file"];
+    private const string EmptyDocument = """{"version":1,"items":[],"lines":[],"groups":[]}""";
+    private const int MaxBoards = 100;
+    private const int MaxName = 60;
+    private const int TrayMax = 20;
 
     public static void MapScratchpad(this WebApplication app)
     {
         var group = app.MapGroup("/scratchpad").RequireDatabaseReady().RequireAdmin();
+        MapBoards(group);
+        MapTray(group);
+        group.MapScratchFiles();
+    }
 
-        // The person's own board. No row means a fresh empty board, and reading never writes one.
-        group.MapGet("/", async (AppDbContext db, ICurrentUser user, CancellationToken ct) =>
+    private static void MapBoards(RouteGroupBuilder group)
+    {
+        // The History tab: pinned first, then the most recently changed
+        group.MapGet("/boards", async (AppDbContext db, ICurrentUser user, CancellationToken ct) =>
         {
-            var board = await db.ScratchBoards.AsNoTracking().FirstOrDefaultAsync(b => b.UserId == user.Id, ct);
+            var rows = await db.Database.SqlQuery<BoardSummary>($"""
+                SELECT "Id", "Name", "Pinned", "CreatedAt", "UpdatedAt",
+                       jsonb_array_length(COALESCE("Document"->'items', '[]'::jsonb)) AS "Things"
+                FROM "ScratchBoards" WHERE "UserId" = {user.Id!.Value}
+                ORDER BY "Pinned" DESC, "UpdatedAt" DESC, "Id" DESC
+                """).ToListAsync(ct);
+            return Results.Ok(rows);
+        });
+
+        group.MapPost("/boards", async (NewBoard body, AppDbContext db, ICurrentUser user, AppLocks locks, CancellationToken ct) =>
+        {
+            var name = NameOf(body.Name) ?? "New board";
+            var document = EmptyDocument;
+            if (body.Document is { ValueKind: not JsonValueKind.Null and not JsonValueKind.Undefined } given)
+            {
+                var (checkedDocument, errors) = BoardRules.Check(given);
+                if (errors.Count > 0) return Results.ValidationProblem(errors);
+                document = checkedDocument!;
+            }
+
+            var person = user.Id!.Value;
+            await using var boardLock = await locks.TakeAsync(AppLock.Scratchpad, person, ct);
+            if (await db.ScratchBoards.CountAsync(b => b.UserId == person, ct) >= MaxBoards)
+            {
+                return Results.Problem($"You can keep at most {MaxBoards} boards. Delete one you no longer need first.",
+                    statusCode: StatusCodes.Status409Conflict, title: "Too many boards");
+            }
+
+            var now = Now();
+            var board = new ScratchBoard { UserId = person, Name = name, Document = document, CreatedAt = now, UpdatedAt = now };
+            db.ScratchBoards.Add(board);
+            await db.SaveChangesAsync(ct);
+            return Results.Created($"/scratchpad/boards/{board.Id}", Summary(board));
+        });
+
+        group.MapGet("/boards/{id:int}", async (int id, AppDbContext db, ICurrentUser user, CancellationToken ct) =>
+        {
+            var board = await db.ScratchBoards.AsNoTracking().FirstOrDefaultAsync(b => b.Id == id && b.UserId == user.Id, ct);
+            if (board is null) return BoardNotFound();
             return Results.Ok(new
             {
-                document = JsonNode.Parse(board?.Document ?? EmptyDocument),
-                updatedAt = board?.UpdatedAt,
+                board.Id,
+                board.Name,
+                board.Pinned,
+                document = JsonNode.Parse(board.Document),
+                view = board.View is null ? null : JsonNode.Parse(board.View),
+                board.CreatedAt,
+                board.UpdatedAt,
             });
         });
 
         // Saves the whole board. The page sends this on its own after every change, so there is no Save button.
-        group.MapPut("/", async (ScratchBoardBody body, AppDbContext db, ICurrentUser user, AppLocks locks, CancellationToken ct) =>
+        group.MapPut("/boards/{id:int}", async (int id, BoardSave body, AppDbContext db, ICurrentUser user, AppLocks locks, CancellationToken ct) =>
         {
-            var (document, errors) = Normalize(body.Document);
+            var (document, errors) = BoardRules.Check(body.Document);
             if (errors.Count > 0) return Results.ValidationProblem(errors);
 
-            // One board per person, so two saves for the same account take their turn
-            await using var boardLock = await locks.TakeAsync(AppLock.Scratchpad, ct);
-            var board = await db.ScratchBoards.FirstOrDefaultAsync(b => b.UserId == user.Id, ct);
-            // No updatedAt means the page opened before there was a board. If there is one now, another tab or
-            // device made it meanwhile, and saving would write over it.
-            if (board is not null && body.UpdatedAt != board.UpdatedAt)
+            // One person's saves take their turn, so two tabs can't both pass the check below at once
+            await using var boardLock = await locks.TakeAsync(AppLock.Scratchpad, user.Id!.Value, ct);
+            var board = await db.ScratchBoards.FirstOrDefaultAsync(b => b.Id == id && b.UserId == user.Id, ct);
+            if (board is null) return BoardNotFound();
+            if (body.UpdatedAt != board.UpdatedAt)
             {
-                return Results.Problem("This board was changed somewhere else. Reload the page and try again",
-                    statusCode: StatusCodes.Status409Conflict, title: "Changed meanwhile");
+                return Results.Problem("This board was changed somewhere else", statusCode: StatusCodes.Status409Conflict,
+                    title: "Changed meanwhile");
             }
 
-            // Postgres keeps microseconds but .NET carries 100-nanosecond ticks, so drop the sub-microsecond
-            // part before saving. Without this the value echoed below would not equal the one a later GET reads
-            // back, and the guard would refuse the next save from a page that trusts this answer.
-            var clock = DateTimeOffset.UtcNow;
-            var now = new DateTimeOffset(clock.Ticks - clock.Ticks % TimeSpan.TicksPerMicrosecond, clock.Offset);
-            if (board is null)
-            {
-                board = new ScratchBoard { UserId = user.Id!.Value, Document = document!, CreatedAt = now, UpdatedAt = now };
-                db.ScratchBoards.Add(board);
-            }
-            else
-            {
-                board.Document = document!;
-                board.UpdatedAt = now;
-            }
-
+            board.Document = document!;
+            board.UpdatedAt = Now();
             await db.SaveChangesAsync(ct);
             return Results.Ok(new { updatedAt = board.UpdatedAt });
         });
 
-        // Clears the board. No button for it on the page yet, but an empty board is a board.
-        group.MapDelete("/", async (AppDbContext db, ICurrentUser user, AppLocks locks, CancellationToken ct) =>
+        // Rename, pin or unpin, and where the person left the board. Each touches one column and never the
+        // document, so none of them makes an open tab's next save refuse.
+        group.MapPatch("/boards/{id:int}", async (int id, BoardChange body, AppDbContext db, ICurrentUser user, CancellationToken ct) =>
         {
-            await using var boardLock = await locks.TakeAsync(AppLock.Scratchpad, ct);
-            var board = await db.ScratchBoards.FirstOrDefaultAsync(b => b.UserId == user.Id, ct);
-            if (board is not null)
+            var mine = db.ScratchBoards.Where(b => b.Id == id && b.UserId == user.Id);
+            if (!await mine.AnyAsync(ct)) return BoardNotFound();
+
+            if (body.Name is not null)
             {
-                db.ScratchBoards.Remove(board);
-                await db.SaveChangesAsync(ct);
+                var name = NameOf(body.Name);
+                if (name is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = ["Give the board a name"] });
+                await mine.ExecuteUpdateAsync(s => s.SetProperty(b => b.Name, name), ct);
             }
-            return Results.Ok(new { cleared = true });
+            if (body.Pinned is bool pinned) await mine.ExecuteUpdateAsync(s => s.SetProperty(b => b.Pinned, pinned), ct);
+            if (body.View is { ValueKind: JsonValueKind.Object } given && BoardRules.View(given) is string view)
+            {
+                await mine.ExecuteUpdateAsync(s => s.SetProperty(b => b.View, view), ct);
+            }
+            return Results.Ok(await mine.AsNoTracking().Select(b => new { b.Id, b.Name, b.Pinned }).FirstAsync(ct));
+        });
+
+        group.MapDelete("/boards/{id:int}", async (int id, AppDbContext db, ICurrentUser user, AppLocks locks, CancellationToken ct) =>
+        {
+            await using var boardLock = await locks.TakeAsync(AppLock.Scratchpad, user.Id!.Value, ct);
+            var board = await db.ScratchBoards.FirstOrDefaultAsync(b => b.Id == id && b.UserId == user.Id, ct);
+            if (board is null) return BoardNotFound();
+            if (board.Pinned)
+            {
+                return Results.Problem("This board is pinned. Unpin it first.", statusCode: StatusCodes.Status409Conflict,
+                    title: "Pinned");
+            }
+            db.ScratchBoards.Remove(board);
+            await db.SaveChangesAsync(ct);
+            // Its files stay for now: the sweep removes them a week after no board uses them
+            return Results.Ok(new { deleted = 1, id });
         });
     }
 
-    // Checks the document and hands it back with the view's numbers tidied, or the plain reasons it cannot
-    // be saved. The document is free form, so this is done by hand rather than with data annotations.
-    private static (string? Document, Dictionary<string, string[]> Errors) Normalize(JsonElement document)
+    // The carry tray. A carry is one call, so when it answers the snapshot is saved, whatever any board is doing.
+    private static void MapTray(RouteGroupBuilder group)
     {
-        if (document.ValueKind != JsonValueKind.Object)
+        group.MapGet("/tray", async (AppDbContext db, ICurrentUser user, CancellationToken ct) =>
         {
-            return (null, new() { ["document"] = ["The board could not be read"] });
-        }
+            var tray = await db.ScratchTrays.AsNoTracking().FirstOrDefaultAsync(t => t.UserId == user.Id, ct);
+            return Results.Ok(new { items = JsonNode.Parse(tray?.Items ?? "[]") });
+        });
 
-        JsonNode? parsed;
-        try
+        // Puts a snapshot in the tray, at the end. The same snapshot carried again moves to the end instead of
+        // showing twice, which is how undoing "put it on the board" gives it back.
+        group.MapPost("/tray", async (JsonElement body, AppDbContext db, ICurrentUser user, AppLocks locks, CancellationToken ct) =>
         {
-            parsed = JsonNode.Parse(document.GetRawText());
-        }
-        catch
-        {
-            return (null, new() { ["document"] = ["The board could not be read"] });
-        }
-
-        if (parsed is not JsonObject root)
-        {
-            return (null, new() { ["document"] = ["The board could not be read"] });
-        }
-
-        var errors = new Dictionary<string, string[]>();
-
-        if (!(root["version"] is JsonValue versionNode && versionNode.TryGetValue<double>(out var version) && version == 1))
-        {
-            errors["version"] = ["This board was made by a page this one does not know"];
-        }
-
-        if (root["view"] is JsonObject view)
-        {
-            var x = Finite(view["x"]) ? view["x"]!.GetValue<double>() : 0;
-            var y = Finite(view["y"]) ? view["y"]!.GetValue<double>() : 0;
-            var zoom = Finite(view["zoom"]) ? view["zoom"]!.GetValue<double>() : 1;
-            view["x"] = x;
-            view["y"] = y;
-            view["zoom"] = Math.Clamp(zoom, MinZoom, MaxZoom);
-        }
-        else
-        {
-            root["view"] = new JsonObject { ["x"] = 0, ["y"] = 0, ["zoom"] = 1 };
-        }
-
-        if (root["items"] is not JsonArray items)
-        {
-            errors["items"] = ["The board's things could not be read"];
-        }
-        else
-        {
-            if (items.Count > MaxItems) errors["items"] = [$"A board holds at most {MaxItems} things"];
-
-            for (var i = 0; i < items.Count && errors.Count == 0; i++)
+            if (BoardRules.Parse(body) is not JsonObject snap)
             {
-                if (items[i] is not JsonObject item)
-                {
-                    errors["items"] = ["The board's things could not be read"];
-                    break;
-                }
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["snap"] = ["The snapshot could not be read"] });
+            }
+            var why = BoardRules.Snapshot(snap);
+            if (why is not null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["snap"] = [why] });
 
-                var type = item["type"] is JsonValue typeNode && typeNode.TryGetValue<string>(out var name) ? name : null;
-                if (type is null || !KnownTypes.Contains(type))
-                {
-                    errors["items"] = ["The board has something this page does not understand"];
-                    break;
-                }
+            var snapId = snap["id"]!.GetValue<string>();
+            return await ChangeTray(db, user.Id!.Value, locks, items =>
+            {
+                Without(items, snapId);
+                items.Add(snap);
+                while (items.Count > TrayMax) items.RemoveAt(0);
+            }, ct);
+        });
 
-                if (!Finite(item["x"]) || !Finite(item["y"]) || !Finite(item["w"]) || !Finite(item["h"]))
-                {
-                    errors["items"] = ["A thing on the board is in an impossible place"];
-                    break;
-                }
+        group.MapDelete("/tray/{snapId}", async (string snapId, AppDbContext db, ICurrentUser user, AppLocks locks, CancellationToken ct) =>
+            await ChangeTray(db, user.Id!.Value, locks, items => Without(items, snapId), ct));
+    }
 
-                if (item["text"] is JsonValue textNode && textNode.TryGetValue<string>(out var text) && text.Length > MaxText)
-                {
-                    errors["text"] = [$"A note holds at most {MaxText} characters"];
-                    break;
-                }
+    private static async Task<IResult> ChangeTray(AppDbContext db, int person, AppLocks locks, Action<JsonArray> change, CancellationToken ct)
+    {
+        await using var trayLock = await locks.TakeAsync(AppLock.Scratchpad, person, ct);
+        var tray = await db.ScratchTrays.FirstOrDefaultAsync(t => t.UserId == person, ct);
+        var items = JsonNode.Parse(tray?.Items ?? "[]") as JsonArray ?? [];
+        change(items);
+        var json = items.ToJsonString();
+        if (tray is null)
+        {
+            db.ScratchTrays.Add(new ScratchTray { UserId = person, Items = json, UpdatedAt = Now() });
+        }
+        else
+        {
+            tray.Items = json;
+            tray.UpdatedAt = Now();
+        }
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new { items });
+    }
+
+    private static void Without(JsonArray items, string snapId)
+    {
+        for (var i = items.Count - 1; i >= 0; i--)
+        {
+            if (items[i] is JsonObject one && one["id"] is JsonValue value && value.TryGetValue<string>(out var id) && id == snapId)
+            {
+                items.RemoveAt(i);
             }
         }
-
-        if (errors.Count > 0) return (null, errors);
-
-        var json = root.ToJsonString();
-        if (Encoding.UTF8.GetByteCount(json) > MaxBytes)
-        {
-            return (null, new() { ["document"] = ["This board is too big to save"] });
-        }
-
-        return (json, errors);
     }
 
-    private static bool Finite(JsonNode? value)
+    // A name as the History tab shows it: trimmed, no control characters, at most 60 characters, or null when empty
+    private static string? NameOf(string? name)
     {
-        return value is JsonValue node && node.TryGetValue<double>(out var number) && double.IsFinite(number);
+        if (name is null) return null;
+        var clean = new string(name.Where(c => !char.IsControl(c)).ToArray()).Trim();
+        if (clean.Length == 0) return null;
+        return clean.Length > MaxName ? clean[..MaxName].TrimEnd() : clean;
     }
+
+    // Postgres keeps microseconds but .NET carries 100-nanosecond ticks, so drop the sub-microsecond part.
+    // Without this the updatedAt a save answers would not equal the one a later read gives back, and the
+    // guard would refuse the next save from a page that trusted the answer.
+    private static DateTimeOffset Now()
+    {
+        var clock = DateTimeOffset.UtcNow;
+        return new DateTimeOffset(clock.Ticks - clock.Ticks % TimeSpan.TicksPerMicrosecond, clock.Offset);
+    }
+
+    private static BoardSummary Summary(ScratchBoard board) =>
+        new(board.Id, board.Name, board.Pinned, board.CreatedAt, board.UpdatedAt,
+            (JsonNode.Parse(board.Document)?["items"] as JsonArray)?.Count ?? 0);
+
+    private static IResult BoardNotFound() => Results.NotFound("There is no board with that id");
 }

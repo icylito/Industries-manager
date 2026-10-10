@@ -26,10 +26,9 @@ public static class ScratchFileEndpoints
     private static readonly HashSet<string> ScriptExtensions =
         [".exe", ".bat", ".cmd", ".ps1", ".js", ".vbs", ".msi", ".dll", ".jar", ".scr"];
 
-    public static void MapScratchFiles(this WebApplication app)
+    // On the Scratchpad's own group, see ScratchpadEndpoints, so the same checks guard boards and files
+    public static void MapScratchFiles(this RouteGroupBuilder group)
     {
-        var group = app.MapGroup("/scratchpad").RequireDatabaseReady().RequireAdmin();
-
         // Upload one file. Multipart, one file per call, so a refusal names exactly one file.
         // The body is read part by part rather than as a whole form: the file's name arrives before its bytes,
         // so a refused kind is answered before anything is read, and a file over the cap is stopped at the cap

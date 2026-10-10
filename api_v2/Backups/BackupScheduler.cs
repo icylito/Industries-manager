@@ -7,17 +7,7 @@ public sealed class BackupScheduler(BackupService backups, DatabaseStatus status
 {
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
-        while (!ct.IsCancellationRequested && status.State != DatabaseState.Ready)
-        {
-            try
-            {
-                await Task.Delay(TimeSpan.FromSeconds(2), ct);
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                return;
-            }
-        }
+        if (!await status.WaitUntilReadyAsync(ct)) return;
 
         while (!ct.IsCancellationRequested)
         {

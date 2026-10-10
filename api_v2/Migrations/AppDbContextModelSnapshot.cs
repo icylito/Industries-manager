@@ -174,16 +174,30 @@ namespace api_v2.Migrations
                         .IsRequired()
                         .HasColumnType("jsonb");
 
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasDefaultValue("My board");
+
+                    b.Property<bool>("Pinned")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("UserId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("View")
+                        .HasColumnType("jsonb");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId")
-                        .IsUnique();
+                    b.HasIndex("UserId", "UpdatedAt");
 
                     b.ToTable("ScratchBoards");
                 });
@@ -209,6 +223,9 @@ namespace api_v2.Migrations
                         .HasMaxLength(260)
                         .HasColumnType("character varying(260)");
 
+                    b.Property<DateTimeOffset?>("OrphanedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<long>("SizeBytes")
                         .HasColumnType("bigint");
 
@@ -228,6 +245,23 @@ namespace api_v2.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("ScratchFiles");
+                });
+
+            modelBuilder.Entity("api_v2.Model.ScratchTray", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Items")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("ScratchTrays");
                 });
 
             modelBuilder.Entity("api_v2.Model.Session", b =>
@@ -345,6 +379,34 @@ namespace api_v2.Migrations
                     b.ToTable("UserNotes");
                 });
 
+            modelBuilder.Entity("api_v2.Model.UserSettings", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Mouse")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Shortcuts")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Theme")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("UserSettings", t =>
+                        {
+                            t.HasCheckConstraint("CK_UserSettings_Theme", "\"Theme\" IS NULL OR \"Theme\" IN ('light', 'dark')");
+                        });
+                });
+
             modelBuilder.Entity("api_v2.Model.UserTable", b =>
                 {
                     b.Property<int>("Id")
@@ -441,6 +503,15 @@ namespace api_v2.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("api_v2.Model.ScratchTray", b =>
+                {
+                    b.HasOne("api_v2.Model.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("api_v2.Model.Session", b =>
                 {
                     b.HasOne("api_v2.Model.User", "User")
@@ -453,6 +524,15 @@ namespace api_v2.Migrations
                 });
 
             modelBuilder.Entity("api_v2.Model.UserNote", b =>
+                {
+                    b.HasOne("api_v2.Model.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("api_v2.Model.UserSettings", b =>
                 {
                     b.HasOne("api_v2.Model.User", null)
                         .WithMany()

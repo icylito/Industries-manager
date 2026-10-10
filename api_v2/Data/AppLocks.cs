@@ -9,20 +9,29 @@ public class AppBusyException : Exception;
 
 public class AppLocks(DatabaseConnections connections)
 {
-    public async Task<IAsyncDisposable> TakeAsync(AppLock which, CancellationToken ct = default)
+    // One lock for everyone: changes to the table, the rules, the requests and the settings take turns
+    public Task<IAsyncDisposable> TakeAsync(AppLock which, CancellationToken ct = default) =>
+        TakeAsync("SELECT pg_advisory_lock(@key)", "SELECT pg_advisory_unlock(@key)", [("key", (long)which)], ct);
+
+    // One lock per person within one area, so one person's saves take turns without making anyone else wait.
+    // The two number form of the lock is its own set of keys, so it never meets the single number locks above.
+    public Task<IAsyncDisposable> TakeAsync(AppLock which, int person, CancellationToken ct = default) =>
+        TakeAsync("SELECT pg_advisory_lock(@area, @person)", "SELECT pg_advisory_unlock(@area, @person)",
+            [("area", (int)which), ("person", person)], ct);
+
+    private async Task<IAsyncDisposable> TakeAsync(string lockSql, string unlockSql, (string Name, object Value)[] keys, CancellationToken ct)
     {
         var connection = new NpgsqlConnection(connections.Main);
         try
         {
             await connection.OpenAsync(ct);
-            var key = (long)which;
             try
             {
-                await using var command = new NpgsqlCommand("SELECT pg_advisory_lock(@key)", connection)
+                await using var command = new NpgsqlCommand(lockSql, connection)
                 {
                     CommandTimeout = 120
                 };
-                command.Parameters.AddWithValue("key", key);
+                foreach (var (name, value) in keys) command.Parameters.AddWithValue(name, value);
                 await command.ExecuteScalarAsync(ct);
             }
             catch (Exception ex) when (TimedOut(ex))
@@ -30,7 +39,7 @@ public class AppLocks(DatabaseConnections connections)
                 throw new AppBusyException();
             }
 
-            return new SessionLock(connection, key);
+            return new SessionLock(connection, unlockSql, keys);
         }
         catch
         {
@@ -63,14 +72,14 @@ public class AppLocks(DatabaseConnections connections)
         }
     }
 
-    private sealed class SessionLock(NpgsqlConnection connection, long key) : IAsyncDisposable
+    private sealed class SessionLock(NpgsqlConnection connection, string unlockSql, (string Name, object Value)[] keys) : IAsyncDisposable
     {
         public async ValueTask DisposeAsync()
         {
             try
             {
-                await using var command = new NpgsqlCommand("SELECT pg_advisory_unlock(@key)", connection);
-                command.Parameters.AddWithValue("key", key);
+                await using var command = new NpgsqlCommand(unlockSql, connection);
+                foreach (var (name, value) in keys) command.Parameters.AddWithValue(name, value);
                 await command.ExecuteScalarAsync();
             }
             catch

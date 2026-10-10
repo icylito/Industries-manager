@@ -1,6 +1,6 @@
 # The five fixes from the stress test, against a throwaway API:
 #   1. Browse: an edit made from an old copy of the row is refused, nothing written over
-#   2. Scratchpad: a save that never saw the board can't write over it
+#   2. Scratchpad: a save that never saw the board can't write over it (per board)
 #   3. Fields: a rules save without the version it was based on is refused
 #   4. Sign in: 429 with Retry-After per address, and per username from any address
 #   5. /health: only the state for someone not signed in
@@ -77,15 +77,19 @@ check("20 edits from the same copy at once: one saves, 19 are refused", sorted(r
 send("DELETE", f"/industries/{rid}", token=admin)
 
 print("2. Scratchpad")
-s, board, _ = send("GET", "/scratchpad", token=admin)
-s, b, _ = send("PUT", "/scratchpad", {"document": board["document"], "updatedAt": board["updatedAt"]}, admin)
+# Boards are named and several since 2026-10-10, so the guard is per board: see check_scratchpad.py for the rest
+s, made, _ = send("POST", "/scratchpad/boards", {"name": "Fixes check"}, admin)
+path = f"/scratchpad/boards/{made['id']}"
+s, board, _ = send("GET", path, token=admin)
+s, b, _ = send("PUT", path, {"document": board["document"], "updatedAt": board["updatedAt"]}, admin)
 check("a save from the board as it is goes through", s == 200, (s, b))
 current = b["updatedAt"]
-s, b, _ = send("PUT", "/scratchpad", {"document": board["document"], "updatedAt": None}, admin)
-check("a save from a page that opened before there was a board is refused", s == 409, (s, b))
-s, b, _ = send("PUT", "/scratchpad", {"document": board["document"], "updatedAt": "2020-01-01T00:00:00+00:00"}, admin)
+s, b, _ = send("PUT", path, {"document": board["document"], "updatedAt": None}, admin)
+check("a save from a page that never saw the board is refused", s == 409, (s, b))
+s, b, _ = send("PUT", path, {"document": board["document"], "updatedAt": "2020-01-01T00:00:00+00:00"}, admin)
 check("a save from an old copy is still refused", s == 409, (s, b))
-check("and the board is untouched", send("GET", "/scratchpad", token=admin)[1]["updatedAt"] == current)
+check("and the board is untouched", send("GET", path, token=admin)[1]["updatedAt"] == current)
+send("DELETE", path, token=admin)
 
 print("3. Fields")
 s, schema, _ = send("GET", "/schema", token=admin)

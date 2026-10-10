@@ -93,7 +93,30 @@ def user_tables_back(normal):
     role = sql(t.MAIN_DB, f"""SELECT "Role" FROM "Users" WHERE "Id" = {normal}""")
     check("the manager made after going forward is a normal account again", role == "normal", role)
 
-FIXTURES = {"AddUserTablesAndManager": (user_tables_forward, user_tables_back)}
+# Named boards: Down keeps each person's first board and loses the boards made since, names, pins and settings.
+# Run with EXPECT_CHANGED=ScratchBoards,ScratchFiles, since every board and file row gains new columns going forward.
+def named_boards_forward():
+    person = sql(t.MAIN_DB, """SELECT "UserId" FROM "ScratchBoards" ORDER BY "Id" LIMIT 1""")
+    if not person:
+        return None
+    first = sql(t.MAIN_DB, f"""SELECT "Id" FROM "ScratchBoards" WHERE "UserId" = {person} ORDER BY "Id" LIMIT 1""")
+    sql(t.MAIN_DB, f"""UPDATE "ScratchBoards" SET "Pinned" = true, "Name" = 'Kept' WHERE "Id" = {first}""")
+    sql(t.MAIN_DB, f"""INSERT INTO "ScratchBoards" ("UserId", "Name", "Pinned", "Document", "CreatedAt", "UpdatedAt")
+                       VALUES ({person}, 'Migration check', false, '{{"version":1,"items":[],"lines":[],"groups":[]}}', now(), now())""")
+    sql(t.MAIN_DB, f"""INSERT INTO "UserSettings" ("UserId", "Shortcuts", "Mouse", "Theme", "UpdatedAt")
+                       VALUES ({person}, '{{"sp.select":["X"]}}', '{{}}', 'dark', now())""")
+    return (person, first)
+
+def named_boards_back(kept):
+    if not kept:
+        print("  (no Scratchpad board in the throwaway database, so losing the extra boards wasn't tried. Open the Scratchpad once)")
+        return
+    person, first = kept
+    left = sql(t.MAIN_DB, f"""SELECT string_agg("Id"::text, ',') FROM "ScratchBoards" WHERE "UserId" = {person}""")
+    check("going back keeps only the person's first board", left == first, left)
+
+FIXTURES = {"AddUserTablesAndManager": (user_tables_forward, user_tables_back),
+            "NamedBoardsSettingsTray": (named_boards_forward, named_boards_back)}
 
 # Which migration, and the one before it
 names = sorted(f[:-3] for f in os.listdir(os.path.join(API, "Migrations")) if re.fullmatch(r"\d{14}_\w+\.cs", f))
