@@ -8,11 +8,10 @@
   <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <!-- Nest mode puts the svg inside the <i> instead of replacing it, so Angular keeps ownership of the element -->
   <!-- The saved light or dark choice, and the Overview's layout, are set before the first paint so a page never flashes the wrong colors -->
   <script>try{var t=localStorage.getItem('stock-listing-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);if(location.pathname.indexOf('/overview')===0)document.documentElement.classList.add('admin-layout')}catch(e){}</script>
-  <script>window.FontAwesomeConfig = { autoReplaceSvg: 'nest' };</script>
-  <script src="https://kit.fontawesome.com/9722f49037.js" crossorigin="anonymous"></script>
+  <!-- Icons are Font Awesome Free as a plain font, from src/icons.css (scripts/icons.mjs). The hosted kit's script
+       swapped each icon for an SVG as the page changed and froze long lists, see docs/2026-10-10-icons.md -->
 </head>
 <body>
   <app-root></app-root>

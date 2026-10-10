@@ -25,6 +25,7 @@
               }
             ],
             "styles": [
+              "src/icons.css",
               "src/styles.css"
             ]
           },
