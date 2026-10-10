@@ -392,3 +392,42 @@ The work a laptop session had done was never pushed (GitHub's newest Scratchpad 
 - In Chrome against the stress API: a real PNG, PDF and ZIP dropped together uploaded and landed in a row, the PNG with its preview; a Word file dropped with them was refused in the toast.
 - Headless Chromium, light and dark, 1366 and 390 wide: no sideways scroll, no page errors, the board still starts on the first screen at 390; the toast is light on the dark page.
 - Overview, Carry the circle, the Scratchpad tray, +, Snapshot card, Open in Overview back on the same split and slice.
+
+## Update 2026-10-10: the board deepened, named boards, and the rest of the finish plan
+
+The user's direction for this round: the Scratchpad is a genuine scratchpad where an idea gets worked out into a story, like Figma: sketch, map out stocks, add pictures, write notes, draw arrows that say how one thing leads to the next. Simple tools, used freely. Several named boards per person on a History tab; no sharing yet; a story or playback mode later. The user asked for the board's insides to be made deep first, then the features built on top. Plan: `~/.claude/plans/use-skills-like-improve-codebase-archite-refactored-storm.md` (the user's machine).
+
+**How the board is built now** (`angular/src/app/board/`)
+- `board-engine.ts` is the one place a board changes. `apply(op)` is one undo step; `begin()` gives a Tx for a drag, a typing burst or a nudge (commit makes it one step, cancel puts it back, a newer change commits the open one); `amend()` is for changes that aren't the person's (an upload's id, refreshed prices) and rewrites the undo history too. The view is a separate signal and never in history. Saving (`board-sync.ts`) belongs to the open board and is thrown away with it.
+- `ops.ts` is the only code that edits a document: pure, never edits its input, shares untouched parts, gives the same document back when nothing changed.
+- `item-kinds.ts` holds what each kind of thing is (size, resize floor, paper colour, which bar, how an old saved one opens). `models/board.ts` is a real union of kinds.
+- `geometry.ts` (boxes, camera, lines edge to edge, free space, stroke thinning) and `tools.ts` (select, hand, line, pen, marker, box, each a small adapter turning pointer events into ops) have no DOM, so they are tested with plain objects. The page's pointer code is a router over them.
+- Bugs this removed at the root: undo moved the camera; undo dropped a carried snapshot; undo brought back stale prices; edits after a 409 were silently thrown away; a carry during a save said it failed; clicking a note's words started a drag; every pan re-sent the whole board; the 2 minute save lived on the page. API: the Scratchpad lock was one lock for everyone (now one per person); lines, groups and the tray were never checked (now `Scratchpad/BoardRules.cs`, one rule per kind).
+
+**Model change** (migration `NamedBoardsSettingsTray`, shown to and approved by the user, rehearsed with `check_migration.py`: forward, back, forward clean, Down keeps each person's first board)
+- `ScratchBoards`: `Name`, `Pinned`, `View`; several per person. `ScratchFiles.OrphanedAt`. New `UserSettings` (shortcuts, mouse keys, theme) and `ScratchTrays` (the carry tray, per person).
+- Endpoints: `/scratchpad/boards` (list, make, open, save with the 409 guard per board, PATCH name/pin/view without touching `updatedAt`, delete refused while pinned), `/scratchpad/tray`, `/me/settings`. The old `GET/PUT/DELETE /scratchpad` are gone.
+
+**Built**
+- Board and History tabs on `/scratchpad` (`?board=&tab=history`). History: open, rename in place, pin (pinned first, can't be deleted), delete with a question in the row, 10 a page, + New board. The board's name at the top opens History.
+- Pen (P), marker (M) and box (R). Strokes are thinned on let-go and capped at 2,000 points, 50,000 a board. A box goes behind what is there. Resize grip on notes, text boxes and boxes. Alt + drag copies (the held key is a Mouse row). Ctrl+G, Ctrl+Shift+G, Ctrl+D, Ctrl+A, Ctrl+[ and Ctrl+], arrows 1 px and Shift 10 px (a burst is one step). Lines reached with Tab, picked with Enter, removed with Delete. A new line starts with an arrowhead, so it reads as a direction.
+- The carry tray along the bottom of Overview, Scratchpad and Settings; the circle and list cards drag onto it on the Overview. Undo of "put it on the board" gives the snapshot back to the tray.
+- Video cards play in place, fetched only when Play is pressed.
+- The file sweep: hourly, per person, across all their boards; a file unused for 7 days counted from when it was first found unused (not from upload, so undo in a tab left open still finds it) is deleted, row first then disk.
+- Shortcuts, mouse keys and theme on the server; this browser's copy is applied first (no flash) and carried up once to an account that has none.
+- After a 409 the pill offers "Keep mine as a new board" (nothing lost, nothing overwritten) or "Reload (lose N changes)". A board the API refuses (over 500 things) says why and stops retrying until the next change.
+
+**Different from the plans, on purpose**
+- The board's view is saved on the server per board with a PATCH (debounced), not in browser storage, so a board opens where it was left on any browser.
+- While typing, every Ctrl key still works except the board's edit keys (Ctrl+A, D, G, [ and ]), which leave the text box its own.
+- On a phone the tray sits under the page instead of riding over the board.
+
+**Checked**
+- `ng test` 210 passed (engine, ops, geometry, tools, the 8 save cases that were skipped before, settings, tray, page); `ng build` 464.5 kB initial, no warnings; `dotnet build -c Release` 0 warnings.
+- `check_migration.py` MIGRATION OK; `check_scratchpad.py` SCRATCHPAD OK (49 checks, twice in a row); `check_fixes.py`'s Scratchpad part moved to per-board saves.
+- Real Chromium against the throwaway API: 37 checks of every tool, key, the History tab, the tray on three pages, reload, dark mode, 1366 and 390 wide with no sideways scroll and no page errors (three runs in a row). Stress: 500 things, 48,000 stroke points and 400 lines open in about 2.5 s; 40 drag steps in under 1 s; key bursts; a slow link (saves held 1.5 s) ends at Saved with both changes; the API down shows Failed to save and Try again recovers; two tabs: the stale one is refused and Keep mine leaves the other copy untouched.
+
+**Still open**
+- Story mode (play the arrows in order) is the next round, by the user's choice.
+- A new migration makes backups taken before it unrestorable from the page (existing behaviour of `SameLayout`).
+- The real database gets the migration the next time `start.bat`'s API starts on this code.

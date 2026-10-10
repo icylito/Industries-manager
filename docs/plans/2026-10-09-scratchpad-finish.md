@@ -1,5 +1,7 @@
 # Scratchpad: finishing the design
 
+**Done 2026-10-10** on `scratchpad-canvas`, together with named boards and the History tab. Every item below is built; what changed from this plan, and what was checked, is in "Update 2026-10-10" at the end of `OVERVIEW_HANDOFF.md`.
+
 Written 2026-10-09 on `scratchpad-canvas`. The parts of `design/Scratchpad-Light.dc.html` and the Scratchpad sections of `OVERVIEW_HANDOFF.md` that are still missing after `6482656` and the uncommitted design round (files, bars, papers, fonts, carry tray, Mouse rows). Scratchpad only; the Overview audit is a later round.
 
 ## The user's decisions (2026-10-09)

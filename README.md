@@ -10,7 +10,9 @@ Working now:
 - History, where every saved copy can be viewed, downloaded, pinned, restored or imported
 - Nightly backups at 2:00, kept for 14 days
 - Requests, for anything that needs a developer
-- The Scratchpad, an admin board for notes, industry cards, groups, lines, files and pictures, saved per person. The Overview can carry a frozen copy of its circle or list there.
+- The Scratchpad, an admin scratchpad for working ideas out: industry cards, notes, pictures and videos, pen and marker drawings, boxes, groups, and arrows with labels to tell the story. Each person keeps several boards, listed on its History tab to open, rename, pin or delete. Undo works on everything.
+- A carry tray along the bottom of every admin page. The Overview's circle or list goes in, frozen, and comes off onto a board.
+- Your shortcut keys, the Scratchpad's mouse keys and light or dark are saved to your account, so they follow you to any browser.
 - Tables, where managers and admins make their own tables, fill them, and delete them, with no developer
 - Backups that leave as one file and can be dropped back in on History
 
@@ -75,7 +77,7 @@ The old `/users` address opens Settings. Every page jumps back to the top after 
 | `backups/` | The nightly and manual backups, and dropped in ones |
 | `backup-key/` | The key that signs backups. Keep it, and keep it private |
 | `user-tables/` | A readable JSON copy of every table on the Tables page, one file each, plus `_index.json` with sizes. Tables in the bin are in `user-tables/deleted/`. These are copies only: the database is the real storage, and editing a file changes nothing |
-| `scratchpad-files/` | Files put on the Scratchpad |
+| `scratchpad-files/` | Files put on the Scratchpad. A file no board of its owner uses any more is deleted 7 days after that was first noticed |
 
 None of these folders go into git.
 
