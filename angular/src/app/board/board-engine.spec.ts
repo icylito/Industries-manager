@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BoardEngine } from './board-engine';
 import { BoardItem } from '../models/board';
 import { environment } from '../../environments/environment';
+import { Toast } from '../services/toast';
 
 const url = environment.apiUrl + '/scratchpad/boards';
 const note = (id: string, x = 0): BoardItem => ({ id, type: 'note', x, y: 0, w: 100, h: 60, blocks: [], tone: 'white', tilt: 0 });
@@ -128,29 +129,78 @@ describe('Board engine', () => {
   });
 
   describe('leaving and coming back', () => {
-    it('lets go of the board when the page closes, saves what was waiting, and opens it fresh on return', async () => {
+    it('lets go of the board when the page closes, and coming back before its save is through carries on from it', async () => {
       await open([note('a')]);
       board.apply({ op: 'move', positions: [{ id: 'a', x: 40, y: 0 }] });
       board.leave();
       expect(board.boardId()).toBeNull();
       expect(board.status()).toBe('idle');
-      // Coming back before the save has gone out waits for it
+      // Back before the save has answered: the server's copy is behind, so the board opens as it was left
       const back = board.open(1);
+      http.expectOne(r => r.method === 'GET' && r.url === `${url}/1`).flush({ id: 1, name: 'Ideas', pinned: false, view: null, createdAt: 'c', updatedAt: 't0',
+        document: { version: 1, items: [note('a')], lines: [], groups: [] } });
+      expect(await back).toBe(true);
+      expect(board.doc().items[0].x).toBe(40);
+      expect(board.canUndo()).toBe(true);
       await vi.advanceTimersByTimeAsync(0);
-      http.expectNone(r => r.method === 'GET' && r.url === `${url}/1`);
       const put = puts();
       expect(put.length).toBe(1);
       expect(put[0].request.body.document.items[0].x).toBe(40);
-      put[0].flush({ updatedAt: 't1' });
-      await vi.advanceTimersByTimeAsync(0);
-      http.expectOne(`${url}/1`).flush({ id: 1, name: 'Ideas', pinned: false, view: null, createdAt: 'c', updatedAt: 't1',
-        document: { version: 1, items: [note('a', 40)], lines: [], groups: [] } });
-      expect(await back).toBe(true);
-      // And everything works again: a change is a step and saves with the new updatedAt
+      await answer(put[0], 't1');
+      expect(board.save()).toBe('saved');
+      // And everything works on: a change is a step and saves with the new updatedAt
       board.apply({ op: 'move', positions: [{ id: 'a', x: 41, y: 0 }] });
-      expect(board.canUndo()).toBe(true);
       vi.advanceTimersByTime(700);
       expect(puts()[0].request.body.updatedAt).toBe('t1');
+    });
+
+    it('loses nothing when saves were failing on the way out and the person comes back much later', async () => {
+      await open([note('a')]);
+      board.place('text', 'auto', {});
+      board.leave();
+      await vi.advanceTimersByTimeAsync(0);
+      puts()[0].flush('down', { status: 503, statusText: 'Unavailable' });
+      await vi.advanceTimersByTimeAsync(20_000);
+      puts().forEach(put => put.flush('down', { status: 503, statusText: 'Unavailable' }));
+      // Back by the menu 20 seconds later; the API answers again
+      const back = board.open(1);
+      http.expectOne(r => r.method === 'GET' && r.url === `${url}/1`).flush({ id: 1, name: 'Ideas', pinned: false, view: null, createdAt: 'c', updatedAt: 't0',
+        document: { version: 1, items: [note('a')], lines: [], groups: [] } });
+      await back;
+      expect(board.doc().items.length).toBe(2);
+      board.place('note', 'auto', {});
+      await vi.advanceTimersByTimeAsync(31_000);
+      const put = puts();
+      expect(put.length).toBe(1);
+      expect(put[0].request.body.updatedAt).toBe('t0');
+      expect(put[0].request.body.document.items.length).toBe(3);
+      await answer(put[0], 't1');
+      expect(board.save()).toBe('saved');
+    });
+
+    it('keeps the changes as a new board, and says so, when a left board was changed somewhere else', async () => {
+      await open([note('a')]);
+      board.apply({ op: 'move', positions: [{ id: 'a', x: 40, y: 0 }] });
+      vi.advanceTimersByTime(700);
+      puts()[0].flush('stale', { status: 409, statusText: 'Conflict' });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(board.conflict()).toBe('changed');
+      board.leave();
+      await vi.advanceTimersByTimeAsync(0);
+      const made = http.expectOne(r => r.method === 'POST' && r.url === url);
+      expect(made.request.body.name).toBe('Ideas (my copy)');
+      expect(made.request.body.document.items[0].x).toBe(40);
+      made.flush({ id: 2, name: 'Ideas (my copy)', pinned: false, createdAt: 'c', updatedAt: 't1', things: 1 });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(TestBed.inject(Toast).message()).toContain('kept as a new board, "Ideas (my copy)"');
+    });
+
+    it('refuses a copy that would take the board past the drawing it can hold, and says so', async () => {
+      const stroke = (id: string): BoardItem => ({ id, type: 'stroke', kind: 'pen', x: 0, y: 0, w: 10, h: 10, points: new Array(4000).fill(1) });
+      await open(Array.from({ length: 25 }, (_, i) => stroke('s' + i)));
+      expect(board.duplicate(['s0'], { x: 24, y: 24 }).size).toBe(0);
+      expect(board.doc().items.length).toBe(25);
+      expect(TestBed.inject(Toast).message()).toContain('past the drawing it can hold');
     });
 
     it('keeps retrying a left board while the API is away', async () => {

@@ -338,7 +338,8 @@ export class ScratchpadPage {
     const ids = this.board.pickedIds();
     if (ids.length === 0) return;
     const idFor = this.board.duplicate(ids, { x: 24, y: 24 });
-    this.board.setSelection([...idFor.values()]);
+    // Refused (the board can't hold more drawing): what was picked stays picked
+    if (idFor.size) this.board.setSelection([...idFor.values()]);
   }
 
   order(to: 'back' | 'front'): void {

@@ -112,7 +112,27 @@ public static partial class MeEndpoints
             if (keys.Count > 2 || keys.Count != keys.Select(k => k!.GetValue<string>()).Distinct().Count()) return null;
             clean[entry.Name] = keys;
         }
+        // A key never has two owners where both can fire: the same keys, or one the first half of the other's two
+        // key sequence, in one page or with a function that works everywhere (conflictsOf in shortcuts.ts)
+        var bound = clean.Select(entry => (Id: entry.Key, Keys: entry.Value!.AsArray().Select(k => k!.GetValue<string>()).ToArray()))
+            .Where(one => one.Keys.Length > 0).ToList();
+        for (var i = 0; i < bound.Count; i++)
+        {
+            for (var j = i + 1; j < bound.Count; j++)
+            {
+                if (!SameScope(bound[i].Id, bound[j].Id)) continue;
+                var (x, y) = (bound[i].Keys, bound[j].Keys);
+                if (x.SequenceEqual(y) || (x.Length == 1 && y.Length == 2 && y[0] == x[0]) || (y.Length == 1 && x.Length == 2 && x[0] == y[0])) return null;
+            }
+        }
         return clean.ToJsonString();
+    }
+
+    // nav. and keys. work on every admin page, ov. only on the Overview and sp. only on the Scratchpad
+    private static bool SameScope(string a, string b)
+    {
+        static string Scope(string id) => id.StartsWith("ov.") ? "overview" : id.StartsWith("sp.") ? "scratchpad" : "global";
+        return Scope(a) == Scope(b) || Scope(a) == "global" || Scope(b) == "global";
     }
 
     // { "mouse.add": "Alt" } with known rows and Shift, Ctrl or Alt

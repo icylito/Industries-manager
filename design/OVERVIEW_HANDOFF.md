@@ -427,12 +427,21 @@ The user's direction for this round: the Scratchpad is a genuine scratchpad wher
 - The tray says when carrying a 21st snapshot lets the oldest go. Undo and redo move a snapshot between board and tray only for the step that put it on the board: redoing a delete of its card leaves the tray alone.
 - The API refuses what the plan said it would: sizes under 1, fonts not on the list, two mouse rows holding one key, keys no keyboard has (the page only records the same named keys), the same key twice for one function, and board names over 60 characters (refused, no longer cut).
 
+**After the critic's second grade** (4.0 again: the first grade's defects were fixed, raw score 9.2, but one way of losing work was left)
+- Coming back to a board whose save is still on its way (the API was away when it was left) opens it as it was left, undo history and all, and its save carries on. Before, it opened the server's older copy after 10 seconds, and the left save then lost to the next one.
+- A board left while "changed somewhere else" showed, or that becomes so while its save is going out, is kept as a new board "(my copy)", and the toast says so. Nothing is dropped without a word.
+- Ctrl+D and Alt + drag copies are refused with a word when they would take the board past 50,000 points of drawing, the same limit the pen stops at.
+- This browser's settings go up to an account only once; after that an account with nothing saved starts on the defaults.
+- The API refuses one key for two functions that can fire on the same page (or a key that starts another's two key sequence).
+- A new note's empty line is drawn with a `<br>`, so the first word typed goes into it rather than making a second, empty line.
+
 **Different from the plans, on purpose**
 - The board's view is saved on the server per board with a PATCH (debounced), not in browser storage, so a board opens where it was left on any browser.
 - While typing, every Ctrl key still works except the board's edit keys (Ctrl+A, D, G, [ and ]), which leave the text box its own.
 - On a phone the tray sits under the page instead of riding over the board.
 
 **Checked**
+- After the second grade: `ng test` 229 passed; the critic's own repro scripts for the lost save, leaving with a conflict, uploads and Ctrl+D at the limit all pass; drive, stress, away and round two pass (drive three runs in a row).
 - `ng test` 225 passed (engine, ops, geometry with screen and board round trips and edge-to-edge crossings worked out by hand, tools, the 8 save cases that were skipped before, settings on a shared browser, Ctrl+Shift+Z, fonts, tray, page); `ng build` 465.9 kB initial, no warnings; `dotnet build -c Release` 0 warnings.
 - `check_migration.py` MIGRATION OK, and it now checks that going forward moves the view and the tray out of each board's document and going back puts them in again; `check_scratchpad.py` SCRATCHPAD OK (61 checks); `check_fixes.py`'s Scratchpad part moved to per-board saves.
 - Real Chromium against the throwaway API: 37 checks of every tool, key, the History tab, the tray on three pages, reload, dark mode, 1366 and 390 wide with no sideways scroll and no page errors (three runs in a row). Stress: 500 things, 48,000 stroke points and 400 lines open in about 2.5 s; 40 drag steps in under 1 s; key bursts; a slow link (saves held 1.5 s) ends at Saved with both changes; the API down shows Failed to save and Try again recovers; two tabs: the stale one is refused and Keep mine leaves the other copy untouched. After the critic's grade: away and back by the menu, uploads landing after a board switch or the page closing (8 checks); panning 500 things, Ctrl+B undo, the tray's limit and snapshot redo (13 checks).

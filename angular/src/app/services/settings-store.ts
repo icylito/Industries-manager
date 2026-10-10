@@ -22,6 +22,9 @@ const KEYS = { shortcuts: 'stock-listing-shortcuts', mouse: 'stock-listing-mouse
 // Whose settings this browser holds: an account id, or nothing when they were made signed out. A browser two
 // people share never carries one person's keys into the other's account.
 const OWNER = 'stock-listing-settings-owner';
+// The account this browser's settings were carried up to once. They go up only that once: after it, an account
+// with nothing on the server starts on the defaults rather than taking this browser's copy again.
+const CARRIED = 'stock-listing-settings-carried';
 const SAVE_MS = 600;
 
 @Service()
@@ -78,9 +81,11 @@ export class SettingsStore {
       const changed = new Set(this.changedWhileLoading);
       this.changedWhileLoading.clear();
       setOwner(id);
-      if (saved.updatedAt == null && mine) {
+      if (saved.updatedAt == null && mine && readStored(CARRIED) !== id) {
         // A first sign in with nothing on the server: what this browser had, made by this person or signed out, goes up
-        if (Object.keys(this.shortcuts()).length || Object.keys(this.mouse()).length || this.theme()) await this.send();
+        if (Object.keys(this.shortcuts()).length || Object.keys(this.mouse()).length || this.theme()) {
+          if (await this.send()) writeStored(CARRIED, id);
+        }
         return;
       }
       // The server's, or the defaults when the server has nothing and the browser held someone else's. A setting
@@ -102,12 +107,15 @@ export class SettingsStore {
     writeLocal(key, value);
   }
 
-  private async send(): Promise<void> {
+  // Answers whether the server has them now
+  private async send(): Promise<boolean> {
     this.timer = null;
     try {
       await firstValueFrom(this.http.put(this.url, { shortcuts: this.shortcuts(), mouse: this.mouse(), theme: this.theme() }));
+      return true;
     } catch {
       // Kept in this browser; the next change sends the whole set again
+      return false;
     }
   }
 }
@@ -137,11 +145,23 @@ function writeLocal<K extends keyof MySettings>(key: K, value: MySettings[K]): v
 }
 
 function readOwner(): number | null {
+  return readStored(OWNER);
+}
+
+function readStored(key: string): number | null {
   try {
-    const raw = localStorage.getItem(OWNER);
+    const raw = localStorage.getItem(key);
     return raw == null ? null : Number(raw);
   } catch {
     return null;
+  }
+}
+
+function writeStored(key: string, id: number): void {
+  try {
+    localStorage.setItem(key, String(id));
+  } catch {
+    // Blocked storage: the carry may happen again next time, which only repeats what is already there
   }
 }
 

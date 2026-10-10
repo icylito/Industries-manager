@@ -125,6 +125,8 @@ s, b = send("POST", "/scratchpad/tray", {"id": "bad", "kind": "pie", "title": "x
 check("a snapshot of a kind the page doesn't know is refused", s == 400, (s, b))
 
 print("\n5. A person's own settings")
+s, b = send("PUT", "/me/settings", {"shortcuts": {"ov.find": ["Q"], "sp.pen": ["Q"]}, "mouse": {}, "theme": None}, admin)
+check("one key on two different pages is fine", s == 200, (s, b))
 s, b = send("PUT", "/me/settings", {"shortcuts": {"sp.select": ["X"], "nav.overview": ["G", "V"], "sp.hand": []}, "mouse": {"mouse.dup": "Shift", "mouse.add": "Alt"}, "theme": "dark"}, admin)
 check("keys, mouse keys and the theme save", s == 200, (s, b))
 s, got = send("GET", "/me/settings", token=admin)
@@ -138,6 +140,8 @@ for label, body in [
     ("a named key no keyboard has", {"shortcuts": {"sp.pen": ["Ctrl+Shift+Alt+Cmd+ABCDEFGHIJKL"]}, "mouse": {}, "theme": None}),
     ("a held key twice", {"shortcuts": {"sp.pen": ["Ctrl+Ctrl+P"]}, "mouse": {}, "theme": None}),
     ("the same key twice for one function", {"shortcuts": {"sp.pen": ["P", "P"]}, "mouse": {}, "theme": None}),
+    ("one key for two functions on one page", {"shortcuts": {"sp.pen": ["Q"], "sp.marker": ["Q"]}, "mouse": {}, "theme": None}),
+    ("a key that starts another function's two key sequence", {"shortcuts": {"nav.next": ["Q"], "sp.pen": ["Q", "W"]}, "mouse": {}, "theme": None}),
     ("a theme that isn't light or dark", {"shortcuts": {}, "mouse": {}, "theme": "sepia"}),
 ]:
     s, b = send("PUT", "/me/settings", body, admin)

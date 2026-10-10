@@ -10,6 +10,10 @@ export type SaveState = 'save' | 'saved' | 'failed';
 // Why saving stopped for good: another tab or device saved first (409), or the board was deleted (404)
 export type Conflict = 'changed' | 'deleted';
 
+// How saving a board that was left ended: all of it reached the server, or it can't go on and what was left
+// still needs a home (another tab saved first, the board was deleted, or the API refused it)
+export type DrainEnd = 'saved' | 'conflict' | 'refused';
+
 export const SAVE_DEBOUNCE_MS = 700;
 export const PERIODIC_SAVE_MS = 120_000;
 const RETRY_MAX_MS = 30_000;
@@ -35,7 +39,7 @@ export class BoardSync {
   private periodic: ReturnType<typeof setInterval>;
   private closed = false;
   // Set while the board is being left: called once nothing is waiting any more, or saving can't go on
-  private drained: (() => void) | null = null;
+  private drained: ((end: DrainEnd) => void) | null = null;
 
   constructor(
     private send: (document: BoardDocument, updatedAt: string | null) => Observable<{ updatedAt: string }>,
@@ -145,10 +149,10 @@ export class BoardSync {
   // The board is being left: from now on this saves the board as it was left, keeps retrying on its own while
   // the API is away, and closes once everything reached the server or saving can't go on (a conflict, a refusal).
   // The promise says when, so opening the same board again can wait for it.
-  drain(left: () => BoardDocument): Promise<void> {
+  drain(left: () => BoardDocument): Promise<DrainEnd> {
     this.read = left;
     return new Promise(done => {
-      this.drained = () => { this.drained = null; this.close(); done(); };
+      this.drained = end => { this.drained = null; this.close(); done(end); };
       if (!this.unsaved || this.conflict() || this.problem()) this.settle();
       else void this.saveNow();
     });
@@ -164,6 +168,14 @@ export class BoardSync {
 
   get draining(): boolean {
     return !!this.drained && !this.closed;
+  }
+
+  // The board being left is opened again before its save finished: saving goes back to the open board, with what
+  // is waiting, its place in the server's history and its count of changes, as if it had never been left
+  resume(read: () => BoardDocument): void {
+    if (!this.draining) return;
+    this.drained = null;
+    this.read = read;
   }
 
   // The new board a stale tab's changes were kept as: it saves to there from now on
@@ -186,6 +198,8 @@ export class BoardSync {
   }
 
   private settle(): void {
-    if (this.drained && !this.inFlight && !this.debounce) this.drained();
+    if (this.drained && !this.inFlight && !this.debounce) {
+      this.drained(this.conflict() ? 'conflict' : this.problem() ? 'refused' : 'saved');
+    }
   }
 }

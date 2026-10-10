@@ -83,7 +83,8 @@ export function renderBlocks(blocks: TextBlock[]): string {
   if (blocks.length === 0) return '<div class="blk" data-list="none"><br></div>';
   return blocks.map(block =>
     '<div class="blk" data-list="' + block.list + '">' +
-      (block.runs.length ? block.runs.map(runHtml).join('') : '<br>') +
+      // An empty line keeps a <br>, or it folds to nothing and the first key typed lands outside it as a new line
+      (block.runs.some(run => run.text) ? block.runs.map(runHtml).join('') : '<br>') +
     '</div>').join('');
 }
 
