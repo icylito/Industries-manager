@@ -34,7 +34,8 @@ export class AccountPage {
   editing = signal(false);
   showForm = computed(() => this.editing() || this.auth.user()?.mustChangePassword === true);
 
-  initial = computed(() => { const user = this.auth.user(); return ((user?.displayName || user?.username) ?? '?').charAt(0).toUpperCase(); });
+  // The first letter as a person sees it: a whole emoji, never half of one
+  initial = computed(() => { const user = this.auth.user(); return (Array.from((user?.displayName || user?.username) ?? '?')[0] ?? '?').toUpperCase(); });
   // The picture's two colours, or nothing, and the stylesheet's own panel stays
   artBackground = computed(() => { const c = this.profile.colors(); return c ? `linear-gradient(160deg, ${c[0]}, ${c[1]})` : null; });
 

@@ -57,6 +57,15 @@ Search and sorting are unchanged.
 
 Hindi काम and कम stay two words, Greek ΟΔΟΣ and οδος are one, and Turkish İzmir and izmir are one.
 
+**Where the three still differ (critic round 2):**
+- **ICU versions:** Windows' copy of ICU, which .NET uses, is older than the one in Postgres. They disagree on very new characters (Unicode 16 emoji) and on a few symbols such as ™, Ⓐ, ℃, № and ½. The page also handles symbols differently.
+- **Effect:**
+  - About 1% of tested pairs disagree.
+  - For such names, a Bring back preview can miss a similar row, and then the Bring back is refused with "already taken" (nothing is changed).
+  - A restore of a version holding such twins can still be refused.
+  - The database always has the last word, so nothing wrong is ever saved.
+- See "Left open" below.
+
 The database and C# are held to the same 16 example pairs in `testing/check_names.py`, and the page to the same pairs in `name-key.spec.ts`.
 
 Your real Postgres 18 has ICU; I checked read-only, and it has 883 ICU collations.
@@ -81,7 +90,8 @@ Your real Postgres 18 has ICU; I checked read-only, and it has 883 ICU collation
 **Assumptions**
 - Sector options are a choice list, not names, so they keep their old case-only matching.
 - For accounts that already clash, you chose "list them, admin decides" earlier, so nobody is renamed automatically. Tables, which can't be flagged, get their number added instead.
-- Accents, case, width, spaces, punctuation, symbols and currency signs are what ICU's level 1 with "shifted" handling ignores. Vowel signs in scripts like Hindi count, so different words stay different.
+- Accents, case, width, spaces, punctuation, symbols and currency signs are what ICU's level 1 with "shifted" handling ignores. Vowel signs in scripts like Hindi count.
+- But level 1 also ignores marks that make different words in Japanese and Thai, which I didn't foresee. バス and パス (bus, pass), ビール and ビル (beer, building), and ไม่ and ไม้ (not, wood) count as one name. See "Left open" below.
 - ICU can change between versions. Postgres records the version per collation, and warns if a later Postgres has a different one; reindexing fixes that.
 
 **Files touched**
@@ -140,13 +150,59 @@ No data loss, no security hole. Defects, and what I did about each:
 | # | Defect | Fix |
 |---|---|---|
 | D1 High | `OneNameRule`'s table rename could itself clash (`Sales`, `sales.`, `Sales 2`), so the index failed and the API wouldn't start | The rename keeps trying "(id-2)", "(id-3)"… until no table has the name. The migration fixture now holds exactly that case. |
-| D2 Medium | The "one rule in three places" disagreed on Hindi, Turkish, Greek and rare CJK, despite claiming it never did | ICU in all three places (above). `check_names.py` holds the database and C# to 16 pairs, the page's unit test the same pairs. |
+| D2 Medium | The "one rule in three places" disagreed on Hindi, Turkish, Greek and rare CJK, despite claiming it never did | ICU in all three places (above). `check_names.py` holds the database and C# to 16 pairs, the page's unit test the same pairs. Only partly fixed: see round 2. |
 | D3 Medium | A History version from before the rule with two old-rule twins could no longer be restored | The restore plan flags the later twin as a copy. `check_names.py` restores such a version. Names of only symbols no longer count as a clash. |
 | D4 Low/Med | A 58-character name with no spaces made the phone page scroll sideways | The `@name · role` line wraps (`overflow-wrap: anywhere`). Checked at 390 px. |
 | D5 Low | WebP check without `RIFF`, no `nosniff`, a chunked upload read whole before the size check | `RIFF` and `WEBP` both required; `X-Content-Type-Options: nosniff`; reading stops at the limit. |
 | D6 Low | `check_names.py` left "Ticker" fields behind | Its cleanup sends `basedOn`, and it also removes ones left by older runs. |
 | D7 Low | Test gaps: no hand-over test, non-Latin samples, the rename case, and an unhandled `scrollIntoView` error in `ng test` | New `testing/check_handover.py` (HANDOVER OK). The samples and fixture are above. `scrollIntoView` is now only called where the browser has it. |
 | D8 Low | Confirmation wording inconsistent | The Fields question is one line now. "Delete version #N for good?" and "Delete 'board'?" stay as they are on purpose: they are short and name what goes for good. |
-| D9 Low | README numbers out of date, and the "never disagree" claim | Fixed: walk 93 checks, fonts 48. The claim is now true and checked. |
+| D9 Low | README numbers out of date, and the "never disagree" claim | Numbers fixed: walk 93 checks, fonts 48. The claim was still not true, see round 2. |
 
 Also: the test databases held about 10,000 extra "Measure Co" rows and 45 big History versions from the Bring back stress test. That made a backup bigger than `check_backup_tables.py`'s 5 MB upload cap, so I deleted them from the test databases only.
+
+### Round 2: 7.6 out of 10, no cap: passed
+
+No data loss, no security hole. Round 1's defects:
+- **Fixed:** D1, D4, D5, D6 and D9's numbers.
+- **Accepted:** D8.
+- **Partly fixed:** D2, D3 and D7. See N1.
+
+The critic checked:
+- every migration check, races (one success and no errors), profile security, and seven pages at 390 and 1366 px in light and dark
+- Browse with 5,602 rows in 143 ms, and the Bring back preview in 1.1 s
+- 261 unit tests, with no unhandled error
+
+New findings:
+
+| # | Finding | What I did |
+|---|---|---|
+| N1 Medium | The three ICU rules still disagree on about 1% of pairs, through ICU version differences and the page's symbol handling. This can make a Bring back preview miss a similar row, and then the Bring back is refused (nothing changed). | Left open, see below. The docs no longer claim they agree. |
+| N2 Medium | Japanese and Thai words that differ only by a mark count as one name | Left open, see below |
+| N3 Low | An emoji display name showed half an emoji as the initial | Fixed: the initial is the first whole character |
+| N4 Low | A display name is measured after normalising, so 20 × ﷺ is "over 60 characters" | Left as it is: a name is measured as it is saved |
+| N5 Low | False doc claims | Fixed in this file. 261 unit tests now (it said 246). |
+
+## Left open, for you to decide
+
+**1. Make the database the only judge of names (fixes N1).**
+
+C# and the page would ask the database instead of comparing names themselves, so there's one ICU and one answer. The cost is one small query per check.
+
+The pieces that would change:
+- `Names.Same` and `Names.Keys` for batches, which History's Bring back and Restore use
+- field and column labels
+- the page's early warning in Fields, which could simply wait for the API's answer
+
+This is the clean fix; I'd do it next.
+
+**2. Japanese and Thai (N2).**
+
+ICU level 1 is the wrong strength for those scripts. Options:
+- **(a)** Compare at level 2 for every name. Accents would then count again, so Café and Cafe become two names.
+- **(b)** Keep level 1 but treat Japanese and Thai marks as letters with a custom ICU rule.
+- **(c)** Keep it as it is. Two such companies can still both exist: the later one comes in flagged as a copy.
+
+If you use those scripts, I'd recommend (b).
+
+**3. The phase 3 migrations aren't on your real database yet.** `OneNameRule` and `OneUsernameRule` apply on your next `start.bat` restart. Take a backup from the page first, as before.
