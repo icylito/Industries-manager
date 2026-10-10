@@ -1,4 +1,4 @@
-import { BoardList, TextBlock, TextRun, TextSize } from '../../models/industry';
+import { BoardList, TextBlock, TextRun, TextSize } from '../../models/board';
 
 // Rich text for a note or a text box. Runs are stretches of text plus how they look, so one word can be
 // bold, highlighted, or a different font and size from the words beside it. Formatted with the browser's

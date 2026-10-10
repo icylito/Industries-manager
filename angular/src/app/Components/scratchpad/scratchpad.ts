@@ -1,65 +1,78 @@
-import { Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { HttpErrorResponse, HttpEventType } from '@angular/common/http';
 import { Subscription, firstValueFrom } from 'rxjs';
 import { NgTemplateOutlet } from '@angular/common';
-import { RouterLink } from '@angular/router';
-import { BoardItem, Industry, NoteTone, Snapshot, TextAlign } from '../../models/industry';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { Industry } from '../../models/industry';
+import { BoardItem, FileItem, NoteTone, PaperItem, Snapshot, TextAlign } from '../../models/board';
 import { IndustryApi, errorText } from '../../services/industry-api';
 import { Shortcuts, modHeld } from '../../services/shortcuts';
-import { ITEM_SIZE, Scratchpad, clampZoom, curveControl, isImage, quadPoint } from '../../services/scratchpad';
+import { BoardEngine } from '../../board/board-engine';
+import { BoardsStore } from '../../board/boards-store';
+import { TrayStore } from '../../board/tray-store';
+import { ScratchApi } from '../../board/scratch-api';
+import { KINDS, fileView, kindOf } from '../../board/item-kinds';
+import { Rect, bounds, clampZoom, linePath, strokePath, viewOnto, worldFromScreen, zoomAround } from '../../board/geometry';
+import { BoardTool, Draft, Gesture, PointerCtx, STROKE_WIDTH, TOOLS, ToolUi, hitTest, isEditable, panGesture } from '../../board/tools';
 import { NoteEditor } from './note-editor';
+import { BoardHistory } from './board-history';
 import { MAX_FILE_MB, nameForPasted, refusalFor, sizeText, typeLabel } from './board-files';
 import { FONT_GROUPS, ensureFont, ensureFonts, fontCss } from './rich-text';
+import { SNAP_DRAG, snapCircle, snapShade, snapWhen } from '../carry-tray/snapshot-look';
 
 // A file's upload while the page is open. Gone after a reload: a card whose upload never finished says so.
 interface Upload { pct: number; failed: boolean; }
 
-// A company dragged from the rail onto the board, and a snapshot dragged off the carry tray
+// A company dragged from the rail onto the board
 const INDUSTRY_DRAG = 'application/x-scratchpad-industry';
-const SNAP_DRAG = 'application/x-scratchpad-snap';
 
-// The endless board. Pan and zoom, industry cards, sticky notes and text boxes, several things picked at
-// once, groups, lines that stay glued, undo and redo, and the whole thing saved per person on its own.
+// The Scratchpad: one endless board at a time, picked from the person's boards on the History tab. Everything
+// that changes the board goes through the board engine (board/board-engine.ts), and everything the pointer does
+// on the board is a tool in board/tools.ts. This page draws the board, routes events, and owns the side panels.
 // See OVERVIEW_HANDOFF.md for the feel this must keep.
-
-interface Drag {
-  mode: 'item' | 'pan' | 'box' | 'group';
-  startX: number;
-  startY: number;
-  origins: { id: string; x: number; y: number }[];
-  viewX: number;
-  viewY: number;
-}
-
-interface Box { x0: number; y0: number; x1: number; y1: number; }
-
 @Component({
   selector: 'app-scratchpad',
-  imports: [NoteEditor, NgTemplateOutlet, RouterLink],
+  imports: [NoteEditor, BoardHistory, NgTemplateOutlet, RouterLink],
   templateUrl: './scratchpad.html',
   styleUrl: './scratchpad.css',
 })
 export class ScratchpadPage {
-  protected pad = inject(Scratchpad);
-  // The template draws the picking box, and a template cannot reach Math on its own
-  protected readonly Math = Math;
+  protected board = inject(BoardEngine);
+  protected boards = inject(BoardsStore);
+  protected tray = inject(TrayStore);
+  private scratch = inject(ScratchApi);
   private api = inject(IndustryApi);
   protected shortcuts = inject(Shortcuts);
+  private router = inject(Router);
+  private route = inject(ActivatedRoute);
   private destroy = inject(DestroyRef);
 
   private canvas = viewChild<ElementRef<HTMLElement>>('canvas');
+  protected readonly Math = Math;
 
-  search = signal('');
+  // Board or History, and the board asked for, from the address so Back works and a link opens the same board
+  private query = toSignal(this.route.queryParamMap, { initialValue: this.route.snapshot.queryParamMap });
+  tab = computed(() => (this.query().get('tab') === 'history' ? 'history' : 'board'));
+  private wanted = computed(() => {
+    const id = Number(this.query().get('board'));
+    return Number.isInteger(id) && id > 0 ? id : null;
+  });
+  // Couldn't list the boards, or make a first one
+  noBoards = signal(false);
+
+  tool = signal<BoardTool>('select');
   spaceDown = signal(false);
-  box = signal<Box | null>(null);
+  box = signal<Rect | null>(null);
+  draft = signal<Draft | null>(null);
   lineFrom = signal<string | null>(null);
-
-  private drag: Drag | null = null;
+  private gesture: Gesture | null = null;
 
   // The rail never loads the table. With no search it shows the 3 most expensive rows, and says so;
   // typing swaps them for up to 10 name matches. See OVERVIEW_HANDOFF.md, "the companies rail".
   static readonly TOP = 3;
   static readonly MATCHES = 10;
+  search = signal('');
   matches = signal<Industry[]>([]);
   railLoading = signal(true);
   railError = signal(false);
@@ -67,117 +80,141 @@ export class ScratchpadPage {
   private railTimer: ReturnType<typeof setTimeout> | null = null;
   private railCall: Subscription | null = null;
 
-  // Files: the upload of each card while it runs, the pictures fetched for showing, and the refusal toast
+  // Files: the upload of each card while it runs, the pictures and videos fetched for showing, and the toast
   uploads = signal<Record<string, Upload>>({});
   private pendingFiles = new Map<string, File>();
   previews = signal<Record<number, string>>({});
   private previewAsked = new Set<number>();
+  videos = signal<Record<number, string | 'loading'>>({});
   notice = signal<string[]>([]);
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
-  // Where a file being dragged is: anywhere on the page, over the + File or image field, or over the board
   fileOver = signal<'none' | 'page' | 'button' | 'board'>('none');
   readonly maxFileMb = MAX_FILE_MB;
   protected readonly typeLabel = typeLabel;
   protected readonly sizeText = sizeText;
-  protected readonly isImage = isImage;
+  protected readonly fileView = fileView;
+  protected readonly snapWhen = snapWhen;
+  protected readonly snapShade = snapShade;
+  protected readonly snapCircle = snapCircle;
+  protected readonly strokePath = strokePath;
+  protected readonly strokeWidth = STROKE_WIDTH;
 
-  // The TEXT bar's font list, the same fonts the note's own bar offers
   fontsOpen = signal(false);
   protected readonly fontGroups = FONT_GROUPS;
   protected readonly fontCss = fontCss;
 
-  pickedCount = computed(() => this.pad.selectedIds().length);
+  protected readonly tools: { id: BoardTool; label: string; command: string }[] = [
+    { id: 'select', label: 'Select', command: 'sp.select' },
+    { id: 'hand', label: 'Hand', command: 'sp.hand' },
+    { id: 'line', label: 'Line', command: 'sp.line' },
+    { id: 'pen', label: 'Pen', command: 'sp.pen' },
+    { id: 'marker', label: 'Marker', command: 'sp.marker' },
+    { id: 'rect', label: 'Box', command: 'sp.rect' },
+  ];
+
+  pickedCount = computed(() => this.board.selectedIds().length);
+  picked = computed(() => this.board.selectedOne());
+  pickedPaper = computed(() => {
+    const one = this.picked();
+    return one && (one.type === 'note' || one.type === 'text') ? one : null;
+  });
+  pickedFont = computed(() => this.pickedPaper()?.blocks.flatMap(block => block.runs).find(run => run.text)?.font ?? 'Inter');
+  pickedStyle = computed(() => {
+    const runs = this.pickedPaper()?.blocks.flatMap(block => block.runs).filter(run => run.text) ?? [];
+    return { bold: runs.length > 0 && runs.every(run => run.bold), highlight: runs.length > 0 && runs.every(run => run.highlight) };
+  });
+  // The picked things that take a paper colour
+  pickedToned = computed(() => this.board.selection().filter(item => KINDS[item.type].toned));
+  bar = computed(() => {
+    const one = this.picked();
+    return one ? kindOf(one).bar : null;
+  });
+
   // What the tool in hand does, in the same spot on the toolbar so it never jumps around
   toolHint = computed(() => {
-    if (this.spaceDown() || this.pad.tool() === 'hand') return 'Drag to move around the board. Scrolling also moves it, Ctrl + scroll zooms.';
-    if (this.pad.tool() === 'line') return this.lineFrom() ? 'Now click the item to join it to.' : 'Click an item, then another. The line follows when either moves.';
-    return 'Drag a box on empty space to select several things. ' + this.shortcuts.mouseMod('mouse.add') + ' + click adds one.';
-  });
-  // The one thing picked, which decides the bar: COMPANY, FILE or TEXT
-  picked = computed(() => this.pad.selectedOne());
-  pickedFont = computed(() => this.picked()?.blocks?.flatMap(block => block.runs).find(run => run.text)?.font ?? 'Inter');
-  pickedStyle = computed(() => {
-    const runs = this.picked()?.blocks?.flatMap(block => block.runs).filter(run => run.text) ?? [];
-    return { bold: runs.length > 0 && runs.every(run => run.bold), highlight: runs.length > 0 && runs.every(run => run.highlight) };
+    const tool = this.tool();
+    if (this.spaceDown() || tool === 'hand') return 'Drag to move around the board. Scrolling also moves it, ' + this.shortcuts.mouseMod('mouse.zoom') + ' + scroll zooms.';
+    if (tool === 'line') return this.lineFrom() ? 'Now click the thing to point it at.' : 'Click a thing, then another. The arrow points at the second, and follows when either moves.';
+    if (tool === 'pen') return 'Draw by hand. Each stroke is one thing you can move, group or delete.';
+    if (tool === 'marker') return 'Mark something out with a wide see-through stroke.';
+    if (tool === 'rect') return 'Drag to draw a box around an area. Esc goes back to Select.';
+    return 'Drag a box on empty space to select several things. ' + this.shortcuts.mouseMod('mouse.add') + ' + click adds one, '
+      + this.shortcuts.mouseMod('mouse.dup') + ' + drag copies.';
   });
 
   layerTransform = computed(() => {
-    const view = this.pad.board().view;
+    const view = this.board.view();
     return 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.zoom + ')';
   });
+  zoomPercent = computed(() => Math.round(this.board.view().zoom * 100));
 
-  zoomPercent = computed(() => Math.round(this.pad.board().view.zoom * 100));
-
-  pickedTones = computed(() => this.pad.selection().filter(item => item.type === 'note'));
-
-  selectedGroupName = computed(() => {
-    const id = this.pad.selectedGroupId();
-    if (!id) return '';
-    return this.pad.groups().find(group => group.id === id)?.name ?? '';
-  });
+  selectedGroupName = computed(() => this.board.doc().groups.find(group => group.id === this.board.selectedGroupId())?.name ?? '');
 
   // The outline of a group, drawn from the real boxes of its members so it grows and shrinks with them
   groupBoxes = computed(() => {
-    const byId = new Map(this.pad.board().items.map(item => [item.id, item]));
-    const out: { id: string; name: string; x: number; y: number; w: number; h: number }[] = [];
-    for (const group of this.pad.groups()) {
-      const members = group.itemIds.map(id => byId.get(id)).filter((item): item is BoardItem => !!item);
-      if (members.length === 0) continue;
-      const x = Math.min(...members.map(item => item.x)) - 18;
-      const y = Math.min(...members.map(item => item.y)) - 18;
-      const right = Math.max(...members.map(item => item.x + item.w)) + 18;
-      const bottom = Math.max(...members.map(item => item.y + item.h)) + 18;
-      out.push({ id: group.id, name: group.name, x, y, w: right - x, h: bottom - y });
-    }
-    return out;
+    const byId = new Map(this.board.doc().items.map(item => [item.id, item]));
+    return this.board.doc().groups.flatMap(group => {
+      const box = bounds(group.itemIds.map(id => byId.get(id)).filter((item): item is BoardItem => !!item));
+      return box ? [{ id: group.id, name: group.name, x: box.x - 18, y: box.y - 18, w: box.w + 36, h: box.h + 36 }] : [];
+    });
   });
 
-  // Lines meet the real edge of each card and follow it whenever it moves. A bend bows the middle.
+  // Lines meet the real edge of each thing and follow it whenever it moves
   lineShapes = computed(() => {
-    const byId = new Map(this.pad.board().items.map(item => [item.id, item]));
-    const out: { id: string; d: string; head: 'none' | 'end' | 'both'; label: string; pill: { x: number; y: number } }[] = [];
-    for (const line of this.pad.lines()) {
+    const byId = new Map(this.board.doc().items.map(item => [item.id, item]));
+    return this.board.doc().lines.flatMap(line => {
       const from = byId.get(line.from);
       const to = byId.get(line.to);
-      if (!from || !to) continue;
-      const start = this.edgePoint(from, { x: to.x + to.w / 2, y: to.y + to.h / 2 });
-      const end = this.edgePoint(to, { x: from.x + from.w / 2, y: from.y + from.h / 2 });
-      if (line.bend === 0) {
-        out.push({
-          id: line.id, head: line.head, label: line.label,
-          d: 'M ' + start.x + ' ' + start.y + ' L ' + end.x + ' ' + end.y,
-          pill: { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 },
-        });
-      } else {
-        const control = curveControl(start, end, line.bend);
-        out.push({
-          id: line.id, head: line.head, label: line.label,
-          d: 'M ' + start.x + ' ' + start.y + ' Q ' + control.x + ' ' + control.y + ' ' + end.x + ' ' + end.y,
-          pill: quadPoint(start, control, end, 0.5),
-        });
-      }
-    }
-    return out;
+      if (!from || !to) return [];
+      const path = linePath(from, to, line.bend);
+      return [{ id: line.id, d: path.d, head: line.head, label: line.label, pill: path.middle, name: this.nameOf(from) + ' to ' + this.nameOf(to) }];
+    });
   });
-
-  selectedLine = computed(() => this.pad.lines().find(line => line.id === this.pad.selectedLineId()) ?? null);
+  selectedLine = computed(() => this.board.doc().lines.find(line => line.id === this.board.selectedLineId()) ?? null);
   editingLineId = signal<string | null>(null);
 
+  private ui: ToolUi = {
+    view: () => this.board.view(),
+    setView: view => this.board.setView(view),
+    setBox: box => this.box.set(box),
+    setDraft: draft => this.draft.set(draft),
+    lineFrom: () => this.lineFrom(),
+    setLineFrom: id => this.lineFrom.set(id),
+    lineAdded: () => setTimeout(() => (document.querySelector('.line-label') as HTMLInputElement | null)?.focus(), 0),
+    shapeDone: () => this.tool.set('select'),
+  };
+
   constructor() {
-    void this.pad.load().then(() => this.refreshCards());
-    // The periodic save lives with the page, not the service, so closing the page stops it
-    this.pad.startAutoSave();
     this.loadRail();
+    void this.tray.load();
+    // While this page is open, a snapshot on the tray can be put on the board with its +
+    this.tray.placer.set(snap => this.placeSnap(snap));
+
+    // The board named in the address opens; with none, the last one opened here, or the first, or a new one
+    effect(() => {
+      const id = this.wanted();
+      untracked(() => void this.openWanted(id));
+    });
+
+    // A saved board moves up the History list with its new count
+    effect(() => {
+      const state = this.board.save();
+      const id = this.board.boardId();
+      if (state === 'saved' && id != null) untracked(() => this.boards.touched(id, this.board.doc().items.length));
+    });
 
     // A picture card shows its preview, fetched once with the sign in, since an <img> can't send it
     effect(() => {
-      for (const item of this.pad.board().items) {
-        if (item.type === 'file' && item.fileId != null && isImage(item.contentType)) this.askPreview(item.fileId);
+      for (const item of this.board.doc().items) {
+        if (item.type === 'file' && item.fileId != null && fileView(item) === 'image') this.askPreview(item.fileId);
       }
     });
     // Fonts used on the board are loaded once, so a note in Caveat shows in Caveat after a reload
     effect(() => {
-      for (const item of this.pad.board().items) for (const block of item.blocks ?? []) for (const run of block.runs) if (run.font) ensureFont(run.font);
+      for (const item of this.board.doc().items) {
+        if (item.type !== 'note' && item.type !== 'text') continue;
+        for (const block of item.blocks) for (const run of block.runs) if (run.font) ensureFont(run.font);
+      }
     });
 
     // Files dragged over the page: the browser must never open a dropped file, wherever it lands
@@ -188,55 +225,36 @@ export class ScratchpadPage {
     const onDragOver = (event: DragEvent) => { if (hasFiles(event)) event.preventDefault(); };
     const onDrop = (event: DragEvent) => { if (hasFiles(event)) event.preventDefault(); depth = 0; this.fileOver.set('none'); };
     const onPaste = (event: ClipboardEvent) => this.onPaste(event);
-    document.addEventListener('dragenter', onDragEnter);
-    document.addEventListener('dragleave', onDragLeave);
-    document.addEventListener('dragover', onDragOver);
-    document.addEventListener('drop', onDrop);
-    document.addEventListener('paste', onPaste);
-    this.destroy.onDestroy(() => {
-      document.removeEventListener('dragenter', onDragEnter);
-      document.removeEventListener('dragleave', onDragLeave);
-      document.removeEventListener('dragover', onDragOver);
-      document.removeEventListener('drop', onDrop);
-      document.removeEventListener('paste', onPaste);
-      for (const url of Object.values(this.previews())) URL.revokeObjectURL(url);
-      if (this.noticeTimer) clearTimeout(this.noticeTimer);
-      if (this.railTimer) clearTimeout(this.railTimer);
-      this.railCall?.unsubscribe();
-    });
+    const onKeyDown = (event: KeyboardEvent) => this.boardKeyDown(event);
+    const onKeyUp = (event: KeyboardEvent) => { if (event.code === 'Space') this.spaceDown.set(false); };
+    const listen: [string, EventListener][] = [
+      ['dragenter', onDragEnter as EventListener], ['dragleave', onDragLeave as EventListener], ['dragover', onDragOver as EventListener],
+      ['drop', onDrop as EventListener], ['paste', onPaste as EventListener], ['keydown', onKeyDown as EventListener], ['keyup', onKeyUp as EventListener],
+    ];
+    for (const [name, fn] of listen) document.addEventListener(name, fn);
 
     const off = this.shortcuts.register('scratchpad', {
-      'sp.select': () => this.pad.tool.set('select'),
-      'sp.hand': () => this.pad.tool.set('hand'),
-      'sp.line': () => this.pad.tool.set('line'),
-      'sp.sticky': () => this.pad.addPaper('note'),
-      'sp.text': () => this.pad.addPaper('text'),
-      'sp.undo': () => this.pad.undo(),
-      'sp.redo': () => this.pad.redo(),
+      'sp.select': () => this.setTool('select'),
+      'sp.hand': () => this.setTool('hand'),
+      'sp.line': () => this.setTool('line'),
+      'sp.pen': () => this.setTool('pen'),
+      'sp.marker': () => this.setTool('marker'),
+      'sp.rect': () => this.setTool('rect'),
+      'sp.sticky': () => this.board.place('note', 'auto', {}),
+      'sp.text': () => this.board.place('text', 'auto', {}),
+      'sp.undo': () => this.undo(),
+      'sp.redo': () => this.redo(),
       'sp.zoom100': () => this.zoomTo(1),
       'sp.fit': () => this.fit(),
       'sp.zoomSel': () => this.zoomToSelection(),
-      'sp.clear': () => this.pad.clearSelection(),
-    }, {
-      'sp.select': 'Select tool',
-      'sp.hand': 'Hand tool',
-      'sp.line': 'Line tool',
-      'sp.sticky': 'New sticky note',
-      'sp.text': 'New text box',
-      'sp.undo': 'Undo',
-      'sp.redo': 'Redo',
-      'sp.zoom100': 'Zoom to 100%',
-      'sp.fit': 'Fit everything on screen',
-      'sp.zoomSel': 'Zoom to the selection',
-      'sp.clear': 'Clear the selection',
+      'sp.clear': () => this.escape(),
+      'sp.group': () => this.board.groupSelection(''),
+      'sp.ungroup': () => this.board.ungroupSelected(),
+      'sp.duplicate': () => this.duplicate(),
+      'sp.selectAll': () => this.board.selectAll(),
+      'sp.back': () => this.order('back'),
+      'sp.front': () => this.order('front'),
     });
-
-    // Space (pan) and Delete (remove) are kept for the browser by the shortcuts panel, so the board
-    // takes care of those two itself, and only when the person is not typing.
-    const onKeyDown = (event: KeyboardEvent) => this.boardKeyDown(event);
-    const onKeyUp = (event: KeyboardEvent) => { if (event.code === 'Space') this.spaceDown.set(false); };
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('keyup', onKeyUp);
 
     let wheelNode: HTMLElement | null = null;
     const onWheel = (event: WheelEvent) => this.boardWheel(event);
@@ -247,29 +265,246 @@ export class ScratchpadPage {
     });
 
     this.destroy.onDestroy(() => {
-      this.pad.stopAutoSave();
       off();
-      document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('keyup', onKeyUp);
+      for (const [name, fn] of listen) document.removeEventListener(name, fn);
       wheelNode?.removeEventListener('wheel', onWheel);
+      this.gesture?.cancel();
+      this.tray.placer.set(null);
+      for (const url of Object.values(this.previews())) URL.revokeObjectURL(url);
+      for (const url of Object.values(this.videos())) if (url !== 'loading') URL.revokeObjectURL(url);
+      if (this.noticeTimer) clearTimeout(this.noticeTimer);
+      if (this.railTimer) clearTimeout(this.railTimer);
+      this.railCall?.unsubscribe();
+      // Whatever is waiting is sent as the page closes
+      void this.board.close();
     });
   }
 
-  reload(): void {
-    void this.pad.load().then(() => this.refreshCards());
+  // ---- which board ----
+
+  private async openWanted(id: number | null): Promise<void> {
+    if (id != null && id === this.board.boardId() && this.board.status() !== 'error') return;
+    if (id == null) {
+      const start = await this.boards.startingBoard();
+      if (start == null) { this.noBoards.set(true); return; }
+      this.noBoards.set(false);
+      void this.router.navigate([], { queryParams: { board: start }, queryParamsHandling: 'merge', replaceUrl: true });
+      return;
+    }
+    // Leaving a board sends what is waiting first. If it can't be saved, it stays open and says so.
+    if (this.board.boardId() != null && this.board.boardId() !== id && this.board.status() === 'ready') {
+      const saved = await this.board.close();
+      if (!saved) {
+        this.showNotice(["This board couldn't be saved, so it stays open. Try again before opening another."]);
+        void this.router.navigate([], { queryParams: { board: this.board.boardId() }, queryParamsHandling: 'merge', replaceUrl: true });
+        return;
+      }
+    }
+    this.gesture?.cancel();
+    this.gesture = null;
+    this.lineFrom.set(null);
+    if (await this.board.open(id)) {
+      this.boards.remember(id);
+      void this.refreshCards();
+    }
+  }
+
+  // From the History tab: open this board on the Board tab
+  openBoard(id: number): void {
+    void this.router.navigate([], { queryParams: { board: id, tab: null }, queryParamsHandling: 'merge' });
+  }
+
+  showTab(tab: 'board' | 'history'): void {
+    void this.router.navigate([], { queryParams: { tab: tab === 'history' ? 'history' : null }, queryParamsHandling: 'merge' });
+  }
+
+  retryOpen(): void {
+    this.noBoards.set(false);
+    const id = this.wanted();
+    if (id != null) void this.board.open(id).then(ok => { if (ok) void this.refreshCards(); });
+    else void this.openWanted(null);
     this.loadRail();
+  }
+
+  async keepMine(): Promise<void> {
+    const id = await this.board.keepMineAsNewBoard();
+    if (id == null) { this.showNotice(["Couldn't make the new board. Try again in a moment."]); return; }
+    void this.boards.load();
+    void this.router.navigate([], { queryParams: { board: id }, queryParamsHandling: 'merge', replaceUrl: true });
+    this.showNotice(['Your changes are kept as a new board, "' + this.board.boardName() + '". The other one is as it was saved elsewhere.']);
   }
 
   // Cards show what the table says now. Only the companies on the board are asked for, never the table.
   private async refreshCards(): Promise<void> {
-    const ids = [...this.pad.industryIds()].filter((id): id is number => typeof id === 'number');
+    const ids = [...this.board.industryIds()];
     if (ids.length === 0) return;
     try {
-      this.pad.refreshCards(await firstValueFrom(this.api.industriesByIds(ids)));
+      this.board.refreshCards(await firstValueFrom(this.api.industriesByIds(ids)));
     } catch {
       // The cards keep what they showed last time
     }
   }
+
+  // ---- tools and edit keys ----
+
+  setTool(tool: BoardTool): void {
+    this.gesture?.cancel();
+    this.gesture = null;
+    this.lineFrom.set(null);
+    this.tool.set(tool);
+  }
+
+  undo(): void { this.tray.follow(this.board.undo()); }
+  redo(): void { this.tray.follow(this.board.redo()); }
+
+  duplicate(): void {
+    const ids = this.board.pickedIds();
+    if (ids.length === 0) return;
+    const idFor = this.board.duplicate(ids, { x: 24, y: 24 });
+    this.board.setSelection([...idFor.values()]);
+  }
+
+  order(to: 'back' | 'front'): void {
+    const ids = this.board.pickedIds();
+    if (ids.length) this.board.apply({ op: 'order', ids, to });
+  }
+
+  private escape(): void {
+    if (this.gesture) { this.gesture.cancel(); this.gesture = null; return; }
+    this.lineFrom.set(null);
+    this.fontsOpen.set(false);
+    if (this.tool() !== 'select') this.tool.set('select');
+    else this.board.clearSelection();
+  }
+
+  // Space (pan), Delete (remove) and the arrows (nudge) are kept for the browser by the shortcuts panel, so the
+  // board takes care of those itself, and only when the person is not typing
+  private boardKeyDown(event: KeyboardEvent): void {
+    if (this.tab() !== 'board' || isEditable(event.target) || this.shortcuts.panelOpen()) return;
+    if (event.code === 'Space') {
+      this.spaceDown.set(true);
+      event.preventDefault();
+      return;
+    }
+    const target = event.target as Element | null;
+    const focusedLine = target?.getAttribute?.('data-line');
+    if (focusedLine && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      this.board.pickLine(focusedLine);
+      return;
+    }
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      if (focusedLine && !this.board.selectedLineId()) this.board.pickLine(focusedLine);
+      if (this.board.selectedIds().length || this.board.selectedGroupId() || this.board.selectedLineId()) {
+        event.preventDefault();
+        this.board.removeSelection();
+      }
+      return;
+    }
+    const arrows: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+    const step = arrows[event.key];
+    if (step && !event.ctrlKey && !event.metaKey && !event.altKey && this.board.pickedIds().length) {
+      event.preventDefault();
+      const by = event.shiftKey ? 10 : 1;
+      this.board.nudge(step[0] * by, step[1] * by);
+    }
+  }
+
+  // ---- pointers: the tool in hand does the work, see board/tools.ts ----
+
+  private ctx(event: PointerEvent): PointerCtx | null {
+    const rect = this.canvas()?.nativeElement.getBoundingClientRect();
+    if (!rect) return null;
+    const screen = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    return {
+      screen,
+      world: worldFromScreen(screen, this.board.view()),
+      hit: hitTest(event.target),
+      button: event.button,
+      adding: modHeld(this.shortcuts.mouseMod('mouse.add'), event),
+      duplicating: modHeld(this.shortcuts.mouseMod('mouse.dup'), event),
+    };
+  }
+
+  onPointerDown(event: PointerEvent): void {
+    if (this.board.status() !== 'ready' || event.button === 2) return;
+    const c = this.ctx(event);
+    if (!c) return;
+    this.gesture?.cancel();
+    // A press anywhere but in words leaves the note or box being typed in, so the next key is a tool key again
+    if (c.hit.kind !== 'editable' && isEditable(document.activeElement)) (document.activeElement as HTMLElement).blur();
+    const panning = this.spaceDown() || event.button === 1;
+    this.gesture = panning ? panGesture(c, this.ui) : TOOLS[this.tool()].down(c, this.board, this.ui);
+    if (!this.gesture) return;
+    // Drawing on the board, not selecting the page's text
+    if (c.hit.kind !== 'editable') event.preventDefault();
+    this.canvas()?.nativeElement.setPointerCapture(event.pointerId);
+  }
+
+  onPointerMove(event: PointerEvent): void {
+    if (!this.gesture) return;
+    const c = this.ctx(event);
+    if (c) this.gesture.move(c);
+  }
+
+  onPointerUp(event: PointerEvent, lost = false): void {
+    const gesture = this.gesture;
+    this.gesture = null;
+    if (!gesture) return;
+    try {
+      this.canvas()?.nativeElement.releasePointerCapture(event.pointerId);
+    } catch {
+      // The pointer is already gone
+    }
+    const c = this.ctx(event);
+    if (lost || !c) gesture.cancel(); else gesture.up(c);
+  }
+
+  // ---- the view ----
+
+  private screenSize(): { w: number; h: number } | null {
+    const rect = this.canvas()?.nativeElement.getBoundingClientRect();
+    return rect ? { w: rect.width, h: rect.height } : null;
+  }
+
+  private boardWheel(event: WheelEvent): void {
+    const rect = this.canvas()?.nativeElement.getBoundingClientRect();
+    if (!rect) return;
+    event.preventDefault();
+    const view = this.board.view();
+    // The panel's Zoom row picks the held key. A trackpad pinch always arrives as Ctrl + scroll, so it zooms either way.
+    if (modHeld(this.shortcuts.mouseMod('mouse.zoom'), event) || event.ctrlKey) {
+      this.board.setView(zoomAround(view, view.zoom * Math.exp(-event.deltaY * 0.002), { x: event.clientX - rect.left, y: event.clientY - rect.top }));
+    } else {
+      this.board.setView({ x: view.x - event.deltaX, y: view.y - event.deltaY, zoom: view.zoom });
+    }
+  }
+
+  zoomTo(zoom: number): void {
+    const size = this.screenSize();
+    if (size) this.board.setView(zoomAround(this.board.view(), clampZoom(zoom), { x: size.w / 2, y: size.h / 2 }));
+  }
+
+  zoomIn(): void { this.zoomTo(this.board.view().zoom * 1.25); }
+  zoomOut(): void { this.zoomTo(this.board.view().zoom * 0.8); }
+
+  fit(): void {
+    const size = this.screenSize();
+    const box = bounds(this.board.doc().items);
+    if (!size) return;
+    if (!box) { this.board.setView({ x: 0, y: 0, zoom: 1 }); return; }
+    this.board.setView(viewOnto(box, size, 1, 60));
+  }
+
+  zoomToSelection(): void {
+    const size = this.screenSize();
+    const box = bounds(this.board.selection());
+    if (!size) return;
+    if (!box) { this.zoomTo(1); return; }
+    this.board.setView(viewOnto(box, size, 0.65));
+  }
+
+  // ---- the rail ----
 
   onSearch(value: string): void {
     this.search.set(value);
@@ -297,7 +532,14 @@ export class ScratchpadPage {
   }
 
   onBoard(row: Industry): boolean {
-    return this.pad.industryIds().has(row.id);
+    return this.board.industryIds().has(row.id);
+  }
+
+  addIndustry(row: Industry & { rank?: number | null }, center?: { x: number; y: number }): void {
+    if (this.onBoard(row) || this.board.status() !== 'ready') return;
+    this.board.place('industry', center ? { center } : 'auto', {
+      industryId: row.id, name: row.name, sector: row.sector, price: row.price, rank: row.rank !== undefined ? row.rank : this.rankOf(row),
+    });
   }
 
   onRailDragStart(event: DragEvent, row: Industry): void {
@@ -306,14 +548,11 @@ export class ScratchpadPage {
     event.dataTransfer.effectAllowed = 'copy';
   }
 
-  // ---- files and pictures ----
+  // ---- dropping and pasting ----
 
-  // The world point under a screen point, so a drop lands where the person let go
   private worldAt(clientX: number, clientY: number): { x: number; y: number } | null {
-    const rect = this.rect();
-    if (!rect) return null;
-    const view = this.pad.board().view;
-    return { x: (clientX - rect.left - view.x) / view.zoom, y: (clientY - rect.top - view.y) / view.zoom };
+    const rect = this.canvas()?.nativeElement.getBoundingClientRect();
+    return rect ? worldFromScreen({ x: clientX - rect.left, y: clientY - rect.top }, this.board.view()) : null;
   }
 
   onCanvasDragOver(event: DragEvent): void {
@@ -332,23 +571,32 @@ export class ScratchpadPage {
   onCanvasDrop(event: DragEvent): void {
     event.preventDefault();
     this.fileOver.set('none');
+    if (this.board.status() !== 'ready') return;
     const at = this.worldAt(event.clientX, event.clientY) ?? undefined;
     const snapId = event.dataTransfer?.getData(SNAP_DRAG);
-    if (snapId) { this.pad.placeSnap(snapId, at); return; }
+    if (snapId) {
+      const snap = this.tray.items().find(one => one.id === snapId);
+      if (snap) this.placeSnap(snap, at);
+      return;
+    }
     const company = event.dataTransfer?.getData(INDUSTRY_DRAG);
     if (company) {
       try {
-        const row = JSON.parse(company) as Industry & { rank: number | null };
-        if (!this.pad.industryIds().has(row.id)) {
-          const size = { w: 236, h: 92 };
-          this.pad.addIndustry(row, at ? { x: at.x - size.w / 2, y: at.y - size.h / 2 } : undefined);
-        }
+        this.addIndustry(JSON.parse(company) as Industry & { rank: number | null }, at);
       } catch {
         // Not something this page put there
       }
       return;
     }
     this.addFiles(Array.from(event.dataTransfer?.files ?? []), at);
+  }
+
+  // Off the tray and onto the board, as a frozen card. Undo puts it back in the tray.
+  placeSnap(snap: Snapshot, center?: { x: number; y: number }): void {
+    if (this.board.status() !== 'ready') return;
+    if (this.tab() !== 'board') this.showTab('board');
+    this.board.place('snap', center ? { center } : 'auto', { snap });
+    void this.tray.drop(snap.id);
   }
 
   onButtonDragOver(event: DragEvent): void {
@@ -376,8 +624,7 @@ export class ScratchpadPage {
 
   // Ctrl+V with a picture on the clipboard puts it on the board. Pasting into a note or a box stays theirs.
   private onPaste(event: ClipboardEvent): void {
-    const target = event.target as HTMLElement | null;
-    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+    if (isEditable(event.target) || this.tab() !== 'board') return;
     const files = Array.from(event.clipboardData?.files ?? []).filter(file => file.type.startsWith('image/'));
     if (files.length === 0) return;
     event.preventDefault();
@@ -385,21 +632,20 @@ export class ScratchpadPage {
   }
 
   // Each file is checked, then goes on the board at once and uploads in the background. Several dropped
-  // together land side by side from the drop point.
+  // together land side by side from the drop point, never on top of each other.
   addFiles(files: File[], at?: { x: number; y: number }): void {
+    if (this.board.status() !== 'ready') return;
     const refused: string[] = [];
-    // The first lands centred on the drop point, the rest in a row to its right, never on top of each other
     let left: number | null = null;
     for (const file of files) {
       const why = refusalFor(file);
       if (why) { refused.push(why); continue; }
       const contentType = file.type || 'application/octet-stream';
-      const width = isImage(contentType) ? ITEM_SIZE.image.w : ITEM_SIZE.file.w;
-      // addFile centres the card on the point it is given
+      const width = KINDS.file.size({ contentType }).w;
       if (at && left === null) left = at.x - width / 2;
-      const spot = at && left !== null ? { x: left + width / 2, y: at.y } : undefined;
+      const center = at && left !== null ? { x: left + width / 2, y: at.y } : null;
       if (left !== null) left += width + 24;
-      const id = this.pad.addFile({ name: file.name, contentType, sizeBytes: file.size }, spot);
+      const id = this.board.place('file', center ? { center } : 'auto', { name: file.name, contentType, sizeBytes: file.size });
       this.upload(id, file);
     }
     if (refused.length) this.showNotice(refused);
@@ -408,12 +654,12 @@ export class ScratchpadPage {
   private upload(itemId: string, file: File): void {
     this.pendingFiles.set(itemId, file);
     this.setUpload(itemId, { pct: 0, failed: false });
-    this.api.uploadScratchFile(file).subscribe({
+    this.scratch.uploadFile(file).subscribe({
       next: event => {
         if (event.type === HttpEventType.UploadProgress && event.total) {
           this.setUpload(itemId, { pct: Math.round((event.loaded / event.total) * 100), failed: false });
         } else if (event.type === HttpEventType.Response && event.body) {
-          this.pad.fileStored(itemId, event.body);
+          this.board.fileStored(itemId, event.body);
           this.pendingFiles.delete(itemId);
           this.setUpload(itemId, null);
         }
@@ -440,7 +686,7 @@ export class ScratchpadPage {
   }
 
   // How a file card reads under its name: uploading, failed, never finished, or its size and type
-  fileMeta(item: BoardItem): { text: string; bad: boolean } {
+  fileMeta(item: FileItem): { text: string; bad: boolean } {
     const up = this.uploads()[item.id];
     if (up?.failed) return { text: "Couldn't upload", bad: true };
     if (up) return { text: 'Uploading ' + up.pct + '%', bad: false };
@@ -448,42 +694,55 @@ export class ScratchpadPage {
     return { text: typeLabel(item.name) + ', ' + sizeText(item.sizeBytes), bad: false };
   }
 
-  canRetry(item: BoardItem): boolean {
+  canRetry(item: FileItem): boolean {
     return !!this.uploads()[item.id]?.failed && this.pendingFiles.has(item.id);
   }
 
   private askPreview(fileId: number): void {
     if (this.previewAsked.has(fileId)) return;
     this.previewAsked.add(fileId);
-    this.api.scratchFileBlob(fileId).subscribe({
+    this.scratch.fileBlob(fileId).subscribe({
       next: blob => this.previews.update(all => ({ ...all, [fileId]: URL.createObjectURL(blob) })),
       // No preview: the card falls back to the plain file look
       error: () => {},
     });
   }
 
+  // A video is fetched only when someone presses Play, since it can be big, then plays in place
+  playVideo(item: FileItem): void {
+    const id = item.fileId;
+    if (id == null || this.videos()[id]) return;
+    this.videos.update(all => ({ ...all, [id]: 'loading' }));
+    this.scratch.fileBlob(id).subscribe({
+      next: blob => this.videos.update(all => ({ ...all, [id]: URL.createObjectURL(blob) })),
+      error: (err: HttpErrorResponse) => {
+        this.videos.update(all => { const next = { ...all }; delete next[id]; return next; });
+        this.showNotice([errorText(err, "Couldn't play " + item.name)]);
+      },
+    });
+  }
+
   // Open a picture or a PDF in a new tab, anything else downloads with its own name
-  openFile(item: BoardItem): void {
+  openFile(item: FileItem): void {
     if (item.fileId == null) return;
-    this.api.scratchFileBlob(item.fileId).subscribe({
+    this.scratch.fileBlob(item.fileId).subscribe({
       next: blob => {
         const url = URL.createObjectURL(blob);
-        const shows = isImage(item.contentType) || item.contentType === 'application/pdf';
-        if (shows) {
+        if (fileView(item) === 'image' || item.contentType === 'application/pdf') {
           window.open(url, '_blank', 'noopener');
         } else {
           const link = document.createElement('a');
           link.href = url;
-          link.download = item.name ?? 'file';
+          link.download = item.name || 'file';
           link.click();
         }
         setTimeout(() => URL.revokeObjectURL(url), 60_000);
       },
-      error: (err: HttpErrorResponse) => this.showNotice([errorText(err, "Couldn't open " + (item.name ?? 'that file'))]),
+      error: (err: HttpErrorResponse) => this.showNotice([errorText(err, "Couldn't open " + (item.name || 'that file'))]),
     });
   }
 
-  // The toast names exactly what was refused, can be closed, and goes on its own after 10 seconds
+  // The toast names exactly what happened, can be closed, and goes on its own after 10 seconds
   showNotice(lines: string[]): void {
     this.notice.set(lines);
     if (this.noticeTimer) clearTimeout(this.noticeTimer);
@@ -500,67 +759,34 @@ export class ScratchpadPage {
     return over === 'button' ? 'Release to add it' : over === 'none' ? '+ File or image' : 'Drop files here';
   });
 
-  // ---- the carry tray and snapshots ----
-
-  onTrayDragStart(event: DragEvent, snap: Snapshot): void {
-    if (!event.dataTransfer) return;
-    event.dataTransfer.setData(SNAP_DRAG, snap.id);
-    event.dataTransfer.effectAllowed = 'copy';
-  }
-
-  // "7 Oct, 14:02", when it was carried
-  snapWhen(iso: string | undefined): string {
-    if (!iso) return '';
-    const at = new Date(iso);
-    return at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ', ' + at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  }
-
-  // The circle as it was: the ink steps lighter slice by slice, the picked slice is the signal colour, the same
-  // logic as the Overview's circle, so both read alike
-  snapShade(snap: Snapshot, index: number): string {
-    if (snap.pick && snap.numbers[index]?.label === snap.pick) return 'var(--signal)';
-    const n = Math.max(snap.numbers.length, 1);
-    const pct = Math.round(92 - (index * 70) / n);
-    return `color-mix(in srgb, var(--text) ${pct}%, var(--surface))`;
-  }
-
-  snapCircle(snap: Snapshot): string {
-    const total = snap.numbers.reduce((sum, one) => sum + (one.share ?? 0), 0);
-    if (!total) return 'var(--track)';
-    let from = 0;
-    const parts = snap.numbers.map((one, i) => {
-      const to = from + ((one.share ?? 0) / total) * 100;
-      const part = `${this.snapShade(snap, i)} ${from}% ${to}%`;
-      from = to;
-      return part;
-    });
-    return `conic-gradient(${parts.join(', ')})`;
-  }
-
-  // ---- paper colours, for one note or several ----
+  // ---- paper colours and the TEXT bar ----
 
   protected readonly tones: { key: NoteTone; label: string }[] = [
     { key: 'white', label: 'White' }, { key: 'gray', label: 'Grey' }, { key: 'ink', label: 'Ink' }, { key: 'amber', label: 'Orange' },
   ];
 
   allTone(items: BoardItem[], tone: NoteTone): boolean {
-    return items.length > 0 && items.every(item => (item.tone ?? 'white') === tone);
+    return items.length > 0 && items.every(item => ('tone' in item ? item.tone : 'white') === tone);
   }
 
   setTone(items: BoardItem[], tone: NoteTone): void {
-    this.pad.setTone(items.map(item => item.id), tone);
+    this.board.apply({ op: 'patch', ids: items.map(item => item.id), patch: { tone } });
   }
-
-  // ---- the TEXT bar ----
 
   setAlign(align: TextAlign): void {
-    const one = this.picked();
-    if (one) this.pad.setAlign([one.id], align);
+    const one = this.pickedPaper();
+    if (!one) return;
+    this.board.apply({ op: 'patch', ids: [one.id], patch: { align } });
+    this.board.external.update(n => n + 1);
   }
 
+  // Bold or highlight every word of the note. On when any part is off, so a mixed note turns all on first.
   toggleWhole(style: 'bold' | 'highlight'): void {
-    const one = this.picked();
-    if (one) this.pad.toggleWhole(one.id, style);
+    const one = this.pickedPaper();
+    const runs = one?.blocks.flatMap(block => block.runs).filter(run => run.text.length > 0) ?? [];
+    if (!one || runs.length === 0) return;
+    const on = !runs.every(run => run[style]);
+    this.restyle(one, run => ({ ...run, [style]: on || undefined }));
   }
 
   toggleFonts(): void {
@@ -569,287 +795,50 @@ export class ScratchpadPage {
   }
 
   pickFont(font: string): void {
-    const one = this.picked();
+    const one = this.pickedPaper();
     if (!one) return;
     ensureFont(font);
-    this.pad.setFontWhole(one.id, font);
+    this.restyle(one, run => ({ ...run, font: font === 'Inter' ? undefined : font }));
   }
 
-  private rect(): DOMRect | null {
-    return this.canvas()?.nativeElement.getBoundingClientRect() ?? null;
-  }
-
-  private edgePoint(item: BoardItem, toward: { x: number; y: number }): { x: number; y: number } {
-    const cx = item.x + item.w / 2;
-    const cy = item.y + item.h / 2;
-    const dx = toward.x - cx;
-    const dy = toward.y - cy;
-    if (dx === 0 && dy === 0) return { x: cx, y: cy };
-    const sx = dx === 0 ? Number.POSITIVE_INFINITY : (item.w / 2) / Math.abs(dx);
-    const sy = dy === 0 ? Number.POSITIVE_INFINITY : (item.h / 2) / Math.abs(dy);
-    const scale = Math.min(sx, sy);
-    return { x: cx + dx * scale, y: cy + dy * scale };
-  }
-
-  private boardKeyDown(event: KeyboardEvent): void {
-    const target = event.target as HTMLElement | null;
-    const typing = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
-    if (event.code === 'Space' && !typing) {
-      this.spaceDown.set(true);
-      event.preventDefault();
-      return;
-    }
-    if (event.key === 'Delete' && !typing) {
-      if (this.pad.selectedIds().length || this.pad.selectedGroupId() || this.pad.selectedLineId()) {
-        event.preventDefault();
-        this.pad.removeSelection();
-      }
-      return;
-    }
-    if (event.key === 'Escape') {
-      this.lineFrom.set(null);
-      this.fontsOpen.set(false);
-    }
-  }
-
-  // The key the panel's Add to selection row holds, Shift unless the person changed it
-  private adding(event: PointerEvent): boolean {
-    return modHeld(this.shortcuts.mouseMod('mouse.add'), event);
-  }
-
-  private boardWheel(event: WheelEvent): void {
-    const rect = this.rect();
-    if (!rect) return;
-    event.preventDefault();
-    const view = this.pad.board().view;
-    // The panel's Zoom row picks the held key. A trackpad pinch always arrives as Ctrl + scroll, so it zooms either way.
-    if (modHeld(this.shortcuts.mouseMod('mouse.zoom'), event) || event.ctrlKey) {
-      const zoom = clampZoom(view.zoom * Math.exp(-event.deltaY * 0.002));
-      this.zoomAround(zoom, event.clientX - rect.left, event.clientY - rect.top);
-    } else {
-      this.pad.setView({ x: view.x - event.deltaX, y: view.y - event.deltaY, zoom: view.zoom });
-    }
-  }
-
-  private zoomAround(zoom: number, px: number, py: number): void {
-    const view = this.pad.board().view;
-    const wx = (px - view.x) / view.zoom;
-    const wy = (py - view.y) / view.zoom;
-    this.pad.setView({ x: px - wx * zoom, y: py - wy * zoom, zoom: clampZoom(zoom) });
-  }
-
-  zoomTo(zoom: number): void {
-    const rect = this.rect();
-    if (rect) this.zoomAround(zoom, rect.width / 2, rect.height / 2);
-  }
-
-  fit(): void {
-    const rect = this.rect();
-    const items = this.pad.board().items;
-    if (!rect || items.length === 0) {
-      this.pad.setView({ x: 0, y: 0, zoom: 1 });
-      return;
-    }
-    const minX = Math.min(...items.map(one => one.x));
-    const minY = Math.min(...items.map(one => one.y));
-    const maxX = Math.max(...items.map(one => one.x + one.w));
-    const maxY = Math.max(...items.map(one => one.y + one.h));
-    const pad = 60;
-    const zoom = clampZoom(Math.min(
-      (rect.width - pad * 2) / Math.max(maxX - minX, 1),
-      (rect.height - pad * 2) / Math.max(maxY - minY, 1)));
-    this.pad.setView({
-      x: (rect.width - (maxX - minX) * zoom) / 2 - minX * zoom,
-      y: (rect.height - (maxY - minY) * zoom) / 2 - minY * zoom,
-      zoom,
+  private restyle(one: PaperItem, change: (run: PaperItem['blocks'][number]['runs'][number]) => PaperItem['blocks'][number]['runs'][number]): void {
+    this.board.apply({
+      op: 'patch', ids: [one.id],
+      patch: item => (item.type === 'note' || item.type === 'text'
+        ? { ...item, blocks: item.blocks.map(block => ({ ...block, runs: block.runs.map(change) })) } : item),
     });
+    this.board.external.update(n => n + 1);
   }
 
-  zoomToSelection(): void {
-    const picked = this.pad.selection();
-    const rect = this.rect();
-    if (!rect) return;
-    if (picked.length === 0) {
-      this.zoomTo(1);
-      return;
-    }
-    const minX = Math.min(...picked.map(one => one.x));
-    const minY = Math.min(...picked.map(one => one.y));
-    const maxX = Math.max(...picked.map(one => one.x + one.w));
-    const maxY = Math.max(...picked.map(one => one.y + one.h));
-    const zoom = clampZoom(Math.min((rect.width * 0.65) / Math.max(maxX - minX, 1), (rect.height * 0.65) / Math.max(maxY - minY, 1)));
-    this.pad.setView({
-      x: rect.width / 2 - ((minX + maxX) / 2) * zoom,
-      y: rect.height / 2 - ((minY + maxY) / 2) * zoom,
-      zoom,
-    });
+  // ---- lines and groups ----
+
+  private nameOf(item: BoardItem): string {
+    if (item.type === 'industry' || item.type === 'file') return item.name;
+    if (item.type === 'snap') return item.snap.title;
+    return KINDS[item.type].label.toLowerCase();
   }
 
-  // One card per company. From the top list it carries its rank there, from a search none.
-  addIndustry(row: Industry): void {
-    if (this.onBoard(row)) return;
-    this.pad.addIndustry({ id: row.id, name: row.name, sector: row.sector, price: row.price, rank: this.rankOf(row) });
+  // Typing a label or a group name is one undo step from the first letter to leaving the box
+  private nameTx: ReturnType<BoardEngine['begin']> | null = null;
+
+  onLabelInput(id: string, value: string): void {
+    if (!this.nameTx?.open) this.nameTx = this.board.begin();
+    this.nameTx.apply({ op: 'patchLine', id, patch: { label: value.slice(0, 200) } });
   }
 
-  rowPrice(row: Industry): string {
-    if (row.price === null || row.price === undefined) return 'No price';
-    return '$' + row.price.toFixed(3);
+  onGroupNameInput(groupId: string, value: string): void {
+    if (!this.nameTx?.open) this.nameTx = this.board.begin();
+    this.nameTx.apply({ op: 'renameGroup', groupId, name: value.slice(0, 60) });
   }
 
-  zoomIn(): void { this.zoomBy(1.25); }
-  zoomOut(): void { this.zoomBy(0.8); }
-
-  private zoomBy(factor: number): void {
-    this.zoomTo(this.pad.board().view.zoom * factor);
-  }
-
-  addNote(): void { this.pad.addPaper('note'); }
-  addText(): void { this.pad.addPaper('text'); }
-  makeGroup(): void { this.pad.addGroup(''); }
-  ungroupSelected(): void {
-    const id = this.pad.selectedGroupId();
-    if (id) this.pad.ungroup(id);
-  }
-  deleteSelected(): void { this.pad.removeSelection(); }
-
-  priceLabel(item: BoardItem): string {
-    if (item.price === null || item.price === undefined) return 'No price';
-    return '$' + item.price.toFixed(3);
-  }
-
-  // ---- pointers ----
-
-  onPointerDown(event: PointerEvent): void {
-    const node = this.canvas()?.nativeElement;
-    if (!node) return;
-    const target = event.target as HTMLElement;
-    const rect = node.getBoundingClientRect();
-
-    if (this.spaceDown() || this.pad.tool() === 'hand' || event.button === 1) {
-      node.setPointerCapture(event.pointerId);
-      const view = this.pad.board().view;
-      this.drag = { mode: 'pan', startX: event.clientX, startY: event.clientY, origins: [], viewX: view.x, viewY: view.y };
-      return;
-    }
-
-    // A line is drawn by picking one thing, then another
-    if (this.pad.tool() === 'line') {
-      const holder = target.closest('[data-item]') as HTMLElement | null;
-      const id = holder?.getAttribute('data-item') ?? null;
-      if (!id) { this.lineFrom.set(null); return; }
-      const from = this.lineFrom();
-      if (!from) this.lineFrom.set(id);
-      else {
-        this.pad.addLine(from, id);
-        this.lineFrom.set(null);
-        // A new line is selected with its label box ready, so it can be named straight away
-        setTimeout(() => (document.querySelector('.line-label') as HTMLInputElement | null)?.focus(), 0);
-      }
-      return;
-    }
-
-    const groupChip = target.closest('[data-group]') as HTMLElement | null;
-    if (groupChip) {
-      const id = groupChip.getAttribute('data-group') ?? '';
-      this.pad.pickGroup(id);
-      const origins = this.pad.membersOf(id).map(item => ({ id: item.id, x: item.x, y: item.y }));
-      node.setPointerCapture(event.pointerId);
-      this.pad.begin();
-      this.drag = { mode: 'group', startX: event.clientX, startY: event.clientY, origins, viewX: 0, viewY: 0 };
-      return;
-    }
-
-    const lineHit = target.closest('[data-line]') as HTMLElement | null;
-    if (lineHit) {
-      this.pad.pickLine(lineHit.getAttribute('data-line') ?? '');
-      return;
-    }
-
-    const holder = target.closest('[data-item]') as HTMLElement | null;
-    if (holder && !target.closest('textarea')) {
-      const id = holder.getAttribute('data-item') ?? '';
-      const item = this.pad.board().items.find(one => one.id === id);
-      if (!item) return;
-      if (this.adding(event)) { this.pad.togglePick(id); return; }
-      if (!this.pad.isPicked(id)) this.pad.pick(id);
-      const origins = this.pad.selection().map(one => ({ id: one.id, x: one.x, y: one.y }));
-      node.setPointerCapture(event.pointerId);
-      this.pad.begin();
-      this.drag = { mode: 'item', startX: event.clientX, startY: event.clientY, origins, viewX: 0, viewY: 0 };
-      return;
-    }
-
-    // Empty board: drag a box around what it touches. The box picks exactly what it touches.
-    if (!this.adding(event)) this.pad.clearSelection();
-    node.setPointerCapture(event.pointerId);
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    this.box.set({ x0: x, y0: y, x1: x, y1: y });
-    this.drag = { mode: 'box', startX: event.clientX, startY: event.clientY, origins: [], viewX: 0, viewY: 0 };
-  }
-
-  onPointerMove(event: PointerEvent): void {
-    const drag = this.drag;
-    if (!drag) return;
-    const rect = this.rect();
-    if (!rect) return;
-    const dx = event.clientX - drag.startX;
-    const dy = event.clientY - drag.startY;
-    const zoom = this.pad.board().view.zoom;
-
-    if (drag.mode === 'pan') {
-      this.pad.setView({ x: drag.viewX + dx, y: drag.viewY + dy, zoom });
-      return;
-    }
-    if (drag.mode === 'box') {
-      this.box.update(current => current ? { ...current, x1: event.clientX - rect.left, y1: event.clientY - rect.top } : current);
-      return;
-    }
-    this.pad.moveManyLive(drag.origins.map(one => ({ id: one.id, x: one.x + dx / zoom, y: one.y + dy / zoom })));
-  }
-
-  onPointerUp(event: PointerEvent): void {
-    const drag = this.drag;
-    this.drag = null;
-    if (!drag) return;
-    try {
-      this.canvas()?.nativeElement.releasePointerCapture(event.pointerId);
-    } catch {
-      // The pointer is already gone
-    }
-    if (drag.mode === 'item' || drag.mode === 'group') { this.pad.end(); return; }
-
-    if (drag.mode === 'box') {
-      const box = this.box();
-      this.box.set(null);
-      if (!box) return;
-      const view = this.pad.board().view;
-      const left = (Math.min(box.x0, box.x1) - view.x) / view.zoom;
-      const top = (Math.min(box.y0, box.y1) - view.y) / view.zoom;
-      const right = (Math.max(box.x0, box.x1) - view.x) / view.zoom;
-      const bottom = (Math.max(box.y0, box.y1) - view.y) / view.zoom;
-      const touched = this.pad.board().items
-        .filter(item => item.x < right && item.x + item.w > left && item.y < bottom && item.y + item.h > top)
-        .map(item => item.id);
-      this.pad.setSelection(touched);
-    }
-  }
-
-  // ---- the group name ----
-
-  // ---- the line label ----
-
-  onLineLabelFocus(): void { this.pad.begin(); }
-
-  onLineLabelInput(id: string, value: string): void { this.pad.lineLabelLive(id, value); }
-
-  onLineLabelBlur(): void {
-    this.pad.end();
+  onNameDone(): void {
+    this.nameTx?.commit();
+    this.nameTx = null;
     this.editingLineId.set(null);
   }
 
   editLineLabel(id: string): void {
-    this.pad.pickLine(id);
+    this.board.pickLine(id);
     this.editingLineId.set(id);
     setTimeout(() => {
       const input = document.querySelector('.line-pill.edit') as HTMLInputElement | null;
@@ -858,9 +847,18 @@ export class ScratchpadPage {
     }, 0);
   }
 
-  onGroupNameFocus(): void { this.pad.begin(); }
+  priceLabel(price: number | null): string {
+    return price === null || price === undefined ? 'No price' : '$' + price.toFixed(3);
+  }
 
-  onGroupNameInput(id: string, value: string): void { this.pad.renameGroupLive(id, value); }
+  rowPrice(row: Industry): string {
+    return this.priceLabel(row.price);
+  }
 
-  onGroupNameBlur(): void { this.pad.end(); }
+  // The template draws each kind its own way; these narrow an item for it
+  tiltOf(item: BoardItem): string | null { return (item.type === 'note' || item.type === 'text') && item.tilt ? 'rotate(' + item.tilt + 'deg)' : null; }
+  asFile(item: BoardItem): FileItem | null { return item.type === 'file' ? item : null; }
+  resizable(item: BoardItem): boolean { return !!KINDS[item.type].minSize; }
+  tone(item: BoardItem): NoteTone | null { return 'tone' in item ? item.tone : null; }
+  kindLabel(item: BoardItem): string { return KINDS[item.type].label; }
 }

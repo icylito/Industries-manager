@@ -1,13 +1,22 @@
 import { Service, inject, signal } from '@angular/core';
-import { HttpClient, HttpErrorResponse, HttpEvent, HttpResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { MonoTypeOperatorFunction, Observable, retry, throwError, timer } from 'rxjs';
 import {
     Industry, CreateIndustry, UpdateIndustry, DbHealth, RuleSet, FieldRule, NewField, VersionSummary, VersionDetail,
     ImportPreview, ImportResult, RestoreResult, Retention, BackupEntry, BackupStatus, BackupRestorePreview, BackupRestoreResult, DevRequest,
     SettingsFile, SettingsImportPreview, SettingsImportResult, AuthUser, NewUserResult, DeletedRow, FieldDeleted, UserNote,
-    BoardAnswer, BoardDocument, ScratchFileInfo,
 } from '../models/industry';
 import { environment } from '../../environments/environment';
+
+// Retries a dropped connection or a 5xx up to 3 times (0.5s, 1s, 2s), a 4xx fails right away.
+// Only used on GETs, retrying a POST could insert the same row twice.
+export function retryTransient<T>(): MonoTypeOperatorFunction<T> {
+    return retry<T>({
+        count: 3,
+        delay: (err: HttpErrorResponse, attempt) =>
+            err.status === 0 || err.status >= 500 ? timer(500 * 2 ** (attempt - 1)) : throwError(() => err),
+    });
+}
 
 @Service()
 export class IndustryApi {
@@ -15,14 +24,8 @@ export class IndustryApi {
     private apiUrl = environment.apiUrl;
     private baseUrl = `${this.apiUrl}/industries`;
 
-    // Retries a dropped connection or a 5xx up to 3 times (0.5s, 1s, 2s), a 4xx fails right away.
-    // Only used on GETs, retrying a POST could insert the same row twice.
     private retryTransient<T>(): MonoTypeOperatorFunction<T> {
-        return retry<T>({
-            count: 3,
-            delay: (err: HttpErrorResponse, attempt) =>
-                err.status === 0 || err.status >= 500 ? timer(500 * 2 ** (attempt - 1)) : throwError(() => err),
-        });
+        return retryTransient<T>();
     }
 
     health(): Observable<DbHealth> {
@@ -33,13 +36,6 @@ export class IndustryApi {
         }
     getAll(): Observable<Industry[]> {
             return this.http.get<Industry[]>(this.baseUrl).pipe(this.retryTransient());
-        }
-        // The Scratchpad, one board per person, saved as a single JSON document
-        board(): Observable<BoardAnswer> {
-            return this.http.get<BoardAnswer>(this.apiUrl + '/scratchpad').pipe(this.retryTransient());
-        }
-        saveBoard(document: BoardDocument, updatedAt: string | null): Observable<{ updatedAt: string }> {
-            return this.http.put<{ updatedAt: string }>(this.apiUrl + '/scratchpad', { document, updatedAt });
         }
         create(body: CreateIndustry): Observable<Industry>{
             return this.http.post<Industry>(this.baseUrl, body);
@@ -53,16 +49,6 @@ export class IndustryApi {
         }
         industriesByIds(ids: number[]): Observable<Industry[]> {
             return this.http.get<Industry[]>(`${this.baseUrl}/by-ids`, { params: { ids: ids.join(',') } }).pipe(this.retryTransient());
-        }
-        // A file for the Scratchpad, sent as a form so the API names it in any refusal. The events carry the progress.
-        uploadScratchFile(file: File): Observable<HttpEvent<ScratchFileInfo>> {
-            const form = new FormData();
-            form.append('file', file, file.name);
-            return this.http.post<ScratchFileInfo>(`${this.apiUrl}/scratchpad/files`, form, { reportProgress: true, observe: 'events' });
-        }
-        // The bytes of a stored file, fetched with the sign in so a picture can show and Open can work
-        scratchFileBlob(id: number): Observable<Blob> {
-            return this.http.get(`${this.apiUrl}/scratchpad/files/${id}`, { responseType: 'blob' });
         }
         getById(id: number): Observable<Industry> {
             return this.http.get<Industry>(`${this.baseUrl}/${id}`);

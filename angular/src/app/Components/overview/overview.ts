@@ -7,7 +7,8 @@ import { Auth } from '../../services/auth';
 import { IndustryApi } from '../../services/industry-api';
 import { Shortcuts, capsOf } from '../../services/shortcuts';
 import { Toast } from '../../services/toast';
-import { Scratchpad } from '../../services/scratchpad';
+import { TrayStore } from '../../board/tray-store';
+import { CARD_DRAG } from '../carry-tray/snapshot-look';
 import { countUp } from './count-up';
 import {
   Bar, Metric, OTHER, Selection, TopMode, bandEdges, browseParams, buildDims, buildPeriods, derive, emptySelection, plain, rankRows, thousands, toRow, usd,
@@ -29,7 +30,7 @@ export class OverviewPage implements OnInit {
   private toast = inject(Toast);
   private destroyRef = inject(DestroyRef);
   private injector = inject(Injector);
-  private pad = inject(Scratchpad);
+  private tray = inject(TrayStore);
   private route = inject(ActivatedRoute);
   // A snapshot on the Scratchpad opens the Overview on the split and slice it was taken from: ?split=&pick=
   private fromAddress: { split: string | null; pick: string | null } | null = null;
@@ -79,7 +80,9 @@ export class OverviewPage implements OnInit {
       },
       'ov.clear': () => { this.clearEverything(); this.toast.say('Every filter cleared'); },
     });
-    this.destroyRef.onDestroy(() => { clearTimeout(slowTimer); clearInterval(every); document.removeEventListener('visibilitychange', visible); off(); });
+    // While the Overview is open, a card dropped on the carry tray is carried
+    this.tray.carrier.set(kind => void this.carry(kind));
+    this.destroyRef.onDestroy(() => { clearTimeout(slowTimer); clearInterval(every); document.removeEventListener('visibilitychange', visible); off(); this.tray.carrier.set(null); });
   }
 
   // manual is a press of Try again or Refresh now, they say what happened. The quiet refresh every minute stays quiet.
@@ -160,9 +163,16 @@ export class OverviewPage implements OnInit {
       };
     this.carrying.set(true);
     const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 's' + Date.now();
-    const ok = await this.pad.carry({ id, kind, ...snap, takenAt: new Date().toISOString(), split: d.dim.id, pick: picked });
+    const ok = await this.tray.carry({ id, kind, ...snap, takenAt: new Date().toISOString(), split: d.dim.id, pick: picked });
     this.carrying.set(false);
-    this.toast.say(ok ? 'Carried. It waits in the tray on the Scratchpad.' : "Couldn't carry it. Open the Scratchpad, then try again.");
+    this.toast.say(ok ? 'Carried. It waits in the tray at the bottom of the page.' : "Couldn't carry it. Check the connection, then try again.");
+  }
+
+  // The circle card and the list card can be dragged onto the carry tray, as well as the Carry buttons
+  onCardDragStart(event: DragEvent, kind: 'circle' | 'list') {
+    if (!event.dataTransfer || this.loading()) return;
+    event.dataTransfer.setData(CARD_DRAG, kind);
+    event.dataTransfer.effectAllowed = 'copy';
   }
 
   // Try again keeps the failure card up and says it is trying, it doesn't swap the page for a grey one and back

@@ -1,6 +1,7 @@
 import { Component, DestroyRef, ElementRef, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
-import { BoardItem, TextSize } from '../../models/industry';
-import { Scratchpad } from '../../services/scratchpad';
+import { PaperItem, TextSize } from '../../models/board';
+import { BoardEngine, Tx } from '../../board/board-engine';
+import { worldFromScreen } from '../../board/geometry';
 import { FONT_GROUPS, SIZE_STEPS, ensureFont, renderBlocks, serializeBlocks, sizeToExec } from './rich-text';
 
 // One note or text box, edited in place. The words picked get bold, highlight, a font and a size, all
@@ -12,8 +13,8 @@ import { FONT_GROUPS, SIZE_STEPS, ensureFont, renderBlocks, serializeBlocks, siz
   styleUrl: './note-editor.css',
 })
 export class NoteEditor {
-  item = input.required<BoardItem>();
-  private pad = inject(Scratchpad);
+  item = input.required<PaperItem>();
+  private board = inject(BoardEngine);
   private destroy = inject(DestroyRef);
   private editor = viewChild<ElementRef<HTMLElement>>('editor');
 
@@ -28,11 +29,13 @@ export class NoteEditor {
 
   private saved: Range | null = null;
   private focused = false;
+  // The typing burst under way: one undo step from the first key to the blur, or to a format press
+  private tx: Tx | null = null;
 
   constructor() {
     effect(() => {
       // Only an outside change (open, undo, redo) redraws from the runs, so typing never jumps the caret
-      this.pad.external();
+      this.board.external();
       const blocks = untracked(() => this.item().blocks ?? []);
       const el = this.editor()?.nativeElement;
       if (el) el.innerHTML = renderBlocks(blocks);
@@ -43,27 +46,34 @@ export class NoteEditor {
     this.destroy.onDestroy(() => document.removeEventListener('selectionchange', onSelection));
   }
 
+  // The words as they are now go on the board. A burst starts on the first change if none is open, so typing
+  // after an undo, or after something else on the board changed, is still its own step.
   private store(): void {
     const el = this.editor()?.nativeElement;
     if (!el) return;
-    this.pad.blocksLive(this.item().id, serializeBlocks(el));
+    if (!this.tx?.open) this.tx = this.board.begin();
+    this.tx.apply({ op: 'patch', ids: [this.item().id], patch: { blocks: serializeBlocks(el) } });
+  }
+
+  private endBurst(): void {
+    this.tx?.commit();
+    this.tx = null;
   }
 
   onFocus(): void {
     this.focused = true;
-    this.pad.begin();
   }
 
   onInput(): void {
-    // Start a burst if one is not already open, so typing after an undo or after a blur is still one step
-    this.pad.begin();
     this.store();
   }
 
   onBlur(): void {
     this.focused = false;
-    this.store();
-    this.pad.end();
+    const el = this.editor()?.nativeElement;
+    // Only when the words really differ, so a blur after an undo never writes the old words back
+    if (el && this.tx?.open) this.store();
+    this.endBurst();
     // A press on the little toolbar blurs the editor first, so give the press time to land
     setTimeout(() => { if (!this.focused) this.bar.set(false); }, 200);
   }
@@ -88,7 +98,7 @@ export class NoteEditor {
     const canvas = (this.editor()?.nativeElement.closest('.canvas') as HTMLElement | null);
     if (!canvas) return;
     const canvasRect = canvas.getBoundingClientRect();
-    const view = this.pad.board().view;
+    const view = this.board.view();
     const box = range.getBoundingClientRect();
     const item = this.item();
     const wantedX = box.left + box.width / 2;
@@ -98,10 +108,8 @@ export class NoteEditor {
     const wantedY = below ? box.bottom : box.top;
     const clampedY = Math.min(Math.max(wantedY, canvasRect.top + 6), canvasRect.bottom - 6);
     this.barBelow.set(below);
-    this.barPos.set({
-      x: (clampedX - canvasRect.left - view.x) / view.zoom - item.x,
-      y: (clampedY - canvasRect.top - view.y) / view.zoom - item.y,
-    });
+    const at = worldFromScreen({ x: clampedX - canvasRect.left, y: clampedY - canvasRect.top }, view);
+    this.barPos.set({ x: at.x - item.x, y: at.y - item.y });
     this.barScale.set(1 / view.zoom);
     this.bar.set(true);
     // The bar is wide, so once it is drawn pull it back inside the board if it pokes past an edge
@@ -121,7 +129,7 @@ export class NoteEditor {
     else if (rect.right > box.right - 8) dx = box.right - 8 - rect.right;
     if (rect.top < box.top + 8) dy = box.top + 8 - rect.top;
     if (dx === 0 && dy === 0) return;
-    const zoom = this.pad.board().view.zoom;
+    const zoom = this.board.view().zoom;
     this.barPos.set({ x: spot.x + dx / zoom, y: spot.y + dy / zoom });
   }
 
@@ -146,11 +154,11 @@ export class NoteEditor {
       selection.removeAllRanges();
       selection.addRange(this.saved);
     }
+    // One undo step per formatting press: the typing before it is its own step
+    this.endBurst();
     document.execCommand(command, false, value);
     this.store();
-    // One undo step per formatting press
-    this.pad.end();
-    this.pad.begin();
+    this.endBurst();
     this.updateBar();
   }
 

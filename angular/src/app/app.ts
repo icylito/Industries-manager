@@ -8,6 +8,7 @@ import { IdleTop } from './services/idle-top';
 import { Theme } from './services/theme';
 import { Toast } from './services/toast';
 import { ShortcutsPanel } from './Components/shortcuts-panel/shortcuts-panel';
+import { CarryTray } from './Components/carry-tray/carry-tray';
 import { routes } from './app.routes';
 
 // admin is the admin layout: the slim nav and no page header, the page draws its own title
@@ -17,7 +18,7 @@ interface PageInfo { title: string; lede: string; centered?: boolean; admin?: bo
 const adminPaths = routes.filter(r => r.data?.['admin'] === true).map(r => `/${r.path}`);
 
 @Component({
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ShortcutsPanel],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ShortcutsPanel, CarryTray],
   selector: 'app-root',
   styleUrl: './app.css',
   templateUrl: './app.html',

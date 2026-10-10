@@ -10,7 +10,6 @@
             <a routerLink="/overview" routerLinkActive="current" ariaCurrentWhenActive="page">Overview</a>
             <a routerLink="/scratchpad" routerLinkActive="current" ariaCurrentWhenActive="page">Scratchpad</a>
             <a routerLink="/settings" routerLinkActive="current" ariaCurrentWhenActive="page">Settings</a>
-            <!-- The Scratchpad joins these tabs when that page is built -->
         </div>
         <div class="side">
             <!-- The bell shows how many requests are waiting for a developer -->
@@ -93,6 +92,11 @@
     }
 
     <router-outlet />
+
+    <!-- The carry tray runs along the bottom of every admin page: carry from the Overview, put it on a board -->
+    @if (page().admin && auth.isAdmin()) {
+        <app-carry-tray />
+    }
 </div>
 
 <!-- The shortcuts panel and the toast sit outside .app, so the page stepping aside behind the panel doesn't shrink them too -->
