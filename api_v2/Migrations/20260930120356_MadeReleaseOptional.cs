@@ -21,17 +21,11 @@ namespace api_v2.Migrations
         }
 
         /// <inheritdoc />
+        // Going back leaves the release date optional. The older layout wanted a date in every row, but there is no
+        // honest date for a company that has none, and filling one in would stay after going forward again. Only
+        // the data travels in time, so an empty date stays empty at every step.
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AlterColumn<DateOnly>(
-                name: "Release",
-                table: "Industries",
-                type: "date",
-                nullable: false,
-                defaultValue: new DateOnly(1, 1, 1),
-                oldClrType: typeof(DateOnly),
-                oldType: "date",
-                oldNullable: true);
         }
     }
 }

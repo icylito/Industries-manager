@@ -5,7 +5,8 @@
 #   seen at that step on the way down.
 # Fields are played with on the way: a company with no release date and one with a price go down with the board,
 # the price is changed and a company is added in the oldest layout, and the newest layout must still have them.
-# Then two names that differ only in case are put in just before the migration that forbids them.
+# Then two names that differ only in case are put in just before the migration that forbids them: going forward
+# flags the later one as a copy instead of stopping.
 #   python3 -I check_migration_walk.py                  down to the oldest migration and back
 #   set FLOOR=AddUsersAndSessions & python3 -I ...      down to that one instead
 # Stop the throwaway API first. A dump of both throwaway databases is taken before anything moves and loaded back
@@ -15,7 +16,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pg, t
 
 check = pg.Checks()
-found = []  # what the walk shows about the migrations themselves, said at the end
 names = pg.migrations()
 top = names[-1]
 wanted = os.environ.get("FLOOR") or names[0]
@@ -110,8 +110,8 @@ print(f"\nat {pg.short(at_floor)}")
 check("'Walk priced' still costs 99.99", company("Walk priced", "Price") == "99.99", company("Walk priced", "Price"))
 release_needed = names.index("20260930120356_MadeReleaseOptional") > reached
 if release_needed:
-    no_release = company("Walk no release", "Release")
-    check("'Walk no release' is marked '-infinity' now the column needs a date", no_release == "-infinity", no_release)
+    # Going back leaves the release date optional: an empty date stays empty, nothing is filled in
+    check("'Walk no release' still has no release date", company("Walk no release", "Release") == "null", company("Walk no release", "Release"))
 # Played with in the old layout: a price changed, a company added the way the old page would have
 table = industries()
 pg.sql(t.MAIN_DB, f"""UPDATE "{table}" SET "Price" = 123.45 WHERE "Name" = 'Walk priced'""")
@@ -167,15 +167,10 @@ if names.index(unique) > reached:
     table = industries()
     pg.sql(t.MAIN_DB, f"""INSERT INTO "{table}" ("Name", "Sector", "Price", "Release") VALUES ('Walk Twin', 'A', 1, NULL), ('walk twin ', 'B', 2, NULL)""")
     took, failed = step(unique)
-    check(f"{pg.short(unique)} refuses to go forward over 'Walk Twin' and 'walk twin '", bool(failed), "it went forward")
-    if failed:
-        why = [line for line in failed.splitlines() if "could not create unique index" in line or "duplicate" in line.lower()]
-        print("    Postgres: " + (why[0].strip() if why else failed.splitlines()[-1])[:200])
-        found.append("UniqueNameIgnoringCase stops going forward when two companies' names differ only in case or spaces; "
-                     "one has to be renamed or marked a duplicate first")
-        pg.sql(t.MAIN_DB, f"""UPDATE "{table}" SET "Name" = 'walk twin 2' WHERE "Name" = 'walk twin '""")
-        took, failed = step(unique)
-        check("  with one renamed it goes forward", not failed, failed)
+    check(f"{pg.short(unique)} goes forward over 'Walk Twin' and 'walk twin '", not failed, failed)
+    first, later = company("Walk Twin", "Id"), company("walk twin ", "DuplicateOf")
+    check("  the later one is flagged as a copy of the first, the first stays an original",
+          later == first and company("Walk Twin", "DuplicateOf") == "null", (first, later))
     took, failed = step(top)
     check(f"and on up to {pg.short(top)}", not failed, failed)
 
@@ -188,8 +183,5 @@ if os.environ.get("KEEP") != "1":
     check(f"the throwaway databases are loaded back from the dump, every row as at the start",
           after["rows"] == original["rows"] and after["applied"] == original["applied"], pg.changed(original["rows"], after["rows"]))
 
-if found:
-    print("\nwhat the walk found about the migrations:")
-    for line in found: print("  - " + line)
 print("\n" + (f"{len(check.fails)} failed" if check.fails else "WALK OK"))
 sys.exit(1 if check.fails else 0)

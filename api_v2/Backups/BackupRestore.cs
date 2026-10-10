@@ -12,11 +12,12 @@ public sealed class BackupRefusedException(string message) : Exception(message);
 // What POST /backups/{id}/restore gives back
 public sealed record BackupRestoreResult(string Backup, int RowsBefore, int Rows, int RulesVersion, long? CopyId, string? UndoBackup = null);
 
-// Puts everything back the way it was in a backup: the industries, their rules, requests, settings, and every table from
-// the Tables page with its columns and rows. Accounts, sign ins, notes and Scratchpad boards stay as they are now.
+// Puts the data back the way it was in a backup: the industries, their rules (the Fields), and every table from the
+// Tables page with its columns and rows. Only the data travels in time. Accounts, sign ins, notes, the Scratchpad,
+// requests and app settings are always current, so they stay as they are now.
 //
 // How it works: the dump is loaded into a scratch database on the same server first, so a dump that can't be
-// read never touches the live one. Then rows, rules, requests and settings are copied over in one transaction,
+// read never touches the live one. Then rows and rules are copied over in one transaction,
 // so the live table is either fully swapped or not changed at all. A copy of the table goes to the collector
 // before the swap, and a full backup is taken too (kind before-restore), so the whole restore can be undone by restoring that.
 public sealed class BackupRestore(
@@ -25,17 +26,15 @@ public sealed class BackupRestore(
     DatabaseStatus status,
     CollectorStore collector,
     RulesService rules,
-    SettingsService settings,
     AppLocks locks,
     api_v2.Tables.UserTableMirror mirror,
     IServiceScopeFactory scopes,
     ILogger<BackupRestore> log)
 {
-    // The tables that come back from a backup. Users and Sessions are left out on purpose: restoring them would bring
-    // back old passwords and sign everyone out. UserNotes and the Scratchpad belong to people, so they stay too.
+    // The data tables, the only ones that come back from a backup. Accounts would bring back old passwords and sign
+    // everyone out; notes, the Scratchpad, requests and app settings belong to now, so they stay too.
     // UserTables comes before UserTableRows: emptying it empties the rows (cascade), and the rows need their table back first.
-    private static readonly string[] Tables = ["Industries", "RuleVersions", "Requests", "Settings", "UserTables", "UserTableRows"];
-    private static readonly string[] WithIds = ["Industries", "RuleVersions", "Requests", "UserTables", "UserTableRows"];
+    private static readonly string[] Tables = ["Industries", "RuleVersions", "UserTables", "UserTableRows"];
 
     private const string ScratchDatabase = "main_restore_scratch";
     private static readonly TimeSpan Timeout = TimeSpan.FromMinutes(10);
@@ -61,11 +60,9 @@ public sealed class BackupRestore(
         }
         var tool = backups.ResolveRestoreTool();
 
-        // Nothing else may change rows, rules, settings or requests while the swap runs
+        // Nothing else may change rows or rules while the swap runs
         await using var tableLock = await locks.TakeAsync(AppLock.Table, ct);
         await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);
-        await using var settingsLock = await locks.TakeAsync(AppLock.Settings, ct);
-        await using var requestsLock = await locks.TakeAsync(AppLock.Requests, ct);
 
         // A long command timeout on both sides, a big table takes longer than the 30 seconds a query normally gets.
         // No pooling for the scratch database: it gets dropped at the end, and a pooled connection to it would come back dead.
@@ -162,7 +159,6 @@ public sealed class BackupRestore(
         using var scope = scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await rules.LoadAsync(db, ct);
-        await settings.LoadAsync(db, ct);
     }
 
     // Empties the live tables and copies the scratch rows in, in one transaction. Returns rows before and after.
@@ -206,7 +202,7 @@ public sealed class BackupRestore(
         }
 
         // New rows carry on after the highest restored id
-        foreach (var table in WithIds)
+        foreach (var table in Tables)
         {
             await using var seq = new NpgsqlCommand($"""
                 SELECT setval(pg_get_serial_sequence('"{table}"', 'Id'), coalesce((SELECT max("Id") FROM "{table}"), 0) + 1, false)

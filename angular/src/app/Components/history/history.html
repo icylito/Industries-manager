@@ -426,8 +426,8 @@
         <h2><span class="title-icon"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i></span>Backups</h2>
     </header>
     <p class="intro">{{ backupIntro() }}
-        <strong>Restore</strong> puts the table, its rules, settings, requests and every table on the Tables page back the way they were in that backup.
-        Accounts and sign ins stay as they are now. A full backup of right now is taken first, so a restore can be undone.</p>
+        <strong>Restore</strong> puts the data back the way it was in that backup: the table, its rules and every table on the Tables page.
+        Accounts, notes, the Scratchpad, requests and settings stay as they are now. A full backup of right now is taken first, so a restore can be undone.</p>
     <button type="button" class="add-btn" [disabled]="backingUp()" (click)="backupNow()">
         @if (backingUp()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Backing up... }
         @else { <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>Back up now }
@@ -505,7 +505,7 @@
         <div class="ask" id="restore-backup">
             <p><i class="fa-solid fa-circle-question" aria-hidden="true"></i>This puts everything back the way it was on {{ formatDate(ask.entry.createdAt) }}:
                 the industries ({{ ask.preview.rowCount === null ? 'its rows' : ask.preview.rowCount + (ask.preview.rowCount === 1 ? ' row' : ' rows') }} instead of the {{ ask.preview.currentRows }} now),
-                their rules, the requests, the settings, and every table on the Tables page with its columns and rows. Accounts and sign ins stay as they are now.
+                their rules, and every table on the Tables page with its columns and rows. Accounts, notes, the Scratchpad, requests and settings stay as they are now.
                 A full backup of right now is taken first, so you can undo this by restoring that one.</p>
             @if (!ask.preview.historyReady) {
                 <p class="hint-line"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>History is offline, so a copy can't be saved first. Wait until it's back.</p>

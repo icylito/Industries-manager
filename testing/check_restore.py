@@ -14,20 +14,25 @@ if user["mustChangePassword"]:
 print("signed in as", user["username"])
 
 # 2. seed 300 rows
+stamp = int(time.time())
 s, rows = call("GET", "/industries")
 if len(rows) < 300:
-    stamp = int(time.time())
     for i in range(300 - len(rows)):
         s, b = call("POST", "/industries", {"name": f"Seed Company {stamp} {i:03d}", "sector": random.choice(["Public Sector", "Private Sector"]),
                                              "price": round(random.uniform(0, 10), 2), "release": "2020-01-01", "extra": {}})
         assert s == 201, (s, b)
 s, rows = call("GET", "/industries"); n0 = len(rows); print("rows before backup", n0)
 s, schema = call("GET", "/schema"); v0 = schema["version"]; print("rules version before backup", v0)
-s, retention0 = call("GET", "/history/settings")
+# History comes up a moment after the API does
+for _ in range(30):
+    s, retention0 = call("GET", "/history/settings")
+    if s == 200: break
+    time.sleep(2)
+assert s == 200, (s, retention0)
 
 # a second account and a request, both must survive the restore differently
 s, bob = call("POST", "/users", {"username": "bob", "role": "normal"}); assert s in (201, 409), (s, bob)
-s, req = call("POST", "/requests", {"title": "Keep me", "details": "made before the backup"}); assert s in (200, 201), (s, req)
+s, req = call("POST", "/requests", {"title": f"Keep me {stamp}", "details": "made before the backup"}); assert s in (200, 201), (s, req)
 
 # 3. back up
 s, bk = call("POST", "/backups", {}); assert s == 200, (s, bk); bid = bk["id"]
@@ -38,7 +43,7 @@ for r in rows[:20]:
     s, b = call("DELETE", f"/industries/{r['id']}"); assert s == 200, (s, b)
 s, b = call("POST", "/industries", {"name": "Added After Backup", "sector": "Public Sector", "price": 1, "release": None, "extra": {}}); assert s == 201, b
 s, b = call("POST", "/schema/fields", {"label": "Ticker", "type": "text", "required": False, "maxLength": 10, "min": None, "max": None}); assert s == 200, b
-s, b = call("POST", "/requests", {"title": "Made after the backup", "details": "should vanish"}); assert s == 201, b
+s, b = call("POST", "/requests", {"title": f"Made after the backup {stamp}", "details": "stays, requests are always current"}); assert s == 201, b
 s, b = call("PUT", "/history/settings", {"keepVersions": 77, "keepDays": None}); assert s == 200, b
 s, carol = call("POST", "/users", {"username": "carol", "role": "admin"}); assert s in (201, 409), carol
 s, users_before = call("GET", "/users")
@@ -56,8 +61,9 @@ s, res = call("POST", f"/backups/{bid}/restore", {"confirm": "RESTORE"}); print(
 s, rows_after = call("GET", "/industries"); assert len(rows_after) == n0, (len(rows_after), n0)
 assert not any(r["name"] == "Added After Backup" for r in rows_after)
 s, schema = call("GET", "/schema"); assert schema["version"] == v0 and all(f["key"] != "ticker" for f in schema["fields"]), schema
-s, reqs = call("GET", "/requests", None); titles = [r["title"] for r in reqs]; assert "Keep me" in titles and "Made after the backup" not in titles, titles
-s, ret = call("GET", "/history/settings"); assert ret == retention0, (ret, retention0)
+# Requests and app settings are always current: a restore leaves them as they are now
+s, reqs = call("GET", "/requests", None); titles = [r["title"] for r in reqs]; assert f"Keep me {stamp}" in titles and f"Made after the backup {stamp}" in titles, titles
+s, ret = call("GET", "/history/settings"); assert ret["keepVersions"] == 77, (ret, retention0)
 s, users_after = call("GET", "/users"); assert [u["username"] for u in users_after] == [u["username"] for u in users_before], (users_before, users_after)
 assert any(u["username"] == "carol" for u in users_after), "carol made after the backup must still exist"
 s, me = call("GET", "/auth/me"); assert s == 200, "the admin token must still work"
@@ -67,7 +73,9 @@ assert len(versions) == len(versions_mid) + 1
 s, b = call("POST", "/industries", {"name": "After Restore", "sector": "Public Sector", "price": 1, "release": None, "extra": {}}); assert s == 201, b
 assert b["id"] > max(r["id"] for r in rows_after), b
 call("DELETE", f"/industries/{b['id']}")
-print("RESTORE OK: rows, rules, requests and settings back; users, sessions kept; copy saved first")
+# The retention setting made after the backup is put back last, since saving it trims History
+s, b = call("PUT", "/history/settings", {"keepVersions": retention0["keepVersions"], "keepDays": retention0["keepDays"]}); assert s == 200, b
+print("RESTORE OK: rows and rules back; requests, settings, users and sessions kept as they are now; copy saved first")
 
 # 7. a backup from another layout is refused before anything changes
 folder = t.BACKUPS

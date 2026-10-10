@@ -184,7 +184,7 @@ export class HistoryPage implements OnInit {
     });
   }
 
-  // Restore from a backup. The table, its rules, settings and requests go back to that night, accounts stay.
+  // Restore from a backup. The data (the table, its rules, the Tables page) goes back to that night; everything else stays.
   restoreAsk = signal<{ entry: BackupEntry; preview: BackupRestorePreview } | null>(null);
   restoreBackupText = signal('');
   restoreBackupBusy = signal(false);
