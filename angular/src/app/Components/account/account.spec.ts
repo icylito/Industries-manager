@@ -55,3 +55,40 @@ describe('AccountPage and the parked admin links', () => {
     expect(el.querySelector('.admin-links')).toBeFalsy();
   });
 });
+
+// The profile card: who the person is, with the password form only when asked for
+describe('AccountPage as a profile card', () => {
+  const render = (mustChangePassword: boolean) => {
+    TestBed.configureTestingModule({
+      imports: [AccountPage],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+    });
+    TestBed.inject(Auth).user.set({ id: 1, username: 'ada', role: 'manager', disabled: false, mustChangePassword,
+      createdAt: '2026-09-26T08:00:00Z', lastLoginAt: null });
+    const fixture = TestBed.createComponent(AccountPage);
+    fixture.detectChanges();
+    return { fixture, el: fixture.nativeElement as HTMLElement };
+  };
+
+  it('shows who is signed in, and asks for no password until Change password is pressed', () => {
+    const { fixture, el } = render(false);
+    expect(el.querySelector('.profile-avatar')?.textContent?.trim()).toBe('A');
+    expect(el.querySelector('.profile-name')?.textContent?.trim()).toBe('ada');
+    expect(el.querySelector('.profile-role')?.textContent?.trim()).toBe('Manager');
+    expect(el.querySelector('.profile-facts')?.textContent).toContain('26 Sept 2026');
+    expect(el.querySelector('input[type=password]')).toBeFalsy();
+
+    const open = Array.from(el.querySelectorAll('.profile-btn')).find(b => b.textContent?.includes('Change password')) as HTMLButtonElement;
+    expect(open.getAttribute('aria-expanded')).toBe('false');
+    open.click();
+    fixture.detectChanges();
+    expect(el.querySelectorAll('input[type=password]').length).toBe(3);
+    expect(open.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('opens the form straight away for an account that has to pick its own password', () => {
+    const { el } = render(true);
+    expect(el.querySelectorAll('input[type=password]').length).toBe(3);
+    expect(Array.from(el.querySelectorAll('.profile-btn')).some(b => b.textContent?.includes('Change password'))).toBe(false);
+  });
+});

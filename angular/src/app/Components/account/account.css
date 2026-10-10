@@ -1,3 +1,194 @@
+/* The profile card: a coloured panel with the person's initial, and who they are beside it */
+.profile{
+    display: grid;
+    grid-template-columns: 11.5rem minmax(0, 1fr);
+    max-width: 46rem;
+    margin: 0 auto 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    background: var(--surface);
+    box-shadow: 0 22px 48px var(--glow);
+}
+
+.profile-art{
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-height: 12rem;
+    margin: 10px;
+    overflow: hidden;
+    border-radius: 22px;
+    background: linear-gradient(160deg, var(--signal), color-mix(in srgb, var(--signal) 55%, var(--text)));
+}
+
+/* Two soft shapes drifting off the right edge, a quiet nod to the layered card the design started from */
+.profile-art::before,
+.profile-art::after{
+    position: absolute;
+    border-radius: 50%;
+    content: '';
+}
+
+.profile-art::before{
+    top: -30%;
+    right: -38%;
+    width: 75%;
+    height: 90%;
+    background: color-mix(in srgb, var(--paper-amber) 70%, transparent);
+}
+
+.profile-art::after{
+    bottom: -35%;
+    left: -30%;
+    width: 80%;
+    height: 80%;
+    background: color-mix(in srgb, var(--text) 18%, transparent);
+}
+
+.profile-avatar{
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 5.5rem;
+    height: 5.5rem;
+    border: 4px solid color-mix(in srgb, var(--surface) 55%, transparent);
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--signal);
+    font-size: 2.3rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    box-shadow: 0 10px 26px var(--focus);
+}
+
+.profile-main{
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    min-width: 0;
+    padding: 1.6rem 1.75rem 1.6rem 0.9rem;
+}
+
+.profile-head{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+}
+
+.profile-who{
+    min-width: 0;
+}
+
+.profile-name{
+    margin: 0;
+    overflow: hidden;
+    color: var(--text);
+    font-size: 1.55rem;
+    letter-spacing: -0.02em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.profile-role{
+    display: inline-block;
+    margin-top: 0.3rem;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+
+.profile-actions{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.profile-btn{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.5rem 0.9rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.profile-btn:hover{
+    border-color: var(--text);
+    background: var(--hover);
+}
+
+.profile-btn:focus-visible{
+    outline: 2px solid var(--signal);
+    outline-offset: 2px;
+}
+
+.profile-facts{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem 2rem;
+    margin: 0;
+}
+
+.profile-facts dt{
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.profile-facts dd{
+    margin: 0.2rem 0 0;
+    color: var(--text);
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.profile-main .intro,
+.profile-main .hint-line,
+.profile-main .result{
+    margin: 0;
+}
+
+.profile-form{
+    padding-top: 1.1rem;
+    border-top: 1px solid var(--border);
+}
+
+@media (prefers-reduced-motion: reduce){
+    .profile-btn{
+        transition: none;
+    }
+}
+
+/* A phone: the coloured panel goes on top, everything under it */
+@media (max-width: 620px){
+    .profile{
+        grid-template-columns: 1fr;
+        border-radius: 22px;
+    }
+
+    .profile-art{
+        min-height: 8.5rem;
+    }
+
+    .profile-main{
+        padding: 0.4rem 1.25rem 1.4rem;
+    }
+}
+
 /* History, Fields and People left the slim nav, so an admin reaches them from here instead, see app.html */
 .admin-links{
     margin-top: 1rem;

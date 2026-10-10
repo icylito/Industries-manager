@@ -1,60 +1,80 @@
-<!-- The signed in person: who they are, and a new password -->
+<!-- The signed in person: who they are, and a new password when they ask for one -->
 @if (auth.user(); as user) {
-    <section class="card narrow">
-        <header class="card-head">
-            <h2><span class="title-icon"><i class="fa-solid fa-user" aria-hidden="true"></i></span>{{ user.username }}</h2>
-            <span class="db-status">{{ user.role === 'admin' ? 'Admin' : 'Can edit rows' }}</span>
-        </header>
+    <section class="profile" [class.open]="showForm()" aria-label="Your account">
+        <div class="profile-art" aria-hidden="true">
+            <span class="profile-avatar">{{ initial() }}</span>
+        </div>
 
-        @if (user.mustChangePassword) {
-            <p class="hint-line"><i class="fa-solid fa-circle-info" aria-hidden="true"></i>Pick a password of your own before you carry on.</p>
-        } @else {
-            <p class="intro">Change your password. You'll be signed out of your other devices.</p>
-        }
+        <div class="profile-main">
+            <div class="profile-head">
+                <div class="profile-who">
+                    <h2 class="profile-name">{{ user.username }}</h2>
+                    <span class="profile-role">{{ roleLabel() }}</span>
+                </div>
+                <div class="profile-actions">
+                    @if (!user.mustChangePassword) {
+                        <button type="button" class="profile-btn" [attr.aria-expanded]="editing()" aria-controls="password-form" (click)="toggle()">
+                            <i class="fa-solid" [class.fa-key]="!editing()" [class.fa-xmark]="editing()" aria-hidden="true"></i>{{ editing() ? 'Close' : 'Change password' }}
+                        </button>
+                    }
+                    <button type="button" class="profile-btn" (click)="auth.logout()"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>Sign out</button>
+                </div>
+            </div>
 
-        <form class="auth-form" (submit)="submit($event)">
-            <!-- Each problem sits under its own box, aria-describedby ties them together for screen readers -->
-            <label class="field">
-                <span class="field-label">{{ user.mustChangePassword ? 'The temporary password you were given' : 'Current password' }}</span>
-                <span class="control">
-                    <i class="fa-solid fa-key" aria-hidden="true"></i>
-                    <input type="password" autocomplete="current-password" [value]="current()" (input)="current.set($any($event.target).value)"
-                        [class.bad]="problemFor('current')" [attr.aria-describedby]="problemFor('current') ? 'problem-current' : null" [attr.aria-invalid]="problemFor('current') ? true : null">
-                </span>
-                @if (problemFor('current'); as p) { <span class="field-error inline" id="problem-current"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ p }}</span> }
-            </label>
-            <label class="field">
-                <span class="field-label">New password <span class="optional">at least 10 characters</span></span>
-                <span class="control">
-                    <i class="fa-solid fa-lock" aria-hidden="true"></i>
-                    <input type="password" autocomplete="new-password" [value]="next()" (input)="next.set($any($event.target).value)"
-                        [class.bad]="problemFor('next')" [attr.aria-describedby]="problemFor('next') ? 'problem-next' : null" [attr.aria-invalid]="problemFor('next') ? true : null">
-                </span>
-                @if (problemFor('next'); as p) { <span class="field-error inline" id="problem-next"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ p }}</span> }
-            </label>
-            <label class="field">
-                <span class="field-label">New password again</span>
-                <span class="control">
-                    <i class="fa-solid fa-lock" aria-hidden="true"></i>
-                    <input type="password" autocomplete="new-password" [value]="repeat()" (input)="repeat.set($any($event.target).value)"
-                        [class.bad]="problemFor('repeat')" [attr.aria-describedby]="problemFor('repeat') ? 'problem-repeat' : null" [attr.aria-invalid]="problemFor('repeat') ? true : null">
-                </span>
-                @if (problemFor('repeat'); as p) { <span class="field-error inline" id="problem-repeat"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ p }}</span> }
-            </label>
-            @if (error()) {
-                <p class="field-error" role="alert"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ error() }}</p>
-            }
+            <dl class="profile-facts">
+                <div><dt>Member since</dt><dd>{{ day(user.createdAt) }}</dd></div>
+                <div><dt>Last signed in</dt><dd>{{ user.lastLoginAt ? when(user.lastLoginAt) : 'Now' }}</dd></div>
+            </dl>
+
             @if (done()) {
-                <p class="result small"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>Password changed.</p>
+                <p class="result small" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>Password changed. Your other devices are signed out.</p>
             }
-            <button type="submit" class="add-btn" [disabled]="busy()">
-                @if (busy()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Saving... }
-                @else { <i class="fa-solid fa-check" aria-hidden="true"></i>Change password }
-            </button>
-        </form>
 
-        <div class="confirm-row end">
-            <button type="button" class="cancel-btn" (click)="auth.logout()"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>Sign out</button>
+            @if (showForm()) {
+                @if (user.mustChangePassword) {
+                    <p class="hint-line"><i class="fa-solid fa-circle-info" aria-hidden="true"></i>Pick a password of your own before you carry on.</p>
+                } @else {
+                    <p class="intro">Type your current password once more, then the new one. You'll be signed out of your other devices.</p>
+                }
+
+                <form class="auth-form profile-form" id="password-form" (submit)="submit($event)">
+                    <!-- Each problem sits under its own box, aria-describedby ties them together for screen readers -->
+                    <label class="field">
+                        <span class="field-label">{{ user.mustChangePassword ? 'The temporary password you were given' : 'Current password' }}</span>
+                        <span class="control">
+                            <i class="fa-solid fa-key" aria-hidden="true"></i>
+                            <input type="password" autocomplete="current-password" [value]="current()" (input)="current.set($any($event.target).value)"
+                                [class.bad]="problemFor('current')" [attr.aria-describedby]="problemFor('current') ? 'problem-current' : null" [attr.aria-invalid]="problemFor('current') ? true : null">
+                        </span>
+                        @if (problemFor('current'); as p) { <span class="field-error inline" id="problem-current"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ p }}</span> }
+                    </label>
+                    <label class="field">
+                        <span class="field-label">New password <span class="optional">at least 10 characters</span></span>
+                        <span class="control">
+                            <i class="fa-solid fa-lock" aria-hidden="true"></i>
+                            <input type="password" autocomplete="new-password" [value]="next()" (input)="next.set($any($event.target).value)"
+                                [class.bad]="problemFor('next')" [attr.aria-describedby]="problemFor('next') ? 'problem-next' : null" [attr.aria-invalid]="problemFor('next') ? true : null">
+                        </span>
+                        @if (problemFor('next'); as p) { <span class="field-error inline" id="problem-next"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ p }}</span> }
+                    </label>
+                    <label class="field">
+                        <span class="field-label">New password again</span>
+                        <span class="control">
+                            <i class="fa-solid fa-lock" aria-hidden="true"></i>
+                            <input type="password" autocomplete="new-password" [value]="repeat()" (input)="repeat.set($any($event.target).value)"
+                                [class.bad]="problemFor('repeat')" [attr.aria-describedby]="problemFor('repeat') ? 'problem-repeat' : null" [attr.aria-invalid]="problemFor('repeat') ? true : null">
+                        </span>
+                        @if (problemFor('repeat'); as p) { <span class="field-error inline" id="problem-repeat"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ p }}</span> }
+                    </label>
+                    @if (error()) {
+                        <p class="field-error" role="alert"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ error() }}</p>
+                    }
+                    <button type="submit" class="add-btn" [disabled]="busy()">
+                        @if (busy()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Saving... }
+                        @else { <i class="fa-solid fa-check" aria-hidden="true"></i>Save the new password }
+                    </button>
+                </form>
+            }
         </div>
 
         <!-- Parked 2026-10-08: the admin page links came off this page for now, at the user's request.

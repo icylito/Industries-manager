@@ -1,11 +1,13 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { Auth } from '../../services/auth';
 import { errorText } from '../../services/industry-api';
 
 type Box = 'current' | 'next' | 'repeat';
 
+// The signed in person's profile card: who they are, at a glance. Changing the password opens under it only when
+// asked for, or straight away for an account that has to pick its own password first.
 @Component({
   selector: 'app-account',
   imports: [],
@@ -24,6 +26,36 @@ export class AccountPage {
   problem = signal<{ box: Box; text: string } | null>(null);
   error = signal('');
   done = signal(false);
+  editing = signal(false);
+  showForm = computed(() => this.editing() || this.auth.user()?.mustChangePassword === true);
+
+  initial = computed(() => (this.auth.user()?.username ?? '?').charAt(0).toUpperCase());
+  roleLabel = computed(() => ({ admin: 'Admin', manager: 'Manager', normal: 'Can edit rows' })[this.auth.user()?.role ?? 'normal']);
+
+  toggle(): void {
+    this.editing.update(open => !open);
+    this.done.set(false);
+    this.problem.set(null);
+    this.error.set('');
+    if (!this.editing()) {
+      this.current.set('');
+      this.next.set('');
+      this.repeat.set('');
+    }
+  }
+
+  day(iso: string | null | undefined): string {
+    const at = iso ? new Date(iso) : null;
+    if (!at || isNaN(at.getTime())) return '--';
+    return at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  when(iso: string): string {
+    const at = new Date(iso);
+    if (isNaN(at.getTime())) return '--';
+    const today = at.toDateString() === new Date().toDateString();
+    return (today ? 'Today' : this.day(iso)) + ', ' + at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  }
 
   problemFor(box: Box): string | null {
     const p = this.problem();
@@ -58,7 +90,10 @@ export class AccountPage {
         this.repeat.set('');
         // A new account has been waiting for this, now it can go to the table
         if (first) this.router.navigateByUrl('/');
-        else this.done.set(true);
+        else {
+          this.done.set(true);
+          this.editing.set(false);
+        }
       },
       error: (err: HttpErrorResponse) => {
         this.busy.set(false);
