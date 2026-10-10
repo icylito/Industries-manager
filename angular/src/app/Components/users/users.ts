@@ -200,15 +200,16 @@ export class UsersPage implements OnInit {
     if (!p) return '';
     const who = p.user.username;
     switch (p.action) {
-      case 'reset': return `Are you sure you want to give ${who} a new password? They are signed out everywhere and pick a new one when they next sign in.`;
-      case 'off': return `Are you sure you want to turn ${who}'s account off? They are signed out and cannot sign in again until you turn it back on.`;
-      case 'admin': return `Are you sure you want to make this user an admin? They will be able to change rules, restore history and answer requests. If you trust this person, go ahead.`;
+      // Each says, in one short line, what happens to the person: these change who can do what
+      case 'reset': return `Give ${who} a new password? They're signed out everywhere and pick a new one next time.`;
+      case 'off': return `Turn ${who}'s account off? They're signed out until you turn it back on.`;
+      case 'admin': return `Make ${who} an admin? They can change rules, restore History and answer requests.`;
       case 'manager': return p.user.role === 'admin'
-        ? `Are you sure you want to make ${who} a manager instead of an admin? They keep the Tables page and backups, and lose rules, History and Settings.`
-        : `Make ${who} a manager? They will be able to make, change and delete tables, and restore backups.`;
-      case 'normal': return `Are you sure you want to make ${who} a plain user? They keep their account and can still add and edit rows, but not change tables or restore backups.`;
-      case 'delete': return `Are you sure you want to delete ${who}'s account? They are signed out at once and cannot sign in again. Their name stays on what History already recorded.`;
-      case 'rename': return `Rename ${who}? Signing in uses the new name from now on. Their name in what History already recorded stays as it is.`;
+        ? `Make ${who} a manager? They lose rules, History and Settings, and keep tables and backups.`
+        : `Make ${who} a manager? They can make, change and delete tables, and restore backups.`;
+      case 'normal': return `Make ${who} a plain user? They can still add and edit rows, but not tables or backups.`;
+      case 'delete': return `Delete ${who}'s account? They're signed out at once and can't sign in again.`;
+      case 'rename': return `Rename ${who}? They sign in with the new name from now on.`;
     }
   }
 

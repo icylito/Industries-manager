@@ -176,11 +176,6 @@ export class MyComponents implements OnInit {
     return this.checkValue(rule, this.extraValue(key));
   }
 
-  // The name in the "Delete ...?" question, cut so a long one doesn't widen the Actions column
-  shortName(name: string): string {
-    return name.length > 24 ? name.slice(0, 23).trimEnd() + '…' : name;
-  }
-
   // Custom fields from the Fields page, their inputs sit after the built in ones
   customFields = computed(() => (this.rules()?.fields ?? []).filter(f => f.custom && !f.hidden));
   extraValues = signal<Record<string, string>>({});

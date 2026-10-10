@@ -325,7 +325,7 @@
                                 @if (auth.isManager()) {
                                     <td class="actions">
                                         @if (confirmingRowId() === row.id) {
-                                            <span class="confirm-text"><span class="long">Delete this row?</span><span class="short">Delete?</span></span>
+                                            <span class="confirm-text">Are you sure?</span>
                                             <button type="button" class="edit-btn" (click)="confirmingRowId.set(null)" aria-label="Cancel"><i class="fa-solid fa-xmark" aria-hidden="true"></i><span class="btn-text">Cancel</span></button>
                                             <button type="button" class="remove-btn confirming" [attr.aria-label]="'Delete row ' + row.id" (click)="deleteRow(row)"><i class="fa-solid fa-trash" aria-hidden="true"></i><span class="btn-text">Delete</span></button>
                                         } @else {

@@ -138,8 +138,8 @@ describe('UsersPage row actions', () => {
 
     const pop = el().querySelector('.confirm-pop');
     expect(pop?.getAttribute('role')).toBe('alertdialog');
-    expect(pop?.textContent).toContain('Are you sure you want to make this user an admin?');
-    expect(pop?.textContent).toContain('change rules, restore history and answer requests');
+    expect(pop?.textContent).toContain("Make icy an admin?");
+    expect(pop?.textContent).toContain('change rules, restore History and answer requests');
     http.expectNone(r => r.method === 'PUT');
 
     (pop?.querySelector('.add-btn') as HTMLButtonElement).click();
@@ -156,8 +156,8 @@ describe('UsersPage row actions', () => {
     fixture.detectChanges();
 
     const pop = el().querySelector('.confirm-pop');
-    expect(pop?.textContent).toContain("Are you sure you want to delete icy's account?");
-    expect(pop?.textContent).toContain('Their name stays on what History already recorded');
+    expect(pop?.textContent).toContain("Delete icy's account?");
+    expect(pop?.textContent).toContain("They're signed out at once and can't sign in again");
     http.expectNone(r => r.method === 'DELETE');
 
     (pop?.querySelector('.remove-btn') as HTMLButtonElement).click();
@@ -169,14 +169,14 @@ describe('UsersPage row actions', () => {
   const pick = (label: string) =>
     ([...el().querySelectorAll('.menu [role="menuitem"]')].find(b => b.textContent?.includes(label)) as HTMLButtonElement).click();
 
-  it('renames someone from the menu, and says what History keeps', () => {
+  it('renames someone from the menu, and says they sign in with the new name', () => {
     setup();
     openMenu();
     pick('Rename');
     fixture.detectChanges();
 
     const pop = el().querySelector('.confirm-pop');
-    expect(pop?.textContent).toContain('History already recorded');
+    expect(pop?.textContent).toContain('They sign in with the new name from now on');
     const box = pop?.querySelector('input') as HTMLInputElement;
     expect(box.value).toBe('icy');
 

@@ -55,7 +55,7 @@ describe('ShortcutsPanel reset', () => {
     fixture.detectChanges();
 
     expect(keys.bound()[cmd.id]).toEqual(['X']);
-    expect(el().querySelector('.confirm-pop')?.textContent).toContain('Are you sure you want to reset every key back to its default?');
+    expect(el().querySelector('.confirm-pop')?.textContent).toContain('Are you sure?');
     expect(el().querySelector('.confirm-pop')?.getAttribute('role')).toBe('alertdialog');
   });
 
