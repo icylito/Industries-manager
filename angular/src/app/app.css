@@ -102,6 +102,15 @@
     outline-offset: 2px;
 }
 
+/* The person's own picture in place of the account icon. A square crop of it, so it stays round at any size. */
+.nav-pic{
+    flex: 0 0 20px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
 /* Bell count, a small solid pill so it reads in both themes */
 .bell{
     position: relative;
@@ -333,6 +342,15 @@
     font-size: 15px;
     font-weight: 600;
     text-decoration: none;
+}
+
+/* The picture sits where the account icon was, 22px so the pill keeps the height of the round buttons beside it */
+.who-pic{
+    flex: 0 0 22px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    object-fit: cover;
 }
 
 .admin-nav a:focus-visible, .admin-nav button:focus-visible{

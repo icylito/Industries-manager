@@ -28,7 +28,22 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.Strict);
 builder.Services.AddValidation(); // Validating all the required, range, and length in Dtos folder
 builder.Services.AddProblemDetails();
+// What a failed request answers, and how loudly it is logged: Errors/ApiExceptionHandler.cs
+builder.Services.AddExceptionHandler<api_v2.Errors.ApiExceptionHandler>();
 builder.Services.Configure<RouteHandlerOptions>(o => o.ThrowOnBadRequest = true);
+// No JSON body here is big on purpose: the biggest is a Scratchpad board, held to 1,000,000 bytes by BoardRules.
+// Anything above this is refused before it is read. An upload that needs more raises its own limit on its request,
+// see BackupEndpoints.cs and ScratchFileEndpoints.cs. Http:MaxRequestBodyKb in appsettings changes it.
+var maxBodyKb = Math.Max(64, builder.Configuration.GetValue("Http:MaxRequestBodyKb", 2048));
+builder.WebHost.ConfigureKestrel(kestrel => kestrel.Limits.MaxRequestBodySize = maxBodyKb * 1024L);
+// The table list and a version's rows are big JSON that squeezes well. Bearer sign in, no cookies, and nothing a
+// caller sends is reflected into a body next to a secret, so compressing over https is fine here.
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProvider>();
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
+});
 builder.Services.AddOpenApi(options => 
 options.OpenApiVersion = Microsoft.OpenApi.OpenApiSpecVersion.OpenApi3_0);
 var connections = DatabaseConnections.From(builder.Configuration);
@@ -115,25 +130,13 @@ app.Lifetime.ApplicationStarted.Register(() =>
     app.Logger.LogWarning("Signing in goes over plain http here, fine on this PC only. On a shared network start with start.bat https, see README under Https");
 });
 
-app.UseExceptionHandler(errors =>
-{
-    errors.Run(async context =>
-    {
-        var error = context.Features.Get<IExceptionHandlerFeature>()?.Error;
-        if (error is not null)
-        {
-            var log = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("api_v2");
-            log.LogError(error, "Request failed with {ExceptionType}", error.GetType().Name);
-        }
-
-        var (status, title, detail) = Describe(error);
-        await Results.Problem(detail, statusCode: status, title: title).ExecuteAsync(context);
-    });
-});
+// Errors/ApiExceptionHandler.cs answers and logs every exception a request throws
+app.UseExceptionHandler();
 
 // start.bat share puts the page server in front of the API. It says who the real caller is, so the sign in limit counts each
 // device on its own. Only trusted from this PC (loopback), the default for ForwardedHeaders.
 app.UseForwardedHeaders(new ForwardedHeadersOptions { ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor });
+app.UseResponseCompression();
 app.UseCors("Angular");
 app.UseRateLimiter();
 
@@ -188,60 +191,3 @@ app.UseSwaggerUI(options =>
 });
 
 app.Run();
-
-static (int Status, string Title, string Detail) Describe(Exception? error)
-{
-    PostgresException? postgres = null;
-    var busy = false;
-    var concurrency = false;
-    var badRequest = false;
-
-    for (var current = error; current is not null; current = current.InnerException)
-    {
-        switch (current)
-        {
-            case AppBusyException:
-                busy = true;
-                break;
-            case PostgresException pg:
-                postgres ??= pg;
-                break;
-            case DbUpdateConcurrencyException:
-                concurrency = true;
-                break;
-            case BadHttpRequestException:
-                badRequest = true;
-                break;
-        }
-    }
-
-    if (busy)
-    {
-        return (StatusCodes.Status503ServiceUnavailable, "Busy",
-            "Someone else is changing this right now. Try again in a moment");
-    }
-    if (postgres?.SqlState == PostgresErrorCodes.UniqueViolation)
-    {
-        return (StatusCodes.Status409Conflict, "Already taken", "That name is already taken");
-    }
-    if (concurrency)
-    {
-        return (StatusCodes.Status409Conflict, "Changed meanwhile",
-            "Someone else changed or deleted this at the same time. Reload and try again");
-    }
-    if (postgres?.SqlState == PostgresErrorCodes.ProgramLimitExceeded)
-    {
-        return (StatusCodes.Status400BadRequest, "Too long", "That value is too long to save");
-    }
-    if (postgres?.SqlState is PostgresErrorCodes.UntranslatableCharacter or PostgresErrorCodes.CharacterNotInRepertoire)
-    {
-        return (StatusCodes.Status400BadRequest, "Bad character", "The text has a character that can't be saved");
-    }
-    if (badRequest)
-    {
-        return (StatusCodes.Status400BadRequest, "Couldn't read it",
-            "The request couldn't be read. Check the values and try again");
-    }
-    return (StatusCodes.Status500InternalServerError, "Something went wrong",
-        "Something went wrong. Nothing was saved if you see this, try again or tell a developer");
-}

@@ -197,15 +197,15 @@
                     }
                     <div class="confirm-row">
                         <label class="field">
-                            <span class="field-label">Say why, in a few words <span class="optional">at least 10 characters</span></span>
+                            <span class="field-label">Say why, in a few words <span class="optional">at least 10 characters, {{ noteChars() }}/{{ noteMax }}</span></span>
                             <span class="control">
                                 <i class="fa-solid fa-keyboard" aria-hidden="true"></i>
-                                <input autocomplete="off" placeholder="Why go back to this copy?" [value]="restoreNote()" (input)="restoreNote.set($any($event.target).value)"
+                                <input autocomplete="off" placeholder="Why go back to this copy?" [attr.maxlength]="noteMax" [value]="restoreNote()" (input)="restoreNote.set($any($event.target).value)"
                                     [attr.aria-describedby]="noteTooShort() ? 'restore-note-hint' : null">
                             </span>
                         </label>
                         <button type="button" class="cancel-btn" (click)="close()">Cancel</button>
-                        <button type="button" class="add-btn danger" [disabled]="noteTooShort() || busy()" (click)="restore()">
+                        <button type="button" class="add-btn danger" [disabled]="noteTooShort() || noteTooLong() || busy()" (click)="restore()">
                             @if (busy()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Restoring }
                             @else { <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore }
                         </button>
@@ -254,6 +254,12 @@
                     <p class="intro">{{ p.preview.willImport }} rows will be added as new rows, with new numbers. Nothing in the table gets replaced.</p>
                     @for (s of p.preview.skipped; track s) {
                         <p class="hint-line"><i class="fa-solid fa-circle-minus" aria-hidden="true"></i>{{ s }}</p>
+                    }
+                    <!-- Bringing a version back twice puts every row in twice, so say so before it happens -->
+                    @if (p.preview.alreadyImportedFromThisVersion) {
+                        <p class="hint-line"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                            {{ p.preview.alreadyImportedFromThisVersion }} {{ p.preview.alreadyImportedFromThisVersion === 1 ? 'row was' : 'rows were' }}
+                            already brought back from this version. Adding it again makes copies of {{ p.preview.alreadyImportedFromThisVersion === 1 ? 'it' : 'them' }}.</p>
                     }
                     @if (p.preview.unmatchedColumns.length) {
                         <p class="hint-line"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>

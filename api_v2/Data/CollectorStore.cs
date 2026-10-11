@@ -26,6 +26,20 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
 {
     private const string Table = "Industries";
 
+    // The longest a saved version's reason is kept. A reason is a few words, or for a database update a list of
+    // migration names. The restore note is held to a much shorter limit at the door (HistoryEndpoints.NoteMax), this
+    // is the backstop so no caller can ever put a huge text in a list every History visit has to carry.
+    public const int ReasonMax = 1000;
+
+    // The reason cut to ReasonMax, with an ellipsis, never through the middle of a character
+    public static string Clip(string reason)
+    {
+        if (reason.Length <= ReasonMax) return reason;
+        var cut = ReasonMax - 1;
+        if (char.IsHighSurrogate(reason[cut - 1])) cut--;
+        return reason[..cut] + "…";
+    }
+
     public const string UnreachableMessage = "The history database (collector) isn't reachable";
 
     // Looks at a failure from any collector call. A connection, database or password problem means history is down,
@@ -71,7 +85,7 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
     public async Task EnsureSchemaAsync(CancellationToken ct)
     {
         await using var conn = await OpenAsync(connections.Collector, ct);
-        await using var cmd = new NpgsqlCommand("""
+        await using var cmd = new NpgsqlCommand($$"""
             CREATE TABLE IF NOT EXISTS versions (
                 id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 created_at   timestamptz NOT NULL DEFAULT now(),
@@ -103,6 +117,14 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
                 changed_by    text NOT NULL,
                 status        text NOT NULL
             );
+            -- A reason can't be made huge again. NOT VALID checks new rows only, so a version saved before this
+            -- limit existed is left exactly as it was and never stops the history database from starting.
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'versions_reason_length') THEN
+                    ALTER TABLE versions ADD CONSTRAINT versions_reason_length CHECK (char_length(reason) <= {{ReasonMax}}) NOT VALID;
+                END IF;
+            END $$;
             """, conn);
         await cmd.ExecuteNonQueryAsync(ct);
     }
@@ -161,7 +183,7 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
             RETURNING id
             """, collector, tx))
         {
-            insert.Parameters.AddWithValue("reason", reason);
+            insert.Parameters.AddWithValue("reason", Clip(reason));
             insert.Parameters.AddWithValue("by", createdBy);
             insert.Parameters.AddWithValue("table", Table);
             insert.Parameters.AddWithValue("migrations", migrations);
@@ -186,7 +208,7 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
         }
 
         await tx.CommitAsync(ct);
-        log.LogInformation("Saved version {Version} with {Rows} rows: {Reason}", versionId, rows.Count, reason);
+        log.LogInformation("Saved version {Version} with {Rows} rows: {Reason}", versionId, rows.Count, Clip(reason));
 
         if (applyRetention)
         {

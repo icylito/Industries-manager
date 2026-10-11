@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using api_v2.Auth;
@@ -13,11 +14,17 @@ namespace api_v2.Endpoints;
 
 public record PinBody(bool Pinned);
 public record RestoreBody(string? Note);
-// SkipDuplicates leaves out rows whose name is already in the table, or shows up twice in the import
-public record ImportBody(bool Confirm, bool SkipDuplicates = false);
+// SkipDuplicates leaves out rows whose name is already in the table, or shows up twice in the import.
+// null means the caller didn't say. That is only accepted when nothing in the import has a name already in the table,
+// otherwise the answer is a 409 asking for a choice, so an empty body can never quietly add every row again.
+public record ImportBody(bool Confirm, bool? SkipDuplicates = null);
 
 public static class HistoryEndpoints
 {
+    // The longest a restore note can be, counted in the same UTF-16 characters the page counts. The page checks the same
+    // limit in Components/history/history.ts (noteMax), change both together.
+    public const int NoteMax = 300;
+
     // The message the page shows before importing data saved under other rules
     public const string RulesDifferMessage = "The old data follows different rules than the table does now. Import it anyway?";
 
@@ -52,9 +59,11 @@ public static class HistoryEndpoints
         history.MapGet("/versions", async (CollectorStore collector, DatabaseStatus status, CancellationToken ct) =>
         {
             var versions = await collector.ListVersionsAsync(ct);
+            // The reason is clipped here, so one oversized note saved before the limit existed can't slow the page down.
+            // One version's own answer (GET /versions/{id}) still carries it whole.
             return Results.Ok(versions.Select(v => new
             {
-                v.Id, v.CreatedAt, v.Reason, v.CreatedBy, v.RowCount, v.RulesVersion, v.Pinned, v.Damaged,
+                v.Id, v.CreatedAt, Reason = CollectorStore.Clip(v.Reason), v.CreatedBy, v.RowCount, v.RulesVersion, v.Pinned, v.Damaged,
                 SameLayout = !v.Damaged && status.SameLayout(v.Migrations)
             }));
         });
@@ -121,6 +130,10 @@ public static class HistoryEndpoints
             if (note is null || note.Length < 10)
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["note"] = ["Write a few words about why, at least 10 characters"] });
+            }
+            if (note.Length > NoteMax)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["note"] = [$"Keep it to {NoteMax} characters or fewer"] });
             }
             await using var tableLock = await locks.TakeAsync(AppLock.Table, ct);
             await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);
@@ -198,6 +211,8 @@ public static class HistoryEndpoints
                 plan.UnmatchedColumns,
                 Total = plan.Rows.Count,
                 WillImport = plan.Rows.Count(r => r.Skip is null),
+                // Rows already in the table that an earlier import took from this very version, so the page can say so
+                AlreadyImportedFromThisVersion = await writer.CountImportedFromAsync(id, ct),
                 Skipped = plan.Rows.Where(r => r.Skip is not null).Select(r => r.Skip),
                 Rows = plan.Rows.Select(r => new
                 {
@@ -228,9 +243,33 @@ public static class HistoryEndpoints
                 return Results.Conflict(new { NeedsConfirm = true, Message = RulesDifferMessage });
             }
 
+            // Rows whose name is already in the table come in as flagged copies. That is allowed, but never by default:
+            // the caller has to say skip or keep, so an empty or older call can't add the whole version a second time.
+            // Nothing is written and no copy of the table is saved when this answers.
+            var duplicateRows = plan.Rows.Count(r => r.Skip is null && (r.SimilarTo is not null || r.SimilarInBatch));
+            if (duplicateRows > 0 && body.SkipDuplicates is null)
+            {
+                var total = plan.Rows.Count(r => r.Skip is null);
+                var already = await writer.CountImportedFromAsync(id, ct);
+                var text = string.Create(CultureInfo.InvariantCulture,
+                    $"{duplicateRows:N0} of {total:N0} rows have a name that is already in the table. Choose whether to leave them out or add them as flagged copies.");
+                if (already > 0)
+                {
+                    text += string.Create(CultureInfo.InvariantCulture, $" {already:N0} rows were already brought back from this version.");
+                }
+                return Results.Conflict(new
+                {
+                    NeedsDecision = "duplicates",
+                    Similar = duplicateRows,
+                    Total = total,
+                    AlreadyImportedFromThisVersion = already,
+                    Message = text
+                });
+            }
+
             // Rows already in the table get skipped like nameless rows, so the import only adds new names
             var leftOut = 0;
-            if (body.SkipDuplicates)
+            if (body.SkipDuplicates == true)
             {
                 plan = plan with
                 {

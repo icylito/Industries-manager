@@ -215,6 +215,18 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
         return new ImportPlan(version.Summary.Id, rulesDiffer, unmatched, planned);
     }
 
+    // How many rows in today's table an earlier import took from this version (ImportedFrom holds the version id)
+    public async Task<int> CountImportedFromAsync(long versionId, CancellationToken ct)
+    {
+        // ImportedFrom is a 32 bit column, a version id past that can't have been written to it
+        if (versionId is < 0 or > int.MaxValue) return 0;
+        await using var conn = new NpgsqlConnection(connections.Main);
+        await conn.OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand($"""SELECT count(*) FROM "{Table}" WHERE "ImportedFrom" = @id""", conn);
+        cmd.Parameters.AddWithValue("id", (int)versionId);
+        return (int)(long)(await cmd.ExecuteScalarAsync(ct))!;
+    }
+
     // Adds the planned rows as new rows with new ids. Returns the new ids per planned row.
     // Snapshot is the row as it was saved, for the collector log.
     // The ids are taken from the sequence up front, so the rows can go in with one COPY and a row that

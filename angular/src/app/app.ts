@@ -1,9 +1,10 @@
-import { Component, DestroyRef, effect, inject } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { IndustryApi } from './services/industry-api';
 import { Auth } from './services/auth';
+import { Profile } from './services/profile';
 import { IdleTop } from './services/idle-top';
 import { Theme } from './services/theme';
 import { Toast } from './services/toast';
@@ -27,6 +28,10 @@ export class App {
   private router = inject(Router);
   protected api = inject(IndustryApi);
   protected auth = inject(Auth);
+  // The picture the account pill shows. Injected here so it is fetched on every page, not only on the account card.
+  protected profile = inject(Profile);
+  // What the pill calls the person: the name they chose, or their username until they choose one
+  protected shownName = computed(() => this.auth.user()?.displayName || this.auth.user()?.username || 'Account');
   protected theme = inject(Theme);
   protected toast = inject(Toast);
   // A page left alone for a while starts from the top when the person comes back, see services/idle-top.ts

@@ -156,6 +156,8 @@ export interface ImportPreview {
     unmatchedColumns: string[];
     total: number;
     willImport: number;
+    // Rows in today's table that an earlier import took from this same version, so adding it again makes copies
+    alreadyImportedFromThisVersion?: number;
     skipped: string[];
     rows: ImportPreviewRow[];
 }

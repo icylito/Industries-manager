@@ -35,8 +35,13 @@ export class HistoryPage implements OnInit {
   restoreNote = signal('');
   // The least a note can be, shared by the button, the hint under it and restore(), so the rule lives in one place
   static readonly noteMin = 10;
+  // The API refuses a longer note, see HistoryEndpoints.NoteMax. Change both together.
+  static readonly noteMax = 300;
+  readonly noteMax = HistoryPage.noteMax;
   noteChars = computed(() => this.restoreNote().trim().length);
   noteTooShort = computed(() => this.noteChars() < HistoryPage.noteMin);
+  // The box stops typing at noteMax, so this only guards a value set some other way
+  noteTooLong = computed(() => this.noteChars() > HistoryPage.noteMax);
   restoreDone = signal<RestoreResult | null>(null);
   importDone = signal<ImportResult | null>(null);
 
@@ -400,7 +405,7 @@ export class HistoryPage implements OnInit {
   restore() {
     const p = this.panel();
     const note = this.restoreNote().trim();
-    if (p?.kind !== 'restore' || this.noteTooShort()) return;
+    if (p?.kind !== 'restore' || this.noteTooShort() || this.noteTooLong()) return;
     this.busy.set(true);
     this.panelError.set('');
     this.api.restore(p.version.id, note).subscribe({

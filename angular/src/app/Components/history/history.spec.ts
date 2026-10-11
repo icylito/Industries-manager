@@ -3,7 +3,7 @@ import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { HistoryPage } from './history';
-import { BackupEntry, Role, SettingsImportPreview, VersionSummary } from '../../models/industry';
+import { BackupEntry, ImportPreview, Role, SettingsImportPreview, VersionSummary } from '../../models/industry';
 import { Auth } from '../../services/auth';
 
 const version = (id: number, damaged = false): VersionSummary => ({
@@ -191,6 +191,86 @@ describe('HistoryPage', () => {
     const call = http.expectOne(r => r.method === 'POST' && r.url.endsWith('/restore'));
     expect(call.request.body).toEqual({ note: 'swapping in the october rows' });
     call.flush({ restored: 3, skipped: 0, lostValues: 0, rulesRestored: 0, requestId: null });
+  });
+
+  // A note is a few words, so the box stops at the same limit the API enforces and counts toward it
+  it('limits the note to what the API accepts and shows the count', () => {
+    const fixture = setup();
+    const page = fixture.componentInstance;
+
+    page.askRestore(version(1));
+    fixture.detectChanges();
+    const panel = (fixture.nativeElement as HTMLElement).querySelector('#version-panel') as HTMLElement;
+    const box = panel.querySelector('input[placeholder="Why go back to this copy?"]') as HTMLInputElement;
+
+    expect(HistoryPage.noteMax).toBe(300);
+    expect(box.getAttribute('maxlength')).toBe('300');
+    expect(panel.textContent).toContain('0/300');
+
+    const note = 'swapping in the october rows';
+    page.restoreNote.set(note);
+    fixture.detectChanges();
+    expect(panel.textContent).toContain(`${note.length}/300`);
+
+    // A value that got past the box some other way is still never sent
+    page.restoreNote.set('x'.repeat(301));
+    expect(page.noteTooLong()).toBe(true);
+    page.restore();
+    http.expectNone(r => r.method === 'POST' && r.url.endsWith('/restore'));
+
+    // Exactly the limit is fine
+    page.restoreNote.set('x'.repeat(300));
+    expect(page.noteTooLong()).toBe(false);
+    page.restore();
+    const call = http.expectOne(r => r.method === 'POST' && r.url.endsWith('/restore'));
+    expect((call.request.body as { note: string }).note.length).toBe(300);
+    call.flush({ restored: 3, skipped: 0, lostValues: 0, rulesRestored: 0, requestId: null });
+  });
+
+  // The API refuses an import that doesn't say what to do about rows already in the table, so the page must always say
+  it('always tells the API whether to skip duplicates', () => {
+    const fixture = setup();
+    const page = fixture.componentInstance;
+    const preview: ImportPreview = {
+      versionId: 1, rulesDiffer: false, message: null, unmatchedColumns: [], total: 2, willImport: 2, skipped: [],
+      alreadyImportedFromThisVersion: 0,
+      rows: [
+        { oldId: 1, name: 'A', values: {}, level: null, problems: [], similarTo: 7, similarInBatch: false, skip: null },
+        { oldId: 2, name: 'B', values: {}, level: null, problems: [], similarTo: null, similarInBatch: false, skip: null },
+      ],
+    };
+
+    page.panel.set({ kind: 'import', version: version(1), preview });
+    page.runImport();
+    let call = http.expectOne(r => r.method === 'POST' && r.url.endsWith('/history/versions/1/import'));
+    expect(call.request.body).toEqual({ confirm: true, skipDuplicates: false });
+    call.flush({ imported: 2, similar: 1, lostValues: 0, breakingRules: 0, skipped: [], leftOutDuplicates: 0, requestIds: [] });
+
+    page.panel.set({ kind: 'import', version: version(1), preview });
+    page.runImport(true);
+    call = http.expectOne(r => r.method === 'POST' && r.url.endsWith('/history/versions/1/import'));
+    expect(call.request.body).toEqual({ confirm: true, skipDuplicates: true });
+    call.flush({ imported: 1, similar: 0, lostValues: 0, breakingRules: 0, skipped: [], leftOutDuplicates: 1, requestIds: [] });
+  });
+
+  // Bringing the same version back twice puts every row in twice, so the preview says it already happened
+  it('warns when rows were already brought back from this version', () => {
+    const fixture = setup();
+    const page = fixture.componentInstance;
+    const preview: ImportPreview = {
+      versionId: 1, rulesDiffer: false, message: null, unmatchedColumns: [], total: 1, willImport: 1, skipped: [],
+      alreadyImportedFromThisVersion: 5,
+      rows: [{ oldId: 1, name: 'A', values: {}, level: null, problems: [], similarTo: null, similarInBatch: false, skip: null }],
+    };
+
+    page.panel.set({ kind: 'import', version: version(1), preview });
+    fixture.detectChanges();
+    const panel = (fixture.nativeElement as HTMLElement).querySelector('#version-panel') as HTMLElement;
+    expect(panel.textContent).toContain('5 rows were already brought back from this version');
+
+    page.panel.set({ kind: 'import', version: version(1), preview: { ...preview, alreadyImportedFromThisVersion: 0 } });
+    fixture.detectChanges();
+    expect(panel.textContent).not.toContain('already brought back from this version');
   });
 
   // The stored reason now carries the note, and the page still reads it as words
