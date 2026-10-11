@@ -177,32 +177,19 @@ New findings:
 
 | # | Finding | What I did |
 |---|---|---|
-| N1 Medium | The three ICU rules still disagree on about 1% of pairs, through ICU version differences and the page's symbol handling. This can make a Bring back preview miss a similar row, and then the Bring back is refused (nothing changed). | Left open, see below. The docs no longer claim they agree. |
-| N2 Medium | Japanese and Thai words that differ only by a mark count as one name | Left open, see below |
+| N1 Medium | The three ICU rules still disagree on about 1% of pairs, through ICU version differences and the page's symbol handling. This can make a Bring back preview miss a similar row, and then the Bring back is refused (nothing changed). | Out of scope (your call, 2026-10-11). The docs no longer claim they agree. |
+| N2 Medium | Japanese and Thai words that differ only by a mark count as one name | Out of scope (your call, 2026-10-11) |
 | N3 Low | An emoji display name showed half an emoji as the initial | Fixed: the initial is the first whole character |
 | N4 Low | A display name is measured after normalising, so 20 × ﷺ is "over 60 characters" | Left as it is: a name is measured as it is saved |
 | N5 Low | False doc claims | Fixed in this file. 261 unit tests now (it said 246). |
 
-## Left open, for you to decide
+## Closed as out of scope (2026-10-11)
 
-**1. Make the database the only judge of names (fixes N1).**
+You decided that emoji, unusual symbols, and Japanese, Thai and other such scripts are out of scope for names, so N1 and N2 stay as they are and nothing was changed. The notes below are kept in case that changes.
 
-C# and the page would ask the database instead of comparing names themselves, so there's one ICU and one answer. The cost is one small query per check.
+- **N1:** the fix would be to make the database the only judge of names: `Names.Same`, `Names.Keys` (Bring back and Restore), field and column labels, and the Fields page's early warning would ask the database instead of comparing names themselves. The cost is one small query per check.
+- **N2:** the options were (a) compare at level 2, so accents count again (Café and Cafe become two names), (b) keep level 1 with a custom ICU rule that treats Japanese and Thai marks as letters, or (c) keep it. It is (c): two such companies can still both exist, the later one flagged as a copy.
 
-The pieces that would change:
-- `Names.Same` and `Names.Keys` for batches, which History's Bring back and Restore use
-- field and column labels
-- the page's early warning in Fields, which could simply wait for the API's answer
+## Still to do
 
-This is the clean fix; I'd do it next.
-
-**2. Japanese and Thai (N2).**
-
-ICU level 1 is the wrong strength for those scripts. Options:
-- **(a)** Compare at level 2 for every name. Accents would then count again, so Café and Cafe become two names.
-- **(b)** Keep level 1 but treat Japanese and Thai marks as letters with a custom ICU rule.
-- **(c)** Keep it as it is. Two such companies can still both exist: the later one comes in flagged as a copy.
-
-If you use those scripts, I'd recommend (b).
-
-**3. The phase 3 migrations aren't on your real database yet.** `OneNameRule` and `OneUsernameRule` apply on your next `start.bat` restart. Take a backup from the page first, as before.
+**The phase 3 migrations aren't on your real database yet.** `OneNameRule` and `OneUsernameRule` apply on your next `start.bat` restart. Take a backup from the page first, as before.
