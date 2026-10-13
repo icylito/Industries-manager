@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { Component, signal, computed, inject, OnInit, HostListener, DestroyRef } from '@angular/core';
 import { Industry, CreateIndustry, DbHealth, FieldRule, RuleSet } from '../../models/industry';
 import { Auth } from '../../services/auth';
@@ -16,7 +17,7 @@ function own(obj: object | null | undefined, key: string): unknown {
 }
 
 @Component({
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, NgTemplateOutlet],
   selector: 'app-my-components',
   styleUrl: './my-components.css',
   templateUrl: './my-components.html',
@@ -328,6 +329,8 @@ export class MyComponents implements OnInit {
   // The row that is asking "Delete this row?", and the one being deleted
   confirmingId = signal<number | null>(null);
   deletingId = signal<number | null>(null);
+  // The row the delete pop up is asking about
+  confirmingItem = computed(() => this.industries().find(i => i.id === this.confirmingId()) ?? null);
   // What the last delete did, so a delete is never silent. Cleared by the next add or edit.
   deleted = signal('');
 
@@ -384,8 +387,6 @@ export class MyComponents implements OnInit {
       for (const [key, value] of Object.entries(item.extra ?? {})) extra[key] = value === null ? '' : String(value);
       this.extraValues.set(extra);
       this.extraTouched.set(new Set());
-      // Bring the form into view so long tables don't hide it
-      document.getElementById('add')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 // Cancel button logic
     cancelEdit() {
@@ -705,7 +706,10 @@ export class MyComponents implements OnInit {
 
   @HostListener('document:keydown.escape')
   onEscape() {
-    this.calendarOpen.set(false);
+    // The first Escape closes the calendar, the next one the edit pop up (never while it is saving)
+    if (this.confirmingId() !== null) { if (this.deletingId() === null) this.confirmingId.set(null); }
+    else if (this.calendarOpen()) this.calendarOpen.set(false);
+    else if (this.editingId() !== null && !this.saving()) this.cancelEdit();
   }
 
   // Warning triangles. Red: a value couldn't come over from old data. Black: minor, like a similar row

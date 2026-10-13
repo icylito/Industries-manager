@@ -55,7 +55,9 @@ public static class BoardRules
         ["file"] = item => item["fileId"] is not null && Number(item["fileId"]) is null ? "A file card has lost its file" : null,
         ["snap"] = item => item["snap"] is JsonObject snap ? Snapshot(snap) : "A snapshot on the board could not be read",
         ["stroke"] = Stroke,
-        ["rect"] = item => OneOf(item["tone"], Tones) ? null : "A box on the board has a colour this page does not know",
+        ["rect"] = item => !OneOf(item["tone"], Tones) || !HexColour(item["color"])
+            ? "A box on the board has a colour this page does not know"
+            : null,
     };
 
     // The checked board, ready to store, or the plain reasons it can't be saved.
@@ -165,6 +167,7 @@ public static class BoardRules
     private static string? Paper(JsonObject item)
     {
         if (item["tone"] is not null && !OneOf(item["tone"], Tones)) return "A note has a colour this page does not know";
+        if (!HexColour(item["color"])) return "A note has a colour this page does not know";
         if (item["align"] is not null && !OneOf(item["align"], Aligns)) return "A note could not be read";
         if (item["text"] is not null && !Text(item["text"], 0, MaxText)) return $"A note holds at most {MaxText} characters";
         if (item["blocks"] is null) return null;
@@ -244,6 +247,11 @@ public static class BoardRules
 
     private static bool OneOf(JsonNode? node, string[] allowed) =>
         node is JsonValue value && value.TryGetValue<string>(out var text) && allowed.Contains(text);
+
+    // A paper colour of the person's own: absent, or '#rrggbb'. The page keeps the same shape (models/board.ts).
+    private static bool HexColour(JsonNode? node) =>
+        node is null || (node is JsonValue value && value.TryGetValue<string>(out var text)
+            && System.Text.RegularExpressions.Regex.IsMatch(text, "^#[0-9a-fA-F]{6}$"));
 
     private static (string? Json, Dictionary<string, string[]> Errors) Fail(string key, string message) =>
         (null, new() { [key] = [message] });

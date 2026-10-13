@@ -10,13 +10,7 @@
     <ul class="bl-list" #list aria-label="Your boards">
         @for (board of boards.sorted(); track board.id) {
             <li class="bl-row" [class.current]="board.id === current()" [class.asking]="confirming() === board.id">
-                @if (confirming() === board.id) {
-                    <span class="bl-ask" role="alert">
-                        <span class="bl-ask-text">Delete "{{ board.name }}"?</span>
-                        <button type="button" class="bl-btn danger" [disabled]="busy() === board.id" (click)="remove(board)">Delete</button>
-                        <button type="button" class="bl-btn" (click)="confirming.set(null)">Keep</button>
-                    </span>
-                } @else if (renaming() === board.id) {
+                @if (renaming() === board.id) {
                     <input class="bl-rename" type="text" maxlength="60" [value]="board.name" aria-label="Board name"
                         (keydown.enter)="finishRename(board, $any($event.target).value)"
                         (keydown.escape)="renaming.set(null)"
@@ -51,4 +45,9 @@
             <li class="bl-empty">No boards yet. Press + to start one.</li>
         }
     </ul>
+}
+
+@if (confirmingBoard(); as board) {
+    <app-confirm-popup [name]="board.name" detail="will be deleted. Its files stay for 7 days." [busy]="busy() === board.id"
+        (no)="confirming.set(null)" (yes)="remove(board)" />
 }

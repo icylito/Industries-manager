@@ -21,8 +21,8 @@ export const routes: Routes = [
     { path: 'history', canActivate: [managerGuard], loadComponent: () => import('./Components/history/history').then(m => m.HistoryPage), data: { title: 'History', lede: 'Every saved copy of the table. View, download, restore, or bring old rows back.' } },
     { path: 'fields', canActivate: [adminGuard], loadComponent: () => import('./Components/fields/fields').then(m => m.FieldsPage), data: { title: 'Fields', lede: 'What each column holds and its limits. Every save is a new version.' } },
     // Tables people make themselves. Everyone signed in can look; managers and admins change them (the API checks too)
-    { path: 'tables', canActivate: [signedInGuard], loadComponent: () => import('./Components/tables/tables').then(m => m.TablesPage), data: { title: 'Tables', lede: 'Tables your team makes, fills and deletes, with no developer needed.' } },
-    { path: 'tables/:id', canActivate: [signedInGuard], loadComponent: () => import('./Components/tables/tables').then(m => m.TablesPage), data: { title: 'Tables', lede: 'Tables your team makes, fills and deletes, with no developer needed.' } },
+    { path: 'tables', canActivate: [signedInGuard], loadComponent: () => import('./Components/tables/tables').then(m => m.TablesPage), data: { title: 'Tables', lede: 'Create custom tables, experiment with it.' } },
+    { path: 'tables/:id', canActivate: [signedInGuard], loadComponent: () => import('./Components/tables/tables').then(m => m.TablesPage), data: { title: 'Tables', lede: 'Create custom tables, experiment with it.' } },
     { path: 'requests', canActivate: [signedInGuard], loadComponent: () => import('./Components/requests/requests').then(m => m.RequestsPage), data: { title: 'Requests', lede: 'Things that need a developer, each with the steps written out for them.' } },
     { path: '**', redirectTo: '' },
 ];

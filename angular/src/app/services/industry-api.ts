@@ -211,8 +211,8 @@ export class IndustryApi {
     requests(status: 'open' | 'done' | 'dismissed' | 'all' = 'open'): Observable<DevRequest[]> {
         return this.http.get<DevRequest[]>(`${this.apiUrl}/requests`, { params: { status } }).pipe(this.retryTransient());
     }
-    askDeveloper(title: string, details: string): Observable<HttpResponse<DevRequest>> {
-        return this.http.post<DevRequest>(`${this.apiUrl}/requests`, { title, details }, { observe: 'response' });
+    askDeveloper(title: string, details: string, code = ''): Observable<HttpResponse<DevRequest>> {
+        return this.http.post<DevRequest>(`${this.apiUrl}/requests`, { title, details, code }, { observe: 'response' });
     }
     askColumn(body: { label?: string; type?: string; fieldKey?: string; details?: string }): Observable<DevRequest> {
         return this.http.post<DevRequest>(`${this.apiUrl}/requests/column`, body);

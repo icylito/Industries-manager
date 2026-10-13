@@ -10,12 +10,8 @@
                 <span class="db-status">{{ count(versions().length) }} saved</span>
             }
         </div>
-    </header>
+    </header><br>
 
-    <p class="intro">A copy of the whole table is saved before the rules change, before the table gets updated,
-        and before any restore or import, so you can always go back.
-        <strong>Bring back</strong> adds a version's rows to the table as new rows. <strong>Restore</strong> replaces the whole table with that version.
-        The bin deletes a version you no longer need, for good. A pinned one has to be unpinned first.</p>
 
     @if (notice()) {
         <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ notice() }}</p>
@@ -32,10 +28,10 @@
             <table class="versions">
                 <thead>
                     <tr>
-                        <th><span class="th">#</span></th>
-                        <th><span class="th">What happened</span></th>
-                        <th class="num"><span class="th">Rows</span></th>
-                        <th class="actions-col"><span class="sr-only">Actions</span></th>
+                        <th><span class="th">#  </span></th>
+                        <th><b><span class="th">What happened</span></b></th>
+                        <th class="num"><b><span class="th">Record</span></b></th>
+                        <th class="actions-col"><b><span class="th">Actions</span></b></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -54,40 +50,12 @@
                                 </span>
                                 <span class="sub">{{ formatDate(v.createdAt) }} · {{ howOld(v.createdAt) }} · {{ v.damaged ? "Can't be restored or brought back" : v.sameLayout ? 'Same table layout' : 'Other table layout' }}</span>
                             </td>
-                            <td class="num accent">{{ count(v.rowCount) }}<span class="unit-word"> {{ v.rowCount === 1 ? 'row' : 'rows' }}</span></td>
+                            <td class="num-accent">{{ count(v.rowCount) }}<span class="unit-word"> {{ v.rowCount === 1 ? 'row' : 'rows' }}</span></td>
                             <td class="actions">
-                                @if (confirmingVersion() === v.id) {
-                                <span class="confirm-text"><span class="long">Delete version #{{ v.id }} for good?</span><span class="short">Delete #{{ v.id }}?</span></span>
-                                <button type="button" class="edit-btn" [disabled]="deletingVersion() === v.id" (click)="confirmingVersion.set(null)">
-                                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>Cancel
+                                <button type="button" class="menu-btn" aria-haspopup="menu" [attr.aria-expanded]="menuVersion()?.id === v.id"
+                                    [attr.aria-label]="'Actions for version ' + v.id" (click)="toggleMenu({ version: v }, $event)">
+                                    <i class="fa-solid fa-bars" aria-hidden="true"></i>
                                 </button>
-                                <button type="button" class="remove-btn confirming" [disabled]="deletingVersion() === v.id" (click)="deleteVersion(v)" [attr.aria-label]="'Delete version ' + v.id">
-                                    @if (deletingVersion() === v.id) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Deleting }
-                                    @else { <i class="fa-solid fa-trash" aria-hidden="true"></i>Delete }
-                                </button>
-                                } @else {
-                                <button type="button" class="edit-btn icon-only" [disabled]="busy()" (click)="view(v)" [attr.aria-label]="'View version ' + v.id" title="View the rows">
-                                    <i class="fa-solid fa-eye" aria-hidden="true"></i>
-                                </button>
-                                <button type="button" class="edit-btn icon-only" (click)="download(v)" aria-label="Download as a spreadsheet" title="Download as a spreadsheet">
-                                    <i class="fa-solid fa-download" aria-hidden="true"></i>
-                                </button>
-                                <button type="button" class="edit-btn icon-only" [class.on]="v.pinned" (click)="togglePin(v)"
-                                    [attr.aria-label]="v.pinned ? 'Unpin' : 'Pin so it never gets removed'" [attr.title]="v.pinned ? 'Unpin' : 'Pin so it never gets removed'">
-                                    <i class="fa-solid fa-thumbtack" aria-hidden="true"></i>
-                                </button>
-                                <button type="button" class="edit-btn" [disabled]="busy() || v.damaged" (click)="askImport(v)">
-                                    <i class="fa-solid fa-file-import" aria-hidden="true"></i>Bring back
-                                </button>
-                                <button type="button" class="remove-btn" [disabled]="v.damaged" (click)="askRestore(v)">
-                                    <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore
-                                </button>
-                                <button type="button" class="remove-btn icon-only" [disabled]="v.pinned || busy()" (click)="confirmingVersion.set(v.id)"
-                                    [attr.aria-label]="v.pinned ? 'Pinned, unpin it to delete' : 'Delete version ' + v.id"
-                                    [attr.title]="v.pinned ? 'Pinned, unpin it to delete' : 'Delete this saved version'">
-                                    <i class="fa-solid fa-trash" aria-hidden="true"></i>
-                                </button>
-                                }
                             </td>
                         </tr>
                     }
@@ -112,7 +80,12 @@
 </section>
 
 @if (panel(); as p) {
-    <section class="panel" [class.glow]="panel()?.kind === 'restore'" id="version-panel">
+    <!-- Restore is a question, so it opens as a pop up over the page instead of a panel at the bottom -->
+    @if (p.kind === 'restore') {
+        <div class="modal-backdrop" (click)="busy() ? null : close()" aria-hidden="true"></div>
+    }
+    <section class="panel" [class.restore-modal]="p.kind === 'restore'" [attr.role]="p.kind === 'restore' ? 'dialog' : null"
+        [attr.aria-modal]="p.kind === 'restore' ? true : null" id="version-panel">
         <header class="panel-head">
             <div class="panel-title">
                 <h2>
@@ -212,7 +185,7 @@
                     </div>
                     <!-- The button stays grey until there is enough to read, so the page has to say why and how much is missing -->
                     @if (noteTooShort()) {
-                        <p class="hint-line" id="restore-note-hint" role="status">
+                        <p class="hint-line note-hint" id="restore-note-hint" role="status">
                             <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
                             @if (noteChars() === 0) { A few words, at least 10 characters, so the next person knows why. }
                             @else { {{ noteChars() }} of 10 characters. Add {{ 10 - noteChars() }} more. }
@@ -388,8 +361,7 @@
     <header class="card-head">
         <h2><span class="title-icon"><i class="fa-solid fa-file-code" aria-hidden="true"></i></span>Settings file</h2>
     </header>
-    <p class="intro">Save how long old versions are kept and the field labels and limits to a file, or load them from one.
-        Importing saves a copy of the table first, so you can go back from this page.</p>
+    <p class="intro">Save how long old versions are kept and the field labels and limits to a file, or. Import saves the tables first, so you can go back from this page.</p>
     <div class="settings-row buttons">
         <button type="button" class="cancel-btn" (click)="exportSettings()">
             <i class="fa-solid fa-file-export" aria-hidden="true"></i>Export settings
@@ -431,13 +403,13 @@
     <header class="card-head">
         <h2><span class="title-icon"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i></span>Backups</h2>
     </header>
-    <p class="intro">{{ backupIntro() }}
-        <strong>Restore</strong> puts the data back the way it was in that backup: the table, its rules and every table on the Tables page.
-        Accounts, notes, the Scratchpad, requests and settings stay as they are now. A full backup of right now is taken first, so a restore can be undone.</p>
-    <button type="button" class="add-btn" [disabled]="backingUp()" (click)="backupNow()">
-        @if (backingUp()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Backing up... }
-        @else { <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>Back up now }
-    </button>
+    <div class="intro-row">
+        <p class="intro">{{ backupIntro() }}</p>
+        <button type="button" class="add-btn" [disabled]="backingUp()" (click)="backupNow()">
+            @if (backingUp()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Backing up... }
+            @else { <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>Back up now }
+        </button>
+    </div>
     @if (backupMsg()) {
         <p class="result small"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ backupMsg() }}</p>
     }
@@ -486,18 +458,11 @@
                                 <span class="reason">{{ formatDate(b.createdAt) }}</span>
                                 <span class="sub">{{ kindLabel(b.kind) }}{{ b.rowCount === null ? '' : ' · ' + b.rowCount + (b.rowCount === 1 ? ' row' : ' rows') }}{{ b.sameLayout === false ? ' · Other table layout' : '' }}</span>
                             </td>
-                            <td class="num accent">{{ kb(b.mainSize + b.collectorSize) }}</td>
+                            <td class="num-accent">{{ kb(b.mainSize + b.collectorSize) }}</td>
                             <td class="actions">
-                                @if (b.hasExcel) {
-                                    <button type="button" class="edit-btn" title="The table at that time, opens in Excel" (click)="downloadBackup(b, 'excel')"><i class="fa-solid fa-file-excel" aria-hidden="true"></i>Excel</button>
-                                }
-                                <button type="button" class="edit-btn" [disabled]="!b.signed" (click)="downloadZip(b)"
-                                    [attr.title]="b.signed ? 'The whole backup as one file, to keep somewhere else and drop back in here later' : 'Made before backups were signed, so it can only be restored from this list, not moved as a file'"><i class="fa-solid fa-file-zipper" aria-hidden="true"></i>Download</button>
-                                <button type="button" class="edit-btn" (click)="downloadBackup(b, 'main')">Main</button>
-                                <button type="button" class="edit-btn" (click)="downloadBackup(b, 'collector')">History</button>
-                                <button type="button" class="remove-btn" [disabled]="restoreBackupBusy() || b.sameLayout === false" (click)="askRestoreBackup(b)"
-                                    [attr.title]="b.sameLayout === false ? 'The table had other columns back then, a developer is needed for this one' : 'Put the table back the way it was in this backup'">
-                                    <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore
+                                <button type="button" class="menu-btn" aria-haspopup="menu" [attr.aria-expanded]="menuBackup()?.id === b.id"
+                                    aria-label="Actions for this backup" (click)="toggleMenu({ backup: b }, $event)">
+                                    <i class="fa-solid fa-bars" aria-hidden="true"></i>
                                 </button>
                             </td>
                         </tr>
@@ -548,3 +513,42 @@
         <p class="hint-line"><i class="fa-regular fa-calendar" aria-hidden="true"></i>Next nightly backup {{ formatDate(backupStatus()!.nextNightly) }}</p>
     }
 </section>
+
+@if (menuVersion(); as v) {
+    <!-- Drawn here, outside the tables: their scrolling box would clip it -->
+    <div class="menu" role="menu" [attr.aria-label]="'Actions for version ' + v.id" (keydown)="onMenuKey($event)" (click)="menu.set(null)"
+        [style.top.px]="menuAt().top" [style.right.px]="menuAt().right">
+        <button type="button" role="menuitem" [disabled]="busy()" (click)="view(v)"><i class="fa-solid fa-eye" aria-hidden="true"></i>View the rows</button>
+        <button type="button" role="menuitem" (click)="download(v)"><i class="fa-solid fa-download" aria-hidden="true"></i>Download</button>
+        <button type="button" role="menuitem" (click)="togglePin(v)">
+            <i class="fa-solid fa-thumbtack" aria-hidden="true"></i>{{ v.pinned ? 'Unpin' : 'Pin' }}
+        </button>
+        <button type="button" role="menuitem" [disabled]="busy() || v.damaged" (click)="askImport(v)"><i class="fa-solid fa-file-import" aria-hidden="true"></i>Bring back</button>
+        <button type="button" role="menuitem" class="danger" [disabled]="v.damaged" (click)="askRestore(v)"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore</button>
+        <button type="button" role="menuitem" class="danger" [disabled]="v.pinned || busy()" (click)="confirmingVersion.set(v.id)"
+            [attr.title]="v.pinned ? 'Pinned, unpin it to delete' : null"><i class="fa-solid fa-trash" aria-hidden="true"></i>Delete</button>
+    </div>
+}
+
+@if (menuBackup(); as b) {
+    <div class="menu" role="menu" aria-label="Actions for this backup" (keydown)="onMenuKey($event)" (click)="menu.set(null)"
+        [style.top.px]="menuAt().top" [style.right.px]="menuAt().right">
+        @if (b.hasExcel) {
+            <button type="button" role="menuitem" title="The table at that time, opens in Excel" (click)="downloadBackup(b, 'excel')"><i class="fa-solid fa-file-excel" aria-hidden="true"></i>Excel</button>
+        }
+        <button type="button" role="menuitem" [disabled]="!b.signed" (click)="downloadZip(b)"
+            [attr.title]="b.signed ? 'The whole backup as one file, to keep somewhere else and drop back in here later' : 'Made before backups were signed, so it can only be restored from this list, not moved as a file'"><i class="fa-solid fa-file-zipper" aria-hidden="true"></i>Download</button>
+        <button type="button" role="menuitem" (click)="downloadBackup(b, 'main')"><i class="fa-solid fa-database" aria-hidden="true"></i>Main</button>
+        <button type="button" role="menuitem" (click)="downloadBackup(b, 'collector')"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>History</button>
+        <button type="button" role="menuitem" class="danger" [disabled]="restoreBackupBusy() || b.sameLayout === false" (click)="askRestoreBackup(b)"
+            [attr.title]="b.sameLayout === false ? 'The table had other columns back then, a developer is needed for this one' : 'Put the table back the way it was in this backup'">
+            <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore
+        </button>
+    </div>
+}
+
+<!-- Delete a version asks first: a deleted version can't come back -->
+@if (confirmingVersion() !== null) {
+    <app-confirm-popup [name]="'Version #' + confirmingVersion()" detail="will be deleted for good." [busy]="deletingVersion() !== null"
+        (no)="confirmingVersion.set(null)" (yes)="deleteVersionById(confirmingVersion()!)" />
+}

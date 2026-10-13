@@ -37,6 +37,13 @@ angular/.cert/
 
 # The page checks in testing/ (playwright), installed there and not part of the repo
 testing/node_modules/
+# Downloaded by the page checks: Playwright's browsers (over 200 MB, GitHub refuses it), the npm cache and the debug log
+testing/.pw-browsers/
+testing/.npm-cache/
+testing/debug.log
+
+# Screenshots saved while checking the page, regenerated every run
+/shots/
 
 # Plan workspaces for the subagent-driven runs (scratch, not part of the project)
 .superpowers/

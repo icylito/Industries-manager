@@ -1,4 +1,5 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ConfirmPopup } from '../confirm-popup/confirm-popup';
+import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
 import { hasNoLetters, sameName } from '../../services/name-key';
 import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -17,7 +18,7 @@ interface QueuedField {
 }
 
 @Component({
-  imports: [RouterLink],
+  imports: [RouterLink, ConfirmPopup],
   selector: 'app-fields',
   styleUrls: ['../my-components/my-components.css', '../history/history.css', './fields.css'],
   templateUrl: './fields.html',
@@ -99,6 +100,71 @@ export class FieldsPage implements OnInit {
 
   typeLabel(type: string): string {
     return this.types.find(t => t.value === type)?.label ?? type;
+  }
+
+  // The table is read only. A change to a field is made in the edit pop up, then it still waits for Save like before.
+  editing = signal<FieldRule | null>(null);
+  editLabel = signal('');
+  editRequired = signal(false);
+  editMaxLength = signal<number | null>(null);
+  editMin = signal<number | null>(null);
+  editMax = signal<number | null>(null);
+  editError = signal('');
+
+  startEdit(f: FieldRule) {
+    this.editing.set(f);
+    this.editLabel.set(f.label);
+    this.editRequired.set(f.required);
+    this.editMaxLength.set(f.maxLength ?? null);
+    this.editMin.set(f.min ?? null);
+    this.editMax.set(f.max ?? null);
+    this.editError.set('');
+    this.askingType.set(null);
+    this.askError.set('');
+  }
+
+  closeEdit() {
+    this.editing.set(null);
+    this.askingType.set(null);
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape() {
+    if (this.editing() && !this.deleting()) this.closeEdit();
+  }
+
+  applyEdit() {
+    const f = this.editing();
+    if (!f) return;
+    const label = this.editLabel().trim();
+    if (!label || label.length > 40) return this.editError.set('The label has to be 1 to 40 characters');
+    if (this.hasHidden(label)) return this.editError.set("The label can't contain line breaks or hidden characters");
+    if (hasNoLetters(label)) return this.editError.set('A name needs at least one letter or digit');
+    if (this.draft().some(other => other.key !== f.key && sameName(other.label, label))) {
+      return this.editError.set('A field with that label already exists');
+    }
+    const maxLength = f.type === 'text' ? this.editMaxLength() : null;
+    const min = f.type === 'number' ? this.editMin() : null;
+    const max = f.type === 'number' ? this.editMax() : null;
+    if (maxLength !== null && (maxLength < 1 || maxLength > 1000)) return this.editError.set('The longest has to be 1 to 1000');
+    if (min !== null && max !== null && min > max) return this.editError.set("Lowest can't be above highest");
+    const change: Partial<FieldRule> = { label, required: f.key === 'name' ? true : this.editRequired() };
+    if (f.type === 'text') change.maxLength = maxLength;
+    if (f.type === 'number') { change.min = min; change.max = max; }
+    this.update(f.key, change);
+    this.closeEdit();
+  }
+
+  // The limits as one plain phrase, for the read only table
+  limitText(f: FieldRule): string {
+    if (f.type === 'text') return f.maxLength != null ? `${f.maxLength} characters` : 'No limit';
+    if (f.type === 'number') {
+      if (f.min != null && f.max != null) return `${f.min} to ${f.max}`;
+      if (f.min != null) return `From ${f.min}`;
+      if (f.max != null) return `Up to ${f.max}`;
+      return 'No limit';
+    }
+    return 'No limits';
   }
 
   discard() {
@@ -310,6 +376,7 @@ export class FieldsPage implements OnInit {
 
   private asked(message: string) {
     this.askingType.set(null);
+    this.editing.set(null);
     this.askError.set('');
     this.askMsg.set(message);
     this.api.refreshRequestCount();

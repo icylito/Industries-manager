@@ -35,6 +35,14 @@ textarea::placeholder{
     color: var(--faint);
 }
 
+/* Code is read in a fixed width face, like the drafted code shown under a request */
+.code-input{
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+    white-space: pre;
+    overflow-x: auto;
+}
+
 .send-row{
     display: flex;
     justify-content: flex-end;
@@ -67,91 +75,67 @@ textarea::placeholder{
     color: var(--accent-text);
 }
 
-.request-list{
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
+/* One line per request. The title is the only wide column, details and drafted code open under it. */
+.requests-table td{
+    padding: 0.7rem 1.1rem;
+    vertical-align: top;
 }
 
-.request{
-    padding: 1.1rem 1.2rem;
-    border: 1px solid var(--p-border);
-    border-radius: 12px;
-}
-
-.request.closed{
+.requests-table tr.closed{
     opacity: 0.7;
 }
 
-.request-head{
-    display: flex;
-    align-items: flex-start;
-    gap: 0.85rem;
-}
-
-.kind-icon{
-    display: grid;
-    flex: none;
-    place-items: center;
-    width: 2rem;
-    height: 2rem;
-    border-radius: 8px;
-    background: var(--accent);
-    color: var(--accent-text);
-    font-size: 0.8rem;
+.request-cell{
+    min-width: 16rem;
+    white-space: normal;
 }
 
 .request-title{
-    flex: 1;
-    min-width: 0;
-}
-
-.request-title h3{
-    margin: 0;
-    font-size: 0.975rem;
     font-weight: 600;
-    line-height: 1.35;
+    line-height: 1.4;
 }
 
-.meta{
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem 0.85rem;
-    margin: 0.3rem 0 0;
+.kind{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
     color: var(--p-muted);
+}
+
+.kind i{
     font-size: 0.75rem;
 }
 
 .status{
     font-weight: 600;
+    color: var(--p-muted);
+}
+
+.status.open{
     color: var(--p-text);
 }
 
-.request-actions{
-    display: flex;
-    flex: none;
-    gap: 0.35rem;
+.resolved{
+    display: block;
+    font-size: 0.75rem;
 }
 
 .details{
-    margin: 0.75rem 0 0 2.85rem;
+    margin: 0.35rem 0 0;
     color: var(--p-muted);
-    font-size: 0.875rem;
-    line-height: 1.55;
+    font-size: 0.85rem;
+    line-height: 1.5;
     white-space: pre-line;
 }
 
 .code-head{
     display: flex;
     gap: 0.25rem;
-    margin: 0.6rem 0 0 2.35rem;
+    margin: 0.4rem 0 0 -0.1rem;
 }
 
 .code{
-    margin: 0.5rem 0 0 2.85rem;
+    margin: 0.5rem 0 0;
     padding: 1rem 1.1rem;
     overflow-x: auto;
     border: 1px solid var(--p-border);
@@ -164,26 +148,56 @@ textarea::placeholder{
 }
 
 @media (max-width: 640px) {
-    .request-head{
-        flex-wrap: wrap;
-    }
-
-    .request-actions{
-        width: 100%;
-        padding-left: 2.85rem;
-    }
-
-    .details, .code{
-        margin-left: 0;
-    }
-
-    .code-head{
-        margin-left: -0.75rem;
-    }
-
     .panel-head .tabs{
         width: 100%;
         justify-content: space-between;
+    }
+
+    .requests-table thead{
+        display: none;
+    }
+
+    .requests-table, .requests-table tbody, .requests-table tr, .requests-table td{
+        display: block;
+        width: 100%;
+    }
+
+    .requests-table tr{
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--p-border);
+    }
+
+    .requests-table tbody tr:last-child{
+        border-bottom: none;
+    }
+
+    .requests-table td, .requests-table td.actions{
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 1rem;
+        width: auto;
+        padding: 0.3rem 1.1rem;
+        border-bottom: none;
+        text-align: left;
+        position: static;
+        box-shadow: none;
+    }
+
+    .requests-table td::before{
+        content: attr(data-label);
+        flex: none;
+        color: var(--p-muted);
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .requests-table td.request-cell{
+        display: block;
+    }
+
+    .requests-table td.request-cell::before{
+        display: none;
     }
 }
 

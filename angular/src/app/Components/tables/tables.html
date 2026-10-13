@@ -1,11 +1,20 @@
 <!-- Tables people make themselves. Everyone signed in can look, managers and admins see the buttons. -->
 
 @if (editor()) {
-<!-- Making a table, or changing its name and columns -->
-<section class="panel" id="table-editor">
+<!-- Making a table, or changing its name and columns, in a pop up over the page. One line per column. -->
+<div class="modal-backdrop" (click)="closeEditor()" aria-hidden="true"></div>
+<div class="modal-wrap">
+<section class="panel modal modal-wide" id="table-editor" role="dialog" aria-modal="true" aria-labelledby="table-editor-title">
     <header class="panel-head">
         <div class="panel-title">
-            <h2><i class="fa-solid fa-table-columns" aria-hidden="true"></i>{{ editor() === 'new' ? 'New table' : 'Change ' + table()?.name }}</h2>
+            <h2 id="table-editor-title"><i class="fa-solid fa-table-columns" aria-hidden="true"></i>{{ editor() === 'new' ? 'New table' : 'Change ' + table()?.name }}</h2>
+        </div>
+        <div class="tools">
+            <!-- Up here so a new column can be added from wherever the pop up is scrolled to -->
+            <button type="button" class="tool-btn" [disabled]="draftColumns().length >= limits.columns" (click)="addColumn()">
+                <i class="fa-solid fa-plus" aria-hidden="true"></i>Add a column
+            </button>
+            <button type="button" class="icon-btn" aria-label="Close" [disabled]="editorBusy()" (click)="closeEditor()"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
         </div>
     </header>
 
@@ -22,82 +31,101 @@
         </span>
     </label>
 
-    <div class="field-list">
-        @for (c of draftColumns(); track c.uid; let i = $index, first = $first, last = $last) {
-            <div class="field-row column-row">
-                <div class="field-name">
-                    <label class="field">
-                        <span class="field-label">Column {{ i + 1 }}</span>
-                        <span class="control">
-                            <i class="fa-solid fa-tag" aria-hidden="true"></i>
-                            <input maxlength="40" placeholder="Company" [value]="c.label" (input)="patchColumn(c.uid, { label: $any($event.target).value })">
-                        </span>
-                    </label>
-                    <label class="field">
-                        <span class="field-label">Holds</span>
-                        <span class="control">
-                            <i class="fa-solid fa-shapes" aria-hidden="true"></i>
-                            <select [value]="c.type" (change)="patchColumn(c.uid, { type: $any($event.target).value })"
-                                [attr.title]="c.key ? 'Changing this is checked against every row first' : null">
-                                @for (t of types; track t.value) { <option [value]="t.value" [selected]="t.value === c.type">{{ t.label }}</option> }
-                            </select>
-                            <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
-                        </span>
-                    </label>
-                </div>
+    <!-- One line per column. The columns read straight across, and Remove is on its own at the far right, away from the
+         arrows and from the boxes being typed in, and asks again before it does anything. -->
+    <div class="table-wrap cols-wrap">
+        <table class="cols-table">
+            <thead>
+                <tr>
+                    <th class="idx"><span class="th">#</span></th>
+                    <th><span class="th">Name</span></th>
+                    <th><span class="th">Type</span></th>
+                    <th><span class="th">Limits</span></th>
+                    <th><span class="th">Dropdown options</span></th>
+                    <th class="mid"><span class="th">Required</span></th>
+                    <th class="mid"><span class="th">Move</span></th>
+                    <th class="remove-col"><span class="th">Remove</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (c of draftColumns(); track c.uid; let i = $index, first = $first, last = $last) {
+                    <tr class="column-row">
+                        <td class="idx muted">{{ i + 1 }}</td>
 
-                <div class="limits">
-                    @switch (c.type) {
-                        @case ('text') {
-                            <label class="field">
-                                <span class="field-label">Longest</span>
-                                <span class="control">
-                                    <i class="fa-solid fa-ruler-horizontal" aria-hidden="true"></i>
-                                    <input type="number" min="1" max="1000" placeholder="No limit" [value]="c.maxLength ?? ''"
-                                        (input)="patchColumn(c.uid, { maxLength: num($any($event.target).value) })">
-                                </span>
-                            </label>
-                            <label class="field choices">
-                                <span class="field-label">Choices <em>one per line, optional</em></span>
-                                <textarea rows="3" placeholder="Any text. Or one choice per line" [value]="c.choices"
-                                    (input)="patchColumn(c.uid, { choices: $any($event.target).value })"></textarea>
-                            </label>
-                        }
-                        @case ('number') {
-                            <label class="field">
-                                <span class="field-label">Lowest</span>
-                                <span class="control">
-                                    <i class="fa-solid fa-arrow-down-1-9" aria-hidden="true"></i>
-                                    <input type="number" step="any" placeholder="None" [value]="c.min ?? ''"
-                                        (input)="patchColumn(c.uid, { min: num($any($event.target).value) })">
-                                </span>
-                            </label>
-                            <label class="field">
-                                <span class="field-label">Highest</span>
-                                <span class="control">
-                                    <i class="fa-solid fa-arrow-up-9-1" aria-hidden="true"></i>
-                                    <input type="number" step="any" placeholder="None" [value]="c.max ?? ''"
-                                        (input)="patchColumn(c.uid, { max: num($any($event.target).value) })">
-                                </span>
-                            </label>
-                        }
-                        @default {
-                            <p class="no-limits">Dates have no limits</p>
-                        }
-                    }
-                </div>
+                        <td>
+                            <input class="cell-input" maxlength="40" placeholder="Company" [value]="c.label"
+                                [attr.aria-label]="'Name of column ' + (i + 1)" (input)="patchColumn(c.uid, { label: $any($event.target).value })">
+                        </td>
 
-                <div class="switches">
-                    <label class="check">
-                        <input type="checkbox" [checked]="c.required" (change)="patchColumn(c.uid, { required: $any($event.target).checked })">
-                        <span>Required</span>
-                    </label>
-                    <button type="button" class="icon-btn" [disabled]="first" (click)="moveColumn(c.uid, -1)" [attr.aria-label]="'Move column ' + (i + 1) + ' up'"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i></button>
-                    <button type="button" class="icon-btn" [disabled]="last" (click)="moveColumn(c.uid, 1)" [attr.aria-label]="'Move column ' + (i + 1) + ' down'"><i class="fa-solid fa-arrow-down" aria-hidden="true"></i></button>
-                    <button type="button" class="remove-btn" [disabled]="draftColumns().length === 1" (click)="removeColumn(c.uid)">Remove</button>
-                </div>
-            </div>
-        }
+                        <td>
+                            <span class="control">
+                                <select class="cell-input has-caret" [value]="c.type" [attr.aria-label]="'Type of column ' + (i + 1)"
+                                    (change)="patchColumn(c.uid, { type: $any($event.target).value })"
+                                    [attr.title]="c.key ? 'Changing this is checked against every row first' : null">
+                                    @for (t of types; track t.value) { <option [value]="t.value" [selected]="t.value === c.type">{{ t.label }}</option> }
+                                </select>
+                                <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
+                            </span>
+                        </td>
+
+                        <td>
+                            @switch (c.type) {
+                                @case ('text') {
+                                    <input class="cell-input" type="number" min="1" max="1000" placeholder="No limit" [value]="c.maxLength ?? ''"
+                                        [attr.aria-label]="'Longest text in column ' + (i + 1)" (input)="patchColumn(c.uid, { maxLength: num($any($event.target).value) })">
+                                }
+                                @case ('number') {
+                                    <span class="limit-pair">
+                                        <input class="cell-input" type="number" step="any" placeholder="From" [value]="c.min ?? ''"
+                                            [attr.aria-label]="'Lowest in column ' + (i + 1)" (input)="patchColumn(c.uid, { min: num($any($event.target).value) })">
+                                        <input class="cell-input" type="number" step="any" placeholder="To" [value]="c.max ?? ''"
+                                            [attr.aria-label]="'Highest in column ' + (i + 1)" (input)="patchColumn(c.uid, { max: num($any($event.target).value) })">
+                                    </span>
+                                }
+                                @default {
+                                    <span class="no-limits">Dates have no limits</span>
+                                }
+                            }
+                        </td>
+
+                        <td>
+                            @if (c.type === 'text') {
+                                <textarea class="cell-area" rows="1" placeholder="Option, then Enter" title="Type an option and press Enter after each one. They become a dropdown when adding a row." [value]="c.choices"
+                                    [attr.aria-label]="'Dropdown options for column ' + (i + 1)" (input)="patchColumn(c.uid, { choices: $any($event.target).value })"></textarea>
+                            } @else {
+                                <span class="no-limits">Text columns only</span>
+                            }
+                        </td>
+
+                        <td class="mid">
+                            <label class="check cell-check">
+                                <input type="checkbox" [checked]="c.required" [attr.aria-label]="'Column ' + (i + 1) + ' is required'"
+                                    (change)="patchColumn(c.uid, { required: $any($event.target).checked })">
+                            </label>
+                        </td>
+
+                        <td class="mid">
+                            <span class="column-move">
+                                <button type="button" class="icon-btn" [disabled]="first" (click)="moveColumn(c.uid, -1)" [attr.aria-label]="'Move column ' + (i + 1) + ' up'"><i class="fa-solid fa-sort-up" aria-hidden="true"></i></button>
+                                <button type="button" class="icon-btn" [disabled]="last" (click)="moveColumn(c.uid, 1)" [attr.aria-label]="'Move column ' + (i + 1) + ' down'"><i class="fa-solid fa-sort-down" aria-hidden="true"></i></button>
+                            </span>
+                        </td>
+
+                        <td class="remove-col">
+                            @if (confirmRemove() === c.uid) {
+                                <span class="remove-ask" role="group" [attr.aria-label]="'Remove column ' + (i + 1) + '?'">
+                                    <button type="button" class="remove-btn" (click)="removeColumn(c.uid)">Remove</button>
+                                    <button type="button" class="edit-btn" (click)="confirmRemove.set(null)">Keep</button>
+                                </span>
+                            } @else {
+                                <button type="button" class="remove-btn icon-only" [disabled]="draftColumns().length === 1" (click)="confirmRemove.set(c.uid)"
+                                    [attr.aria-label]="'Remove column ' + (i + 1)" title="Remove this column"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
     </div>
 
     @if (hiddenColumns().length) {
@@ -118,11 +146,8 @@
     }
 
     <div class="editor-actions">
-        <button type="button" class="tool-btn" [disabled]="draftColumns().length >= limits.columns" (click)="addColumn()">
-            <i class="fa-solid fa-plus" aria-hidden="true"></i>Add a column
-        </button>
         <span class="spacer"></span>
-        <button type="button" class="cancel-btn" [disabled]="editorBusy()" (click)="editor.set(null)">Cancel</button>
+        <button type="button" class="cancel-btn" [disabled]="editorBusy()" (click)="closeEditor()">Cancel</button>
         <button type="button" class="add-btn" [disabled]="editorBusy()" (click)="saveTable()">
             @if (editorBusy()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Saving }
             @else { <i class="fa-solid fa-check" aria-hidden="true"></i>{{ editor() === 'new' ? 'Make the table' : 'Save' }} }
@@ -132,6 +157,7 @@
         <p class="field-error" role="alert"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ editorError() }}</p>
     }
 </section>
+</div>
 }
 
 @if (tableId() === null) {
@@ -313,7 +339,7 @@
                                     </button>
                                 </th>
                             }
-                            @if (auth.isManager()) { <th class="actions-col"><span class="sr-only">Actions</span></th> }
+                            @if (auth.isManager()) { <th class="actions-col"><span class="th">Actions</span></th> }
                         </tr>
                     </thead>
                     <tbody>
@@ -324,14 +350,8 @@
                                 }
                                 @if (auth.isManager()) {
                                     <td class="actions">
-                                        @if (confirmingRowId() === row.id) {
-                                            <span class="confirm-text">Are you sure?</span>
-                                            <button type="button" class="edit-btn" (click)="confirmingRowId.set(null)" aria-label="Cancel"><i class="fa-solid fa-xmark" aria-hidden="true"></i><span class="btn-text">Cancel</span></button>
-                                            <button type="button" class="remove-btn confirming" [attr.aria-label]="'Delete row ' + row.id" (click)="deleteRow(row)"><i class="fa-solid fa-trash" aria-hidden="true"></i><span class="btn-text">Delete</span></button>
-                                        } @else {
-                                            <button type="button" class="edit-btn" [attr.aria-label]="'Edit row ' + row.id" (click)="openRowForm(row)"><i class="fa-solid fa-pen" aria-hidden="true"></i><span class="btn-text">Edit</span></button>
-                                            <button type="button" class="remove-btn" [attr.aria-label]="'Delete row ' + row.id" (click)="confirmingRowId.set(row.id)"><i class="fa-solid fa-trash" aria-hidden="true"></i><span class="btn-text">Delete</span></button>
-                                        }
+                                        <button type="button" class="edit-btn" [attr.aria-label]="'Edit row ' + row.id" (click)="openRowForm(row)"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>
+                                            <button type="button" class="remove-btn" [attr.aria-label]="'Delete row ' + row.id" (click)="confirmingRowId.set(row.id)"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>
                                     </td>
                                 }
                             </tr>
@@ -366,4 +386,9 @@
         <p class="state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading the table</p>
     }
 </section>
+}
+
+@if (confirmingRowId() !== null) {
+    <app-confirm-popup [name]="'Row #' + confirmingRowId()" detail="will be deleted."
+        (no)="confirmingRowId.set(null)" (yes)="deleteRowById(confirmingRowId()!)" />
 }

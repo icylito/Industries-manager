@@ -1,3 +1,4 @@
+import { ConfirmPopup } from '../confirm-popup/confirm-popup';
 import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -15,7 +16,7 @@ type Panel =
   | { kind: 'import'; version: VersionSummary; preview: ImportPreview };
 
 @Component({
-  imports: [RouterLink],
+  imports: [RouterLink, ConfirmPopup],
   selector: 'app-history',
   styleUrls: ['../my-components/my-components.css', './history.css'],
   templateUrl: './history.html',
@@ -217,6 +218,7 @@ export class HistoryPage implements OnInit {
   // restore can't be dismissed out from under itself.
   @HostListener('document:keydown.escape')
   onEscape() {
+    this.menu.set(null);
     if (this.panel() && !this.busy()) this.close();
     if (this.restoreAsk() && !this.restoreBackupBusy()) this.closeRestoreBackup();
   }
@@ -303,7 +305,8 @@ export class HistoryPage implements OnInit {
   private show(panel: Panel) {
     this.reset();
     this.panel.set(panel);
-    setTimeout(() => document.getElementById('version-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    // Restore is a pop up, the others are panels under the list
+    if (panel.kind !== 'restore') setTimeout(() => document.getElementById('version-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }
 
   // View
@@ -371,9 +374,54 @@ export class HistoryPage implements OnInit {
     this.confirmingVersion.set(null);
   }
 
+  // The open hamburger menu of a saved version or a backup, and where it sits. It is drawn outside the tables because
+  // their scrolling box would clip it.
+  menu = signal<{ version: VersionSummary } | { backup: BackupEntry } | null>(null);
+  menuAt = signal({ top: 0, right: 0 });
+  menuVersion = computed(() => { const m = this.menu(); return m && 'version' in m ? m.version : null; });
+  menuBackup = computed(() => { const m = this.menu(); return m && 'backup' in m ? m.backup : null; });
+
+  toggleMenu(target: { version: VersionSummary } | { backup: BackupEntry }, event: MouseEvent) {
+    const open = this.menu();
+    const same = open && (('version' in target && 'version' in open && open.version.id === target.version.id)
+      || ('backup' in target && 'backup' in open && open.backup.id === target.backup.id));
+    if (same) {
+      this.menu.set(null);
+      return;
+    }
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    // Near the bottom of the window the menu opens upward so none of it is cut off
+    const room = 250;
+    const top = rect.bottom + 4 + room > window.innerHeight ? Math.max(8, rect.top - 4 - room) : rect.bottom + 4;
+    this.menuAt.set({ top: Math.round(top), right: Math.round(window.innerWidth - rect.right) });
+    this.menu.set(target);
+  }
+
+  // A click outside the menu closes it, a click on an item closes it too through the item's own handler
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(e: MouseEvent) {
+    if (!this.menu()) return;
+    if (!(e.target as HTMLElement | null)?.closest?.('.menu-btn, .menu')) this.menu.set(null);
+  }
+
+  // The up and down keys walk the menu items
+  onMenuKey(e: KeyboardEvent) {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const all = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])')];
+    const at = all.indexOf(document.activeElement as HTMLElement);
+    const next = e.key === 'ArrowDown' ? at + 1 : at - 1;
+    all[(next + all.length) % all.length]?.focus();
+  }
+
   // Delete asks in the row first, the same way Browse does, because a deleted version can't come back
   confirmingVersion = signal<number | null>(null);
   deletingVersion = signal<number | null>(null);
+
+  deleteVersionById(id: number) {
+    const v = this.versions().find(x => x.id === id);
+    if (v) this.deleteVersion(v);
+  }
 
   deleteVersion(v: VersionSummary) {
     if (v.pinned || this.deletingVersion() !== null) return;

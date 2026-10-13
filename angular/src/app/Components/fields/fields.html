@@ -10,135 +10,158 @@
         </div>
     </header>
 
-    <p class="intro">Change a label or a limit and press Save. A copy of the table is saved first, and every save becomes a new version you can see below.</p>
+    <p class="intro">Press the pencil on a field to change its label, limits or whether it is required, then press Save. A copy of the table is saved first, and every save becomes a new version you can see below.</p>
 
     @if (loading()) {
         <p class="state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading fields</p>
     } @else if (error()) {
         <p class="state state-error"><i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"></i>{{ error() }}</p>
     } @else {
-        <div class="field-list">
-            @for (f of draft(); track f.key) {
-                <div class="field-row" [class.hidden-field]="f.hidden">
-                    <div class="field-name">
+        <!-- The table is read only. Edit opens a pop up, and what it changes still waits for Save. A tick means the field is enforced: the API refuses a row without it. No tick means it may
+             be left empty, but a value that is given still has to follow the type and the limits. -->
+        <div class="table-wrap">
+            <table class="fields-table">
+                <thead>
+                    <tr>
+                        <th><span class="th">Field</span></th>
+                        <th><span class="th">Type</span></th>
+                        <th><span class="th">Limits</span></th>
+                        <th class="tick-col"><span class="th">Required</span></th>
+                        <th class="actions-col"><span class="th">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (f of draft(); track f.key) {
+                        <tr [class.hidden-field]="f.hidden">
+                            <td class="field-cell accent" data-label="Field">
+                                {{ f.label }}
+                                @if (waiting().has(f.key)) {
+                                    <span class="waiting" title="Waiting for a developer"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i>Waiting for a developer</span>
+                                }
+                            </td>
+
+                            <td class="muted" data-label="Type">{{ typeLabel(f.type) }}</td>
+
+                            <td class="muted" data-label="Limits">{{ limitText(f) }}</td>
+
+                            <td class="tick-col" data-label="Required">
+                                @if (f.required) {
+                                    <i class="fa-solid fa-check tick-mark" role="img" aria-label="Required"></i>
+                                } @else {
+                                    <span class="sr-only">Not required</span>
+                                }
+                            </td>
+
+                            <td class="actions" data-label="Actions">
+                                <!-- Three fixed slots so Edit sits in the middle on every row: Hide, Edit, Delete. Built in fields leave the other two empty. -->
+                                <span class="row-actions">
+                                    <span class="slot">
+                                        @if (f.custom) {
+                                            <label class="check hide-check" [attr.title]="f.hidden ? 'Hidden, untick to show it' : 'Tick to hide it from the form and the table'">
+                                                <input type="checkbox" [checked]="f.hidden" [attr.aria-label]="'Hide ' + f.label"
+                                                    (change)="update(f.key, { hidden: $any($event.target).checked })">
+                                                <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
+                                            </label>
+                                        }
+                                    </span>
+                                    <button type="button" class="edit-btn icon-btn" [attr.aria-label]="'Edit ' + f.label" title="Edit" (click)="startEdit(f)">
+                                        <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                                    </button>
+                                    <span class="slot">
+                                        @if (f.custom) {
+                                            <button type="button" class="remove-btn icon-btn" [attr.aria-label]="'Delete ' + f.label" title="Delete" (click)="startDelete(f)">
+                                                <i class="fa-solid fa-trash" aria-hidden="true"></i>
+                                            </button>
+                                        }
+                                    </span>
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (editing(); as f) {
+            <div class="modal-backdrop" (click)="closeEdit()" aria-hidden="true"></div>
+            <div class="modal-wrap">
+                <section class="modal edit-modal" role="dialog" aria-modal="true" aria-labelledby="edit-title">
+                    <h2 id="edit-title">Edit {{ f.label }}</h2>
+                    <form class="edit-form" (submit)="$event.preventDefault(); applyEdit()">
                         <label class="field">
                             <span class="field-label">Label</span>
                             <span class="control">
                                 <i class="fa-solid fa-tag" aria-hidden="true"></i>
-                                <input [value]="f.label" maxlength="40" (input)="update(f.key, { label: $any($event.target).value })">
+                                <input name="label" maxlength="40" [value]="editLabel()" (input)="editLabel.set($any($event.target).value)">
                             </span>
                         </label>
-                        <span class="tags">
-                            <span class="tag">{{ typeLabel(f.type) }}</span>
-                            <span class="tag">{{ f.custom ? 'Custom' : 'Built in' }}</span>
-                            @if (f.hidden) { <span class="tag">Hidden</span> }
-                            @if (waiting().has(f.key)) {
-                                <span class="tag waiting-tag" title="Waiting for a developer"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i>Waiting for a developer</span>
-                            }
-                        </span>
-                        @if (f.key === 'sector') {
-                            @if (f.options?.length) {
-                                <span class="tags">
-                                    @for (choice of f.options; track choice) {
-                                        <span class="tag">{{ choice }}</span>
-                                    }
+                        @if (f.type === 'text') {
+                            <label class="field">
+                                <span class="field-label">Longest <em>characters</em></span>
+                                <span class="control">
+                                    <i class="fa-solid fa-ruler-horizontal" aria-hidden="true"></i>
+                                    <input name="longest" type="number" min="1" placeholder="No limit" [value]="editMaxLength() ?? ''"
+                                        (input)="editMaxLength.set(num($any($event.target).value))">
                                 </span>
-                            }
-                            <p class="hint-line sector-hint">Ask a developer to change this list</p>
-                        }
-                    </div>
-
-                    <div class="limits">
-                        @switch (f.type) {
-                            @case ('text') {
-                                <label class="field">
-                                    <span class="field-label">Longest</span>
-                                    <span class="control">
-                                        <i class="fa-solid fa-ruler-horizontal" aria-hidden="true"></i>
-                                        <input type="number" min="1" placeholder="No limit" [value]="f.maxLength ?? ''"
-                                            (input)="update(f.key, { maxLength: num($any($event.target).value) })">
-                                        <span class="unit">characters</span>
-                                    </span>
-                                </label>
-                            }
-                            @case ('number') {
+                            </label>
+                        } @else if (f.type === 'number') {
+                            <div class="edit-pair">
                                 <label class="field">
                                     <span class="field-label">Lowest</span>
                                     <span class="control">
                                         <i class="fa-solid fa-arrow-down-1-9" aria-hidden="true"></i>
-                                        <input type="number" step="any" placeholder="None" [value]="f.min ?? ''"
-                                            (input)="update(f.key, { min: num($any($event.target).value) })">
+                                        <input name="lowest" type="number" step="any" placeholder="None" [value]="editMin() ?? ''"
+                                            (input)="editMin.set(num($any($event.target).value))">
                                     </span>
                                 </label>
                                 <label class="field">
                                     <span class="field-label">Highest</span>
                                     <span class="control">
                                         <i class="fa-solid fa-arrow-up-9-1" aria-hidden="true"></i>
-                                        <input type="number" step="any" placeholder="None" [value]="f.max ?? ''"
-                                            (input)="update(f.key, { max: num($any($event.target).value) })">
+                                        <input name="highest" type="number" step="any" placeholder="None" [value]="editMax() ?? ''"
+                                            (input)="editMax.set(num($any($event.target).value))">
                                     </span>
                                 </label>
-                            }
-                            @default {
-                                <p class="no-limits">Dates have no limits</p>
-                            }
+                            </div>
                         }
-                    </div>
-
-                    <div class="switches">
                         <label class="check" [class.locked]="f.key === 'name'"
                             [attr.title]="f.key === 'name' ? 'Name always has to be filled in' : null">
-                            <input type="checkbox" [checked]="f.required" [disabled]="f.key === 'name'"
-                                (change)="update(f.key, { required: $any($event.target).checked })">
-                            <span>Required</span>
+                            <input type="checkbox" [checked]="editRequired()" [disabled]="f.key === 'name'"
+                                (change)="editRequired.set($any($event.target).checked)">
+                            <span>Required: a row can't be saved without it</span>
                         </label>
+
                         @if (f.custom) {
-                            <label class="check">
-                                <input type="checkbox" [checked]="f.hidden" (change)="update(f.key, { hidden: $any($event.target).checked })">
-                                <span>Hide</span>
-                            </label>
-                            <button type="button" class="remove-btn" (click)="startDelete(f)">Delete</button>
-                        }
-                    </div>
-
-                    @if (deleting()?.key === f.key) {
-                        <div class="ask">
-                            <p><i class="fa-solid fa-circle-question" aria-hidden="true"></i>Delete {{ f.label }}? Its values go from every row; History keeps a copy.</p>
-                            <div class="confirm-row end">
-                                <button type="button" class="cancel-btn" [disabled]="deleteBusy()" (click)="deleting.set(null)">Cancel</button>
-                                <button type="button" class="add-btn danger" [disabled]="deleteBusy()" (click)="confirmDelete()">
-                                    @if (deleteBusy()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Deleting... }
-                                    @else { Delete }
-                                </button>
+                            <div class="edit-asks">
+                                @if (askingType() === f.key) {
+                                    <span class="control small">
+                                        <select [value]="askType()" (change)="askType.set($any($event.target).value)" aria-label="New type">
+                                            @for (t of types; track t.value) {
+                                                @if (t.value !== f.type) { <option [value]="t.value">{{ t.label }}</option> }
+                                            }
+                                        </select>
+                                        <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
+                                    </span>
+                                    <button type="button" class="edit-btn" (click)="sendTypeAsk(f)"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i>Ask a developer</button>
+                                    <button type="button" class="link-btn" (click)="askingType.set(null)">Cancel</button>
+                                } @else {
+                                    <button type="button" class="link-btn" (click)="startTypeAsk(f)">Change type</button>
+                                    <button type="button" class="link-btn" (click)="askRealColumn(f)">Make it a real column</button>
+                                }
                             </div>
-                            @if (deleteError()) {
-                                <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ deleteError() }}</p>
-                            }
-                        </div>
-                    }
+                        }
 
-                    @if (f.custom) {
-                        <div class="dev-asks">
-                            @if (askingType() === f.key) {
-                                <span class="control small">
-                                    <select [value]="askType()" (change)="askType.set($any($event.target).value)" aria-label="New type">
-                                        @for (t of types; track t.value) {
-                                            @if (t.value !== f.type) { <option [value]="t.value">{{ t.label }}</option> }
-                                        }
-                                    </select>
-                                    <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
-                                </span>
-                                <button type="button" class="edit-btn" (click)="sendTypeAsk(f)"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i>Ask a developer</button>
-                                <button type="button" class="link-btn" (click)="askingType.set(null)">Cancel</button>
-                            } @else {
-                                <button type="button" class="link-btn" (click)="startTypeAsk(f)">Change type</button>
-                                <button type="button" class="link-btn" (click)="askRealColumn(f)">Make it a real column</button>
-                            }
+                        @if (editError() || askError()) {
+                            <p class="field-error" role="alert"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ editError() || askError() }}</p>
+                        }
+                        <div class="form-actions">
+                            <button type="button" class="cancel-btn" (click)="closeEdit()">Cancel</button>
+                            <button type="submit" class="add-btn"><i class="fa-solid fa-check" aria-hidden="true"></i>Done</button>
                         </div>
-                    }
-                </div>
-            }
-        </div>
+                    </form>
+                </section>
+            </div>
+        }
 
         @if (askMsg()) {
             <p class="result small"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ askMsg() }} <a routerLink="/requests">See requests</a></p>
@@ -337,3 +360,11 @@
         <p class="state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading</p>
     }
 </section>
+
+@if (deleting(); as field) {
+    <app-confirm-popup [name]="field.label" detail="will be deleted. Its values go from every row; History keeps a copy." [busy]="deleteBusy()"
+        (no)="deleting.set(null)" (yes)="confirmDelete()" />
+    @if (deleteError()) {
+        <p class="field-error" role="alert"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ deleteError() }}</p>
+    }
+}

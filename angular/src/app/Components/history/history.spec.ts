@@ -1,4 +1,4 @@
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -37,14 +37,24 @@ describe('HistoryPage', () => {
     return fixture;
   }
 
+  // The actions of a row live in a menu that opens from the row's button, drawn outside the table
+  function menuItems(fixture: ComponentFixture<unknown>, row: Element): HTMLButtonElement[] {
+    const root = fixture.nativeElement as HTMLElement;
+    (row.querySelector('.menu-btn') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const items = Array.from(root.querySelectorAll<HTMLButtonElement>('.menu button[role="menuitem"]'));
+    return items;
+  }
+
   it('marks a damaged version and disables Restore and Bring back for it', () => {
     const fixture = setup();
     const rows = (fixture.nativeElement as HTMLElement).querySelectorAll('table.versions tbody tr');
     expect(rows[0].textContent).toContain('Damaged');
-    const buttons = Array.from(rows[0].querySelectorAll('button')).filter(b => /Restore|Bring back/.test(b.textContent ?? ''));
+    const buttons = menuItems(fixture, rows[0]).filter(b => /Restore|Bring back/.test(b.textContent ?? ''));
     expect(buttons.length).toBe(2);
     expect(buttons.every(b => b.disabled)).toBe(true);
-    const fine = Array.from(rows[1].querySelectorAll('button')).filter(b => /Restore|Bring back/.test(b.textContent ?? ''));
+    const fine = menuItems(fixture, rows[1]).filter(b => /Restore|Bring back/.test(b.textContent ?? ''));
+    expect(fine.length).toBe(2);
     expect(fine.every(b => !b.disabled)).toBe(true);
   });
 
@@ -98,9 +108,9 @@ describe('HistoryPage', () => {
     backups = [];
     const page = fixture.componentInstance;
     const rows = (fixture.nativeElement as HTMLElement).querySelectorAll('section.card table.versions tbody tr');
-    const restoreButtons = Array.from(rows).map(r => Array.from(r.querySelectorAll('button')).find(b => /Restore/.test(b.textContent ?? ''))!);
-    expect(restoreButtons[0].disabled).toBe(false);
-    expect(restoreButtons[1].disabled).toBe(true);
+    // One menu element is reused for every row, so each row's state is read while its own menu is open
+    const restoreDisabled = Array.from(rows).map(r => menuItems(fixture, r).find(b => /Restore/.test(b.textContent ?? ''))!.disabled);
+    expect(restoreDisabled).toEqual([false, true]);
     expect(rows[1].textContent).toContain('Other table layout');
 
     page.askRestoreBackup(backups[0] ?? backup('2026-10-07_020000_nightly'));
@@ -282,19 +292,22 @@ describe('HistoryPage', () => {
       .toBe('Before restoring version #2 — swapping in the october rows');
   });
 
-  // Orange flash on the way in, so the eye lands on the question. jsdom can't see the animation itself; Task 7 does.
-  it('marks the restore panel so it can glow as it opens', () => {
+  // Restore is a question, so it opens as a pop up over the page and is gone again on close
+  it('opens the restore question as a pop up', () => {
     const fixture = setup();
     const page = fixture.componentInstance;
 
     page.askRestore(version(1));
     fixture.detectChanges();
 
-    expect((fixture.nativeElement as HTMLElement).querySelector('#version-panel.glow')).toBeTruthy();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('#version-panel.restore-modal[role="dialog"]')).toBeTruthy();
+    expect(el.querySelector('.modal-backdrop')).toBeTruthy();
 
     page.close();
     fixture.detectChanges();
-    expect((fixture.nativeElement as HTMLElement).querySelector('#version-panel.glow')).toBeFalsy();
+    expect(el.querySelector('#version-panel')).toBeFalsy();
+    expect(el.querySelector('.modal-backdrop')).toBeFalsy();
   });
 
   it('says how old each saved copy is', () => {
@@ -396,12 +409,12 @@ describe('HistoryPage', () => {
     const fixture = setup();
     const page = fixture.componentInstance;
     const el = fixture.nativeElement as HTMLElement;
-    (el.querySelector('[aria-label="Delete version 1"]') as HTMLButtonElement).click();
+    page.confirmingVersion.set(1);
     fixture.detectChanges();
     http.expectNone(r => r.method === 'DELETE');
-    expect(el.textContent).toContain('Delete version #1 for good?');
+    expect(el.textContent).toContain('Are you sure?');
 
-    (el.querySelector('.remove-btn.confirming') as HTMLButtonElement).click();
+    (el.querySelector('app-confirm-popup .add-btn') as HTMLButtonElement).click();
     const del = http.expectOne(r => r.method === 'DELETE' && r.url.endsWith('/history/versions/1'));
     del.flush({ deleted: 1 });
     fixture.detectChanges();
@@ -425,8 +438,10 @@ describe('HistoryPage', () => {
     const page = fixture.componentInstance;
     page.versions.set([{ ...version(5), pinned: true }]);
     fixture.detectChanges();
-    const bin = (fixture.nativeElement as HTMLElement).querySelector('[aria-label="Pinned, unpin it to delete"]') as HTMLButtonElement;
+    const row = (fixture.nativeElement as HTMLElement).querySelector('table.versions tbody tr')!;
+    const bin = menuItems(fixture, row).find(b => /Delete/.test(b.textContent ?? ''))!;
     expect(bin.disabled).toBe(true);
+    expect(bin.title).toBe('Pinned, unpin it to delete');
     page.deleteVersion({ ...version(5), pinned: true });
     http.expectNone(r => r.method === 'DELETE');
   });
@@ -446,7 +461,7 @@ describe('HistoryPage', () => {
     const fixture = setup();
     fixture.componentInstance.versions.set([{ ...version(1), rowCount: 50001 }]);
     fixture.detectChanges();
-    expect((fixture.nativeElement as HTMLElement).querySelector('table.versions td.num')?.textContent).toContain('50,001');
+    expect((fixture.nativeElement as HTMLElement).querySelector('table.versions td.num-accent')?.textContent).toContain('50,001');
   });
 });
 

@@ -379,11 +379,21 @@
         </div>
     }
 
+    @if (colourPicker(); as open) {
+        <app-color-picker [value]="open.start" [anchor]="open.anchor" (previewed)="previewColour($event)" (picked)="setColour($event)" (closed)="closeColourPicker()"></app-color-picker>
+    }
+
     <ng-template #toneRow let-ids="ids">
         <span class="tones" role="group" aria-label="Paper colour">
             @for (tone of tones; track tone.key) {
                 <button type="button" class="tone {{ tone.key }}" [class.on]="allTone(ids, tone.key)" [attr.aria-pressed]="allTone(ids, tone.key)"
-                    [attr.aria-label]="tone.label + ' paper'" [attr.title]="tone.label + ' paper'" (click)="setTone(ids, tone.key)"></button>
+                    [attr.aria-label]="tone.label + ' paper'" [attr.title]="tone.label + ' paper. Double click to pick any colour'"
+                    (click)="setTone(ids, tone.key)" (dblclick)="openColourPicker(ids, $any($event.currentTarget), null)"></button>
+            }
+            @if (customOf(ids); as own) {
+                <button type="button" class="tone on" [style.background]="own" aria-pressed="true"
+                    [attr.aria-label]="'Your colour ' + own" [attr.title]="'Your colour ' + own + '. Click to change it'"
+                    (click)="openColourPicker(ids, $any($event.currentTarget), own)"></button>
             }
         </span>
     </ng-template>

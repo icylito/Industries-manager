@@ -1,4 +1,5 @@
-import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ConfirmPopup } from '../confirm-popup/confirm-popup';
+import { Component, DestroyRef, HostListener, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -20,7 +21,7 @@ interface DraftColumn {
   maxLength: number | null;
   min: number | null;
   max: number | null;
-  // The choices, one per line, for a text column. Empty means any text.
+  // The dropdown options, one per line, for a text column. Empty means any text.
   choices: string;
 }
 
@@ -32,7 +33,7 @@ let nextUid = 1;
 // Tables that managers and admins make, fill and delete, with no developer and no database change.
 // /tables lists them, /tables/:id opens one. Everyone signed in can look; only managers and admins see the buttons.
 @Component({
-  imports: [RouterLink],
+  imports: [RouterLink, ConfirmPopup],
   selector: 'app-tables',
   styleUrls: ['../my-components/my-components.css', '../history/history.css', '../fields/fields.css', './tables.css'],
   templateUrl: './tables.html',
@@ -278,6 +279,11 @@ export class TablesPage {
     });
   }
 
+  deleteRowById(id: number) {
+    const row = this.rows().find(r => r.id === id);
+    if (row) this.deleteRow(row);
+  }
+
   deleteRow(row: TableRow) {
     const id = this.tableId();
     if (id === null) return;
@@ -302,11 +308,24 @@ export class TablesPage {
 
   // ---- making and changing tables ----
 
+  // Cancel, the X, the dimmed page behind and Escape all close the pop up, but never while a save is running
+  closeEditor() {
+    if (!this.editorBusy()) this.editor.set(null);
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape() {
+    if (this.editor()) this.closeEditor();
+  }
+
   startNew() {
     this.draftName.set('');
     this.draftColumns.set([this.blankColumn()]);
     this.editorError.set('');
+    this.confirmRemove.set(null);
     this.editor.set('new');
+    // The table name is the first thing to type, so the cursor is already in it
+    setTimeout(() => document.querySelector<HTMLInputElement>('#table-editor .table-name input')?.focus());
   }
 
   startEdit() {
@@ -318,6 +337,7 @@ export class TablesPage {
       maxLength: c.maxLength, min: c.min, max: c.max, choices: (c.options ?? []).join('\n'),
     })));
     this.editorError.set('');
+    this.confirmRemove.set(null);
     this.editor.set('edit');
     this.closeRowForm();
   }
@@ -326,12 +346,23 @@ export class TablesPage {
     return { uid: nextUid++, key: null, label: '', type: 'text', required: false, maxLength: null, min: null, max: null, choices: '' };
   }
 
+  // The column whose Remove is waiting for its second press, so one slip of the mouse never drops a column
+  confirmRemove = signal<number | null>(null);
+
   addColumn() {
     if (this.draftColumns().length >= this.limits.columns) return;
     this.draftColumns.update(list => [...list, this.blankColumn()]);
+    // Bring the new column into view and put the cursor in its name, so a run of columns can be typed without the mouse
+    setTimeout(() => {
+      const rows = document.querySelectorAll<HTMLElement>('#table-editor .column-row');
+      const last = rows[rows.length - 1];
+      last?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      last?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true });
+    });
   }
 
   removeColumn(uid: number) {
+    this.confirmRemove.set(null);
     this.draftColumns.update(list => list.filter(c => c.uid !== uid));
   }
 

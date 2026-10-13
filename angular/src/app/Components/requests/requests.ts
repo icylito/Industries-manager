@@ -88,6 +88,8 @@ export class RequestsPage implements OnInit {
   // Asking for anything else
   title = signal('');
   details = signal('');
+  // Code the person drafted for it, shown under the request with "Show the drafted code"
+  code = signal('');
   sending = signal(false);
   sent = signal('');
   sendError = signal('');
@@ -96,7 +98,7 @@ export class RequestsPage implements OnInit {
     this.sending.set(true);
     this.sent.set('');
     this.sendError.set('');
-    this.api.askDeveloper(this.title().trim(), this.details().trim()).subscribe({
+    this.api.askDeveloper(this.title().trim(), this.details().trim(), this.code()).subscribe({
       next: res => {
         this.sending.set(false);
         this.sent.set(res.status === 200
@@ -104,6 +106,7 @@ export class RequestsPage implements OnInit {
           : 'Sent! the request will be shown in the list.');
         this.title.set('');
         this.details.set('');
+        this.code.set('');
         this.api.refreshRequestCount();
         if (this.filter() === 'open' || this.filter() === 'all') this.load();
       },

@@ -18,7 +18,9 @@ interface ItemBase { id: string; x: number; y: number; w: number; h: number; }
 // rail's "most expensive" list when it was added from there.
 export interface IndustryItem extends ItemBase { type: 'industry'; industryId: number; name: string; sector: string | null; price: number | null; rank: number | null; }
 // A sticky note or a text box. text is the plain form kept by boards saved before rich text.
-export interface PaperItem extends ItemBase { type: 'note' | 'text'; blocks: TextBlock[]; text?: string; tone: NoteTone; tilt: number; align?: TextAlign; }
+// color is a paper colour of the person's own, '#rrggbb', picked with the colour picker. It wins over tone, which stays
+// as the fallback for pages and boards that don't know it.
+export interface PaperItem extends ItemBase { type: 'note' | 'text'; blocks: TextBlock[]; text?: string; tone: NoteTone; color?: string; tilt: number; align?: TextAlign; }
 // A file or picture. fileId is null until the upload is done, or when it never finished. name is the original
 // file name, shown on the card and never used as a path.
 export interface FileItem extends ItemBase { type: 'file'; fileId: number | null; name: string; contentType: string; sizeBytes: number; }
@@ -27,7 +29,7 @@ export interface SnapItem extends ItemBase { type: 'snap'; snap: Snapshot; }
 // A pen or marker stroke. points is one flat list, x then y, measured from the stroke's own corner (x, y).
 export interface StrokeItem extends ItemBase { type: 'stroke'; kind: 'pen' | 'marker'; points: number[]; }
 // A drawn box with a paper colour, for framing an area of the board
-export interface RectItem extends ItemBase { type: 'rect'; tone: NoteTone; }
+export interface RectItem extends ItemBase { type: 'rect'; tone: NoteTone; color?: string; }
 
 export type BoardItem = IndustryItem | PaperItem | FileItem | SnapItem | StrokeItem | RectItem;
 export type BoardItemType = BoardItem['type'];

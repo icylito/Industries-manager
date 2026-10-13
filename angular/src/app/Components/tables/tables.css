@@ -1,24 +1,24 @@
 /* Tables page, builds on my-components.css, history.css and fields.css. Colours only from the variables. */
 
-#table-editor{
-    margin-bottom: 1.5rem;
+/* The pop up is wide because the columns sit side by side, and scrolls inside when it is tall */
+.modal.modal-wide{
+    max-width: min(72rem, 100%);
+    margin-bottom: 0;
+}
+
+/* The title and its buttons stay at the top while the pop up scrolls */
+.modal-wide .panel-head{
+    position: sticky;
+    top: -1.25rem;
+    z-index: 2;
+    margin-top: -1.25rem;
+    padding-top: 1.25rem;
+    background: var(--surface);
 }
 
 .table-name{
     max-width: 26rem;
     margin-bottom: 1rem;
-}
-
-.column-row .field-name{
-    display: grid;
-    grid-template-columns: 1fr 9rem;
-    gap: 0.6rem;
-}
-
-.column-row .switches{
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
 }
 
 .choices textarea{
@@ -48,6 +48,17 @@
 
 .spacer{
     flex: 1;
+}
+
+/* Cancel and Make the table stay in view at the bottom of the pop up, so a long set of columns never means scrolling to finish */
+.modal-wide .editor-actions{
+    position: sticky;
+    bottom: -1.4rem;
+    z-index: 2;
+    margin: 1rem -1.4rem -1.4rem;
+    padding: 0.85rem 1.4rem 1.4rem;
+    border-top: 1px solid var(--p-border);
+    background: var(--surface);
 }
 
 .hidden-columns{
@@ -204,4 +215,161 @@
         width: 100%;
         justify-content: center;
     }
+}
+
+/* Bin and New table are the same size and sit on one line */
+#tables-list .tools{
+    align-items: center;
+}
+
+#tables-list .tools .tool-btn, #tables-list .tools .add-btn{
+    margin: 0;
+    height: 44px;
+    padding: 0 20px;
+    border-radius: 10px;
+    border-color: var(--p-border);
+    font-size: 0.9rem;
+}
+
+/* The Actions heading and the buttons under it are centred in their column */
+th.actions-col .th, td.actions{
+    text-align: center;
+}
+
+/* A made table: a line between every column, the same in the heading and in the rows, however many columns it gets.
+   Each column keeps a minimum width, so a wide table scrolls sideways instead of squeezing its columns. */
+.user-table th + th, .user-table td + td{
+    border-left: 1px solid var(--p-border);
+}
+
+.user-table th:not(.actions-col), .user-table td:not(.actions){
+    min-width: 9rem;
+}
+
+/* The Actions column draws its own line with the shadow it is pinned with, so it gets no second one */
+.user-table th.actions-col, .user-table td.actions{
+    border-left: 0;
+    min-width: 0;
+    width: 1%;
+}
+
+/* Every column, the first one too, has its heading and its content centred. The Actions column does the same. */
+.user-table td:not(.actions){
+    text-align: center;
+}
+
+.user-table th:not(.actions-col) .sort-btn{
+    justify-content: center;
+}
+
+/* The columns of the new table, one per line: number, name, what it holds, limits, prefilled data, required, move, remove.
+   Name, Holds and Limits take the room. Required and Move are small, and Remove has its own cell at the far right. */
+.cols-wrap{
+    margin-top: 0.25rem;
+}
+
+.cols-table{
+    table-layout: fixed;
+}
+
+.cols-table th.idx, .cols-table td.idx{
+    width: 3rem;
+    text-align: center;
+}
+
+.cols-table th:nth-child(2){ width: 20%; }
+.cols-table th:nth-child(3){ width: 16%; }
+.cols-table th:nth-child(4){ width: 22%; }
+.cols-table th:nth-child(5){ width: 22%; }
+.cols-table th.mid{ width: 6.25rem; text-align: center; }
+.cols-table th.remove-col{ width: 9rem; text-align: center; }
+
+.cols-table th .th{
+    display: block;
+    padding: 0.8rem 0.75rem;
+    color: var(--p-muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.cols-table td{
+    padding: 0.55rem 0.75rem;
+    vertical-align: middle;
+    white-space: normal;
+}
+
+.cols-table td.mid, .cols-table td.remove-col{
+    text-align: center;
+}
+
+/* A divider and a little room set Remove apart from Move, so one is never hit for the other */
+.cols-table th.remove-col, .cols-table td.remove-col{
+    border-left: 1px solid var(--p-border);
+}
+
+.cell-input{
+    height: 2.5rem;
+    padding: 0 0.6rem;
+    font-size: 0.9rem;
+}
+
+.cols-table select.cell-input{
+    padding-right: 1.9rem;
+    padding-left: 0.6rem;
+}
+
+.cols-table .caret{
+    position: absolute;
+    right: 0.75rem;
+    pointer-events: none;
+    color: var(--faint);
+    font-size: 0.7rem;
+}
+
+.limit-pair{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+}
+
+.cell-area{
+    width: 100%;
+    min-height: 2.5rem;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.9rem;
+    line-height: 1.3;
+    resize: vertical;
+}
+
+.cell-area:focus-visible{
+    outline: none;
+    border-color: var(--text);
+    box-shadow: 0 0 0 4px var(--focus);
+}
+
+.cols-table .no-limits{
+    color: var(--faint);
+    font-size: 0.85rem;
+}
+
+.cell-check{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 2.5rem;
+}
+
+.column-move{
+    display: inline-flex;
+    gap: 0.3rem;
+}
+
+.remove-ask{
+    display: inline-flex;
+    gap: 0.35rem;
 }

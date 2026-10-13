@@ -149,6 +149,7 @@ form{
 /* Every box starts at the same height even when its label is one line and its neighbour's is two */
 .field-label{
     min-height: 1.1rem;
+    margin-bottom: 10px;
 }
 
 .field{
@@ -302,6 +303,7 @@ button:disabled{
 
 .add-btn, .cancel-btn{
     height: 2.75rem;
+    margin-top: 10px;
     padding: 0 1.25rem;
     border-radius: 10px;
     font-size: 0.9rem;
@@ -1054,6 +1056,7 @@ input.bad{
     /* The pinned Actions column shows icons only, so more of the table fits next to it */
     .actions .btn-text{
         display: none;
+        align-items: center;
     }
 
     form{
@@ -1129,4 +1132,57 @@ input.bad{
 .form-problem{
     grid-column: 1 / -1;
     margin: 0;
+}
+
+/* Edit pop up. The frame stays the same however many boxes the form gets, it scrolls inside when it is tall. */
+.modal-backdrop{
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: rgba(0, 0, 0, 0.16);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
+
+.modal-wrap{
+    position: fixed;
+    inset: 0;
+    z-index: 61;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    pointer-events: none;
+}
+
+.modal{
+    pointer-events: auto;
+    width: 100%;
+    max-width: 30rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    padding: 1.25rem 1.4rem 1.4rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: var(--pop-shadow);
+}
+
+/* The delete question is small and sits above the edit pop up if both are ever open */
+.confirm-modal{
+    max-width: 24rem;
+    z-index: 62;
+}
+.confirm-modal h2{
+    margin: 0 0 0.5rem;
+    font-size: 1.1rem;
+}
+.confirm-modal p{
+    margin: 0 0 1.1rem;
+    overflow-wrap: anywhere;
+}
+
+/* In the pop up the boxes stack one under another, however many there are */
+.modal form{
+    grid-template-columns: 1fr;
 }

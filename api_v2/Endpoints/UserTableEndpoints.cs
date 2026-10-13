@@ -149,7 +149,7 @@ public static class UserTableEndpoints
             }
             if (await NameTakenAsync(db, table.Name, id, ct))
             {
-                return Results.Conflict($"There's already a table called {table.Name}. Rename that one first");
+                return Results.Conflict($"There's already a table called {table.Name}. Rename that table to something else");
             }
             table.DeletedAt = null;
             table.Version += 1;
@@ -396,7 +396,7 @@ public static class UserTableEndpoints
 
     private static IResult NameTaken(string name) => Results.Conflict($"There's already a table called {name}");
 
-    private static IResult Stale() => Results.Problem("Someone else changed this at the same time. Reload and try again",
+    private static IResult Stale() => Results.Problem("Someone else did a change at the same time. Reload and try again later",
         statusCode: StatusCodes.Status409Conflict, title: "Changed meanwhile");
 
     private static IResult Limit(string message) => Results.Problem(message, statusCode: StatusCodes.Status409Conflict,

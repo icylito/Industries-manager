@@ -1,4 +1,5 @@
-import { Component, ElementRef, inject, input, output, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import { ConfirmPopup } from '../confirm-popup/confirm-popup';
 import { BoardsStore } from '../../board/boards-store';
 import { BoardEngine } from '../../board/board-engine';
 import { BoardSummary } from '../../models/board';
@@ -9,6 +10,7 @@ import { BoardSummary } from '../../models/board';
 @Component({
   selector: 'app-board-list',
   templateUrl: './board-list.html',
+  imports: [ConfirmPopup],
   styleUrl: './board-list.css',
 })
 export class BoardList {
@@ -21,6 +23,7 @@ export class BoardList {
 
   renaming = signal<number | null>(null);
   confirming = signal<number | null>(null);
+  confirmingBoard = computed(() => this.boards.list().find(x => x.id === this.confirming()) ?? null);
   busy = signal<number | null>(null);
   message = signal('');
   making = signal(false);

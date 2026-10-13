@@ -233,6 +233,9 @@ describe('UsersPage row actions', () => {
     fixture.detectChanges();
 
     (el().querySelector('.note-del') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    http.expectNone(r => r.method === 'DELETE');
+    (el().querySelector('app-confirm-popup .add-btn') as HTMLButtonElement).click();
     http.expectOne(r => r.method === 'DELETE' && r.url.endsWith('/users/2/notes/5')).flush(null, { status: 204, statusText: 'No Content' });
     http.expectOne(r => r.method === 'GET' && r.url.endsWith('/users/2/notes')).flush([]);
     fixture.detectChanges();

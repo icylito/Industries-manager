@@ -1,3 +1,4 @@
+import { ConfirmPopup } from '../confirm-popup/confirm-popup';
 import { Component, DestroyRef, HostListener, OnInit, inject, signal } from '@angular/core';
 import { sameName } from '../../services/name-key';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -14,6 +15,7 @@ type Pending = { user: AuthUser; action: RowAction };
   selector: 'app-users',
   styleUrls: ['../my-components/my-components.css', '../history/history.css', '../login/login.css', './users.css'],
   templateUrl: './users.html',
+  imports: [ConfirmPopup],
 })
 export class UsersPage implements OnInit {
   private api = inject(IndustryApi);
@@ -41,6 +43,8 @@ export class UsersPage implements OnInit {
   notes = signal<UserNote[]>([]);
   notesLoading = signal(false);
   notesBusy = signal(false);
+  // The note the delete pop up is asking about
+  confirmingNote = signal<UserNote | null>(null);
   noteText = signal('');
   // A temporary password is shown once, here, and gone when the page is left
   shown = signal<{ username: string; password: string; created: boolean } | null>(null);
@@ -186,8 +190,8 @@ export class UsersPage implements OnInit {
     this.notesBusy.set(true);
     this.error.set('');
     this.api.deleteUserNote(user.id, note.id).subscribe({
-      next: () => { this.notesBusy.set(false); this.loadNotes(user.id); },
-      error: (err: HttpErrorResponse) => { this.notesBusy.set(false); this.error.set(errorText(err)); },
+      next: () => { this.notesBusy.set(false); this.confirmingNote.set(null); this.loadNotes(user.id); },
+      error: (err: HttpErrorResponse) => { this.notesBusy.set(false); this.confirmingNote.set(null); this.error.set(errorText(err)); },
     });
   }
 

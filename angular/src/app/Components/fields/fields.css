@@ -1,35 +1,154 @@
 /* Fields page, builds on my-components.css and history.css */
 
-.field-list{
-    display: flex;
-    flex-direction: column;
-    border: 1px solid var(--p-border);
-    border-radius: 12px;
+/* One line per field, so a rule reads straight across: field, type, limits, then the two ticks. */
+.fields-table td{
+    padding: 0.95rem 1.25rem;
+    vertical-align: middle;
 }
 
-.field-row{
-    display: grid;
-    grid-template-columns: minmax(12rem, 1.3fr) minmax(10rem, 1.4fr) auto;
-    gap: 1rem;
-    align-items: end;
-    padding: 1rem 1.1rem;
-    border-bottom: 1px solid var(--p-border);
+/* The table is 100%. Required and Actions are the less important two and share 30%, the other 70% is split
+   evenly between Field, Type and Limits so they sit balanced and close, but not on top of each other. */
+.fields-table{
+    table-layout: fixed;
 }
 
-.field-row:last-child{
-    border-bottom: none;
+.fields-table th:nth-child(1){ width: 23.33%; }
+.fields-table th:nth-child(2){ width: 23.33%; }
+.fields-table th:nth-child(3){ width: 23.34%; }
+.fields-table th.tick-col{ width: 15%; }
+.fields-table th.actions-col{ width: 15%; }
+
+.fields-table th.tick-col .th, .fields-table th.actions-col .th{
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
 }
 
-.field-row.hidden-field{
+.fields-table td.tick-col{
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+}
+
+.fields-table td.actions{
+    padding: 0.95rem 0.5rem;
+}
+
+.fields-table tr.hidden-field{
     opacity: 0.55;
 }
 
-.field-name{
+.field-cell{
+    min-width: 12rem;
+}
+
+.fields-table td.accent{
+    font-weight: 600;
+    white-space: normal;
+}
+
+.sr-only{
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+}
+
+.tick-mark{
+    font-size: 0.85rem;
+}
+
+.hide-check{
+    height: auto;
+    gap: 0.35rem;
+    color: var(--p-muted);
+    font-size: 0.8rem;
+}
+
+/* One Actions column: Hide, Edit, Delete in three equal slots, so Edit is centered under the heading on every row */
+.row-actions{
+    display: inline-grid;
+    grid-template-columns: repeat(3, 2rem);
+    align-items: center;
+    justify-items: center;
+}
+
+.row-actions .slot{
+    display: flex;
+    justify-content: center;
+}
+
+.row-actions button + button{
+    margin-left: 0;
+}
+
+.fields-table th.actions-col, .fields-table td.actions{
+    text-align: center;
+}
+
+/* Edit and Delete are icons only, square, side by side */
+.icon-btn{
+    width: 2rem;
+    padding: 0;
+    justify-content: center;
+}
+
+.edit-form{
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
-    min-width: 0;
+    gap: 0.85rem;
 }
+
+.edit-pair{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+.edit-asks{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+}
+
+.edit-asks .link-btn{
+    margin-left: 0;
+    padding-right: 0.75rem;
+}
+
+.edit-modal h2{
+    margin: 0 0 1rem;
+    font-size: 1.1rem;
+    overflow-wrap: anywhere;
+}
+
+.waiting{
+    display: block;
+    margin-top: 0.3rem;
+    color: var(--p-text);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.no-limits{
+    color: var(--faint);
+    font-size: 0.85rem;
+}
+
+.fields-table th.tick-col, .fields-table td.tick-col{
+    text-align: center;
+}
+
+.fields-table th .th{
+    display: block;
+    padding: 0.85rem 1.1rem;
+    color: var(--p-muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
 
 .tags{
     display: flex;
@@ -52,43 +171,6 @@
 .waiting-tag{
     border-color: var(--p-text);
     color: var(--p-text);
-}
-
-.limits{
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
-    gap: 0.75rem;
-    align-self: start;
-    padding-top: 0;
-}
-
-.no-limits{
-    margin: 1.55rem 0 0;
-    color: var(--faint);
-    font-size: 0.85rem;
-    line-height: 2.75rem;
-}
-
-/* Room for the "characters" word, only on the boxes that have it */
-.limits input:has(+ .unit){
-    padding-right: 5.5rem;
-}
-
-.switches{
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem 1rem;
-    align-items: center;
-    align-self: start;
-    padding-top: 1.85rem;
-}
-
-.field-row .ask{
-    grid-column: 1 / -1;
-}
-
-.sector-hint{
-    margin: 0.15rem 0 0;
 }
 
 .queue{
@@ -126,9 +208,12 @@
     margin-left: auto;
 }
 
+/* Always in the last column of the add row and pushed to its right edge, so Add field ends exactly where Send fields does */
 .add-actions{
+    grid-column: -2 / -1;
     display: flex;
     flex-wrap: wrap;
+    justify-content: flex-end;
     gap: 0.5rem;
 }
 
@@ -176,24 +261,6 @@
     cursor: not-allowed;
 }
 
-.switches .check{
-    height: auto;
-}
-
-.dev-asks{
-    grid-column: 1 / -1;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem;
-    margin-top: -0.35rem;
-}
-
-.dev-asks .link-btn{
-    padding-left: 0;
-    padding-right: 0.75rem;
-}
-
 .control.small select{
     width: 9rem;
     height: 2rem;
@@ -224,15 +291,6 @@
 }
 
 @media (max-width: 760px) {
-    .field-row{
-        grid-template-columns: 1fr;
-        gap: 0.75rem;
-    }
-
-    .switches{
-        padding-top: 0;
-    }
-
     .save-bar{
         flex-wrap: wrap;
     }
@@ -268,4 +326,66 @@
     text-transform: none;
     letter-spacing: normal;
     font-size: inherit;
+}
+
+/* Type, origin and the sector choices as plain text lines, not bubbles */
+/* Phones: each field becomes a small card, with the column name in front of each value */
+@media (max-width: 760px) {
+    .fields-table thead{
+        display: none;
+    }
+
+    .fields-table, .fields-table tbody, .fields-table tr, .fields-table td{
+        display: block;
+        width: 100%;
+    }
+
+    .fields-table tr{
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--p-border);
+    }
+
+    .fields-table tbody tr:last-child{
+        border-bottom: none;
+    }
+
+    .fields-table td, .fields-table td.tick-col, .fields-table td.actions{
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        width: auto;
+        padding: 0.35rem 1.1rem;
+        border-bottom: none;
+        text-align: left;
+        position: static;
+        box-shadow: none;
+    }
+
+    .fields-table td::before{
+        content: attr(data-label);
+        color: var(--p-muted);
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .fields-table td.field-cell{
+        flex-wrap: wrap;
+    }
+
+    .fields-table td.actions:empty{
+        display: none;
+    }
+}
+
+.edit-form .field{
+    width: 100%;
+}
+
+.edit-form .form-actions{
+    align-self: stretch;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
 }

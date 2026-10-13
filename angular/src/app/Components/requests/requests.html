@@ -17,6 +17,11 @@
             <textarea rows="3" maxlength="2000" placeholder="Only the rows we filtered, not the whole table"
                 [value]="details()" (input)="details.set($any($event.target).value)"></textarea>
         </label>
+        <label class="field code-field">
+            <span class="field-label">Code <em>optional</em></span>
+            <textarea class="code-input" rows="5" maxlength="20000" spellcheck="false" placeholder="Paste code you drafted for this"
+                [value]="code()" (input)="code.set($any($event.target).value)"></textarea>
+        </label>
         <div class="send-row">
             <button type="button" class="add-btn" [disabled]="!title().trim() || sending()" (click)="send()">
                 @if (sending()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Sending }
@@ -60,56 +65,66 @@
             @if (filter() !== 'open') { <button type="button" class="link-btn" (click)="setFilter('open')">See the open ones</button> }
         </p>
     } @else {
-        <ul class="request-list">
-            @for (r of requests(); track r.id) {
-                <li class="request" [class.closed]="r.status !== 'open'">
-                    <div class="request-head">
-                        <span class="kind-icon"><i [class]="kinds[r.kind].icon" aria-hidden="true"></i></span>
-                        <div class="request-title">
-                            <h3>{{ r.title }}</h3>
-                            <p class="meta">
-                                <span>#{{ r.id }}</span>
-                                <span>{{ kinds[r.kind].label }}</span>
-                                <span>{{ formatDate(r.createdAt) }}</span>
-                                @if (r.status !== 'open') {
-                                    <span class="status">{{ r.status === 'done' ? 'Done' : 'Dismissed' }}@if (r.resolvedAt) { {{ ' ' + formatDate(r.resolvedAt) }}}</span>
+        <div class="table-wrap">
+            <table class="requests-table">
+                <thead>
+                    <tr>
+                        <th><span class="th">#</span></th>
+                        <th><span class="th">Request</span></th>
+                        <th><span class="th">Kind</span></th>
+                        <th><span class="th">Sent</span></th>
+                        <th><span class="th">Status</span></th>
+                        @if (auth.isAdmin()) { <th class="actions-col"><span class="th">Actions</span></th> }
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (r of requests(); track r.id) {
+                        <tr [class.closed]="r.status !== 'open'">
+                            <td class="id" data-label="#">#{{ r.id }}</td>
+                            <td class="request-cell" data-label="Request">
+                                <span class="request-title">{{ r.title }}</span>
+                                @if (r.details) {
+                                    <p class="details">{{ r.details }}</p>
                                 }
-                            </p>
-                        </div>
-                        @if (auth.isAdmin()) {
-                        <div class="request-actions">
-                            @if (r.status === 'open') {
-                                <button type="button" class="edit-btn" (click)="setStatus(r, 'done')"><i class="fa-solid fa-check" aria-hidden="true"></i>Done</button>
-                                <button type="button" class="edit-btn" (click)="setStatus(r, 'dismissed')"><i class="fa-solid fa-xmark" aria-hidden="true"></i>Dismiss</button>
-                            } @else {
-                                <button type="button" class="edit-btn" (click)="setStatus(r, 'open')"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Reopen</button>
+                                @if (r.draftedCode) {
+                                    <div class="code-head">
+                                        <button type="button" class="link-btn" [class.open]="expanded().has(r.id)" [attr.aria-expanded]="expanded().has(r.id)" (click)="toggleCode(r.id)">
+                                            <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                                            {{ expanded().has(r.id) ? 'Hide the drafted code' : 'Show the drafted code' }}
+                                        </button>
+                                        @if (expanded().has(r.id)) {
+                                            <button type="button" class="link-btn copy-btn" [class.copied]="copied() === r.id" (click)="copy(r)">
+                                                <i class="fa-regular fa-copy" aria-hidden="true"></i>
+                                                <i class="fa-solid fa-check" aria-hidden="true"></i>
+                                                {{ copied() === r.id ? 'Copied' : 'Copy' }}
+                                            </button>
+                                        }
+                                    </div>
+                                    @if (expanded().has(r.id)) {
+                                        <pre class="code"><code>{{ r.draftedCode }}</code></pre>
+                                    }
+                                }
+                            </td>
+                            <td data-label="Kind"><span class="kind"><i [class]="kinds[r.kind].icon" aria-hidden="true"></i>{{ kinds[r.kind].label }}</span></td>
+                            <td class="muted" data-label="Sent">{{ formatDate(r.createdAt) }}</td>
+                            <td data-label="Status">
+                                <span class="status" [class.open]="r.status === 'open'">{{ r.status === 'open' ? 'Open' : r.status === 'done' ? 'Done' : 'Dismissed' }}</span>
+                                @if (r.status !== 'open' && r.resolvedAt) { <span class="muted resolved">{{ formatDate(r.resolvedAt) }}</span> }
+                            </td>
+                            @if (auth.isAdmin()) {
+                                <td class="actions" data-label="Actions">
+                                    @if (r.status === 'open') {
+                                        <button type="button" class="edit-btn" (click)="setStatus(r, 'done')"><i class="fa-solid fa-check" aria-hidden="true"></i>Done</button>
+                                        <button type="button" class="edit-btn" (click)="setStatus(r, 'dismissed')"><i class="fa-solid fa-xmark" aria-hidden="true"></i>Dismiss</button>
+                                    } @else {
+                                        <button type="button" class="edit-btn" (click)="setStatus(r, 'open')"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Reopen</button>
+                                    }
+                                </td>
                             }
-                        </div>
-                        }
-                    </div>
-                    @if (r.details) {
-                        <p class="details">{{ r.details }}</p>
+                        </tr>
                     }
-                    @if (r.draftedCode) {
-                        <div class="code-head">
-                            <button type="button" class="link-btn" [class.open]="expanded().has(r.id)" [attr.aria-expanded]="expanded().has(r.id)" (click)="toggleCode(r.id)">
-                                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
-                                {{ expanded().has(r.id) ? 'Hide the drafted code' : 'Show the drafted code' }}
-                            </button>
-                            @if (expanded().has(r.id)) {
-                                <button type="button" class="link-btn copy-btn" [class.copied]="copied() === r.id" (click)="copy(r)">
-                                    <i class="fa-regular fa-copy" aria-hidden="true"></i>
-                                    <i class="fa-solid fa-check" aria-hidden="true"></i>
-                                    {{ copied() === r.id ? 'Copied' : 'Copy' }}
-                                </button>
-                            }
-                        </div>
-                        @if (expanded().has(r.id)) {
-                            <pre class="code"><code>{{ r.draftedCode }}</code></pre>
-                        }
-                    }
-                </li>
-            }
-        </ul>
+                </tbody>
+            </table>
+        </div>
     }
 </section>

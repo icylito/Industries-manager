@@ -21,8 +21,18 @@
     font-weight: 600;
 }
 
+.num-accent{
+    text-align: left;
+}
+
 th.num .th{
-    text-align: right;
+    text-align: left;
+}
+
+/* The saved versions headers are black and bold, the text colour flips in dark mode so they stay readable */
+.versions th .th{
+    color: var(--text);
+    font-weight: 700;
 }
 
 td.what{
@@ -43,6 +53,7 @@ td.what{
 
 td.actions{
     white-space: nowrap;
+    align-items: center;
 }
 
 /* The buttons column is only as wide as its buttons, so the line before it sits halfway between Rows and the buttons.
@@ -199,21 +210,36 @@ tr.skipped td.notes{
     }
 }
 
-.panel.glow{
-    animation: restore-glow 1.4s ease-out both;
+/* The restore question: same dimmed backdrop and frame as the other pop ups, scrolls inside when it is tall */
+.modal-backdrop{
+    position: fixed;
+    inset: 0;
+    /* Below the edit pop up's wrapper (61) and the restore frame (71), so the blur only ever touches the page behind them */
+    z-index: 60;
+    background: rgba(0, 0, 0, 0.16);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
 }
 
-@media (prefers-reduced-motion: reduce){
-    .panel.glow{
-        animation: none;
-    }
+.panel.restore-modal{
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    z-index: 71;
+    width: min(36rem, calc(100vw - 2rem));
+    max-height: calc(100vh - 2rem);
+    margin: 0;
+    overflow-y: auto;
+    transform: translate(-50%, -50%);
+    box-shadow: var(--pop-shadow);
 }
 
-a.add-btn{
+.add-btn{
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
     text-decoration: none;
+    
 }
 
 /* Restore swaps out every row, so its button is the dark red Delete uses */
@@ -370,4 +396,114 @@ table.versions tr.just-added td{
 
 table.versions tr.just-added td:first-child{
     box-shadow: inset 3px 0 0 var(--signal);
+}
+
+/* One hamburger per row holds every action. The menu is drawn outside the tables so their scrolling box can't clip it. */
+.menu-btn{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+}
+
+.menu-btn:hover, .menu-btn[aria-expanded="true"]{
+    border-color: var(--text);
+}
+
+.menu{
+    position: fixed;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    min-width: 220px;
+    padding: 4px;
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: var(--pop-shadow);
+}
+
+.menu [role="menuitem"]{
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    gap: 0.6rem;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8125rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.menu [role="menuitem"] i{
+    width: 1rem;
+    text-align: center;
+}
+
+.menu [role="menuitem"]:hover:not([disabled]){
+    background: var(--hover);
+}
+
+.menu [role="menuitem"][disabled]{
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.menu [role="menuitem"].danger{
+    color: var(--danger);
+}
+
+/* Saved versions: a line between every column, and the same line in the header as in the rows, so the header and the
+   body read as one table. The Actions column draws its own line with the shadow it is pinned with. */
+.versions th + th, .versions td + td{
+    border-left: 1px solid var(--p-border);
+}
+
+.versions th.actions-col, .versions td.actions{
+    border-left: 0;
+    text-align: center;
+}
+
+.versions th.actions-col .th{
+    text-align: center;
+}
+
+/* The text on the left and its button pushed to the right, on one line. On a phone the button drops under the text. */
+.intro-row{
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.intro-row .intro{
+    margin: 0;
+}
+
+.intro-row .add-btn{
+    flex: none;
+}
+
+@media (max-width: 640px) {
+    .intro-row{
+        flex-direction: column;
+    }
+}
+
+/* The restore note's "how many more characters" line sits a little lower, clear of the buttons above it */
+.hint-line.note-hint{
+    margin-top: 20px;
 }

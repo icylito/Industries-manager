@@ -3,7 +3,7 @@
  * License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License)
  * Copyright 2024 Fonticons, Inc.
  *
- * Made by scripts/icons.mjs with only the 86 icons the app uses. Don't edit by hand: run the script.
+ * Made by scripts/icons.mjs with only the 85 icons the app uses. Don't edit by hand: run the script.
  */
 :root, :host {
   --fa-style-family-classic: 'Font Awesome 6 Free';
@@ -385,6 +385,8 @@
   --fa: "\f0b0"; }
 .fa-file-excel {
   --fa: "\f1c3"; }
+.fa-arrow-right {
+  --fa: "\f061"; }
 .fa-screwdriver-wrench {
   --fa: "\f7d9"; }
 .fa-circle-question {
@@ -429,8 +431,6 @@
   --fa: "\f0f3"; }
 .fa-plug-circle-xmark {
   --fa: "\e560"; }
-.fa-arrow-down {
-  --fa: "\f063"; }
 .fa-font {
   --fa: "\f031"; }
 .fa-magnifying-glass {
@@ -439,8 +439,6 @@
   --fa: "\f82a"; }
 .fa-chevron-down {
   --fa: "\f078"; }
-.fa-arrow-up {
-  --fa: "\f062"; }
 .fa-circle-user {
   --fa: "\f2bd"; }
 .fa-user-shield {

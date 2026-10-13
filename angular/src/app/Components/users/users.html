@@ -187,7 +187,7 @@
                             <p class="note-text">{{ n.text }}</p>
                             <p class="note-meta">
                                 <span>{{ n.createdBy }} · {{ formatNote(n.createdAt) }}</span>
-                                <button type="button" class="note-del" [disabled]="notesBusy()" (click)="removeNote(n)">Delete</button>
+                                <button type="button" class="note-del" [disabled]="notesBusy()" (click)="confirmingNote.set(n)">Delete</button>
                             </p>
                         </li>
                     }
@@ -205,4 +205,8 @@
             </div>
         </div>
     </div>
+}
+@if (confirmingNote(); as note) {
+    <app-confirm-popup name="This note" detail="will be deleted." [busy]="notesBusy()"
+        (no)="confirmingNote.set(null)" (yes)="removeNote(note)" />
 }

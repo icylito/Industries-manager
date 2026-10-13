@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace api_v2.Endpoints;
 
-public record AskBody(string? Title, string? Details);
+public record AskBody(string? Title, string? Details, string? Code = null);
 public record ColumnAsk(string? Label, string? Type, string? FieldKey, string? Details);
 public record TypeAsk(string? FieldKey, string? Type);
 public record StatusBody(string? Status);
@@ -36,8 +36,10 @@ public static class RequestEndpoints
             var errors = new Dictionary<string, string[]>();
             if (string.IsNullOrWhiteSpace(body.Title) || body.Title.Trim().Length > 120) errors["title"] = ["Say what you need in 1 to 120 characters"];
             if (body.Details?.Length > 2000) errors["details"] = ["Keep the details under 2000 characters"];
+            if (body.Code?.Length > RequestService.MaxCodeLength) errors["code"] = [$"Keep the code under {RequestService.MaxCodeLength} characters"];
             if (errors.Count > 0) return Results.ValidationProblem(errors);
-            var request = await RequestService.CreateAsync(db, locks, "other", body.Title!.Trim(), body.Details?.Trim() ?? "", null, user.Name, ct: ct);
+            var code = string.IsNullOrWhiteSpace(body.Code) ? null : body.Code.Trim('\r', '\n').TrimEnd();
+            var request = await RequestService.CreateAsync(db, locks, "other", body.Title!.Trim(), body.Details?.Trim() ?? "", code, user.Name, ct: ct);
             return request.Created
                 ? Results.Created($"/requests/{request.Request.Id}", request.Request)
                 : Results.Ok(request.Request);

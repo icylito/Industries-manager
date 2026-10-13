@@ -19,34 +19,10 @@
     </div>
 </section>
 
-<!-- Add / edit form, for people who are signed in -->
+<!-- Add / edit form, for people who are signed in. The form is written once and shown inline to add a row, or in a pop up to edit one. -->
 @if (auth.isSignedIn()) {
-<section class="card" id="add" [class.editing]="editingId() !== null">
-    <header class="card-head">
-        <h2>
-            <span class="title-icon">
-                @if (editingId() === null) {
-                    <i class="fa-solid fa-building" aria-hidden="true"></i>
-                } @else {
-                    <i class="fa-solid fa-pen" aria-hidden="true"></i>
-                }
-            </span>
-            {{ editingId() === null ? 'New industry' : 'Editing #' + editingId() }}
-        </h2>
-        @if (editingId() !== null) {
-            <span class="hint">Save or cancel your changes</span>
-        }
-    </header>
-
+<ng-template #entryForm>
     <!-- Rule chips come from the API's rules (GET /schema), nothing is hardcoded here -->
-    @if (ruleChips().length) {
-        <ul class="rules">
-            @for (chip of ruleChips(); track chip.key) {
-                <li><i [class]="chip.icon" aria-hidden="true"></i>{{ chip.text }}</li>
-            }
-        </ul>
-    }
-
     <form [formGroup]="form" (ngSubmit)="submit()" (input)="formError.set('')" (change)="formError.set('')">
         <!-- Each problem sits under its own box, aria-describedby ties them together for screen readers -->
         <label class="field">
@@ -169,7 +145,28 @@
             </button>
         </div>
     </form>
+</ng-template>
+
+@if (editingId() === null) {
+<section class="card" id="add">
+    <header class="card-head">
+        <h2><span class="title-icon"><i class="fa-solid fa-building" aria-hidden="true"></i></span>New industry</h2>
+    </header>
+    <ng-container [ngTemplateOutlet]="entryForm" />
 </section>
+} @else {
+<!-- Edit pop up: more fields later only means more boxes in the form above, this frame stays the same -->
+<div class="modal-backdrop" (click)="saving() ? null : cancelEdit()" aria-hidden="true"></div>
+<div class="modal-wrap">
+    <section class="modal" id="add" role="dialog" aria-modal="true" aria-labelledby="edit-title">
+        <header class="card-head">
+            <h2 id="edit-title"><span class="title-icon"><i class="fa-solid fa-pen" aria-hidden="true"></i></span>Stock #{{ editingId() }}</h2>
+            <button type="button" class="icon-btn" aria-label="Close" [disabled]="saving()" (click)="cancelEdit()"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+        </header>
+        <ng-container [ngTemplateOutlet]="entryForm" />
+    </section>
+</div>
+}
 } @else {
 <section class="card" id="add">
     <p class="hint-line"><i class="fa-solid fa-lock" aria-hidden="true"></i>You're looking at the table as a guest. <a routerLink="/login" [queryParams]="{ back: '/' }">Sign in</a> to add, edit or delete rows.</p>
@@ -372,22 +369,13 @@
                             }
                             @if (auth.isSignedIn()) {
                             <td class="actions">
-                                @if (confirmingId() === item.id) {
-                                    <!-- They pressed Delete on this row, so the question only stops a slip. The button carries the name for screen readers. -->
-                                    <span class="confirm-text">Are you sure?</span>
-                                    <button type="button" class="edit-btn" [disabled]="deletingId() === item.id" (click)="confirmingId.set(null)" aria-label="Cancel"><i class="fa-solid fa-xmark" aria-hidden="true"></i><span class="btn-text">Cancel</span></button>
-                                    <button type="button" class="remove-btn confirming" [attr.aria-label]="'Delete ' + item.name" [attr.title]="'Delete ' + item.name" [disabled]="deletingId() === item.id" (click)="remove(item.id)">
-                                        @if (deletingId() === item.id) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i><span class="btn-text">Deleting...</span> }
-                                        @else { <i class="fa-solid fa-trash" aria-hidden="true"></i><span class="btn-text">Delete</span> }
-                                    </button>
-                                } @else {
-                                    <button type="button" class="edit-btn" [attr.aria-label]="'Edit ' + item.name" (click)="edit(item)">
-                                        <i class="fa-solid fa-pen" aria-hidden="true"></i><span class="btn-text">Edit</span>
-                                    </button>
-                                    <button type="button" class="remove-btn" [attr.aria-label]="'Delete ' + item.name" (click)="confirmingId.set(item.id)">
-                                        <i class="fa-solid fa-trash" aria-hidden="true"></i><span class="btn-text">Delete</span>
-                                    </button>
-                                }
+                                <button type="button" class="edit-btn" [attr.aria-label]="'Edit ' + item.name" (click)="edit(item)">
+                                    <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                                </button>
+                                <!-- Delete only asks: the pop up below holds the Yes and No -->
+                                <button type="button" class="remove-btn" [attr.aria-label]="'Delete ' + item.name" (click)="confirmingId.set(item.id)">
+                                    <i class="fa-solid fa-trash" aria-hidden="true"></i>
+                                </button>
                             </td>
                             }
                         </tr>
@@ -403,6 +391,24 @@
         } @else {
             <p class="state"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>Nothing matches these filters.</p>
         }
+    }
+
+    <!-- Delete confirmation pop up, same frame as the edit pop up. Nothing is deleted until Yes. -->
+    @if (confirmingItem(); as target) {
+        <div class="modal-backdrop" (click)="deletingId() === null ? confirmingId.set(null) : null" aria-hidden="true"></div>
+        <div class="modal-wrap">
+            <section class="modal confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+                <h2 id="confirm-title">Are you sure?</h2>
+                <p>This deletes <strong>{{ target.name }}</strong> from the table.</p>
+                <div class="form-actions">
+                    <button type="button" class="cancel-btn" [disabled]="deletingId() === target.id" (click)="confirmingId.set(null)">No</button>
+                    <button type="button" class="add-btn" [disabled]="deletingId() === target.id" (click)="remove(target.id)">
+                        @if (deletingId() === target.id) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Deleting }
+                        @else { <i class="fa-solid fa-trash" aria-hidden="true"></i>Yes, delete }
+                    </button>
+                </div>
+            </section>
+        </div>
     }
 
     @if (!loading() && !error()) {

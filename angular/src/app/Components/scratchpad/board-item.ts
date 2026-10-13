@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { BoardItem, FileItem } from '../../models/board';
 import { KINDS, fileView } from '../../board/item-kinds';
+import { fold, isDark, isHex } from '../../board/colour';
+import { ColourPreview } from '../../board/colour-preview';
 import { NoteEditor } from './note-editor';
 import { FileCards } from './file-cards';
 import { typeLabel } from './board-files';
@@ -24,9 +26,12 @@ export type CardItem = Exclude<BoardItem, { type: 'stroke' }>;
     '[attr.data-kind]': 'item().type',
     '[class.selected]': 'picked()',
     '[class.link-from]': 'linkFrom()',
-    '[class.amber]': "tone() === 'amber'",
-    '[class.gray]': "tone() === 'gray'",
-    '[class.ink]': "tone() === 'ink'",
+    '[class.amber]': "!custom() && tone() === 'amber'",
+    '[class.gray]': "!custom() && tone() === 'gray'",
+    // A paper of the person's own colour takes the ink look (light text, light grip) when it is a dark one
+    '[class.ink]': "custom() ? customDark() : tone() === 'ink'",
+    '[style.--note-bg]': 'custom()',
+    '[style.--note-fold]': 'customFold()',
     '[class.picture]': "look() === 'image'",
     '[class.video]': "look() === 'video'",
     '[class.failed]': '!!meta()?.bad',
@@ -46,6 +51,7 @@ export class BoardItemView {
   alone = input(false);
 
   protected files = inject(FileCards);
+  private preview = inject(ColourPreview);
   protected readonly typeLabel = typeLabel;
   protected readonly snapWhen = snapWhen;
   protected readonly snapShade = snapShade;
@@ -54,6 +60,22 @@ export class BoardItemView {
   protected tone = computed(() => {
     const item = this.item();
     return 'tone' in item ? item.tone : null;
+  });
+  // A colour picked with the colour picker, when the thing has one. Anything that is not '#rrggbb' is ignored.
+  // The colour being tried in the picker wins while it is open, so the board follows the dial live
+  protected custom = computed(() => {
+    const item = this.item();
+    const trying = this.preview.state();
+    if (trying?.ids.has(item.id) && ('tone' in item)) return trying.color;
+    return 'color' in item && isHex(item.color) ? item.color : null;
+  });
+  protected customDark = computed(() => {
+    const color = this.custom();
+    return color ? isDark(color) : false;
+  });
+  protected customFold = computed(() => {
+    const color = this.custom();
+    return color ? fold(color) : null;
   });
   protected tilt = computed(() => {
     const item = this.item();

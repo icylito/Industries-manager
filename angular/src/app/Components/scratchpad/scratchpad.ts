@@ -13,6 +13,9 @@ import { KINDS, kindOf } from '../../board/item-kinds';
 import { Rect, bounds, clampZoom, linePath, strokePath, viewOnto, worldFromScreen, zoomAround } from '../../board/geometry';
 import { BoardTool, Draft, Gesture, PointerCtx, STROKE_WIDTH, TOOLS, ToolUi, hitTest, isEditable, panGesture } from '../../board/tools';
 import { BoardItemView } from './board-item';
+import { ColorPicker } from './color-picker';
+import { ColourPreview } from '../../board/colour-preview';
+import { cssToHex, isHex } from '../../board/colour';
 import { CompanyRail, INDUSTRY_DRAG, RailRow, placeIndustry } from './company-rail';
 import { FileCards } from './file-cards';
 import { PageNotice } from './page-notice';
@@ -29,7 +32,7 @@ import { SNAP_DRAG, snapWhen } from '../carry-tray/snapshot-look';
 // See OVERVIEW_HANDOFF.md for the feel this must keep.
 @Component({
   selector: 'app-scratchpad',
-  imports: [BoardItemView, CompanyRail, BoardList, ExplorerSection, NgTemplateOutlet, RouterLink],
+  imports: [BoardItemView, ColorPicker, CompanyRail, BoardList, ExplorerSection, NgTemplateOutlet, RouterLink],
   providers: [FileCards, PageNotice],
   templateUrl: './scratchpad.html',
   styleUrl: './scratchpad.css',
@@ -129,8 +132,7 @@ export class ScratchpadPage {
     if (tool === 'pen') return 'Draw by hand. Each stroke is one thing you can move, group or delete.';
     if (tool === 'marker') return 'Mark something out with a wide see-through stroke.';
     if (tool === 'rect') return 'Drag to draw a box around an area. Esc goes back to Select.';
-    return 'Drag a box on empty space to select several things. ' + this.shortcuts.mouseMod('mouse.add') + ' + click adds one, '
-      + this.shortcuts.mouseMod('mouse.dup') + ' + drag copies.';
+    return '';
   });
 
   layerTransform = computed(() => {
@@ -187,11 +189,18 @@ export class ScratchpadPage {
       untracked(() => void this.openWanted(id));
     });
 
-    // A saved board moves up the History list with its new count
+    // A board that was changed and saved moves to the top of the list with its new count. Only a real save does
+    // it: opening a board, or switching to one, leaves it where it was, the way a chat keeps its place until
+    // something new is said in it.
+    let lastSave: string = this.board.save();
+    let lastBoard = this.board.boardId();
     effect(() => {
       const state = this.board.save();
       const id = this.board.boardId();
-      if (state === 'saved' && id != null) untracked(() => this.boards.touched(id, this.board.doc().items.length));
+      const saved = lastSave === 'save' && state === 'saved' && id != null && id === lastBoard;
+      lastSave = state;
+      lastBoard = id;
+      if (saved) untracked(() => this.boards.touched(id, this.board.doc().items.length));
     });
 
     // Fonts used on the board are loaded once, so a note in Caveat shows in Caveat after a reload
@@ -602,12 +611,49 @@ export class ScratchpadPage {
     { key: 'white', label: 'White' }, { key: 'gray', label: 'Grey' }, { key: 'ink', label: 'Ink' }, { key: 'amber', label: 'Orange' },
   ];
 
-  allTone(items: BoardItem[], tone: NoteTone): boolean {
-    return items.length > 0 && items.every(item => ('tone' in item ? item.tone : 'white') === tone);
+  // A paper colour of the person's own sits beside the four, so they can see it is the one in use and open it again
+  customOf(items: BoardItem[]): string | null {
+    if (items.length === 0) return null;
+    const colours = items.map(item => ('color' in item && isHex(item.color) ? item.color : null));
+    return colours[0] && colours.every(c => c === colours[0]) ? colours[0] : null;
   }
 
+  allTone(items: BoardItem[], tone: NoteTone): boolean {
+    return items.length > 0 && items.every(item => !('color' in item && isHex(item.color)) && ('tone' in item ? item.tone : 'white') === tone);
+  }
+
+  // One of the four papers, which also lets go of a colour picked before
   setTone(items: BoardItem[], tone: NoteTone): void {
-    this.board.apply({ op: 'patch', ids: items.map(item => item.id), patch: { tone } });
+    this.board.apply({ op: 'patch', ids: items.map(item => item.id), patch: { tone, color: undefined } });
+  }
+
+  // The colour picker, opened by double clicking a paper colour. It starts from the colour that was clicked.
+  colourPicker = signal<{ ids: string[]; start: string; anchor: DOMRect } | null>(null);
+
+  openColourPicker(items: BoardItem[], swatch: HTMLElement, own: string | null): void {
+    const shown = own ?? cssToHex(getComputedStyle(swatch).backgroundColor) ?? '#ffffff';
+    this.colourPicker.set({ ids: items.map(item => item.id), start: shown, anchor: swatch.getBoundingClientRect() });
+  }
+
+  private colourPreview = inject(ColourPreview);
+
+  // Every move of the dial repaints the board at once, without saving anything
+  previewColour(color: string): void {
+    const open = this.colourPicker();
+    if (open && isHex(color)) this.colourPreview.show(open.ids, color);
+  }
+
+  // The colour that is kept: one undo step and one save, however long the dial was dragged
+  setColour(color: string): void {
+    const open = this.colourPicker();
+    if (!open || !isHex(color)) return;
+    this.board.apply({ op: 'patch', ids: open.ids, patch: { color } });
+    this.colourPreview.show(open.ids, color);
+  }
+
+  closeColourPicker(): void {
+    this.colourPicker.set(null);
+    this.colourPreview.clear();
   }
 
   setAlign(align: TextAlign): void {
