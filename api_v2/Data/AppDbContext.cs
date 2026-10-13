@@ -7,6 +7,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Industry> Industries => Set<Industry>();
     public DbSet<RuleVersion> RuleVersions => Set<RuleVersion>();
     public DbSet<DevRequest> Requests => Set<DevRequest>();
+    public DbSet<RequestMessage> RequestMessages => Set<RequestMessage>();
     public DbSet<AppSetting> Settings => Set<AppSetting>();
     public DbSet<User> Users => Set<User>();
     public DbSet<Session> Sessions => Set<Session>();

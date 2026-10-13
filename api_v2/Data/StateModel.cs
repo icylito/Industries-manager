@@ -20,6 +20,12 @@ public static class StateModel
         model.Entity<AppSetting>().HasKey(s => s.Key);
         model.Entity<AppSetting>().Property(s => s.Value).HasColumnType("jsonb");
         model.Entity<DevRequest>().HasIndex(r => r.Status);
+        // The conversation on a request. Deleting a request takes its messages.
+        model.Entity<RequestMessage>().ToTable("RequestMessages");
+        model.Entity<RequestMessage>().Property(m => m.Author).HasMaxLength(60);
+        model.Entity<RequestMessage>().Property(m => m.Body).HasMaxLength(2000);
+        model.Entity<RequestMessage>().HasIndex(m => new { m.RequestId, m.Id });
+        model.Entity<RequestMessage>().HasOne<DevRequest>().WithMany().HasForeignKey(m => m.RequestId).OnDelete(DeleteBehavior.Cascade);
         model.Entity<User>().Property(u => u.Username).HasMaxLength(32);
         model.Entity<User>().Property(u => u.DisplayName).HasMaxLength(60);
         // The unique index on Username with the collation name_rule, skipping flagged clashes, is plain SQL in OneUsernameRule

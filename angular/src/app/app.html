@@ -60,9 +60,9 @@
             @if (auth.isSignedIn()) {
                 <a routerLink="/tables" routerLinkActive="active" aria-label="Tables"><i class="fa-solid fa-table" aria-hidden="true"></i><span>Tables</span></a>
                 <!-- The bell shows how many requests are waiting for a developer -->
-                <a routerLink="/requests" routerLinkActive="active" class="bell"
-                    [attr.aria-label]="api.openRequests() ? 'Requests, ' + api.openRequests() + ' open' : 'Requests'">
-                    <i class="fa-solid fa-bell" aria-hidden="true"></i><span>Requests</span>
+                <a routerLink="/requests" routerLinkActive="active" class="bell bell-mini"
+                    [attr.title]="'Requests'" [attr.aria-label]="api.openRequests() ? 'Requests, ' + api.openRequests() + ' open' : 'Requests'">
+                    <i class="fa-solid fa-bell" aria-hidden="true"></i>
                     @if (api.openRequests()) {
                         <b class="badge" aria-hidden="true">{{ api.openRequests() > 99 ? '99+' : api.openRequests() }}</b>
                     }

@@ -114,6 +114,20 @@ public sealed class BackupService(
         return dir is not null && TryRead(dir, out var entry) ? entry : null;
     }
 
+    // Removes one backup folder. The newest copy stays so there is always something to restore from.
+    public void Delete(string id)
+    {
+        if (Running) throw new BackupBusyException();
+        var dir = FolderOf(id) ?? throw new BackupUploadException("There's no backup with that id", StatusCodes.Status404NotFound);
+        var all = List();
+        if (all.Count <= 1)
+        {
+            throw new BackupUploadException("This is the only backup, so it stays. Take a new one first", StatusCodes.Status409Conflict);
+        }
+        DeleteFolder(dir);
+        log.LogInformation("Backup {Id} deleted", id);
+    }
+
     public bool Running
     {
         get { lock (_statusLock) return _running; }

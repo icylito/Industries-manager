@@ -225,3 +225,413 @@ textarea::placeholder{
     text-underline-offset: 0.15em;
     cursor: pointer;
 }
+
+/* Action column: just the words, centered, with room around them and no line that cuts it off from the other columns */
+.requests-table th.actions-col, .requests-table td.actions{
+    text-align: center;
+    border-left: 0;
+    box-shadow: none;
+}
+
+.requests-table th.actions-col .th{
+    text-align: center;
+}
+
+.requests-table td.actions .edit-btn{
+    padding-inline: 0.9rem;
+}
+
+.requests-table td.actions .edit-btn + .edit-btn{
+    margin-left: 0.4rem;
+}
+
+/* Status pills, the colour says where a ticket is */
+.status{
+    display: inline-block;
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--p-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.status[data-status='open']{
+    background: #af2b2b;
+    color: #fff;
+}
+
+.status[data-status='in-progress']{
+    background: #b7791f;
+    color: #fff;
+}
+
+.status[data-status='done']{
+    background: #2f7d4f;
+    color: #fff;
+}
+
+.requests-table .table-wrap, .table-wrap{
+    overflow: visible;
+}
+
+.request-title{
+    color: var(--p-text);
+    text-decoration: none;
+}
+
+.request-title:hover{
+    text-decoration: underline;
+}
+
+/* The row menu: one square button, its choices drop below it */
+.menu-host{
+    position: relative;
+    display: inline-block;
+}
+
+.kebab{
+    width: 2rem;
+    height: 2rem;
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+.kebab:hover, .kebab[aria-expanded='true']{
+    background: var(--border);
+}
+
+.row-menu{
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 20;
+    display: grid;
+    min-width: 12rem;
+    padding: 0.3rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    text-align: left;
+}
+
+.row-menu button{
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0.7rem;
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.85rem;
+    text-align: left;
+}
+
+.row-menu button:hover{
+    background: var(--hover);
+}
+
+.row-menu button.danger{
+    color: var(--danger);
+}
+
+/* The open ticket */
+.ticket-head{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0 1.1rem 1rem;
+}
+
+.ticket-title{
+    margin: 0 0 0.25rem;
+    font-size: 1.15rem;
+    line-height: 1.35;
+}
+
+.ticket-meta{
+    margin: 0;
+    font-size: 0.85rem;
+}
+
+.ticket-status{
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.ticket-details{
+    margin: 0;
+    padding: 0 1.1rem 1rem;
+    white-space: pre-wrap;
+    line-height: 1.55;
+}
+
+.ticket .code-head, .ticket .code{
+    margin-inline: 1.1rem;
+}
+
+.chat{
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    max-height: 28rem;
+    min-height: 8rem;
+    margin: 0.5rem 1.1rem 1rem;
+    padding: 1rem;
+    overflow-y: auto;
+    border-radius: 12px;
+    background: var(--surface-2);
+}
+
+.chat-empty{
+    margin: auto;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.bubble-row{
+    display: flex;
+    justify-content: flex-start;
+}
+
+.bubble-row.me{
+    justify-content: flex-end;
+}
+
+.bubble{
+    max-width: min(34rem, 85%);
+    padding: 0.55rem 0.8rem;
+    border-radius: 14px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+}
+
+.bubble-row.dev .bubble{
+    border-color: var(--border-strong);
+}
+
+.bubble-row.me .bubble{
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-text);
+}
+
+.bubble p{
+    margin: 0.15rem 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.45;
+}
+
+.bubble-meta{
+    font-size: 0.72rem;
+    font-weight: 600;
+    opacity: 0.75;
+}
+
+.bubble-meta em{
+    margin-left: 0.35rem;
+    padding: 0 0.35rem;
+    border-radius: 6px;
+    background: var(--surface-2);
+    color: var(--text);
+    font-style: normal;
+}
+
+.composer{
+    display: grid;
+    gap: 0.5rem;
+    padding: 0 1.1rem 1.1rem;
+}
+
+.composer textarea{
+    min-height: 3.5rem;
+}
+
+.composer-foot{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+/* Fixed to the window so a table's scrolling box can't clip it, placed by the script from the button's position */
+.row-menu{
+    position: fixed;
+    top: auto;
+    right: auto;
+}
+
+.row-menu button{
+    width: 100%;
+    justify-content: flex-start;
+}
+
+.row-menu button i{
+    width: 1rem;
+    text-align: center;
+}
+
+/* Everything fits in one row at desktop width: no sideways scroll, short dates, a title column that can shrink */
+.requests-table th .th, .requests-table td{
+    padding-inline: 0.9rem;
+}
+
+.requests-table .request-cell{
+    min-width: 9rem;
+}
+
+.requests-table td{
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.requests-table td.request-cell{
+    white-space: normal;
+}
+
+.requests-table th, .requests-table td.actions{
+    padding-left: 0;
+}
+
+.panel-head{
+    padding-inline: 0;
+}
+
+a.tool-btn{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+}
+
+.ticket-status .control select{
+    height: 2.25rem;
+}
+
+/* Every table in the app: the same gray band behind the whole header row and the same bold heading text.
+   Kept at the end of each page's style sheet so no page-specific rule left a column plain. */
+table thead th, table thead th.actions-col, table thead th.tick-col{
+    background-color: var(--surface-2);
+    border-bottom: 0;
+}
+
+table thead th .th, table thead th .sort-btn, table thead th .th-actions{
+    color: var(--text);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.fields-table .require-check, .fields-table .require-check input{
+    cursor: pointer;
+}
+
+.fields-table .require-check.locked, .fields-table .require-check.locked input{
+    cursor: not-allowed;
+}
+
+/* The whole row opens the conversation, so the name is not the only place to press */
+.requests-table tr.ticket-row{
+    cursor: pointer;
+}
+
+.requests-table tr.ticket-row:hover .request-title{
+    text-decoration: underline;
+}
+
+/* No lines between rows or columns in any table, a hover tint tells the rows apart */
+.fields-table td, .cols-table td, .versions td, .requests-table td, .industries td{
+    border-bottom: 0;
+}
+
+.fields-table tbody tr:hover, .cols-table tbody tr:hover{
+    background: var(--hover);
+}
+
+/* The ticket's contents all start on the same left edge as the panel's own content */
+.ticket .ticket-head, .ticket .ticket-details, .ticket .composer{
+    padding-inline: 0;
+}
+
+.ticket .chat, .ticket .code-head, .ticket .code{
+    margin-inline: 0;
+}
+
+.ticket .panel-head .tool-btn{
+    padding-left: 0;
+}
+
+.requests-table td.actions, .requests-table th.actions-col{
+    padding-inline: 1rem;
+    text-align: center;
+}
+
+/* One look for every row action everywhere: the same square ⋮ button and the same drop-down under it */
+.kebab, .menu-btn{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--text);
+    cursor: pointer;
+}
+
+.kebab:hover, .kebab[aria-expanded='true'], .menu-btn:hover, .menu-btn[aria-expanded='true']{
+    background: var(--border);
+    border: 0;
+}
+
+.menu, .row-menu{
+    min-width: 12rem;
+    padding: 0.3rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    text-align: left;
+}
+
+.menu [role='menuitem'], .row-menu [role='menuitem']{
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.5rem 0.7rem;
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-align: left;
+}
+
+.menu [role='menuitem']:hover:not([disabled]), .row-menu [role='menuitem']:hover:not([disabled]){
+    background: var(--hover);
+}
+
+.menu [role='menuitem'].danger, .row-menu [role='menuitem'].danger{
+    color: var(--danger);
+}
+
+.menu [role='menuitem'] i, .row-menu [role='menuitem'] i{
+    width: 1rem;
+    text-align: center;
+}
+
+/* The cell holding an open menu rises above the sticky Action cells of the rows under it, so none of the menu is covered */
+td.actions:has(.row-menu){
+    z-index: 30;
+}
+
+/* The pinned Action cell takes the same hover tint as the rest of its row, so the row reads as one band */
+tbody tr:hover td.actions{
+    background-image: linear-gradient(var(--hover), var(--hover));
+}

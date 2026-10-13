@@ -3,6 +3,7 @@ import { Component, signal, computed, inject, OnInit, HostListener, DestroyRef }
 import { Industry, CreateIndustry, DbHealth, FieldRule, RuleSet } from '../../models/industry';
 import { Auth } from '../../services/auth';
 import { IndustryApi } from '../../services/industry-api';
+import { countUp } from '../../services/count-up';
 import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
@@ -40,12 +41,20 @@ export class MyComponents implements OnInit {
     release: [''],
   })
 
-  // The two sectors people pick. Anything else only shows while editing a row that already has it.
-  sectorChoices = ['Public Sector', 'Private Sector'];
+  // The sectors the form offers. When the rules carry a list (from config) that list is the only thing the API
+  // accepts, so it is what shows. With no list, whatever sectors the table already has are offered, so a new
+  // sector appears as soon as one row uses it. Nothing here is written by hand.
+  sectorChoices = computed(() => {
+    const listed = (this.rules()?.fields.find(f => f.key === 'sector')?.options ?? []).map(o => o.trim()).filter(o => o.length > 0);
+    return listed.length ? listed : this.sectors();
+  });
+
+  // True when the rules carry a list of sectors, which is then the only thing the API accepts
+  sectorListed = computed(() => (this.rules()?.fields.find(f => f.key === 'sector')?.options ?? []).some(o => o.trim().length > 0));
 
   otherSector(): string | null {
     const value = this.form.controls.sector.value;
-    if (!value || this.sectorChoices.includes(value)) return null;
+    if (!value || this.sectorChoices().includes(value)) return null;
     return value;
   }
 // signals for error, saving, editingId, formError
@@ -56,6 +65,9 @@ export class MyComponents implements OnInit {
   error = signal('');
   saving = signal(false);
   editingId = signal<number | null>(null);
+  // The add form is open in its pop up. Editing uses the same pop up, see editingId.
+  creating = signal(false);
+  added = signal('');
   formError = signal('');
 
    submit() {
@@ -80,6 +92,7 @@ export class MyComponents implements OnInit {
     this.saving.set(true);
     this.formError.set('');
     this.deleted.set('');
+    this.added.set('');
 
     const id = this.editingId();
 
@@ -88,9 +101,10 @@ export class MyComponents implements OnInit {
       this.api.create(body).subscribe({
         next: created => {
           this.industries.update(list => [...list, created]);
-          this.form.reset({ sector: '' });
-          this.extraValues.set({});
+          this.cancelEdit();
+          this.added.set(`Added ${created.name} as #${created.id}.`);
           this.saving.set(false);
+          this.loadActivity();
         },
         error: err => {
           this.formError.set(this.errorMessage(err));
@@ -107,6 +121,7 @@ export class MyComponents implements OnInit {
           this.saving.set(false);
           // Reload so flags that cleared on save (similar row, couldn't be brought over) update too
           this.loadIndustries();
+          this.loadActivity();
         },
         error: err => {
           this.formError.set(this.errorMessage(err));
@@ -143,9 +158,6 @@ export class MyComponents implements OnInit {
   }
 
   private applyRules(fields: FieldRule[]) {
-    const sector = fields.find(f => f.key === 'sector');
-    const options = (sector?.options ?? []).map(o => o.trim()).filter(o => o.length > 0);
-    this.sectorChoices = options.length ? options : ['Public Sector', 'Private Sector'];
     for (const rule of fields) {
       const control = this.form.get(rule.key);
       if (!control) continue;
@@ -249,7 +261,7 @@ export class MyComponents implements OnInit {
 
   private ruleText(rule: FieldRule): string {
     if (rule.key === 'sector') {
-      const choices = rule.options?.length ? rule.options : this.sectorChoices;
+      const choices = rule.options?.length ? rule.options : this.sectorChoices();
       return `${rule.label}, ${choices.join(' or ')}`;
     }
     if (rule.type === 'text' && rule.maxLength !== null) return `${rule.label}, up to ${rule.maxLength} characters`;
@@ -293,6 +305,7 @@ export class MyComponents implements OnInit {
           this.loadRules();
           this.loadIndustries();
           this.loadWaiting();
+          this.loadActivity();
           this.watchHistory();
         }
         else if (health.state === 'failed') {
@@ -343,6 +356,7 @@ export class MyComponents implements OnInit {
         this.confirmingId.set(null);
         this.industries.update(list => list.filter(i => i.id !== id));
         if (this.editingId() === id) this.cancelEdit();
+        this.added.set('');
         this.deleted.set(`Deleted ${gone.deleted} ${gone.deleted === 1 ? 'row' : 'rows'} from ${gone.table}: ${gone.name}.`);
       },
       // Delete logic if id found
@@ -372,7 +386,16 @@ export class MyComponents implements OnInit {
       });
     }
 
+    openAdd() {
+      this.cancelEdit();
+      this.added.set('');
+      this.deleted.set('');
+      this.creating.set(true);
+    }
+
     edit(item: Industry) {
+      this.menuRow.set(null);
+      this.creating.set(false);
       this.editingId.set(item.id);
       this.editingOriginal.set(item);
       this.changedMeanwhile.set(false);
@@ -390,6 +413,7 @@ export class MyComponents implements OnInit {
     }
 // Cancel button logic
     cancelEdit() {
+      this.creating.set(false);
       this.editingId.set(null);
       this.editingOriginal.set(null);
       this.changedMeanwhile.set(false);
@@ -639,6 +663,10 @@ export class MyComponents implements OnInit {
   constructor() {
     this.form.controls.release.valueChanges.subscribe(v => this.releaseValue.set(v || null));
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe(params => this.seedFromAddress(params));
+    // The nav's Add link goes to /#add, which opens the add pop up now that the form is not on the page
+    this.route.fragment.pipe(takeUntilDestroyed()).subscribe(fragment => {
+      if (fragment === 'add' && this.auth.isSignedIn()) this.openAdd();
+    });
   }
 
   private firstOfMonth(d: Date) {
@@ -741,7 +769,7 @@ export class MyComponents implements OnInit {
   private loadWaiting() {
     // The list of requests is for people who are signed in
     if (!this.auth.isSignedIn()) return;
-    this.api.requests('open').subscribe({
+    this.api.requests('active').subscribe({
       next: list => this.waitingFields.set(new Set(list.map(r => r.fieldKey).filter((k): k is string => !!k))),
       error: () => {},
     });
@@ -751,6 +779,52 @@ export class MyComponents implements OnInit {
     const key = columnKey.startsWith('extra:') ? columnKey.slice(6) : columnKey;
     return this.waitingFields().has(key);
   }
+
+  // New and Updated tags, from what was added or edited by hand in the last 30 days
+  activity = signal(new Map<number, { added: string | null; edited: string | null }>());
+
+  loadActivity() {
+    this.api.activity().subscribe({
+      next: list => this.activity.set(new Map(list.map(a => [a.rowId, { added: a.added, edited: a.edited }]))),
+      error: () => {},
+    });
+  }
+
+  // "updated" when the latest thing that happened to the row was a save from its edit form, "new" when it was
+  // added and not touched since. Rows with no recent activity have no tag.
+  tag(id: number): 'new' | 'updated' | null {
+    const a = this.activity().get(id);
+    if (!a) return null;
+    if (a.edited && (!a.added || a.edited > a.added)) return 'updated';
+    return a.added ? 'new' : null;
+  }
+
+  tagTitle(id: number): string {
+    const a = this.activity().get(id);
+    const tag = this.tag(id);
+    const when = tag === 'updated' ? a?.edited : a?.added;
+    if (!when) return '';
+    return `${tag === 'updated' ? 'Updated' : 'Added'} ${new Date(when).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`;
+  }
+
+  // The row whose action menu is open
+  menuRow = signal<number | null>(null);
+
+  // Where the open menu is drawn. It is fixed to the window, because the table's scrolling box would cut it off.
+  menuAt = signal({ top: 0, right: 0 });
+
+  toggleRowMenu(id: number, e: Event) {
+    e.stopPropagation();
+    const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const room = 110;
+    const top = box.bottom + 4 + room > window.innerHeight ? Math.max(8, box.top - 4 - room) : box.bottom + 4;
+    this.menuAt.set({ top, right: window.innerWidth - box.right });
+    this.menuRow.update(current => (current === id ? null : id));
+  }
+
+  // The filters past search, price and sector (release dates and "needs attention") sit behind one button
+  moreFilters = signal(false);
+  moreActive = computed(() => this.releaseFrom() !== null || this.releaseTo() !== null || this.flagFilter().size > 0);
 
   // Numbers for the stat cards
   sectorCount = computed(() =>
@@ -763,4 +837,16 @@ export class MyComponents implements OnInit {
     if (prices.length === 0) return '—';
     return (prices.reduce((sum, p) => sum + p, 0) / prices.length).toFixed(2);
   });
+
+  // The stat numbers count up to what they are. Declared last so what they read already exists.
+  industryTotal = countUp(computed(() => this.industries().length));
+  sectorTotal = countUp(this.sectorCount);
+  shownTotal = countUp(computed(() => this.sorted().length));
+
+  @HostListener('window:scroll')
+  @HostListener('window:resize')
+  @HostListener('document:click')
+  closeRowMenu() {
+    this.menuRow.set(null);
+  }
 }

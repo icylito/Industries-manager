@@ -101,21 +101,22 @@ describe('UsersPage row actions', () => {
     fixture.detectChanges();
   };
 
-  it('leaves one New password button, with the rest behind the hamburger', () => {
+  it('keeps every action, New password included, behind the one menu button', () => {
     setup();
 
     expect(row().querySelector('.menu')).toBeNull();
-    expect(row().querySelector('.edit-btn')?.textContent).toContain('New password');
+    expect(row().querySelector('.edit-btn')).toBeNull();
+    expect(row().querySelectorAll('button').length).toBe(1);
+    expect(row().textContent).not.toContain('New password');
     expect(row().textContent).not.toContain('Make admin');
-    expect(row().textContent).not.toContain('Turn off');
   });
 
   // A plain user is offered the two roles they don't have
-  it('offers turn off, make admin, make manager and delete account in the menu', () => {
+  it('offers new password, turn off, make admin, make manager and delete account in the menu', () => {
     setup();
     openMenu();
 
-    expect(items()).toEqual(['Turn off', 'Make admin', 'Make manager', 'Rename', 'Notes', 'Delete account']);
+    expect(items()).toEqual(['New password', 'Turn off', 'Make admin', 'Make manager', 'Rename', 'Notes', 'Delete account']);
   });
 
   // Seen in a real browser: inside the table the menu was clipped by the table's own scroll box, so only a sliver showed

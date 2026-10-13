@@ -93,6 +93,40 @@ namespace api_v2.Migrations.State
                     b.ToTable("Requests", (string)null);
                 });
 
+            modelBuilder.Entity("api_v2.Model.RequestMessage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Author")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("FromDeveloper")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("RequestId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequestId", "Id");
+
+                    b.ToTable("RequestMessages", (string)null);
+                });
+
             modelBuilder.Entity("api_v2.Model.ScratchBoard", b =>
                 {
                     b.Property<int>("Id")
@@ -373,6 +407,15 @@ namespace api_v2.Migrations.State
                         {
                             t.HasCheckConstraint("CK_UserSettings_Theme", "\"Theme\" IS NULL OR \"Theme\" IN ('light', 'dark')");
                         });
+                });
+
+            modelBuilder.Entity("api_v2.Model.RequestMessage", b =>
+                {
+                    b.HasOne("api_v2.Model.DevRequest", null)
+                        .WithMany()
+                        .HasForeignKey("RequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("api_v2.Model.ScratchBoard", b =>

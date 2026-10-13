@@ -243,11 +243,34 @@ export interface DevRequest {
     title: string;
     details: string;
     draftedCode: string | null;
-    status: 'open' | 'done' | 'dismissed';
+    status: 'open' | 'in-progress' | 'done' | 'dismissed';
     createdBy: string;
     fieldKey: string | null;
     resolvedAt: string | null;
     resolvedBy: string | null;
+    // How many messages the conversation has, only on the list
+    replies?: number;
+}
+
+export interface RequestMessage {
+    id: number;
+    requestId: number;
+    createdAt: string;
+    author: string;
+    fromDeveloper: boolean;
+    body: string;
+}
+
+export interface RequestThread {
+    request: DevRequest;
+    messages: RequestMessage[];
+}
+
+// GET /industries/activity: when a row was last added or edited by hand
+export interface RowActivity {
+    rowId: number;
+    added: string | null;
+    edited: string | null;
 }
 
 // Accounts. The API never sends a password hash.

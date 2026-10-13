@@ -1,5 +1,6 @@
 using api_v2.Auth;
 using api_v2.Data;
+using api_v2.Model;
 using api_v2.Requests;
 using api_v2.Rules;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +11,7 @@ public record AskBody(string? Title, string? Details, string? Code = null);
 public record ColumnAsk(string? Label, string? Type, string? FieldKey, string? Details);
 public record TypeAsk(string? FieldKey, string? Type);
 public record StatusBody(string? Status);
+public record MessageBody(string? Body);
 
 public static class RequestEndpoints
 {
@@ -17,18 +19,64 @@ public static class RequestEndpoints
     {
         var requests = app.MapGroup("/requests").RequireDatabaseReady().RequireSignIn();
 
-        // status is open (default), done, dismissed or all
+        // status is open (default), in-progress, done, dismissed, active (open or in-progress) or all
         requests.MapGet("/", async (string? status, AppDbContext db, CancellationToken ct) =>
         {
             var query = db.Requests.AsNoTracking();
             status ??= "open";
-            if (status != "all") query = query.Where(r => r.Status == status);
-            return Results.Ok(await query.OrderByDescending(r => r.Id).ToListAsync(ct));
+            if (status == "active") query = query.Where(r => r.Status == "open" || r.Status == "in-progress");
+            else if (status != "all") query = query.Where(r => r.Status == status);
+            return Results.Ok(await query.OrderByDescending(r => r.Id).Select(r => new
+            {
+                r.Id, r.CreatedAt, r.Kind, r.Title, r.Details, r.DraftedCode, r.Status, r.CreatedBy, r.FieldKey,
+                r.ResolvedAt, r.ResolvedBy,
+                Replies = db.RequestMessages.Count(m => m.RequestId == r.Id)
+            }).ToListAsync(ct));
+        });
+
+        // One request with its conversation, oldest message first
+        requests.MapGet("/{id:int}", async (int id, AppDbContext db, CancellationToken ct) =>
+        {
+            var request = await db.Requests.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id, ct);
+            if (request is null) return Results.NotFound("There's no request with that id");
+            var messages = await db.RequestMessages.AsNoTracking().Where(m => m.RequestId == id).OrderBy(m => m.Id).ToListAsync(ct);
+            return Results.Ok(new { request, messages });
+        });
+
+        // The person who asked and the admins talk here. Anyone else can read it but not write.
+        requests.MapPost("/{id:int}/messages", async (int id, MessageBody body, AppDbContext db, ICurrentUser user, AppLocks locks, CancellationToken ct) =>
+        {
+            var text = body.Body?.Trim() ?? "";
+            if (text.Length == 0 || text.Length > 2000)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["body"] = ["Write a message of 1 to 2000 characters"] });
+            }
+            await using var requestsLock = await locks.TakeAsync(AppLock.Requests, ct);
+            var request = await db.Requests.FindAsync([id], ct);
+            if (request is null) return Results.NotFound("There's no request with that id");
+            var isAsker = string.Equals(request.CreatedBy, user.Name, StringComparison.Ordinal);
+            if (!user.IsAdmin && !isAsker)
+            {
+                return Results.Json(new { message = "Only the person who asked and the admins can reply here" }, statusCode: StatusCodes.Status403Forbidden);
+            }
+            var message = new RequestMessage
+            {
+                RequestId = id,
+                CreatedAt = DateTimeOffset.UtcNow,
+                Author = user.Name,
+                FromDeveloper = user.IsAdmin,
+                Body = text
+            };
+            db.RequestMessages.Add(message);
+            // A developer answering means someone picked it up
+            if (user.IsAdmin && request.Status == "open") request.Status = "in-progress";
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new { message, status = request.Status });
         });
 
         // The number on the bell
         requests.MapGet("/count", async (AppDbContext db, CancellationToken ct) =>
-            Results.Ok(new { Open = await db.Requests.CountAsync(r => r.Status == "open", ct) }));
+            Results.Ok(new { Open = await db.Requests.CountAsync(r => r.Status == "open" || r.Status == "in-progress", ct) }));
 
         // Anything else the team needs a developer for
         requests.MapPost("/", async (AskBody body, AppDbContext db, ICurrentUser user, AppLocks locks, CancellationToken ct) =>
@@ -92,9 +140,9 @@ public static class RequestEndpoints
         requests.MapPut("/{id:int}/status", async (int id, StatusBody body, AppDbContext db, ICurrentUser user, AppLocks locks, CancellationToken ct) =>
         {
             await using var requestsLock = await locks.TakeAsync(AppLock.Requests, ct);
-            if (body.Status is not ("open" or "done" or "dismissed"))
+            if (body.Status is not ("open" or "in-progress" or "done" or "dismissed"))
             {
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Status has to be open, done or dismissed"] });
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Status has to be open, in-progress, done or dismissed"] });
             }
             var request = await db.Requests.FindAsync([id], ct);
             if (request is null) return Results.NotFound("There's no request with that id");
@@ -110,8 +158,9 @@ public static class RequestEndpoints
                 }
             }
             request.Status = body.Status;
-            request.ResolvedAt = body.Status == "open" ? null : DateTimeOffset.UtcNow;
-            request.ResolvedBy = body.Status == "open" ? null : user.Name;
+            var finished = body.Status is "done" or "dismissed";
+            request.ResolvedAt = finished ? DateTimeOffset.UtcNow : null;
+            request.ResolvedBy = finished ? user.Name : null;
             await db.SaveChangesAsync(ct);
             return Results.Ok(request);
         }).RequireAdmin();

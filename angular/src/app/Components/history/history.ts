@@ -1,6 +1,6 @@
 import { ConfirmPopup } from '../confirm-popup/confirm-popup';
 import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   BackupEntry, BackupRestorePreview, BackupRestoreResult, BackupStatus, ImportPreview, ImportResult, RestoreResult, SettingsFile,
@@ -25,6 +25,24 @@ export class HistoryPage implements OnInit {
   private api = inject(IndustryApi);
   // Managers only get the Backups card here. Saved versions, retention and the settings file stay admin only.
   auth = inject(Auth);
+
+  private router = inject(Router);
+  private route = inject(ActivatedRoute);
+
+  // Which part of the page shows, kept in the address (?tab=) so a reload or a shared link lands on the same one.
+  // A manager only has Backups.
+  tab = signal<'versions' | 'backups' | 'settings'>(this.startTab());
+
+  private startTab(): 'versions' | 'backups' | 'settings' {
+    const asked = this.route.snapshot.queryParamMap.get('tab');
+    if (!this.auth.isAdmin()) return 'backups';
+    return asked === 'backups' || asked === 'settings' ? asked : 'versions';
+  }
+
+  setTab(tab: 'versions' | 'backups' | 'settings') {
+    this.tab.set(tab);
+    this.router.navigate([], { queryParams: { tab: tab === 'versions' ? null : tab }, queryParamsHandling: 'merge', replaceUrl: true });
+  }
 
   versions = signal<VersionSummary[]>([]);
   loading = signal(true);
@@ -167,7 +185,7 @@ export class HistoryPage implements OnInit {
     this.uploadMsg.set('');
     this.uploadError.set('');
     if (!/\.zip$/i.test(file.name)) {
-      this.uploadError.set('Drop the .zip file that Download gave you.');
+      this.uploadError.set('That file type is not supported. Use the .zip that Download gave you.');
       return;
     }
     this.uploading.set(true);
@@ -421,6 +439,24 @@ export class HistoryPage implements OnInit {
   deleteVersionById(id: number) {
     const v = this.versions().find(x => x.id === id);
     if (v) this.deleteVersion(v);
+  }
+
+  confirmingBackup = signal<string | null>(null);
+  deletingBackup = signal(false);
+
+  deleteBackupById(id: string) {
+    if (this.deletingBackup()) return;
+    this.deletingBackup.set(true);
+    this.backupError.set('');
+    this.api.deleteBackup(id).subscribe({
+      next: () => { this.deletingBackup.set(false); this.confirmingBackup.set(null); this.loadBackups(); },
+      error: (err: HttpErrorResponse) => {
+        this.deletingBackup.set(false);
+        this.confirmingBackup.set(null);
+        this.backupError.set(errorText(err, "Couldn't delete that backup"));
+        this.loadBackups();
+      },
+    });
   }
 
   deleteVersion(v: VersionSummary) {

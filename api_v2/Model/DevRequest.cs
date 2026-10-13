@@ -11,7 +11,7 @@ public class DevRequest
     public required string Details { get; set; }
     // Code drafted for the developer, they still review it before using it
     public string? DraftedCode { get; set; }
-    // open, done or dismissed
+    // open, in-progress, done or dismissed
     public required string Status { get; set; }
     public required string CreatedBy { get; set; }
     // The field this is about, its column header shows a "waiting for a developer" marker while open

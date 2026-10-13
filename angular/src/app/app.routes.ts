@@ -24,5 +24,6 @@ export const routes: Routes = [
     { path: 'tables', canActivate: [signedInGuard], loadComponent: () => import('./Components/tables/tables').then(m => m.TablesPage), data: { title: 'Tables', lede: 'Create custom tables, experiment with it.' } },
     { path: 'tables/:id', canActivate: [signedInGuard], loadComponent: () => import('./Components/tables/tables').then(m => m.TablesPage), data: { title: 'Tables', lede: 'Create custom tables, experiment with it.' } },
     { path: 'requests', canActivate: [signedInGuard], loadComponent: () => import('./Components/requests/requests').then(m => m.RequestsPage), data: { title: 'Requests', lede: 'Things that need a developer, each with the steps written out for them.' } },
+    { path: 'requests/:id', canActivate: [signedInGuard], loadComponent: () => import('./Components/requests/requests').then(m => m.RequestsPage), data: { title: 'Ticket', lede: 'The conversation with the developers about one request.' } },
     { path: '**', redirectTo: '' },
 ];

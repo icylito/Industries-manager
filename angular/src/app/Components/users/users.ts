@@ -106,7 +106,10 @@ export class UsersPage implements OnInit {
       return;
     }
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    this.menuAt.set({ top: Math.round(rect.bottom + 4), right: Math.round(window.innerWidth - rect.right) });
+    // Near the bottom of the window the menu opens upward so none of it is cut off
+    const room = 310;
+    const top = rect.bottom + 4 + room > window.innerHeight ? Math.max(8, rect.top - 4 - room) : rect.bottom + 4;
+    this.menuAt.set({ top: Math.round(top), right: Math.round(window.innerWidth - rect.right) });
     this.menuFor.set(user);
   }
 

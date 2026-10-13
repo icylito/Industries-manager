@@ -107,6 +107,8 @@ describe('HistoryPage', () => {
     const fixture = setup();
     backups = [];
     const page = fixture.componentInstance;
+    page.setTab('backups');
+    fixture.detectChanges();
     const rows = (fixture.nativeElement as HTMLElement).querySelectorAll('section.card table.versions tbody tr');
     // One menu element is reused for every row, so each row's state is read while its own menu is open
     const restoreDisabled = Array.from(rows).map(r => menuItems(fixture, r).find(b => /Restore/.test(b.textContent ?? ''))!.disabled);
@@ -370,6 +372,8 @@ describe('HistoryPage', () => {
   it('closes the backup restore question on Escape too', () => {
     const fixture = setup();
     const page = fixture.componentInstance;
+    page.setTab('backups');
+    fixture.detectChanges();
 
     page.askRestoreBackup(backup('2026-10-07_020000_nightly'));
     http.expectOne(r => r.url.includes('/backups/')).flush({ rowCount: 300, currentRows: 3, rulesVersion: 1, historyReady: true });
@@ -379,6 +383,20 @@ describe('HistoryPage', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).querySelector('#restore-backup')).toBeNull();
+  });
+
+  it('shows one part at a time and keeps the tab in the address', () => {
+    const fixture = setup();
+    const page = fixture.componentInstance;
+    const html = fixture.nativeElement as HTMLElement;
+    expect(page.tab()).toBe('versions');
+    expect(html.querySelector('.drop-zone')).toBeNull();
+    page.setTab('backups');
+    fixture.detectChanges();
+    expect(html.querySelector('.drop-zone')).not.toBeNull();
+    page.setTab('settings');
+    fixture.detectChanges();
+    expect(html.querySelector('.drop-zone')).toBeNull();
   });
 
   it('shows ten saved versions a page and moves between pages', () => {

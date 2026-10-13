@@ -17,7 +17,7 @@ public static class RequestService
     {
         await using var requestsLock = await locks.TakeAsync(AppLock.Requests, ct);
         var open = await db.Requests.FirstOrDefaultAsync(
-            r => r.Status == "open" && r.Kind == kind && r.FieldKey == fieldKey && r.Title.ToLower() == title.ToLower(), ct);
+            r => (r.Status == "open" || r.Status == "in-progress") && r.Kind == kind && r.FieldKey == fieldKey && r.Title.ToLower() == title.ToLower(), ct);
         if (open is not null)
         {
             if (!string.IsNullOrWhiteSpace(details) && !open.Details.Contains(details) && open.Details.Length <= 8000)

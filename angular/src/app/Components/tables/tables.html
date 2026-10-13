@@ -18,11 +18,6 @@
         </div>
     </header>
 
-    <p class="intro">
-        Give it a name and the columns it needs. Up to {{ limits.columns }} columns.
-        @if (editor() === 'edit') { Removing a column hides it and keeps its values, so adding it back brings them back. }
-    </p>
-
     <label class="field table-name">
         <span class="field-label">Table name</span>
         <span class="control">
@@ -339,7 +334,7 @@
                                     </button>
                                 </th>
                             }
-                            @if (auth.isManager()) { <th class="actions-col"><span class="th">Actions</span></th> }
+                            @if (auth.isManager()) { <th class="actions-col"><span class="th">Action</span></th> }
                         </tr>
                     </thead>
                     <tbody>
@@ -350,8 +345,16 @@
                                 }
                                 @if (auth.isManager()) {
                                     <td class="actions">
-                                        <button type="button" class="edit-btn" [attr.aria-label]="'Edit row ' + row.id" (click)="openRowForm(row)"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>
-                                            <button type="button" class="remove-btn" [attr.aria-label]="'Delete row ' + row.id" (click)="confirmingRowId.set(row.id)"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>
+                                        <span class="menu-host">
+                                            <button type="button" class="kebab" aria-haspopup="menu" [attr.aria-expanded]="menuKey() === row.id"
+                                                [attr.aria-label]="'Actions for row ' + row.id" (click)="toggleMenu(row.id, $event)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+                                            @if (menuKey() === row.id) {
+                                                <div class="row-menu" role="menu" (click)="$event.stopPropagation()" [style.top.px]="menuAt().top" [style.right.px]="menuAt().right">
+                                                    <button type="button" role="menuitem" (click)="menuKey.set(null); openRowForm(row)"><i class="fa-solid fa-pen" aria-hidden="true"></i>Edit</button>
+                                                    <button type="button" role="menuitem" class="danger" (click)="menuKey.set(null); confirmingRowId.set(row.id)"><i class="fa-solid fa-trash" aria-hidden="true"></i>Delete</button>
+                                                </div>
+                                            }
+                                        </span>
                                     </td>
                                 }
                             </tr>

@@ -1,5 +1,20 @@
 <!-- Saved versions, retention and the settings file are for admins. A manager only gets the Backups card below. -->
+<!-- One page, three tabs, so nothing is an endless scroll. A manager only has Backups, so the tabs are for admins. -->
 @if (auth.isAdmin()) {
+<nav class="page-tabs" role="tablist" aria-label="History sections">
+    <button type="button" role="tab" class="page-tab" [class.on]="tab() === 'versions'" [attr.aria-selected]="tab() === 'versions'" (click)="setTab('versions')">
+        <i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>Saved versions
+    </button>
+    <button type="button" role="tab" class="page-tab" [class.on]="tab() === 'backups'" [attr.aria-selected]="tab() === 'backups'" (click)="setTab('backups')">
+        <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>Backups
+    </button>
+    <button type="button" role="tab" class="page-tab" [class.on]="tab() === 'settings'" [attr.aria-selected]="tab() === 'settings'" (click)="setTab('settings')">
+        <i class="fa-solid fa-gear" aria-hidden="true"></i>Settings
+    </button>
+</nav>
+}
+
+@if (auth.isAdmin() && tab() === 'versions') {
 <!-- Saved versions from the collector database. Nothing here deletes data without asking. -->
 
 <section class="panel">
@@ -31,7 +46,7 @@
                         <th><span class="th">#  </span></th>
                         <th><b><span class="th">What happened</span></b></th>
                         <th class="num"><b><span class="th">Record</span></b></th>
-                        <th class="actions-col"><b><span class="th">Actions</span></b></th>
+                        <th class="actions-col"><span class="th">Action</span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -54,7 +69,7 @@
                             <td class="actions">
                                 <button type="button" class="menu-btn" aria-haspopup="menu" [attr.aria-expanded]="menuVersion()?.id === v.id"
                                     [attr.aria-label]="'Actions for version ' + v.id" (click)="toggleMenu({ version: v }, $event)">
-                                    <i class="fa-solid fa-bars" aria-hidden="true"></i>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
                                 </button>
                             </td>
                         </tr>
@@ -308,13 +323,14 @@
         }
     </section>
 }
+}
 
+@if (auth.isAdmin() && tab() === 'settings') {
 <!-- How long old versions stay -->
 <section class="card">
     <header class="card-head">
         <h2><span class="title-icon"><i class="fa-solid fa-box-archive" aria-hidden="true"></i></span>Keep old versions</h2>
     </header>
-    <p class="intro">Leave both empty to keep everything. Pinned versions always stay.</p>
     <div class="settings-row">
         <label class="field">
             <span class="field-label">Keep the last</span>
@@ -361,7 +377,6 @@
     <header class="card-head">
         <h2><span class="title-icon"><i class="fa-solid fa-file-code" aria-hidden="true"></i></span>Settings file</h2>
     </header>
-    <p class="intro">Save how long old versions are kept and the field labels and limits to a file, or. Import saves the tables first, so you can go back from this page.</p>
     <div class="settings-row buttons">
         <button type="button" class="cancel-btn" (click)="exportSettings()">
             <i class="fa-solid fa-file-export" aria-hidden="true"></i>Export settings
@@ -398,6 +413,7 @@
 </section>
 }
 
+@if (!auth.isAdmin() || tab() === 'backups') {
 <!-- Full copies of both databases, outside Postgres -->
 <section class="card">
     <header class="card-head">
@@ -417,19 +433,22 @@
         <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ backupError() }}</p>
     }
 
-    <!-- A backup zip from Download, dropped back in. The API only accepts one this app made, then it joins the list. -->
-    <div class="drop-zone" [class.over]="dropOver()" (dragover)="onDragOver($event)" (dragleave)="dropOver.set(false)" (drop)="onDrop($event)">
-        <i class="fa-solid fa-file-zipper" aria-hidden="true"></i>
+    <!-- The whole box is the button: click or press Enter to choose a file, or drop one on it. The API only accepts a backup this app made. -->
+    <div class="drop-zone" role="button" tabindex="0" [class.over]="dropOver()" [class.busy]="uploading()"
+        [attr.aria-disabled]="uploading()" [attr.aria-label]="'Add a backup file. Supported: .zip'"
+        (click)="uploading() || backupFile.click()" (keydown.enter)="uploading() || backupFile.click()"
+        (keydown.space)="$event.preventDefault(); uploading() || backupFile.click()"
+        (dragover)="onDragOver($event)" (dragleave)="dropOver.set(false)" (drop)="onDrop($event)">
         @if (uploading()) {
-            <span><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Checking the file</span>
+            <span class="spin-ring" aria-hidden="true"></span>
+            <strong>Checking the file</strong>
         } @else {
-            <span>{{ dropOver() ? 'Let go to add it' : 'Drop a backup .zip here, or' }}</span>
-            @if (!dropOver()) {
-                <button type="button" class="link-btn" (click)="backupFile.click()">choose one</button>
-            }
+            <svg class="drop-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+            <strong>{{ dropOver() ? 'Let go to add it' : 'Drop a backup here or click to choose' }}</strong>
+            <span class="formats">Supported: <code>.zip</code>, the full backup you got from Download</span>
         }
-        <input #backupFile type="file" accept=".zip,application/zip" hidden (change)="chooseBackupFile(backupFile)">
     </div>
+    <input #backupFile type="file" accept=".zip,application/zip" hidden (change)="chooseBackupFile(backupFile)">
     @if (uploadMsg()) {
         <p class="result small" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ uploadMsg() }}</p>
     }
@@ -448,7 +467,7 @@
                     <tr>
                         <th><span class="th">When</span></th>
                         <th class="num"><span class="th">Size</span></th>
-                        <th class="actions-col"><span class="sr-only">Downloads and restore</span></th>
+                        <th class="actions-col"><span class="th">Action</span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -462,7 +481,7 @@
                             <td class="actions">
                                 <button type="button" class="menu-btn" aria-haspopup="menu" [attr.aria-expanded]="menuBackup()?.id === b.id"
                                     aria-label="Actions for this backup" (click)="toggleMenu({ backup: b }, $event)">
-                                    <i class="fa-solid fa-bars" aria-hidden="true"></i>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
                                 </button>
                             </td>
                         </tr>
@@ -513,6 +532,8 @@
         <p class="hint-line"><i class="fa-regular fa-calendar" aria-hidden="true"></i>Next nightly backup {{ formatDate(backupStatus()!.nextNightly) }}</p>
     }
 </section>
+}
+
 
 @if (menuVersion(); as v) {
     <!-- Drawn here, outside the tables: their scrolling box would clip it -->
@@ -540,6 +561,10 @@
             [attr.title]="b.signed ? 'The whole backup as one file, to keep somewhere else and drop back in here later' : 'Made before backups were signed, so it can only be restored from this list, not moved as a file'"><i class="fa-solid fa-file-zipper" aria-hidden="true"></i>Download</button>
         <button type="button" role="menuitem" (click)="downloadBackup(b, 'main')"><i class="fa-solid fa-database" aria-hidden="true"></i>Main</button>
         <button type="button" role="menuitem" (click)="downloadBackup(b, 'collector')"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>History</button>
+        @if (auth.isAdmin()) {
+            <button type="button" role="menuitem" class="danger" [disabled]="restoreBackupBusy() || deletingBackup()" (click)="confirmingBackup.set(b.id)"
+                title="Remove this backup for good"><i class="fa-solid fa-trash" aria-hidden="true"></i>Delete</button>
+        }
         <button type="button" role="menuitem" class="danger" [disabled]="restoreBackupBusy() || b.sameLayout === false" (click)="askRestoreBackup(b)"
             [attr.title]="b.sameLayout === false ? 'The table had other columns back then, a developer is needed for this one' : 'Put the table back the way it was in this backup'">
             <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore
@@ -548,6 +573,11 @@
 }
 
 <!-- Delete a version asks first: a deleted version can't come back -->
+@if (confirmingBackup() !== null) {
+    <app-confirm-popup [name]="'Backup ' + confirmingBackup()" detail="will be deleted for good." [busy]="deletingBackup()"
+        (no)="confirmingBackup.set(null)" (yes)="deleteBackupById(confirmingBackup()!)" />
+}
+
 @if (confirmingVersion() !== null) {
     <app-confirm-popup [name]="'Version #' + confirmingVersion()" detail="will be deleted for good." [busy]="deletingVersion() !== null"
         (no)="confirmingVersion.set(null)" (yes)="deleteVersionById(confirmingVersion()!)" />

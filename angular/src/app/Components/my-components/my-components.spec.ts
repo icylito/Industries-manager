@@ -41,9 +41,29 @@ describe('MyComponents', () => {
     // With an account all three are there
     TestBed.inject(Auth).user.set({ id: 1, username: 'sam', role: 'normal', disabled: false, mustChangePassword: false, createdAt: '', lastLoginAt: null });
     fixture.detectChanges();
+    // The form is in the pop up the Add button opens
+    expect(html.querySelector('form')).toBeNull();
+    (html.querySelector('.tools .add-btn') as HTMLButtonElement).click();
+    fixture.detectChanges();
     expect(html.querySelector('form')).not.toBeNull();
     expect(html.querySelector('th.actions-col')).not.toBeNull();
     expect(html.querySelector('td.actions')).not.toBeNull();
+  });
+
+  it('tags a row New or Updated from its recent activity, and offers the sectors the table has', () => {
+    component.industries.set([
+      { id: 1, name: 'Alpha', sector: 'Energy', price: 1, release: null, duplicateOf: null, importedFrom: null, lostFields: null, extra: null },
+      { id: 2, name: 'Beta', sector: 'Retail', price: 2, release: null, duplicateOf: null, importedFrom: null, lostFields: null, extra: null },
+    ]);
+    component.activity.set(new Map([
+      [1, { added: '2026-10-01T10:00:00Z', edited: null }],
+      [2, { added: '2026-10-01T10:00:00Z', edited: '2026-10-02T10:00:00Z' }],
+    ]));
+    expect(component.tag(1)).toBe('new');
+    expect(component.tag(2)).toBe('updated');
+    expect(component.tag(3)).toBeNull();
+    // With no list in the rules the form offers whatever the table already uses
+    expect(component.sectorChoices()).toEqual(['Energy', 'Retail']);
   });
 
   it('deletes only after the row asks, and never uses the browser popup', () => {

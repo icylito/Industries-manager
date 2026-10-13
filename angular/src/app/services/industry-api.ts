@@ -3,7 +3,7 @@ import { HttpClient, HttpErrorResponse, HttpResponse } from '@angular/common/htt
 import { MonoTypeOperatorFunction, Observable, retry, throwError, timer } from 'rxjs';
 import {
     Industry, CreateIndustry, UpdateIndustry, DbHealth, RuleSet, FieldRule, NewField, VersionSummary, VersionDetail,
-    ImportPreview, ImportResult, RestoreResult, Retention, BackupEntry, BackupStatus, BackupRestorePreview, BackupRestoreResult, DevRequest,
+    ImportPreview, ImportResult, RestoreResult, Retention, BackupEntry, BackupStatus, BackupRestorePreview, BackupRestoreResult, DevRequest, RequestThread, RequestMessage, RowActivity,
     SettingsFile, SettingsImportPreview, SettingsImportResult, AuthUser, NewUserResult, DeletedRow, FieldDeleted, UserNote,
 } from '../models/industry';
 import { environment } from '../../environments/environment';
@@ -142,6 +142,9 @@ export class IndustryApi {
     backupZipUrl(id: string): string {
         return `${this.apiUrl}/backups/${id}/download`;
     }
+    deleteBackup(id: string): Observable<void> {
+        return this.http.delete<void>(`${this.apiUrl}/backups/${id}`);
+    }
     // A backup zip dropped in. It is checked and added to the list; restoring it is a separate step.
     uploadBackup(file: File): Observable<BackupEntry> {
         const form = new FormData();
@@ -208,7 +211,7 @@ export class IndustryApi {
             error: () => {},
         });
     }
-    requests(status: 'open' | 'done' | 'dismissed' | 'all' = 'open'): Observable<DevRequest[]> {
+    requests(status: 'open' | 'in-progress' | 'active' | 'done' | 'dismissed' | 'all' = 'open'): Observable<DevRequest[]> {
         return this.http.get<DevRequest[]>(`${this.apiUrl}/requests`, { params: { status } }).pipe(this.retryTransient());
     }
     askDeveloper(title: string, details: string, code = ''): Observable<HttpResponse<DevRequest>> {
@@ -220,7 +223,17 @@ export class IndustryApi {
     askFieldType(fieldKey: string, type: string): Observable<DevRequest> {
         return this.http.post<DevRequest>(`${this.apiUrl}/requests/field-type`, { fieldKey, type });
     }
-    setRequestStatus(id: number, status: 'open' | 'done' | 'dismissed'): Observable<DevRequest> {
+    requestThread(id: number): Observable<RequestThread> {
+        return this.http.get<RequestThread>(`${this.apiUrl}/requests/${id}`);
+    }
+    replyToRequest(id: number, body: string): Observable<{ message: RequestMessage; status: DevRequest['status'] }> {
+        return this.http.post<{ message: RequestMessage; status: DevRequest['status'] }>(`${this.apiUrl}/requests/${id}/messages`, { body });
+    }
+    // Rows added or edited by hand in the last 30 days, for the New and Updated tags
+    activity(): Observable<RowActivity[]> {
+        return this.http.get<RowActivity[]>(`${this.apiUrl}/industries/activity`);
+    }
+    setRequestStatus(id: number, status: DevRequest['status']): Observable<DevRequest> {
         return this.http.put<DevRequest>(`${this.apiUrl}/requests/${id}/status`, { status });
     }
 }

@@ -4,12 +4,12 @@
 <section class="stats">
     <div class="stat">
         <span class="stat-icon"><i class="fa-solid fa-industry" aria-hidden="true"></i></span>
-        <span class="stat-value">{{ loading() ? '--' : count(industries().length) }}</span>
+        <span class="stat-value">{{ loading() ? '--' : count(industryTotal()) }}</span>
         <span class="stat-label">Industries</span>
     </div>
     <div class="stat">
         <span class="stat-icon"><i class="fa-solid fa-layer-group" aria-hidden="true"></i></span>
-        <span class="stat-value">{{ loading() ? '--' : sectorCount() }}</span>
+        <span class="stat-value">{{ loading() ? '--' : count(sectorTotal()) }}</span>
         <span class="stat-label">Sectors</span>
     </div>
     <div class="stat">
@@ -37,9 +37,10 @@
             <span class="field-label">Sector</span>
             <span class="control">
                 <i class="fa-solid fa-industry" aria-hidden="true"></i>
+                @if (sectorListed()) {
                 <select formControlName="sector" [class.placeholder]="!form.controls.sector.value" [attr.aria-describedby]="fieldProblem('sector') ? 'problem-sector' : null" [attr.aria-invalid]="fieldProblem('sector') ? true : null">
                     <option value="">Choose a sector</option>
-                    @for (choice of sectorChoices; track choice) {
+                    @for (choice of sectorChoices(); track choice) {
                         <option [value]="choice">{{ choice }}</option>
                     }
                     <!-- An older row can still show the sector it already has -->
@@ -48,6 +49,14 @@
                     }
                 </select>
                 <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
+                } @else {
+                <!-- No list in the rules: pick a sector the table already uses, or type a new one -->
+                <input formControlName="sector" list="sector-suggestions" placeholder="Choose or type a sector" autocomplete="off"
+                    [attr.aria-describedby]="fieldProblem('sector') ? 'problem-sector' : null" [attr.aria-invalid]="fieldProblem('sector') ? true : null">
+                <datalist id="sector-suggestions">
+                    @for (choice of sectorChoices(); track choice) { <option [value]="choice"></option> }
+                </datalist>
+                }
             </span>
             @if (fieldProblem('sector'); as p) { <span class="field-error inline" id="problem-sector"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ p }}</span> }
         </label>
@@ -147,30 +156,25 @@
     </form>
 </ng-template>
 
-@if (editingId() === null) {
-<section class="card" id="add">
-    <header class="card-head">
-        <h2><span class="title-icon"><i class="fa-solid fa-building" aria-hidden="true"></i></span>New industry</h2>
-    </header>
-    <ng-container [ngTemplateOutlet]="entryForm" />
-</section>
-} @else {
-<!-- Edit pop up: more fields later only means more boxes in the form above, this frame stays the same -->
+@if (creating() || editingId() !== null) {
+<!-- One pop up for adding and editing: more fields later only means more boxes in the form above, this frame stays the same -->
 <div class="modal-backdrop" (click)="saving() ? null : cancelEdit()" aria-hidden="true"></div>
 <div class="modal-wrap">
     <section class="modal" id="add" role="dialog" aria-modal="true" aria-labelledby="edit-title">
         <header class="card-head">
-            <h2 id="edit-title"><span class="title-icon"><i class="fa-solid fa-pen" aria-hidden="true"></i></span>Stock #{{ editingId() }}</h2>
+            <h2 id="edit-title">
+                @if (editingId() === null) {
+                    <span class="title-icon"><i class="fa-solid fa-building" aria-hidden="true"></i></span>New industry
+                } @else {
+                    <span class="title-icon"><i class="fa-solid fa-pen" aria-hidden="true"></i></span>Stock #{{ editingId() }}
+                }
+            </h2>
             <button type="button" class="icon-btn" aria-label="Close" [disabled]="saving()" (click)="cancelEdit()"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
         </header>
         <ng-container [ngTemplateOutlet]="entryForm" />
     </section>
 </div>
 }
-} @else {
-<section class="card" id="add">
-    <p class="hint-line"><i class="fa-solid fa-lock" aria-hidden="true"></i>You're looking at the table as a guest. <a routerLink="/login" [queryParams]="{ back: '/' }">Sign in</a> to add, edit or delete rows.</p>
-</section>
 }
 
 <!-- Table panel -->
@@ -203,6 +207,11 @@
             </span>
         </div>
         <div class="tools">
+            @if (auth.isSignedIn()) {
+                <button type="button" class="add-btn" (click)="openAdd()">
+                    <i class="fa-solid fa-plus" aria-hidden="true"></i>Add industry
+                </button>
+            }
             <button type="button" class="tool-btn" (click)="print()">
                 <i class="fa-solid fa-print" aria-hidden="true"></i>Print
             </button>
@@ -212,52 +221,51 @@
         </div>
     </header>
 
-    <!-- Column filters -->
-    <div class="filters">
+    <!-- One compact bar: search, the main filters, and a button for the rest -->
+    <div class="filters compact-bar">
+        <span class="control search">
+            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            <input type="search" placeholder="Search by name" aria-label="Search by name"
+                [value]="search()" (input)="search.set($any($event.target).value); page.set(1)">
+        </span>
         @if (showSector()) {
-        <label class="filter">
-            <span class="filter-label">Sector</span>
-            <span class="control">
-                <i class="fa-solid fa-industry" aria-hidden="true"></i>
-                <select (change)="sectorFilter.set($any($event.target).value); page.set(1)">
-                    <option value="" [selected]="!sectorFilter()">All sectors</option>
-                    @for (s of sectors(); track s) {
-                        <option [value]="s" [selected]="s === sectorFilter()">{{ s }}</option>
-                    }
-                </select>
-                <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
-            </span>
-        </label>
+        <span class="control">
+            <i class="fa-solid fa-industry" aria-hidden="true"></i>
+            <select aria-label="Sector" (change)="sectorFilter.set($any($event.target).value); page.set(1)">
+                <option value="" [selected]="!sectorFilter()">All sectors</option>
+                @for (s of sectors(); track s) {
+                    <option [value]="s" [selected]="s === sectorFilter()">{{ s }}</option>
+                }
+            </select>
+            <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
+        </span>
         }
         @if (showPrice()) {
-        <label class="filter">
-            <span class="filter-label">Min price</span>
-            <span class="control">
-                <i class="fa-solid fa-arrow-down-1-9" aria-hidden="true"></i>
-                <input type="number" step="any" placeholder="0.25" [value]="minPrice() ?? ''"
-                    (input)="minPrice.set(toNumber($any($event.target).value)); page.set(1)">
-            </span>
-        </label>
-        <label class="filter">
-            <span class="filter-label">Max price</span>
-            <span class="control">
-                <i class="fa-solid fa-arrow-up-9-1" aria-hidden="true"></i>
-                <input type="number" step="any" placeholder="9.5" [value]="maxPrice() ?? ''"
-                    (input)="maxPrice.set(toNumber($any($event.target).value)); page.set(1)">
-            </span>
-        </label>
+        <span class="control narrow">
+            <i class="fa-solid fa-arrow-down-1-9" aria-hidden="true"></i>
+            <input type="number" step="any" placeholder="Min price" aria-label="Min price" [value]="minPrice() ?? ''"
+                (input)="minPrice.set(toNumber($any($event.target).value)); page.set(1)">
+        </span>
+        <span class="control narrow">
+            <i class="fa-solid fa-arrow-up-9-1" aria-hidden="true"></i>
+            <input type="number" step="any" placeholder="Max price" aria-label="Max price" [value]="maxPrice() ?? ''"
+                (input)="maxPrice.set(toNumber($any($event.target).value)); page.set(1)">
+        </span>
         }
-        <div class="filter filter-action">
-            @if (hasFilters()) {
-                <button type="button" class="tool-btn" (click)="clearFilters()">
-                    <i class="fa-solid fa-filter-circle-xmark" aria-hidden="true"></i>Clear filters
-                </button>
-            }
-        </div>
+        @if (showDates() || visibleFlags().length) {
+        <button type="button" class="tool-btn" [class.on]="moreFilters() || moreActive()" [attr.aria-expanded]="moreFilters()" (click)="moreFilters.set(!moreFilters())">
+            <i class="fa-solid fa-sliders" aria-hidden="true"></i>More filters
+        </button>
+        }
+        @if (hasFilters()) {
+            <button type="button" class="tool-btn" (click)="clearFilters()">
+                <i class="fa-solid fa-filter-circle-xmark" aria-hidden="true"></i>Clear
+            </button>
+        }
     </div>
 
     <!-- Release dates and rows that need a look. The Overview page opens this table with these set, see seedFromAddress. -->
-    @if (showDates() || visibleFlags().length) {
+    @if ((moreFilters() || moreActive()) && (showDates() || visibleFlags().length)) {
     <div class="filters more">
         @if (showDates()) {
         <label class="filter">
@@ -290,26 +298,36 @@
     </div>
     }
 
-    <!-- Search and page size -->
-    <div class="toolbar">
-        <span class="control search">
-            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-            <input type="search" placeholder="Search by name" aria-label="Search by name"
-                [value]="search()" (input)="search.set($any($event.target).value); page.set(1)">
+    <!-- How many rows there are comes first, then how many are on this page -->
+    @if (!loading() && !error()) {
+    <div class="summary-row">
+        <span class="summary">
+            <strong>{{ count(industryTotal()) }}</strong> {{ industries().length === 1 ? 'industry' : 'industries' }}
+            @if (sorted().length !== industries().length) { <span class="muted">· {{ count(shownTotal()) }} match</span> }
+            <span class="muted">· showing {{ count(rangeStart()) }} to {{ count(rangeEnd()) }}</span>
         </span>
         <label class="entries">
             Show
             <span class="control">
                 <select (change)="pageSize.set(+$any($event.target).value); page.set(1)">
-                    @for (n of [5, 10, 25, 50]; track n) {
+                    @for (n of [5, 10, 25, 50, 100]; track n) {
                         <option [value]="n" [selected]="n === pageSize()">{{ n }}</option>
                     }
                 </select>
                 <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
             </span>
-            entries
+            rows
         </label>
     </div>
+    }
+
+    @if (!auth.isSignedIn()) {
+        <p class="hint-line"><i class="fa-solid fa-lock" aria-hidden="true"></i>You are looking at the table as a guest. <a routerLink="/login" [queryParams]="{ back: '/' }">Sign in</a> to add, edit or delete rows.</p>
+    }
+
+    @if (added()) {
+        <p class="result small" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ added() }}</p>
+    }
 
     @if (deleted()) {
         <p class="result small deleted" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ deleted() }}</p>
@@ -344,7 +362,7 @@
                             </th>
                         }
                         @if (auth.isSignedIn()) {
-                            <th class="actions-col"><span class="sr-only">Actions</span></th>
+                            <th class="actions-col"><span class="th-actions">Action</span></th>
                         }
                     </tr>
                 </thead>
@@ -358,6 +376,9 @@
                                         [attr.aria-label]="flag.text"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i></span>
                                 }
                                 {{ item.name }}
+                                @if (tag(item.id); as t) {
+                                    <span class="row-tag" [class.updated]="t === 'updated'" [attr.title]="tagTitle(item.id)">{{ t === 'updated' ? 'Updated' : 'New' }}</span>
+                                }
                             </td>
                             <td>{{ item.sector ?? '--' }}</td>
                             <td class="muted">{{ item.release ? formatDate(item.release) : '--' }}</td>
@@ -369,13 +390,19 @@
                             }
                             @if (auth.isSignedIn()) {
                             <td class="actions">
-                                <button type="button" class="edit-btn" [attr.aria-label]="'Edit ' + item.name" (click)="edit(item)">
-                                    <i class="fa-solid fa-pen" aria-hidden="true"></i>
-                                </button>
-                                <!-- Delete only asks: the pop up below holds the Yes and No -->
-                                <button type="button" class="remove-btn" [attr.aria-label]="'Delete ' + item.name" (click)="confirmingId.set(item.id)">
-                                    <i class="fa-solid fa-trash" aria-hidden="true"></i>
-                                </button>
+                                <span class="menu-host">
+                                    <button type="button" class="kebab" aria-haspopup="menu" [attr.aria-expanded]="menuRow() === item.id"
+                                        [attr.aria-label]="'Actions for ' + item.name" (click)="toggleRowMenu(item.id, $event)">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+                                    </button>
+                                    @if (menuRow() === item.id) {
+                                        <div class="row-menu" role="menu" (click)="$event.stopPropagation()" [style.top.px]="menuAt().top" [style.right.px]="menuAt().right">
+                                            <button type="button" role="menuitem" (click)="edit(item)"><i class="fa-solid fa-pen" aria-hidden="true"></i>Edit</button>
+                                            <!-- Delete only asks: the pop up below holds the Yes and No -->
+                                            <button type="button" role="menuitem" class="danger" (click)="menuRow.set(null); confirmingId.set(item.id)"><i class="fa-solid fa-trash" aria-hidden="true"></i>Delete</button>
+                                        </div>
+                                    }
+                                </span>
                             </td>
                             }
                         </tr>
@@ -387,7 +414,7 @@
         @if (industries().length === 0) {
             <!-- State management to distingush if the search wasn't able to pull the result
              due to bad search vs if the actual query don't exist in the database -->
-            <p class="state"><i class="fa-solid fa-box-open" aria-hidden="true"></i>No industries yet. Add the first one above.</p>
+            <p class="state"><i class="fa-solid fa-box-open" aria-hidden="true"></i>No industries yet. Press Add industry to add the first one.</p>
         } @else {
             <p class="state"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>Nothing matches these filters.</p>
         }
@@ -413,13 +440,12 @@
 
     @if (!loading() && !error()) {
         <footer class="panel-foot">
-            <span>Showing {{ count(rangeStart()) }} to {{ count(rangeEnd()) }} of {{ count(sorted().length) }} entries</span>
+            <span>Page {{ count(currentPage()) }} of {{ count(pageCount()) }}</span>
             <div class="pager">
                 <button type="button" class="icon-btn" aria-label="Previous page" [disabled]="currentPage() === 1"
                     (click)="page.set(currentPage() - 1)">
                     <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
                 </button>
-                <span>Page {{ count(currentPage()) }} of {{ count(pageCount()) }}</span>
                 <button type="button" class="icon-btn" aria-label="Next page" [disabled]="currentPage() === pageCount()"
                     (click)="page.set(currentPage() + 1)">
                     <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>

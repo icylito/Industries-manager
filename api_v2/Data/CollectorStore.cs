@@ -332,6 +332,33 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
         }
     }
 
+    // Which rows were added or edited by hand lately, read from the change log so the table needs no extra columns.
+    // A row added on the page is "new", a row saved from its edit form is "updated". Imports are not counted.
+    public async Task<List<(int RowId, DateTimeOffset? Added, DateTimeOffset? Edited)>> RecentActivityAsync(int days, CancellationToken ct)
+    {
+        var found = new List<(int, DateTimeOffset?, DateTimeOffset?)>();
+        await using var conn = await OpenAsync(connections.Collector, ct);
+        await using var cmd = new NpgsqlCommand("""
+            SELECT row_id,
+                   max(at) FILTER (WHERE action = 'add'),
+                   max(at) FILTER (WHERE action = 'edit')
+            FROM row_changes
+            WHERE source_table = @table AND status = 'done' AND row_id IS NOT NULL
+              AND action IN ('add', 'edit') AND at > now() - make_interval(days => @days)
+            GROUP BY row_id
+            """, conn);
+        cmd.Parameters.AddWithValue("table", Table);
+        cmd.Parameters.AddWithValue("days", days);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            found.Add((reader.GetInt32(0),
+                reader.IsDBNull(1) ? null : reader.GetFieldValue<DateTimeOffset>(1),
+                reader.IsDBNull(2) ? null : reader.GetFieldValue<DateTimeOffset>(2)));
+        }
+        return found;
+    }
+
     // Import adds many rows at once, they get logged in one go after the import went through
     public async Task LogImportsAsync(IEnumerable<(int RowId, object After)> rows, int rulesVersion, string changedBy, CancellationToken ct = default)
     {

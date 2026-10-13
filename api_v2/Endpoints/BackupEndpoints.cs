@@ -45,6 +45,24 @@ public static class BackupEndpoints
             }
         });
 
+        // Admins only: a deleted backup can't be brought back
+        group.MapDelete("/{id}", (string id, BackupService backups) =>
+        {
+            try
+            {
+                backups.Delete(id);
+                return Results.NoContent();
+            }
+            catch (BackupBusyException ex)
+            {
+                return Results.Conflict(ex.Message);
+            }
+            catch (BackupUploadException ex)
+            {
+                return Results.Problem(ex.Message, statusCode: ex.Status, title: "Couldn't delete it");
+            }
+        }).RequireAdmin();
+
         // What a restore from this backup would do. Nothing is changed.
         group.MapGet("/{id}/restore/preview", async (string id, BackupService backups, BackupRestore restore,
             DatabaseStatus status, AppDbContext db, CancellationToken ct) =>

@@ -121,8 +121,8 @@
     height: 1.15rem;
     padding: 0 0.3rem;
     border-radius: 999px;
-    background: var(--accent);
-    color: var(--accent-text);
+    background: #af2b2b;
+    color: #fff;
     font-size: 0.65rem;
     font-weight: 700;
     line-height: 1.15rem;
@@ -414,4 +414,27 @@
     .toast{
         animation: none;
     }
+}
+
+/* The bell on the links nav is only the icon, a small round button like the theme button, with its count on the corner */
+.nav-links .bell-mini{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 999px;
+    background: var(--surface-2);
+}
+
+.nav-links .bell-mini:hover{
+    background: var(--border);
+}
+
+.nav-links .bell-mini .badge{
+    position: absolute;
+    top: -4px;
+    right: -4px;
 }

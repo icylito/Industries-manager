@@ -31,6 +31,22 @@ public static class IndustryEndpoints
                 return Results.Ok(rows.Select(ToDto));
             }).RequireViewer();
 
+            // Rows added or edited by hand in the last 30 days, for the New and Updated tags. Never blocks the table:
+            // when History is down this answers an empty list.
+            group.MapGet("/activity", async (CollectorStore collector, CancellationToken ct) =>
+            {
+                try
+                {
+                    var rows = await collector.RecentActivityAsync(30, ct);
+                    return Results.Ok(rows.Select(r => new { r.RowId, r.Added, r.Edited }));
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    collector.NoteFailure(ex);
+                    return Results.Ok(Array.Empty<object>());
+                }
+            }).RequireViewer();
+
             // The Scratchpad rail searches by name so it never pulls the whole table down.
             // A blank search answers an empty list, the same as never looking.
             group.MapGet("/search", async (string? q, string? limit, AppDbContext db, CancellationToken ct) =>

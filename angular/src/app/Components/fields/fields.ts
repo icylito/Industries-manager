@@ -80,7 +80,7 @@ export class FieldsPage implements OnInit {
   }
 
   private loadWaiting() {
-    this.api.requests('open').subscribe({
+    this.api.requests('active').subscribe({
       next: list => this.waiting.set(new Set(list.map(r => r.fieldKey).filter((k): k is string => !!k))),
       error: () => {},
     });
@@ -126,6 +126,27 @@ export class FieldsPage implements OnInit {
   closeEdit() {
     this.editing.set(null);
     this.askingType.set(null);
+  }
+
+
+  // The row menu, the same one every table uses. Fixed to the window so a table's scrolling box can't cut it off.
+  menuKey = signal<string | number | null>(null);
+  menuAt = signal({ top: 0, right: 0 });
+
+  toggleMenu(key: string | number, e: Event) {
+    e.stopPropagation();
+    const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const room = 150;
+    const top = box.bottom + 4 + room > window.innerHeight ? Math.max(8, box.top - 4 - room) : box.bottom + 4;
+    this.menuAt.set({ top, right: window.innerWidth - box.right });
+    this.menuKey.update(current => (current === key ? null : key));
+  }
+
+  @HostListener('document:click')
+  @HostListener('window:scroll')
+  @HostListener('window:resize')
+  closeMenu() {
+    this.menuKey.set(null);
   }
 
   @HostListener('document:keydown.escape')

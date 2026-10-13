@@ -1186,3 +1186,367 @@ input.bad{
 .modal form{
     grid-template-columns: 1fr;
 }
+
+/* One compact bar for search and filters, everything on one line and wrapping only when the screen is narrow */
+.compact-bar{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0 1.1rem 0.75rem;
+}
+
+.compact-bar .search{
+    flex: 1 1 14rem;
+    min-width: 12rem;
+}
+
+.compact-bar .control.narrow{
+    flex: 0 1 9rem;
+}
+
+.tool-btn.on{
+    background: var(--hover);
+    border-color: var(--border-strong);
+}
+
+/* How many rows there are, above the table where it is seen at once */
+.summary-row{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    padding: 0.25rem 1.1rem 0.75rem;
+}
+
+.summary strong{
+    font-size: 1.05rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.summary .muted{
+    color: var(--p-muted);
+}
+
+.summary-row .entries{
+    margin: 0;
+}
+
+/* Small tag on a row that was added or saved by hand lately */
+.row-tag{
+    display: inline-block;
+    margin-left: 0.5rem;
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--p-text);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    vertical-align: middle;
+}
+
+.row-tag.updated{
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    color: var(--p-muted);
+}
+
+/* Header of the action column: the word, with the menu icon in front of it */
+.th-actions{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.85rem 1.1rem;
+    color: var(--p-muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+th.actions-col{
+    text-align: center;
+}
+
+/* One square button per row, its choices drop below it */
+.menu-host{
+    position: relative;
+    display: inline-block;
+}
+
+.kebab{
+    width: 2rem;
+    height: 2rem;
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+.kebab:hover, .kebab[aria-expanded='true']{
+    background: var(--border);
+}
+
+.row-menu{
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 20;
+    display: grid;
+    min-width: 10rem;
+    padding: 0.3rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    text-align: left;
+}
+
+.row-menu button{
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0.7rem;
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.85rem;
+    text-align: left;
+}
+
+.row-menu button:hover{
+    background: var(--hover);
+}
+
+.row-menu button.danger{
+    color: var(--danger);
+}
+
+/* The menu drops out of the table, so the wrapper must not cut it off */
+.industries-wrap, .panel .table-wrap{
+    overflow-x: auto;
+    overflow-y: visible;
+}
+
+/* Plain tables: a gray header band and no lines between rows */
+.industries thead th{
+    background: var(--surface-2);
+    border-bottom: 0;
+}
+
+.industries tbody td{
+    border-bottom: 0;
+}
+
+.industries tbody tr:hover{
+    background: var(--hover);
+}
+
+/* The primary button in a panel's tool row lines up with the plain tool buttons beside it */
+.tools{
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.tools .add-btn{
+    height: 2.25rem;
+    margin-top: 0;
+    padding: 0 1rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+}
+
+/* Clean edges: the bar and the summary line sit on the same left edge as the table, and nothing is drawn between columns */
+.compact-bar, .summary-row{
+    padding-inline: 0;
+}
+
+td.actions, th.actions-col{
+    box-shadow: none;
+    padding-left: 1.5rem;
+}
+
+th.actions-col{
+    background-color: var(--surface-2);
+}
+
+.kebab{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+/* Columns get room to breathe: a little more space on each side of every cell, numbers keep clear of the next column */
+.industries th .sort-btn, .industries td{
+    padding-inline: 1.25rem;
+}
+
+.industries td.num, .industries th.num .sort-btn{
+    padding-right: 2rem;
+}
+
+.industries th.actions-col .th-actions{
+    padding-inline: 0;
+}
+
+.industries td.actions{
+    text-align: center;
+}
+
+/* Fixed to the window so a table's scrolling box can't clip it, placed by the script from the button's position */
+.row-menu{
+    position: fixed;
+    top: auto;
+    right: auto;
+}
+
+.row-menu button{
+    width: 100%;
+    justify-content: flex-start;
+}
+
+.row-menu button i{
+    width: 1rem;
+    text-align: center;
+}
+
+/* On a phone the columns sit closer so more of the table fits before it scrolls */
+@media (max-width: 640px){
+    .industries th .sort-btn, .industries td{
+        padding-inline: 0.65rem;
+    }
+
+    .industries td.num, .industries th.num .sort-btn{
+        padding-right: 0.9rem;
+    }
+
+    td.actions, th.actions-col{
+        padding-left: 0.65rem;
+    }
+
+    .compact-bar .control.narrow{
+        flex: 1 1 7rem;
+    }
+}
+
+/* Every table in the app: the same gray band behind the whole header row and the same bold heading text.
+   Kept at the end of each page's style sheet so no page-specific rule left a column plain. */
+table thead th, table thead th.actions-col, table thead th.tick-col{
+    background-color: var(--surface-2);
+    border-bottom: 0;
+}
+
+table thead th .th, table thead th .sort-btn, table thead th .th-actions{
+    color: var(--text);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.fields-table .require-check, .fields-table .require-check input{
+    cursor: pointer;
+}
+
+.fields-table .require-check.locked, .fields-table .require-check.locked input{
+    cursor: not-allowed;
+}
+
+/* No lines between rows or columns in any table, a hover tint tells the rows apart */
+.fields-table td, .cols-table td, .versions td, .requests-table td, .industries td{
+    border-bottom: 0;
+}
+
+.fields-table tbody tr:hover, .cols-table tbody tr:hover{
+    background: var(--hover);
+}
+
+/* A box with no icon in front of it doesn't need the room the icon takes, so its text starts at the normal inset.
+   Selects with no icon are centred between their edge and the arrow instead of leaning right. */
+.control:not(:has(> i:first-child)) > input,
+.control:not(:has(> i:first-child)) > select{
+    padding-left: 0.85rem;
+}
+
+.status-pick select, .entries select{
+    padding-left: 0.85rem;
+    padding-right: 2rem;
+    text-align: center;
+    text-align-last: center;
+}
+
+/* The Action heading and the buttons under it share one centre line: same padding on both sides of both */
+.industries td.actions, .industries th.actions-col{
+    padding-inline: 1rem;
+    text-align: center;
+}
+
+.industries th.actions-col .th-actions{
+    justify-content: center;
+    padding-inline: 0;
+}
+
+/* One look for every row action everywhere: the same square ⋮ button and the same drop-down under it */
+.kebab, .menu-btn{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--text);
+    cursor: pointer;
+}
+
+.kebab:hover, .kebab[aria-expanded='true'], .menu-btn:hover, .menu-btn[aria-expanded='true']{
+    background: var(--border);
+    border: 0;
+}
+
+.menu, .row-menu{
+    min-width: 12rem;
+    padding: 0.3rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    text-align: left;
+}
+
+.menu [role='menuitem'], .row-menu [role='menuitem']{
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.5rem 0.7rem;
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-align: left;
+}
+
+.menu [role='menuitem']:hover:not([disabled]), .row-menu [role='menuitem']:hover:not([disabled]){
+    background: var(--hover);
+}
+
+.menu [role='menuitem'].danger, .row-menu [role='menuitem'].danger{
+    color: var(--danger);
+}
+
+.menu [role='menuitem'] i, .row-menu [role='menuitem'] i{
+    width: 1rem;
+    text-align: center;
+}
+
+/* The cell holding an open menu rises above the sticky Action cells of the rows under it, so none of the menu is covered */
+td.actions:has(.row-menu){
+    z-index: 30;
+}
+
+/* The pinned Action cell takes the same hover tint as the rest of its row, so the row reads as one band */
+tbody tr:hover td.actions{
+    background-image: linear-gradient(var(--hover), var(--hover));
+}

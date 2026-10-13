@@ -373,3 +373,100 @@ th.actions-col .th, td.actions{
     display: inline-flex;
     gap: 0.35rem;
 }
+
+/* Every table in the app: the same gray band behind the whole header row and the same bold heading text.
+   Kept at the end of each page's style sheet so no page-specific rule left a column plain. */
+table thead th, table thead th.actions-col, table thead th.tick-col{
+    background-color: var(--surface-2);
+    border-bottom: 0;
+}
+
+table thead th .th, table thead th .sort-btn, table thead th .th-actions{
+    color: var(--text);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.fields-table .require-check, .fields-table .require-check input{
+    cursor: pointer;
+}
+
+.fields-table .require-check.locked, .fields-table .require-check.locked input{
+    cursor: not-allowed;
+}
+
+/* No lines between rows or columns in any table, a hover tint tells the rows apart */
+.fields-table td, .cols-table td, .versions td, .requests-table td, .industries td{
+    border-bottom: 0;
+}
+
+.fields-table tbody tr:hover, .cols-table tbody tr:hover{
+    background: var(--hover);
+}
+
+/* One look for every row action everywhere: the same square ⋮ button and the same drop-down under it */
+.kebab, .menu-btn{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--text);
+    cursor: pointer;
+}
+
+.kebab:hover, .kebab[aria-expanded='true'], .menu-btn:hover, .menu-btn[aria-expanded='true']{
+    background: var(--border);
+    border: 0;
+}
+
+.menu, .row-menu{
+    min-width: 12rem;
+    padding: 0.3rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    text-align: left;
+}
+
+.menu [role='menuitem'], .row-menu [role='menuitem']{
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.5rem 0.7rem;
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-align: left;
+}
+
+.menu [role='menuitem']:hover:not([disabled]), .row-menu [role='menuitem']:hover:not([disabled]){
+    background: var(--hover);
+}
+
+.menu [role='menuitem'].danger, .row-menu [role='menuitem'].danger{
+    color: var(--danger);
+}
+
+.menu [role='menuitem'] i, .row-menu [role='menuitem'] i{
+    width: 1rem;
+    text-align: center;
+}
+
+/* The cell holding an open menu rises above the sticky Action cells of the rows under it, so none of the menu is covered */
+td.actions:has(.row-menu){
+    z-index: 30;
+}
+
+/* The pinned Action cell takes the same hover tint as the rest of its row, so the row reads as one band */
+tbody tr:hover td.actions{
+    background-image: linear-gradient(var(--hover), var(--hover));
+}

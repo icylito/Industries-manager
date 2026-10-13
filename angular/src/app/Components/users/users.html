@@ -9,9 +9,6 @@
         </div>
     </header>
 
-    <p class="intro">An admin can change rules, restore history and answer requests. A manager can make, change and delete tables on the Tables page and restore backups. Everyone else can add, edit and delete rows.
-        Nobody can sign up on their own, so make an account for each person here.</p>
-
     @if (shown(); as s) {
         <div class="ask">
             <p><i class="fa-solid fa-key" aria-hidden="true"></i>
@@ -45,7 +42,7 @@
                         <th><span class="th">Username</span></th>
                         <th><span class="th">Role</span></th>
                         <th><span class="th">Last signed in</span></th>
-                        <th class="actions-col"><span class="sr-only">Actions</span></th>
+                        <th class="actions-col"><span class="th">Action</span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -67,13 +64,12 @@
                             <td class="muted">{{ formatDate(u.lastLoginAt) }}</td>
                             <td class="actions">
                                 @if (u.id !== auth.user()?.id) {
-                                    <!-- One button out in the open, everything that takes access away behind the hamburger -->
+                                    <!-- Every action sits in the one menu, the same as every other table -->
                                     <div class="row-actions">
-                                        <button type="button" class="edit-btn" [disabled]="busy()" (click)="ask(u, 'reset')">New password</button>
                                         <div class="menu-wrap">
                                             <button type="button" class="menu-btn" aria-haspopup="menu" [attr.aria-expanded]="menuFor()?.id === u.id"
                                                 [attr.aria-label]="'More actions for ' + u.username" (click)="toggleMenu(u, $event)">
-                                                <i class="fa-solid fa-bars" aria-hidden="true"></i>
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
                                             </button>
                                         </div>
                                     </div>
@@ -124,24 +120,25 @@
     <!-- Drawn here, outside the table: inside it the table's own scrolling box clipped the menu to a sliver -->
     <div class="menu" role="menu" [attr.aria-label]="'More actions for ' + person.username" (keydown)="onMenuKey($event)"
         [style.top.px]="menuAt().top" [style.right.px]="menuAt().right">
+        <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'reset')"><i class="fa-solid fa-key" aria-hidden="true"></i>New password</button>
         @if (person.disabled) {
-            <button type="button" role="menuitem" [disabled]="busy()" (click)="turnOn(person)">Turn on</button>
+            <button type="button" role="menuitem" [disabled]="busy()" (click)="turnOn(person)"><i class="fa-solid fa-check" aria-hidden="true"></i>Turn on</button>
         } @else {
-            <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'off')">Turn off</button>
+            <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'off')"><i class="fa-solid fa-xmark" aria-hidden="true"></i>Turn off</button>
         }
         <!-- The two roles this person doesn't have -->
         @if (person.role !== 'admin') {
-            <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'admin')">Make admin</button>
+            <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'admin')"><i class="fa-solid fa-user" aria-hidden="true"></i>Make admin</button>
         }
         @if (person.role !== 'manager') {
-            <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'manager')">Make manager</button>
+            <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'manager')"><i class="fa-solid fa-user" aria-hidden="true"></i>Make manager</button>
         }
         @if (person.role !== 'normal') {
-            <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'normal')">Make user</button>
+            <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'normal')"><i class="fa-solid fa-user" aria-hidden="true"></i>Make user</button>
         }
-        <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'rename')">Rename</button>
-        <button type="button" role="menuitem" [disabled]="busy()" (click)="openNotes(person)">Notes@if (person.hasNotes) { <span class="note-dot" aria-hidden="true"></span> }</button>
-        <button type="button" role="menuitem" class="danger" [disabled]="busy()" (click)="ask(person, 'delete')">Delete account</button>
+        <button type="button" role="menuitem" [disabled]="busy()" (click)="ask(person, 'rename')"><i class="fa-solid fa-pen" aria-hidden="true"></i>Rename</button>
+        <button type="button" role="menuitem" [disabled]="busy()" (click)="openNotes(person)"><i class="fa-solid fa-comment" aria-hidden="true"></i>Notes@if (person.hasNotes) { <span class="note-dot" aria-hidden="true"></span> }</button>
+        <button type="button" role="menuitem" class="danger" [disabled]="busy()" (click)="ask(person, 'delete')"><i class="fa-solid fa-trash" aria-hidden="true"></i>Delete account</button>
     </div>
 }
 

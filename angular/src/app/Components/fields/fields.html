@@ -10,8 +10,6 @@
         </div>
     </header>
 
-    <p class="intro">Press the pencil on a field to change its label, limits or whether it is required, then press Save. A copy of the table is saved first, and every save becomes a new version you can see below.</p>
-
     @if (loading()) {
         <p class="state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading fields</p>
     } @else if (error()) {
@@ -27,7 +25,7 @@
                         <th><span class="th">Type</span></th>
                         <th><span class="th">Limits</span></th>
                         <th class="tick-col"><span class="th">Required</span></th>
-                        <th class="actions-col"><span class="th">Actions</span></th>
+                        <th class="actions-col"><span class="th">Action</span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -45,35 +43,28 @@
                             <td class="muted" data-label="Limits">{{ limitText(f) }}</td>
 
                             <td class="tick-col" data-label="Required">
-                                @if (f.required) {
-                                    <i class="fa-solid fa-check tick-mark" role="img" aria-label="Required"></i>
-                                } @else {
-                                    <span class="sr-only">Not required</span>
-                                }
+                                <!-- Clickable for every field. Name is always required, so its box is locked on. A change waits for Save like the others. -->
+                                <label class="check require-check" [class.locked]="f.key === 'name'"
+                                    [attr.title]="f.key === 'name' ? 'Name always has to be filled in' : f.required ? 'Required: untick to let it be left empty' : 'Optional: tick to refuse a row without it'">
+                                    <input type="checkbox" [checked]="f.required" [disabled]="f.key === 'name'"
+                                        [attr.aria-label]="'Required: ' + f.label"
+                                        (change)="update(f.key, { required: $any($event.target).checked })">
+                                </label>
                             </td>
 
-                            <td class="actions" data-label="Actions">
-                                <!-- Three fixed slots so Edit sits in the middle on every row: Hide, Edit, Delete. Built in fields leave the other two empty. -->
-                                <span class="row-actions">
-                                    <span class="slot">
-                                        @if (f.custom) {
-                                            <label class="check hide-check" [attr.title]="f.hidden ? 'Hidden, untick to show it' : 'Tick to hide it from the form and the table'">
-                                                <input type="checkbox" [checked]="f.hidden" [attr.aria-label]="'Hide ' + f.label"
-                                                    (change)="update(f.key, { hidden: $any($event.target).checked })">
-                                                <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
-                                            </label>
-                                        }
-                                    </span>
-                                    <button type="button" class="edit-btn icon-btn" [attr.aria-label]="'Edit ' + f.label" title="Edit" (click)="startEdit(f)">
-                                        <i class="fa-solid fa-pen" aria-hidden="true"></i>
-                                    </button>
-                                    <span class="slot">
-                                        @if (f.custom) {
-                                            <button type="button" class="remove-btn icon-btn" [attr.aria-label]="'Delete ' + f.label" title="Delete" (click)="startDelete(f)">
-                                                <i class="fa-solid fa-trash" aria-hidden="true"></i>
-                                            </button>
-                                        }
-                                    </span>
+                            <td class="actions" data-label="Action" (click)="$event.stopPropagation()">
+                                <span class="menu-host">
+                                    <button type="button" class="kebab" aria-haspopup="menu" [attr.aria-expanded]="menuKey() === f.key"
+                                        [attr.aria-label]="'Actions for ' + f.label" (click)="toggleMenu(f.key, $event)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+                                    @if (menuKey() === f.key) {
+                                        <div class="row-menu" role="menu" (click)="$event.stopPropagation()" [style.top.px]="menuAt().top" [style.right.px]="menuAt().right">
+                                            <button type="button" role="menuitem" (click)="menuKey.set(null); startEdit(f)"><i class="fa-solid fa-pen" aria-hidden="true"></i>Edit</button>
+                                            @if (f.custom) {
+                                                <button type="button" role="menuitem" (click)="menuKey.set(null); update(f.key, { hidden: !f.hidden })"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i>{{ f.hidden ? 'Show in the form' : 'Hide from the form' }}</button>
+                                                <button type="button" role="menuitem" class="danger" (click)="menuKey.set(null); startDelete(f)"><i class="fa-solid fa-trash" aria-hidden="true"></i>Delete</button>
+                                            }
+                                        </div>
+                                    }
                                 </span>
                             </td>
                         </tr>
@@ -203,7 +194,6 @@
     <header class="card-head">
         <h2><span class="title-icon"><i class="fa-solid fa-plus" aria-hidden="true"></i></span>Add a field</h2>
     </header>
-    <p class="intro">Add as many as you need, then press Send fields. They show up in the form and the table after that. Their values are saved with each row.</p>
     <div class="add-grid">
         <label class="field">
             <span class="field-label">Label</span>
@@ -293,8 +283,6 @@
     <header class="card-head">
         <h2><span class="title-icon"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i></span>Need a real column?</h2>
     </header>
-    <p class="intro">Fields above cover most needs. If something has to be a proper column, for example to sort it fast on a big table,
-        a developer adds it. They get the code drafted for them.</p>
     <div class="add-grid">
         <label class="field">
             <span class="field-label">Column name</span>

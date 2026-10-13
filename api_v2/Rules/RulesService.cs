@@ -457,7 +457,7 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
                     WHERE {key} = ANY("LostFields")
                     """, ct);
 
-                var open = await db.Requests.Where(r => r.Status == "open" && r.FieldKey == key).ToListAsync(ct);
+                var open = await db.Requests.Where(r => (r.Status == "open" || r.Status == "in-progress") && r.FieldKey == key).ToListAsync(ct);
                 var now = DateTimeOffset.UtcNow;
                 const string line = "The field was deleted, so this was closed by itself.";
                 foreach (var request in open)
