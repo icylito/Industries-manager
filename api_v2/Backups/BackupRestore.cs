@@ -48,11 +48,11 @@ public sealed class BackupRestore(
 
     public async Task<BackupRestoreResult> RunAsync(string id, string by, CancellationToken ct)
     {
-        var entry = backups.Find(id) ?? throw new BackupRefusedException($"There's no backup {id}");
+        var entry = backups.Find(id) ?? throw new BackupRefusedException($"No backup called {id} exists. Nothing was changed");
         var dump = backups.ResolveDump(id, "main");
         if (dump is null || !File.Exists(dump))
         {
-            throw new BackupRefusedException("That backup has no copy of the main database");
+            throw new BackupRefusedException($"Backup \"{id}\" has no copy of the main database");
         }
         if (SameLayout(entry) == false)
         {
@@ -74,7 +74,18 @@ public sealed class BackupRestore(
         await CreateScratchAsync(ct);
         try
         {
-            await LoadDumpAsync(tool, scratch, dump, ct);
+            await CopyNameRuleAsync(scratch, ct);
+
+            // pg_restore reads a path, so the sealed dump is opened into a plain copy for the length of the load
+            var plain = await backups.DecryptToTempAsync(dump, ct);
+            try
+            {
+                await LoadDumpAsync(tool, scratch, plain, ct);
+            }
+            finally
+            {
+                BackupService.DeletePlainCopy(plain);
+            }
 
             await using var source = new NpgsqlConnection(scratch.ConnectionString);
             await source.OpenAsync(ct);
@@ -90,11 +101,11 @@ public sealed class BackupRestore(
             string undoBackup;
             try
             {
-                undoBackup = (await backups.RunAsync("before-restore", by, ct)).Id;
+                undoBackup = (await backups.RunAsync("before-restore", by, ct))!.Id;
             }
             catch (BackupBusyException)
             {
-                throw new BackupRefusedException("Another backup is running. Try the restore again in a minute, nothing was changed");
+                throw new BackupRefusedException("Another backup is running. Nothing was restored. Try again in a minute");
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -253,6 +264,36 @@ public sealed class BackupRestore(
         await conn.OpenAsync(ct);
         await using var cmd = new NpgsqlCommand($"CREATE DATABASE \"{ScratchDatabase}\"", conn);
         await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    // pg_dump writes only the tables it is asked for, and the collation the Industries and Users indexes use isn't one of
+    // them. The scratch database gets the live collation first, or those indexes can't be made from the dump.
+    private async Task CopyNameRuleAsync(NpgsqlConnectionStringBuilder scratch, CancellationToken ct)
+    {
+        string? create = null;
+        await using (var live = new NpgsqlConnection(connections.Main))
+        {
+            await live.OpenAsync(ct);
+            await using var cmd = new NpgsqlCommand("""
+                SELECT c.collprovider, c.colllocale, c.collisdeterministic
+                FROM pg_collation c JOIN pg_namespace n ON n.oid = c.collnamespace
+                WHERE n.nspname = 'public' AND c.collname = 'name_rule'
+                """, live);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            if (await reader.ReadAsync(ct))
+            {
+                // Only the ICU kind is made by the migration, anything else would be a different rule
+                if (reader.GetChar(0) != 'i') throw new BackupFailedException("The name rule isn't an ICU collation, so this backup can't be restored here. Nothing was changed");
+                var locale = reader.GetString(1).Replace("'", "''");
+                create = $"CREATE COLLATION public.name_rule (provider = icu, locale = '{locale}', deterministic = {(reader.GetBoolean(2) ? "true" : "false")})";
+            }
+        }
+        if (create is null) return;
+
+        await using var target = new NpgsqlConnection(scratch.ConnectionString);
+        await target.OpenAsync(ct);
+        await using var make = new NpgsqlCommand(create, target);
+        await make.ExecuteNonQueryAsync(ct);
     }
 
     // A scratch database left behind by a crash is dropped before and after every restore

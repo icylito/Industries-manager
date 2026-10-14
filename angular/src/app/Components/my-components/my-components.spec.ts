@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ElementRef } from '@angular/core';
 import { convertToParamMap, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -55,15 +56,34 @@ describe('MyComponents', () => {
       { id: 1, name: 'Alpha', sector: 'Energy', price: 1, release: null, duplicateOf: null, importedFrom: null, lostFields: null, extra: null },
       { id: 2, name: 'Beta', sector: 'Retail', price: 2, release: null, duplicateOf: null, importedFrom: null, lostFields: null, extra: null },
     ]);
+    // New lasts a week from when the row was added, so the dates are worked out from today
+    const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString();
     component.activity.set(new Map([
-      [1, { added: '2026-10-01T10:00:00Z', edited: null }],
-      [2, { added: '2026-10-01T10:00:00Z', edited: '2026-10-02T10:00:00Z' }],
+      [1, { added: daysAgo(2), edited: null }],
+      [2, { added: daysAgo(9), edited: daysAgo(1) }],
+      [4, { added: daysAgo(8), edited: null }],
     ]));
     expect(component.tag(1)).toBe('new');
     expect(component.tag(2)).toBe('updated');
     expect(component.tag(3)).toBeNull();
+    expect(component.tag(4)).toBeNull();
     // With no list in the rules the form offers whatever the table already uses
     expect(component.sectorChoices()).toEqual(['Energy', 'Retail']);
+  });
+
+  it('scrolls the calendar into view when it opens, so its bottom is not cut off', () => {
+    vi.useFakeTimers();
+    try {
+      // A stand-in for the calendar box, the test page does not draw the form that holds it
+      const scroll = vi.fn();
+      component.calendarBox = { nativeElement: { scrollIntoView: scroll } } as unknown as ElementRef<HTMLElement>;
+      component.toggleCalendar();
+      vi.runAllTimers();
+      expect(component.calendarOpen()).toBe(true);
+      expect(scroll).toHaveBeenCalledWith({ block: 'nearest', behavior: 'smooth' });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('deletes only after the row asks, and never uses the browser popup', () => {
@@ -86,6 +106,27 @@ describe('MyComponents', () => {
     expect(component.confirmingId()).toBeNull();
     expect(component.deletingId()).toBeNull();
     expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
+  it('clears the delete message after ten seconds and drops a sector nobody has any more', () => {
+    vi.useFakeTimers();
+    const http = TestBed.inject(HttpTestingController);
+    component.industries.set([
+      { id: 1, name: 'Alpha', sector: 'Oil', price: 1, release: null, duplicateOf: null, importedFrom: null, lostFields: null, extra: null },
+      { id: 2, name: 'Beta', sector: 'Public Sector', price: 2, release: null, duplicateOf: null, importedFrom: null, lostFields: null, extra: null },
+    ]);
+    component.sectorFilter.set('Oil');
+
+    component.remove(1);
+    http.expectOne(r => r.method === 'DELETE' && r.url.endsWith('/industries/1')).flush({ deleted: 1, table: 'Industries', id: 1, name: 'Alpha' });
+
+    expect(component.sectorFilter()).toBe('');
+    expect(component.deleted()).toBe('Deleted 1 row from Industries: Alpha.');
+    vi.advanceTimersByTime(9999);
+    expect(component.deleted()).not.toBe('');
+    vi.advanceTimersByTime(1);
+    expect(component.deleted()).toBe('');
+    vi.useRealTimers();
   });
 
   it('sends the row as Edit found it, and offers their version when someone changed it meanwhile', () => {

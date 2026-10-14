@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.IO.Compression;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using api_v2.Data;
@@ -22,6 +23,9 @@ public sealed class BackupFailedException(string message) : Exception(message);
 public sealed class BackupUploadException(string message, int status) : Exception(message)
 {
     public int Status { get; } = status;
+
+    // The backup already in the list, when the file is one of those. The page scrolls to it.
+    public string? ExistingId { get; init; }
 }
 
 // Where pg_dump and pg_restore live. Docker means they run inside the database container.
@@ -72,6 +76,15 @@ public sealed class BackupService(
     // The table as a CSV that opens in Excel. Backups from before it existed don't have one.
     public const string ExcelFile = "main.csv";
 
+    // What main.dump keeps: the industries and their rules, the Tables page, the accounts and their pictures, and the
+    // migration record the restore checks the layout with. Scratchpad, notes, requests, settings and sessions are not
+    // part of a backup, they are never brought back.
+    private static readonly string[] DumpedTables =
+        ["Industries", "RuleVersions", "UserTables", "UserTableRows", "Users", "UserAvatars", "__EFMigrationsHistory"];
+
+    // The start of a plain copy of a backup, made in the backups folder while pg_restore reads it
+    private const string PlainPrefix = ".plain-";
+
     private static readonly Regex IdPattern = new(
         @"^\d{4}-\d{2}-\d{2}_\d{6}_(nightly|manual|before-restore|uploaded)$",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
@@ -118,11 +131,11 @@ public sealed class BackupService(
     public void Delete(string id)
     {
         if (Running) throw new BackupBusyException();
-        var dir = FolderOf(id) ?? throw new BackupUploadException("There's no backup with that id", StatusCodes.Status404NotFound);
+        var dir = FolderOf(id) ?? throw new BackupUploadException("No backup has that id. Nothing was changed", StatusCodes.Status404NotFound);
         var all = List();
         if (all.Count <= 1)
         {
-            throw new BackupUploadException("This is the only backup, so it stays. Take a new one first", StatusCodes.Status409Conflict);
+            throw new BackupUploadException("This is the only backup left, so it was kept. Make a new backup before you delete it", StatusCodes.Status409Conflict);
         }
         DeleteFolder(dir);
         log.LogInformation("Backup {Id} deleted", id);
@@ -133,7 +146,8 @@ public sealed class BackupService(
         get { lock (_statusLock) return _running; }
     }
 
-    public async Task<BackupEntry> RunAsync(string kind, string by, CancellationToken ct)
+    // Null when nothing changed since the newest backup, so there was nothing new to save. A before-restore copy is always made.
+    public async Task<BackupEntry?> RunAsync(string kind, string by, CancellationToken ct)
     {
         if (!await _gate.WaitAsync(0, ct))
         {
@@ -165,16 +179,42 @@ public sealed class BackupService(
             var rowCount = 0;
 
             // The dump and the Excel file read the same snapshot, so they match even if someone edits a row meanwhile
+            string fingerprint;
+            bool unchanged;
             await using (var conn = new NpgsqlConnection(connections.Main))
             {
                 await conn.OpenAsync(ct);
                 await using var tx = await conn.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, ct);
                 await using var snap = new NpgsqlCommand("SELECT pg_export_snapshot()", conn, tx);
                 var snapshot = (string)(await snap.ExecuteScalarAsync(ct))!;
-                await DumpAsync(tool, main, mainFile, "main", ct, snapshot);
-                rowCount = await WriteExcelAsync(conn, tx, Path.Combine(dir, ExcelFile), ct);
+
+                // Checked on the same snapshot the dump would read, so the answer matches what would be saved
+                fingerprint = await FingerprintAsync(conn, tx, ct);
+                unchanged = kind != "before-restore" && fingerprint == LastFingerprint();
+                if (!unchanged)
+                {
+                    await DumpAsync(tool, main, mainFile, "main", ct, snapshot, DumpedTables);
+                    rowCount = await WriteExcelAsync(conn, tx, Path.Combine(dir, ExcelFile), ct);
+                }
+            }
+            if (unchanged)
+            {
+                DeleteFolder(dir);
+                dir = null;
+                return null;
             }
             await DumpAsync(tool, collector, collectorFile, "history", ct);
+
+            // The sizes are of the dumps themselves, before they are sealed
+            var mainSize = new FileInfo(mainFile).Length;
+            var collectorSize = new FileInfo(collectorFile).Length;
+
+            // Sealed before anything else reads them, so the copies only open on this computer. The signature below covers the sealed files.
+            var sealKey = signer.SealKey;
+            foreach (var file in new[] { mainFile, collectorFile, Path.Combine(dir, ExcelFile) })
+            {
+                await BackupCipher.SealFileAsync(file, sealKey, ct);
+            }
 
             var createdAt = DateTimeOffset.UtcNow;
             var migrations = status.AppliedMigrations.ToList();
@@ -183,8 +223,8 @@ public sealed class BackupService(
                 createdAt,
                 kind,
                 by,
-                new FileInfo(mainFile).Length,
-                new FileInfo(collectorFile).Length,
+                mainSize,
+                collectorSize,
                 rules.Current.Version,
                 HasExcel: true,
                 RowCount: rowCount,
@@ -199,7 +239,8 @@ public sealed class BackupService(
                 collectorSize = entry.CollectorSize,
                 migrations,
                 rulesVersion = entry.RulesVersion,
-                rowCount
+                rowCount,
+                fingerprint
             }, JsonOptions);
             await File.WriteAllTextAsync(Path.Combine(dir, "backup.json"), json, ct);
             // Signed last, over every file, so this backup can be downloaded and dropped back in later
@@ -331,6 +372,62 @@ public sealed class BackupService(
         }
     }
 
+    // Backups from before sealing get sealed here, once. Only a backup that checks out, or one that was never signed,
+    // is touched. A folder whose files are already sealed is skipped. Runs when the API starts, before any backup.
+    public async Task SealExistingAsync(CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            if (!Directory.Exists(_folder)) return;
+            // Nothing runs at startup, so a plain copy left by a restore that crashed is safe to remove now
+            foreach (var file in Directory.GetFiles(_folder, PlainPrefix + "*")) TryDeleteFile(file);
+
+            byte[] key;
+            try
+            {
+                key = signer.SealKey;
+            }
+            catch (BackupFailedException ex)
+            {
+                log.LogError("Old backups stay unsealed until the backup key is usable: {Message}", ex.Message);
+                return;
+            }
+
+            foreach (var dir in Directory.GetDirectories(_folder))
+            {
+                if (Path.GetFileName(dir).StartsWith('.') || !TryRead(dir, out _)) continue;
+                try
+                {
+                    var signed = File.Exists(Path.Combine(dir, BackupSigner.SignatureFile));
+                    if (signed && await signer.MacOfAsync(dir, ct) is null)
+                    {
+                        log.LogWarning("Left backup {Id} as it is, its files don't match its signature", Path.GetFileName(dir));
+                        continue;
+                    }
+
+                    var changed = false;
+                    foreach (var name in BackupSigner.Sealed)
+                    {
+                        var path = Path.Combine(dir, name);
+                        if (!File.Exists(path) || await BackupCipher.IsSealedAsync(path, ct)) continue;
+                        await BackupCipher.SealFileAsync(path, key, ct);
+                        changed = true;
+                    }
+                    if (changed && signed) await signer.SignAsync(dir, ct);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    log.LogError(ex, "Couldn't seal backup {Id}, it's left as it is", Path.GetFileName(dir));
+                }
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     // Full path of a dump, or null when the path would leave the backup folder.
     public string? ResolveDump(string id, string file)
     {
@@ -423,7 +520,7 @@ public sealed class BackupService(
 
     // label is what the page calls the database, "main" or "history". pg_dump's own words only go to the log.
     private async Task DumpAsync(DatabaseTool tool, NpgsqlConnectionStringBuilder db, string outFile, string label,
-        CancellationToken ct, string? snapshot = null)
+        CancellationToken ct, string? snapshot = null, IReadOnlyList<string>? tables = null)
     {
         var psi = new ProcessStartInfo
         {
@@ -451,6 +548,12 @@ public sealed class BackupService(
 
         psi.ArgumentList.Add("-Fc");
         psi.ArgumentList.Add("--no-owner");
+        // Only these tables, quoted so pg_dump matches the exact name
+        foreach (var table in tables ?? [])
+        {
+            psi.ArgumentList.Add("-t");
+            psi.ArgumentList.Add($"\"{table}\"");
+        }
         if (snapshot is not null)
         {
             psi.ArgumentList.Add($"--snapshot={snapshot}");
@@ -518,8 +621,45 @@ public sealed class BackupService(
         if (process.ExitCode != 0)
         {
             log.LogError("pg_dump of {Database} failed with code {Code}: {Detail}", db.Database, process.ExitCode, LastNonEmptyLine(stderr));
-            throw new BackupFailedException($"Couldn't copy the {label} database, the details are in the API log");
+            throw new BackupFailedException($"The {label} database couldn't be copied. The details are in the API log");
         }
+    }
+
+    // A fingerprint of what a backup keeps. Equal fingerprints mean the same data, so the second copy adds nothing.
+    // Users' last sign in is left out: signing in is not a change worth a backup.
+    private static async Task<string> FingerprintAsync(NpgsqlConnection conn, NpgsqlTransaction tx, CancellationToken ct)
+    {
+        await using var cmd = new NpgsqlCommand("""
+            SELECT md5(coalesce(string_agg(x, chr(10) ORDER BY x), ''))
+            FROM (
+                SELECT 'Industries|' || t::text AS x FROM "Industries" t
+                UNION ALL SELECT 'RuleVersions|' || t::text FROM "RuleVersions" t
+                UNION ALL SELECT 'UserTables|' || t::text FROM "UserTables" t
+                UNION ALL SELECT 'UserTableRows|' || t::text FROM "UserTableRows" t
+                UNION ALL SELECT 'Users|' || (to_jsonb(t) - 'LastLoginAt')::text FROM "Users" t
+                UNION ALL SELECT 'UserAvatars|' || t::text FROM "UserAvatars" t
+            ) s
+            """, conn, tx);
+        return (string)(await cmd.ExecuteScalarAsync(ct))!;
+    }
+
+    // The fingerprint of the newest backup, or null when there is none or it predates fingerprints
+    private string? LastFingerprint()
+    {
+        foreach (var dir in Directory.GetDirectories(_folder).OrderByDescending(Path.GetFileName, StringComparer.Ordinal))
+        {
+            if (Path.GetFileName(dir).StartsWith('.') || !TryRead(dir, out _)) continue;
+            try
+            {
+                using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(dir, "backup.json")));
+                return doc.RootElement.TryGetProperty("fingerprint", out var value) ? value.GetString() : null;
+            }
+            catch (Exception ex) when (ex is IOException or JsonException)
+            {
+                return null;
+            }
+        }
+        return null;
     }
 
     // The table as Excel opens it: the same columns the page export has, custom fields included. Returns how many rows it wrote.
@@ -710,6 +850,11 @@ public sealed class BackupService(
         {
             if (File.GetLastWriteTimeUtc(file) < cutoff) TryDeleteFile(file);
         }
+        // A plain copy left by a restore that crashed. A restore may be running right now, so only old ones go here.
+        foreach (var file in Directory.GetFiles(_folder, PlainPrefix + "*"))
+        {
+            if (File.GetLastWriteTimeUtc(file) < cutoff) TryDeleteFile(file);
+        }
         foreach (var dir in Directory.GetDirectories(_folder, ".*"))
         {
             if (Directory.GetLastWriteTimeUtc(dir) < cutoff) DeleteFolder(dir);
@@ -727,6 +872,43 @@ public sealed class BackupService(
             // Still open somewhere, the next sweep takes it
         }
     }
+
+    // The contents of a backup file, read in plain as it streams out. A file from before sealing is read as it is.
+    public async Task<Stream> OpenFileAsync(string path, CancellationToken ct)
+    {
+        if (!await BackupCipher.IsSealedAsync(path, ct))
+        {
+            return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        }
+        return await BackupCipher.OpenReadAsync(path, signer.SealKey, ct);
+    }
+
+    // A plain copy of a backup file in the backups folder, for pg_restore, which only reads a path. The caller deletes it.
+    public async Task<string> DecryptToTempAsync(string path, CancellationToken ct)
+    {
+        Directory.CreateDirectory(_folder);
+        var temp = Path.Combine(_folder, $"{PlainPrefix}{Guid.NewGuid():N}");
+        try
+        {
+            await using var input = await OpenFileAsync(path, ct);
+            await using var output = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            await input.CopyToAsync(output, ct);
+        }
+        catch (System.Security.Cryptography.CryptographicException ex)
+        {
+            TryDeleteFile(temp);
+            log.LogError(ex, "Couldn't open backup file {Path}", path);
+            throw new BackupFailedException(BackupCipher.CantOpenMessage + ". Nothing was changed");
+        }
+        catch
+        {
+            TryDeleteFile(temp);
+            throw;
+        }
+        return temp;
+    }
+
+    public static void DeletePlainCopy(string path) => TryDeleteFile(path);
 
     // The backup's files in one zip, written beside the backups (a dot file, so no listing picks it up). The caller
     // serves it and deletes it. uploaded.json stays out, so the zip carries exactly what was signed.
@@ -784,10 +966,19 @@ public sealed class BackupService(
             }
             catch (InvalidDataException)
             {
+                if (await IsPgDumpAsync(zipPath, ct)) throw DumpRefused();
                 throw NotOurs();
             }
 
-            var mac = await signer.MacOfAsync(staging, ct) ?? throw NotOurs();
+            // Each device has its own data and migrations, so a backup from another device is refused, and so is one from before signing
+            if (!File.Exists(Path.Combine(staging, BackupSigner.SignatureFile)))
+            {
+                throw new BackupUploadException("This backup was made before backups were signed, so it can't be added from a file. " +
+                    "It can only be restored from its place in the list on the device that made it. Nothing was changed", StatusCodes.Status400BadRequest);
+            }
+            var mac = await signer.MacOfAsync(staging, ct)
+                ?? throw new BackupUploadException("This backup was made on another device, or it was changed after it was made. " +
+                    "Backups only work on the device that made them. Nothing was changed", StatusCodes.Status400BadRequest);
             if (!TryRead(staging, out _)) throw NotOurs();
 
             foreach (var existing in Directory.GetDirectories(_folder))
@@ -795,8 +986,9 @@ public sealed class BackupService(
                 if (Path.GetFileName(existing).StartsWith('.')) continue;
                 if (BackupSigner.StoredMac(existing) == mac)
                 {
-                    throw new BackupUploadException($"That backup is already in the list, as {Path.GetFileName(existing)}",
-                        StatusCodes.Status409Conflict);
+                    var existingId = Path.GetFileName(existing);
+                    throw new BackupUploadException($"This backup is already in the list, as {existingId}. Nothing was added",
+                        StatusCodes.Status409Conflict) { ExistingId = existingId };
                 }
             }
 
@@ -838,7 +1030,21 @@ public sealed class BackupService(
     }
 
     private static BackupUploadException NotOurs() =>
-        new("That file isn't a backup made by this app, so it can't be used. Nothing was changed", StatusCodes.Status400BadRequest);
+        new("That isn't a backup .zip from this app. Only a backup .zip made on this device can be added. Nothing was changed",
+            StatusCodes.Status400BadRequest);
+
+    private static BackupUploadException DumpRefused() =>
+        new("A .dump file can't be added. Only a backup .zip made on this device can be, from its Download button. Nothing was changed",
+            StatusCodes.Status400BadRequest);
+
+    // A plain pg_dump file starts with PGDMP, a zip never does
+    private static async Task<bool> IsPgDumpAsync(string path, CancellationToken ct)
+    {
+        await using var stream = File.OpenRead(path);
+        var head = new byte[5];
+        var read = await stream.ReadAsync(head.AsMemory(), ct);
+        return read == 5 && Encoding.ASCII.GetString(head) == "PGDMP";
+    }
 
     private static BackupUploadException TooBig(long maxBytes) =>
         new($"That file is bigger than {maxBytes / (1024 * 1024)} MB, so it can't be used. Nothing was changed",

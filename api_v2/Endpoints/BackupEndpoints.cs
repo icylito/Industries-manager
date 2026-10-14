@@ -28,7 +28,13 @@ public static class BackupEndpoints
         {
             try
             {
-                return Results.Ok(Describe(await backups.RunAsync("manual", user.Name, ct), restore));
+                var made = await backups.RunAsync("manual", user.Name, ct);
+                if (made is null)
+                {
+                    return Results.Problem("Nothing has changed from the previous backup. No new save was made.",
+                        statusCode: StatusCodes.Status409Conflict, title: "No new save");
+                }
+                return Results.Ok(Describe(made, restore));
             }
             catch (BackupBusyException)
             {
@@ -68,7 +74,7 @@ public static class BackupEndpoints
             DatabaseStatus status, AppDbContext db, CancellationToken ct) =>
         {
             var entry = backups.Find(id);
-            if (entry is null) return Results.NotFound($"There's no backup {id}");
+            if (entry is null) return Results.NotFound($"No backup called {id} exists. Nothing was changed");
             return Results.Ok(new
             {
                 entry.Id,
@@ -122,7 +128,7 @@ public static class BackupEndpoints
         {
             if (!BackupService.ValidId(id)) return Results.BadRequest("That isn't a backup");
             var zip = backups.ZipOf(id);
-            if (zip is null) return Results.NotFound($"There's no backup {id}");
+            if (zip is null) return Results.NotFound($"No backup called {id} exists. Nothing was changed");
             // Deleted as soon as it has been sent
             var stream = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.Delete, 81920, FileOptions.DeleteOnClose);
             return Results.File(stream, "application/zip", $"backup-{id}.zip");
@@ -138,7 +144,7 @@ public static class BackupEndpoints
                 || !media.MediaType.Equals("multipart/form-data", StringComparison.OrdinalIgnoreCase)
                 || HeaderUtilities.RemoveQuotes(media.Boundary).Value is not { Length: > 0 } boundary)
             {
-                return Results.Problem("Send the backup as a file", statusCode: StatusCodes.Status400BadRequest, title: "Couldn't read it");
+                return Results.Problem("Send the backup as a .zip file", statusCode: StatusCodes.Status400BadRequest, title: "That request couldn't be read. Nothing was changed");
             }
 
             var bodyLimit = request.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>();
@@ -176,7 +182,7 @@ public static class BackupEndpoints
                 }
                 if (!got)
                 {
-                    return Results.Problem("No file was sent", statusCode: StatusCodes.Status400BadRequest, title: "Couldn't read it");
+                    return Results.Problem("No file was sent", statusCode: StatusCodes.Status400BadRequest, title: "That request couldn't be read. Nothing was changed");
                 }
 
                 var entry = await backups.ImportAsync(temp, user.Name, maxBytes, ct);
@@ -184,7 +190,9 @@ public static class BackupEndpoints
             }
             catch (BackupUploadException ex)
             {
-                return Results.Problem(ex.Message, statusCode: ex.Status, title: "Couldn't use that file");
+                // existingId lets the page scroll to the backup that is already in the list
+                var extensions = ex.ExistingId is null ? null : new Dictionary<string, object?> { ["existingId"] = ex.ExistingId };
+                return Results.Problem(ex.Message, statusCode: ex.Status, title: "Couldn't use that file", extensions: extensions);
             }
             catch (BadHttpRequestException ex) when (ex.StatusCode == StatusCodes.Status413PayloadTooLarge)
             {
@@ -194,8 +202,8 @@ public static class BackupEndpoints
             }
             catch (BadHttpRequestException)
             {
-                return Results.Problem("The file didn't arrive whole. Try again", statusCode: StatusCodes.Status400BadRequest,
-                    title: "Couldn't read it");
+                return Results.Problem("The upload was cut short. Nothing was added. Try again", statusCode: StatusCodes.Status400BadRequest,
+                    title: "That request couldn't be read. Nothing was changed");
             }
             finally
             {
@@ -203,7 +211,7 @@ public static class BackupEndpoints
             }
         });
 
-        group.MapGet("/{id}/{file}", (string id, string file, BackupService backups) =>
+        group.MapGet("/{id}/{file}", async (string id, string file, BackupService backups, CancellationToken ct) =>
         {
             if (!BackupService.ValidId(id) || file is not ("main" or "collector" or "excel"))
             {
@@ -217,12 +225,13 @@ public static class BackupEndpoints
             }
             if (!File.Exists(path))
             {
-                return Results.NotFound($"There's no backup {id}");
+                return Results.NotFound($"No backup called {id} exists. Nothing was changed");
             }
-            // excel is a CSV with a BOM, Excel opens it with a double click
+            // The file is sealed on disk, so it is opened here and sent in plain. excel is a CSV with a BOM, Excel opens it with a double click
+            var stream = await backups.OpenFileAsync(path, ct);
             return file == "excel"
-                ? Results.File(path, "text/csv", $"industries-{id}.csv")
-                : Results.File(path, "application/octet-stream", $"{id}-{file}.dump");
+                ? Results.Stream(stream, "text/csv", $"industries-{id}.csv")
+                : Results.Stream(stream, "application/octet-stream", $"{id}-{file}.dump");
         });
     }
 

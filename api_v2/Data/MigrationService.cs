@@ -48,7 +48,8 @@ public class MigrationService(
                     await state.GetService<IHistoryRepository>().CreateIfNotExistsAsync(ct);
                     var stateSteps = state.Database.GetMigrations().ToList();
                     status.SetStateSteps(stateSteps);
-                    if (await data.GetService<IHistoryRepository>().ExistsAsync(ct)) await HandOverAsync(state, stateSteps, ct);
+                    // EF's own check can say the table is there on a brand new database, so the table is looked up directly
+                    if (await TableExistsAsync(state, ct)) await HandOverAsync(state, stateSteps, ct);
                     var pending = (await data.Database.GetPendingMigrationsAsync(ct)).ToList();
                     var appliedBefore = (await data.Database.GetAppliedMigrationsAsync(ct)).ToList();
 
@@ -143,6 +144,12 @@ public class MigrationService(
                 return;
             }
         }
+    }
+
+    // Whether the data chain's history table is there at all. A brand new database has none until the data chain runs.
+    private static async Task<bool> TableExistsAsync(StateMigrationsContext state, CancellationToken ct)
+    {
+        return await state.Database.SqlQuery<bool>($"""SELECT to_regclass('public."__EFMigrationsHistory"') IS NOT NULL AS "Value" """).SingleAsync(ct);
     }
 
     // A database that ran a step before the chains were split has it in the data chain's history. Those steps belong to

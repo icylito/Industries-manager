@@ -124,7 +124,7 @@ tr.skipped td.notes{
 }
 
 .result.small{
-    margin: 0.85rem 0 0;
+    margin: 0.85rem 0 1.1rem;
     font-size: 0.85rem;
 }
 
@@ -493,6 +493,24 @@ table.versions tr.just-added td:first-child{
 
 .intro-row .intro{
     margin: 0;
+}
+.intro-row .intro-block{
+    display: grid;
+    gap: 0.7rem;
+    min-width: 0;
+}
+
+.next-backup{
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 1rem;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.next-backup i{
+    color: var(--muted);
 }
 
 .intro-row .add-btn{

@@ -374,6 +374,8 @@ select.placeholder option{
     top: calc(100% + 0.5rem);
     right: 0;
     z-index: 20;
+    /* Room under the calendar when it is scrolled into view, so the last week is never against the panel's edge */
+    scroll-margin-bottom: 1.5rem;
     width: 18.5rem;
     padding: 0.85rem;
     border: 1px solid var(--border);

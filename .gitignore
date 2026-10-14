@@ -17,6 +17,8 @@ scripts/seeding.control.toml
 # Documents and notes
 report.txt
 HANDOFF.md
+OVERVIEW_HANDOFF.md
+backup.txt
 
 # Copies of the database made by the nightly backup, only the root folder (api_v2/Backups is code)
 /backups/
@@ -26,14 +28,24 @@ HANDOFF.md
 # The key that signs backups. Whoever holds it can make a backup the app trusts, keep it out of the repo
 /backup-key/
 
+# Each host keeps its own data, none of it goes into git. Requests and the History versions are rows in Postgres,
+# so they never appear as files; the full copies of them are the backups below.
+/profile-pictures/
+# Dumps, zips and the temp copies a restore or download makes, wherever they land
+*.dump
+*.zip
+.plain-*
+*.sealing
+# Build output of the transfer check, same as api_v2's
+testing/transfer-check/bin/
+testing/transfer-check/obj/
+
 # The checks in testing/: the throwaway API's settings and its backups
 api_v2/appsettings.Throwaway.json
 /testing/throwaway-backups/
 
 # The page's copy of the https development certificate, start.bat https and share make it
 angular/.cert/
-
-# Front-end related
 
 # The page checks in testing/ (playwright), installed there and not part of the repo
 testing/node_modules/
@@ -47,3 +59,12 @@ testing/debug.log
 
 # Plan workspaces for the subagent-driven runs (scratch, not part of the project)
 .superpowers/
+
+# Design files, planning notes, handoffs and grading rubrics: each machine keeps its own, not in git
+/design/
+/docs/
+/HANDOFF.md
+/OVERVIEW_HANDOFF.md
+/report.txt
+/testing/rubric.txt
+/testing/rubric_batches_8_9.md

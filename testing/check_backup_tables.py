@@ -100,7 +100,7 @@ check("the same backup again is reported as already there", s == 409 and b1["id"
 files_in = {n: zipfile.ZipFile(io.BytesIO(data)).read(n) for n in inside}
 tampered = dict(files_in); dump = bytearray(tampered["main.dump"]); dump[len(dump) // 2] ^= 0xFF; tampered["main.dump"] = bytes(dump)
 s, b = upload(manager, "tampered.zip", zip_with(tampered))
-check("one changed byte: refused as not ours", s == 400 and "made by this app" in json.dumps(b), (s, b))
+check("one changed byte: refused as not ours", s == 400 and "made on another device, or it was changed" in json.dumps(b), (s, b))
 s, b = upload(manager, "extra.zip", zip_with({**files_in, "notes.txt": b"hi"}))
 check("an extra file: refused", s == 400, (s, b))
 s, b = upload(manager, "path.zip", zip_with({**{k: v for k, v in files_in.items() if k != "main.dump"}, "../main.dump": files_in["main.dump"]}))

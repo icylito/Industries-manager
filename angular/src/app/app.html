@@ -46,7 +46,7 @@
     <nav class="nav">
         <a class="brand" routerLink="/"><i class="fa-solid fa-chart-simple" aria-hidden="true"></i><span class="brand-text">Stock Listing</span></a>
         <div class="nav-links">
-            <a routerLink="/" fragment="browse" aria-label="Browse"><i class="fa-solid fa-table-list" aria-hidden="true"></i><span>Browse</span></a>
+            <a routerLink="/" (click)="goHome()" aria-label="Home"><i class="fa-solid fa-table-list" aria-hidden="true"></i><span>Home</span></a>
             @if (auth.isSignedIn()) {
                 <a routerLink="/" fragment="add" aria-label="Add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>Add</span></a>
             }

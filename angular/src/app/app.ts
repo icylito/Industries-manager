@@ -48,6 +48,11 @@ export class App {
   // The first page is known from the address, so opening an admin page directly doesn't flash the other nav before the router is done
   ), { initialValue: { title: 'Industries', lede: 'Every change here is saved right away.', admin: adminPaths.some(path => location.pathname.startsWith(path)) } as PageInfo });
 
+  // Home always starts from the top of the table, even when it is the page already open
+  protected goHome() {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }
+
   constructor() {
     // The bell count, checked on every page change and every 30 seconds. Only people who are signed in see requests.
     // The admin pages have their own dark colors, see styles.css (admin-layout)

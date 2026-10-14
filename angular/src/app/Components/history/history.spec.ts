@@ -148,13 +148,13 @@ describe('HistoryPage', () => {
     const settle = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
 
     pick('{}', 2 * 1024 * 1024); await settle();
-    expect(page.settingsError()).toBe('That file is too big to be a settings file');
+    expect(page.settingsError()).toBe('"settings.json" is too big to be a settings file');
     pick('not json'); await settle();
-    expect(page.settingsError()).toBe("That file couldn't be read. Use a file made with Export settings");
+    expect(page.settingsError()).toBe(`"settings.json" couldn't be read. Use a file made with Export settings`);
     pick('[1, 2]'); await settle();
-    expect(page.settingsError()).toBe("That isn't a settings file from this app. Use a file made with Export settings");
+    expect(page.settingsError()).toBe(`"settings.json" isn't a settings file from this app. Use a file made with Export settings`);
     pick('{"retention": {}}'); await settle();
-    expect(page.settingsError()).toBe("That isn't a settings file from this app. Use a file made with Export settings");
+    expect(page.settingsError()).toBe(`"settings.json" isn't a settings file from this app. Use a file made with Export settings`);
     http.expectNone(r => r.url.endsWith('/history/settings/import/preview'));
 
     pick('{"app": "stock-listing", "format": 1}'); await settle();

@@ -475,6 +475,11 @@ textarea::placeholder{
     text-align: center;
 }
 
+/* The shared rule for buttons next to each other in an action cell would indent every item after the first, so the menu takes it back */
+td.actions .row-menu [role='menuitem']{
+    margin-left: 0;
+}
+
 /* Everything fits in one row at desktop width: no sideways scroll, short dates, a title column that can shrink */
 .requests-table th .th, .requests-table td{
     padding-inline: 0.9rem;

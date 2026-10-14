@@ -67,7 +67,8 @@ The old `/users` address opens Settings. Every page jumps back to the top after 
 - Every change to the fields saves a copy of the table first.
 - On History, Restore puts a saved version back. The table as it is now is saved first, so the restore can be undone from the same page. Restore asks for a short reason.
 - Backups are listed at the bottom of History. Restoring a backup asks you to type `RESTORE`. It brings back the industries, their rules, requests, settings and every table from the Tables page. A full backup of right now is taken first, so a restore can be undone by restoring that one.
-- **Download** gives a backup as one `.zip`. Drop that zip on the box on History, on this PC or another one running this app, and it joins the list. Only a zip this app made is accepted: every backup is signed with a key in `backup-key/`, so keep that folder safe and never share it. Backups made before signing can still be restored here, but not downloaded as one file.
+- **Download** gives a backup as one `.zip`, and drop that zip on the box on History to put it back in the list. Only a zip this app made on this same PC is accepted.
+- Backups belong to the computer that made them. Their files are encrypted with a key in `backup-key/`, and that key is wrapped by Windows for this computer. Copy the folder to another PC and its backups can't be opened, restored or downloaded there. The same goes for a backup zip. If this PC is reinstalled or Windows is reset, the key can't be unwrapped and those backups are lost, so keep the database itself backed up somewhere else too. Keep `backup-key/` out of any copy you make of the project.
 - Deleting a table on the Tables page puts it in the bin for 14 days. **Bring back** returns it with its rows.
 
 ## Where the files go

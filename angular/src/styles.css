@@ -1,7 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 /* Color tokens, every component reads these so light/dark only lives here */
+/* The one gap between items in both navbars, see app.css */
 :root {
+    --nav-gap: 1rem;
+
     color-scheme: light;
     --bg: #ffffff;
     --surface: #ffffff;

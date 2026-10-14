@@ -19,6 +19,8 @@
     background: linear-gradient(var(--bg) calc(100% - 1.5rem), transparent);
 }
 
+/* One gap for every item in both navbars, so the space between the links, the tabs and the icons is the same
+   whatever the words are. The theme button and the bell get the same room as everything else. */
 /* Floating pill nav */
 .nav{
     position: relative;
@@ -66,7 +68,7 @@
 
 .nav-links{
     display: flex;
-    gap: 0.25rem;
+    gap: var(--nav-gap);
 }
 
 .nav-links a{
@@ -261,7 +263,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.5rem;
+    gap: var(--nav-gap);
     margin-bottom: 1.25rem;
     padding: 10px 12px 10px 20px;
     border: 1px solid var(--border);
@@ -277,7 +279,7 @@
 .tabs{
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: var(--nav-gap);
     font-size: 15px;
     font-weight: 500;
 }
@@ -302,7 +304,7 @@
 .side{
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--nav-gap);
 }
 
 .theme-btn, .side .bell{

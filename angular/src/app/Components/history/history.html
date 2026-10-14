@@ -51,7 +51,7 @@
                 </thead>
                 <tbody>
                     @for (v of pagedVersions(); track v.id) {
-                        <tr [class.editing]="panel()?.version?.id === v.id">
+                        <tr [id]="'version-row-' + v.id" [class.editing]="panel()?.version?.id === v.id">
                             <td class="id">#{{ v.id }}</td>
                             <td class="what">
                                 <span class="reason">
@@ -223,7 +223,7 @@
                         <p class="hint-line"><i class="fa-solid fa-triangle-exclamation red" aria-hidden="true"></i>{{ done.lostValues }} had values that didn't fit and show as --.</p>
                     }
                     @if (done.breakingRules) {
-                        <p class="hint-line"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>{{ done.breakingRules }} don't match today's rules. They're in, with a black triangle until someone fixes them.</p>
+                        <p class="hint-line"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>{{ done.breakingRules }} don't match today's rules. They're in, with a black triangle until a fix happens.</p>
                     }
                     @for (s of done.skipped; track s) {
                         <p class="hint-line"><i class="fa-solid fa-circle-minus" aria-hidden="true"></i>{{ s }}</p>
@@ -236,7 +236,7 @@
                             <a routerLink="/requests">See the requests</a></p>
                     }
                     <div class="confirm-row end">
-                        <a class="add-btn" routerLink="/" fragment="browse"><i class="fa-solid fa-table-list" aria-hidden="true"></i>See the table</a>
+                        <a class="add-btn" href="/#browse" (click)="$event.preventDefault(); seeTheTable()"><i class="fa-solid fa-table-list" aria-hidden="true"></i>See the table</a>
                     </div>
                 } @else {
                     <p class="intro">{{ p.preview.willImport }} rows will be added as new rows, with new numbers. Nothing in the table gets replaced.</p>
@@ -420,7 +420,9 @@
         <h2><span class="title-icon"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i></span>Backups</h2>
     </header>
     <div class="intro-row">
-        <p class="intro">{{ backupIntro() }}</p>
+        <div class="intro-block">
+            <p class="intro">{{ backupIntro() }}</p>
+        </div>
         <button type="button" class="add-btn" [disabled]="backingUp()" (click)="backupNow()">
             @if (backingUp()) { <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Backing up... }
             @else { <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>Back up now }
@@ -435,7 +437,7 @@
 
     <!-- The whole box is the button: click or press Enter to choose a file, or drop one on it. The API only accepts a backup this app made. -->
     <div class="drop-zone" role="button" tabindex="0" [class.over]="dropOver()" [class.busy]="uploading()"
-        [attr.aria-disabled]="uploading()" [attr.aria-label]="'Add a backup file. Supported: .zip'"
+        [attr.aria-disabled]="uploading()" [attr.aria-label]="'Add a backup file. Supported: the .zip from this device, from its Download button'"
         (click)="uploading() || backupFile.click()" (keydown.enter)="uploading() || backupFile.click()"
         (keydown.space)="$event.preventDefault(); uploading() || backupFile.click()"
         (dragover)="onDragOver($event)" (dragleave)="dropOver.set(false)" (drop)="onDrop($event)">
@@ -445,7 +447,7 @@
         } @else {
             <svg class="drop-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
             <strong>{{ dropOver() ? 'Let go to add it' : 'Drop a backup here or click to choose' }}</strong>
-            <span class="formats">Supported: <code>.zip</code>, the full backup you got from Download</span>
+            <span class="formats">Only the <code>.zip</code> Currently only this device backups are accepted.</span>
         }
     </div>
     <input #backupFile type="file" accept=".zip,application/zip" hidden (change)="chooseBackupFile(backupFile)">
@@ -456,6 +458,9 @@
         <p class="field-error" role="alert"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ uploadError() }}</p>
     }
 
+    @if (backupStatus()) {
+        <p class="next-backup" role="status"><i class="fa-solid fa-clock" aria-hidden="true"></i>{{ nextNightlyText() }}</p>
+    }
     @if (!backupsLoaded() && !backupError()) {
         <p class="state"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading backups</p>
     } @else if (backupsLoaded() && backups().length === 0) {
@@ -480,7 +485,7 @@
                             <td class="num-accent">{{ kb(b.mainSize + b.collectorSize) }}</td>
                             <td class="actions">
                                 <button type="button" class="menu-btn" aria-haspopup="menu" [attr.aria-expanded]="menuBackup()?.id === b.id"
-                                    aria-label="Actions for this backup" (click)="toggleMenu({ backup: b }, $event)">
+                                    [attr.aria-label]="'Actions for backup ' + b.id" (click)="toggleMenu({ backup: b }, $event)">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
                                 </button>
                             </td>
@@ -518,7 +523,7 @@
     }
     @if (restoreBackupDone(); as done) {
         <p class="result small"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>
-            Restored. The table has the {{ done.rows }} rows from that backup now, rules version {{ done.rulesVersion }}.
+            Restored. The table has the {{ done.rows }} rows from backup "{{ done.backup }}" now, rules version {{ done.rulesVersion }}.
             @if (done.undoBackup) { To undo it, restore the backup marked "Taken just before a restore" at the top of the list. }
             @if (done.copyId && auth.isAdmin()) { The table as it was before is also saved as version #{{ done.copyId }} in Saved versions. }</p>
     }
@@ -528,8 +533,6 @@
 
     @if (backupStatus()?.lastError) {
         <p class="field-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ backupStatus()!.lastErrorAt ? formatDate(backupStatus()!.lastErrorAt!) + '. ' : '' }}{{ backupStatus()!.lastError }}</p>
-    } @else if (backupStatus()) {
-        <p class="hint-line"><i class="fa-regular fa-calendar" aria-hidden="true"></i>Next nightly backup {{ formatDate(backupStatus()!.nextNightly) }}</p>
     }
 </section>
 }
@@ -552,7 +555,7 @@
 }
 
 @if (menuBackup(); as b) {
-    <div class="menu" role="menu" aria-label="Actions for this backup" (keydown)="onMenuKey($event)" (click)="menu.set(null)"
+    <div class="menu" role="menu" [attr.aria-label]="'Actions for backup ' + b.id" (keydown)="onMenuKey($event)" (click)="menu.set(null)"
         [style.top.px]="menuAt().top" [style.right.px]="menuAt().right">
         @if (b.hasExcel) {
             <button type="button" role="menuitem" title="The table at that time, opens in Excel" (click)="downloadBackup(b, 'excel')"><i class="fa-solid fa-file-excel" aria-hidden="true"></i>Excel</button>
@@ -563,10 +566,10 @@
         <button type="button" role="menuitem" (click)="downloadBackup(b, 'collector')"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>History</button>
         @if (auth.isAdmin()) {
             <button type="button" role="menuitem" class="danger" [disabled]="restoreBackupBusy() || deletingBackup()" (click)="confirmingBackup.set(b.id)"
-                title="Remove this backup for good"><i class="fa-solid fa-trash" aria-hidden="true"></i>Delete</button>
+                [attr.title]="'Remove backup ' + b.id + ' for good'"><i class="fa-solid fa-trash" aria-hidden="true"></i>Delete</button>
         }
         <button type="button" role="menuitem" class="danger" [disabled]="restoreBackupBusy() || b.sameLayout === false" (click)="askRestoreBackup(b)"
-            [attr.title]="b.sameLayout === false ? 'The table had other columns back then, a developer is needed for this one' : 'Put the table back the way it was in this backup'">
+            [attr.title]="b.sameLayout === false ? 'The table had other columns back then, a developer is needed for this one' : 'Put the table back the way it was in backup ' + b.id">
             <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore
         </button>
     </div>
@@ -574,11 +577,11 @@
 
 <!-- Delete a version asks first: a deleted version can't come back -->
 @if (confirmingBackup() !== null) {
-    <app-confirm-popup [name]="'Backup ' + confirmingBackup()" detail="will be deleted for good." [busy]="deletingBackup()"
+    <app-confirm-popup [name]="'Backup ' + confirmingBackup()" detail="will be deleted are you sure?." [busy]="deletingBackup()"
         (no)="confirmingBackup.set(null)" (yes)="deleteBackupById(confirmingBackup()!)" />
 }
 
 @if (confirmingVersion() !== null) {
-    <app-confirm-popup [name]="'Version #' + confirmingVersion()" detail="will be deleted for good." [busy]="deletingVersion() !== null"
+    <app-confirm-popup [name]="'Version #' + confirmingVersion()" detail="will be deleted are you sure?." [busy]="deletingVersion() !== null"
         (no)="confirmingVersion.set(null)" (yes)="deleteVersionById(confirmingVersion()!)" />
 }

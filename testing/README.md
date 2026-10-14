@@ -79,3 +79,24 @@ The page checks (`check_page.mjs`, `check_design.mjs`, `grade_capture.mjs`, `gra
 - `check_versions.py` ends with `VERSIONS OK`
 - `check_fixes.py` ends with `FIXES OK` (21 `ok` lines)
 - `check_ui.mjs` prints fifteen `ok` lines and ends with `all checks passed`, exit 0. The dim line prints the real opacity it read, `0.85`, so a pass shows the number rather than just a tick
+
+## Transfer test: backups stay on the PC that made them
+
+Proves the backups and their key only work where they were made. Needs one PC to test on and a second device.
+
+1. **Make a copy with this PC's data.** From the project root:
+   `powershell -ExecutionPolicy Bypass -File testing\make-copy.ps1 -WithData`
+   This writes `Desktop\stock-listing-copy` with the backups, the backup key and the database login.
+2. **Run the copy here.** Stop the original API first (both use port 5005). Start `start.bat` inside the copy.
+   Open History: every backup should be listed, and a Download should give a readable file.
+3. **Check the copy here.** From the copy's folder:
+   `dotnet run --project testing\transfer-check -- --folder "$PWD\backups" --key "$PWD\backup-key\backup-signing.key"`
+   Give full paths as above, because `dotnet run --project` changes the folder it runs in.
+   Every line should say `OK`, with `Computer:` showing this PC's name.
+4. **Move the copy to the other device** (zip it, copy it, anything). Run step 3 there. Expected output:
+   `KEY LOCKED HERE`, and exit code 1. Nothing in that folder opens on that device.
+5. **Start clean on each host.** On every device that should run the app on its own, run
+   `powershell -ExecutionPolicy Bypass -File testing\make-copy.ps1` without `-WithData`. That copy has no data and no key, so
+   the app makes its own key and starts empty.
+
+The check only reads. It never makes or migrates a key, so it is safe to run on a copy.

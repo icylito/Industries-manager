@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, signal, computed, inject, OnInit, HostListener, DestroyRef } from '@angular/core';
+import { Component, signal, computed, inject, OnInit, HostListener, DestroyRef, ViewChild, ElementRef } from '@angular/core';
 import { Industry, CreateIndustry, DbHealth, FieldRule, RuleSet } from '../../models/industry';
 import { Auth } from '../../services/auth';
 import { IndustryApi } from '../../services/industry-api';
@@ -346,6 +346,13 @@ export class MyComponents implements OnInit {
   confirmingItem = computed(() => this.industries().find(i => i.id === this.confirmingId()) ?? null);
   // What the last delete did, so a delete is never silent. Cleared by the next add or edit.
   deleted = signal('');
+  // The delete message goes away by itself, so an old one never sits under a list it no longer describes
+  private deletedTimer: ReturnType<typeof setTimeout> | undefined;
+  private showDeleted(message: string) {
+    clearTimeout(this.deletedTimer);
+    this.deleted.set(message);
+    this.deletedTimer = setTimeout(() => this.deleted.set(''), 10000);
+  }
 
   remove(id: number){
     this.deletingId.set(id);
@@ -355,9 +362,11 @@ export class MyComponents implements OnInit {
         this.deletingId.set(null);
         this.confirmingId.set(null);
         this.industries.update(list => list.filter(i => i.id !== id));
+        // A sector whose last row was just deleted is gone from the list, so a filter on it would hide everything
+        if (this.sectorFilter() && !this.sectors().includes(this.sectorFilter())) this.sectorFilter.set('');
         if (this.editingId() === id) this.cancelEdit();
         this.added.set('');
-        this.deleted.set(`Deleted ${gone.deleted} ${gone.deleted === 1 ? 'row' : 'rows'} from ${gone.table}: ${gone.name}.`);
+        this.showDeleted(`Deleted ${gone.deleted} ${gone.deleted === 1 ? 'row' : 'rows'} from ${gone.table}: ${gone.name}.`);
       },
       // Delete logic if id found
       error: err => {
@@ -706,10 +715,16 @@ export class MyComponents implements OnInit {
     });
   });
 
+  // The calendar hangs below its field, so it is scrolled into view once it has been drawn, or the bottom of it is cut off
+  @ViewChild('calendarBox') calendarBox?: ElementRef<HTMLElement>;
+
   toggleCalendar() {
     const current = this.releaseValue();
     if (!this.calendarOpen()) this.calendarMonth.set(this.firstOfMonth(current ? this.fromIso(current) : new Date()));
     this.calendarOpen.update(open => !open);
+    if (this.calendarOpen()) {
+      setTimeout(() => this.calendarBox?.nativeElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+    }
   }
 
   moveMonth(step: number) {
@@ -791,12 +806,14 @@ export class MyComponents implements OnInit {
   }
 
   // "updated" when the latest thing that happened to the row was a save from its edit form, "new" when it was
-  // added and not touched since. Rows with no recent activity have no tag.
+  // added and not touched since, and only for a week after it was added. Rows with no recent activity have no tag.
   tag(id: number): 'new' | 'updated' | null {
     const a = this.activity().get(id);
     if (!a) return null;
     if (a.edited && (!a.added || a.edited > a.added)) return 'updated';
-    return a.added ? 'new' : null;
+    if (!a.added) return null;
+    const week = 7 * 24 * 60 * 60 * 1000;
+    return Date.now() - Date.parse(a.added) <= week ? 'new' : null;
   }
 
   tagTitle(id: number): string {

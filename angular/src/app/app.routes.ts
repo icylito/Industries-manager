@@ -7,7 +7,7 @@ import { adminGuard, managerGuard, signedInGuard } from './guards';
 // The table loads with the app, the other pages load the first time someone opens them
 export const routes: Routes = [
     { path: '', component: MyComponents, data: { title: 'Industries', lede: 'Every change here is saved right away.' } },
-    { path: 'login', loadComponent: () => import('./Components/login/login').then(m => m.LoginPage), data: { title: 'Sign in', lede: 'Anyone can look at the table. An account is needed to change anything.', centered: true } },
+    { path: 'login', loadComponent: () => import('./Components/login/login').then(m => m.LoginPage), data: { title: 'Sign in', lede: 'Welcome Back.', centered: true } },
     { path: 'account', canActivate: [signedInGuard], loadComponent: () => import('./Components/account/account').then(m => m.AccountPage), data: { title: 'Your account', lede: 'Change your password or sign out.', centered: true } },
     // The Overview is for admins only for now. Who may see it is the guard's one line, nothing on the page says "admin".
     { path: 'overview', canActivate: [adminGuard], loadComponent: () => import('./Components/overview/overview').then(m => m.OverviewPage), data: { title: 'Overview', lede: 'The table at a glance.', admin: true } },

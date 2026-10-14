@@ -106,11 +106,18 @@ export class HistoryPage implements OnInit {
     return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   }
 
-  backupIntro(): string {
+  // "Next nightly backup Oct 15, 2026, 2:00 AM", shown above the table so it is seen without scrolling
+  nextNightlyText(): string {
     const status = this.backupStatus();
-    const days = status?.keepDays ?? 14;
-    const time = status ? this.formatTime(status.nextNightly) : '2:00 AM';
-    return `A full copy of the database every night at ${time}, kept for ${days} ${days === 1 ? 'day' : 'days'}.`;
+    if (!status) return 'Next nightly backup: loading';
+    const when = new Date(status.nextNightly).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    return `Next nightly backup ${when}`;
+  }
+
+  // Easy to misread: a backup is only saved when the data changed, so a press of Back up now can save nothing
+  backupIntro(): string {
+    const days = this.backupStatus()?.keepDays ?? 14;
+    return `Kept for ${days} ${days === 1 ? 'day' : 'days'}. A backup is only saved when changes are made.`;
   }
 
   kindLabel(kind: string): string {
@@ -150,7 +157,7 @@ export class HistoryPage implements OnInit {
   // The whole backup as one zip, to keep somewhere else and drop back in on this page later
   downloadZip(entry: BackupEntry) {
     this.api.downloadFile(this.api.backupZipUrl(entry.id), `backup-${entry.id}.zip`).subscribe({
-      error: (err: HttpErrorResponse) => this.backupError.set(errorText(err, "Couldn't download that backup")),
+      error: (err: HttpErrorResponse) => this.backupError.set(errorText(err, `Couldn't download "${entry.id}" backup`)),
     });
   }
 
@@ -184,27 +191,43 @@ export class HistoryPage implements OnInit {
     if (this.uploading()) return;
     this.uploadMsg.set('');
     this.uploadError.set('');
+    if (/\.dump$/i.test(file.name)) {
+      this.uploadError.set("A .dump file can't be added. Only a backup .zip could.");
+      return;
+    }
     if (!/\.zip$/i.test(file.name)) {
-      this.uploadError.set('That file type is not supported. Use the .zip that Download gave you.');
+      this.uploadError.set(`"${file.name}" isn't a .zip. Only the backup .zip from this device's Download can be added.`);
       return;
     }
     this.uploading.set(true);
     this.api.uploadBackup(file).subscribe({
       next: entry => {
         this.uploading.set(false);
-        this.uploadMsg.set(`Added to the list as the backup from ${this.formatDate(entry.createdAt)}, marked below. Press Restore on it to use it.`);
+        this.uploadMsg.set(`Added to the list as the backup from ${this.formatDate(entry.createdAt)}, marked below. Press Restore to use it.`);
         // It sits at the date it was made, which can be far down the list, so it is marked and brought into view
         this.justAdded.set(entry.id);
         this.loadBackups();
         setTimeout(() => document.getElementById('backup-' + entry.id)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 400);
       },
-      error: (err: HttpErrorResponse) => { this.uploading.set(false); this.uploadError.set(errorText(err, "Couldn't use that file")); },
+      error: (err: HttpErrorResponse) => {
+        this.uploading.set(false);
+        // Already in the list: nothing is added, so the one that is there is marked and brought into view
+        const existing: string | undefined = err.error?.existingId;
+        if (existing) {
+          this.uploadMsg.set('That backup is already in the list. It is marked below, ready to restore.');
+          this.justAdded.set(existing);
+          setTimeout(() => document.getElementById('backup-' + existing)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 400);
+          return;
+        }
+        this.uploadError.set(errorText(err, `Couldn't use "${file.name}"`));
+      },
     });
   }
 
   downloadBackup(entry: BackupEntry, file: 'main' | 'collector' | 'excel') {
+    const name = file === 'excel' ? `industries-${entry.id}.csv` : `${entry.id}-${file}.dump`;
     this.api.downloadFile(this.api.backupDownloadUrl(entry.id, file), `backup-${entry.id}-${file}`).subscribe({
-      error: (err: HttpErrorResponse) => this.backupError.set(errorText(err, "Couldn't download that file")),
+      error: (err: HttpErrorResponse) => this.backupError.set(errorText(err, `Couldn't download "${name}"`)),
     });
   }
 
@@ -231,9 +254,9 @@ export class HistoryPage implements OnInit {
     this.restoreBackupText.set('');
   }
 
-  // Escape closes whichever question is open, the same way every other overlay in the app closes, and the same way
-  // Cancel does. While a restore is running neither the Cancel button nor Escape does anything, so a half-done
-  // restore can't be dismissed out from under itself.
+  /* Escape closes whichever question is open, the same way every other overlay in the app closes, and the same way
+  Cancel does. While a restore is running neither the Cancel button nor Escape does anything, so a half-done
+  restore can't be dismissed out from under itself.*/
   @HostListener('document:keydown.escape')
   onEscape() {
     this.menu.set(null);
@@ -362,9 +385,22 @@ export class HistoryPage implements OnInit {
     return String(value);
   }
 
+  // "See the table" after a bring back: opens the Industries rows. The rows load after the page opens, so the scroll waits for them
+  seeTheTable() {
+    this.router.navigate(['/'], { fragment: 'browse' }).then(() => this.scrollToRows(30));
+  }
+
+  private scrollToRows(triesLeft: number) {
+    if (document.querySelector('#browse tbody tr') || triesLeft <= 0) {
+      document.getElementById('browse')?.scrollIntoView({ block: 'start' });
+      return;
+    }
+    setTimeout(() => this.scrollToRows(triesLeft - 1), 100);
+  }
+
   download(v: VersionSummary) {
     this.api.downloadFile(this.api.downloadUrl(v.id), `version-${v.id}.csv`).subscribe({
-      error: (err: HttpErrorResponse) => this.notice.set(errorText(err, "Couldn't download that file")),
+      error: (err: HttpErrorResponse) => this.notice.set(errorText(err, `Couldn't download "version-${v.id}.csv"`)),
     });
   }
 
@@ -448,21 +484,41 @@ export class HistoryPage implements OnInit {
     if (this.deletingBackup()) return;
     this.deletingBackup.set(true);
     this.backupError.set('');
+    const list = this.backups();
+    const at = list.findIndex(b => b.id === id);
+    const next = list[at + 1]?.id ?? list[at - 1]?.id ?? null;
     this.api.deleteBackup(id).subscribe({
-      next: () => { this.deletingBackup.set(false); this.confirmingBackup.set(null); this.loadBackups(); },
+      next: () => {
+        this.deletingBackup.set(false);
+        this.confirmingBackup.set(null);
+        this.backups.update(l => l.filter(b => b.id !== id));
+        this.loadBackups();
+        this.scrollAfterRemoval(next ? 'backup-' + next : null, () => document.querySelector('.drop-zone')?.closest('section') ?? null);
+      },
       error: (err: HttpErrorResponse) => {
         this.deletingBackup.set(false);
         this.confirmingBackup.set(null);
-        this.backupError.set(errorText(err, "Couldn't delete that backup"));
+        this.backupError.set(errorText(err, `Couldn't delete "${id}" backup`));
         this.loadBackups();
       },
     });
+  }
+
+  // After a delete the page moves to the row that took the deleted one's place, or to the section when no row is left
+  private scrollAfterRemoval(rowId: string | null, section: () => Element | null) {
+    setTimeout(() => {
+      const target = (rowId ? document.getElementById(rowId) : null) ?? section();
+      target?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 50);
   }
 
   deleteVersion(v: VersionSummary) {
     if (v.pinned || this.deletingVersion() !== null) return;
     this.deletingVersion.set(v.id);
     this.notice.set('');
+    const shown = this.pagedVersions();
+    const at = shown.findIndex(x => x.id === v.id);
+    const next = shown[at + 1]?.id ?? shown[at - 1]?.id ?? null;
     this.api.deleteVersion(v.id).subscribe({
       next: () => {
         this.deletingVersion.set(null);
@@ -470,6 +526,7 @@ export class HistoryPage implements OnInit {
         this.versions.update(list => list.filter(x => x.id !== v.id));
         this.versionPage.set(this.shownPage());
         if (this.panel()?.version.id === v.id) this.close();
+        this.scrollAfterRemoval(next !== null ? 'version-row-' + next : null, () => document.querySelector('.panel'));
       },
       error: (err: HttpErrorResponse) => {
         this.deletingVersion.set(null);
@@ -535,7 +592,7 @@ export class HistoryPage implements OnInit {
 
   exportSettings() {
     this.api.downloadFile(this.api.settingsExportUrl(), 'settings.json').subscribe({
-      error: (err: HttpErrorResponse) => this.settingsError.set(errorText(err, "Couldn't download that file")),
+      error: (err: HttpErrorResponse) => this.settingsError.set(errorText(err, `Couldn't download "settings.json"`)),
     });
   }
 
@@ -551,7 +608,7 @@ export class HistoryPage implements OnInit {
     this.settingsAsk.set(null);
     if (!chosen) return;
     if (chosen.size > HistoryPage.SettingsFileMax) {
-      this.settingsError.set('That file is too big to be a settings file');
+      this.settingsError.set(`"${chosen.name}" is too big to be a settings file`);
       return;
     }
     chosen.text().then(text => {
@@ -559,12 +616,12 @@ export class HistoryPage implements OnInit {
       try {
         file = JSON.parse(text);
       } catch {
-        this.settingsError.set("That file couldn't be read. Use a file made with Export settings");
+        this.settingsError.set(`"${chosen.name}" couldn't be read. Use a file made with Export settings`);
         return;
       }
       // A list, a number or a file from another app gets the same answer the API would give, without the call
       if (!file || typeof file !== 'object' || Array.isArray(file) || typeof file.app !== 'string') {
-        this.settingsError.set("That isn't a settings file from this app. Use a file made with Export settings");
+        this.settingsError.set(`"${chosen.name}" isn't a settings file from this app. Use a file made with Export settings`);
         return;
       }
       this.settingsBusy.set(true);
@@ -584,7 +641,7 @@ export class HistoryPage implements OnInit {
       const days = p.retention.keepDays ? `, remove ones older than ${p.retention.keepDays} days` : '';
       parts.push(`how long old versions are kept (${keep}${days})`);
     }
-    if (parts.length === 0) return 'Nothing in this file is different from today, so nothing would change.';
+    if (parts.length === 0) return 'Nothing in the settings file is different from today, so nothing would change.';
     return `This changes ${parts.join(' and ')}.`;
   }
 

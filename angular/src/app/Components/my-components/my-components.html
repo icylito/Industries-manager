@@ -98,7 +98,7 @@
             </button>
 
             @if (calendarOpen()) {
-                <div class="calendar" role="dialog" aria-label="Choose a release date">
+                <div class="calendar" #calendarBox role="dialog" aria-label="Choose a release date">
                     <div class="cal-head">
                         <button type="button" class="icon-btn" aria-label="Previous month" (click)="moveMonth(-1)">
                             <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
@@ -305,6 +305,7 @@
             <strong>{{ count(industryTotal()) }}</strong> {{ industries().length === 1 ? 'industry' : 'industries' }}
             @if (sorted().length !== industries().length) { <span class="muted">· {{ count(shownTotal()) }} match</span> }
             <span class="muted">· showing {{ count(rangeStart()) }} to {{ count(rangeEnd()) }}</span>
+            @if (hasFilters()) { <button type="button" class="link-btn" (click)="clearFilters()">Clear filters</button> }
         </span>
         <label class="entries">
             Show

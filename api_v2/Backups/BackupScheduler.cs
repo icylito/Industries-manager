@@ -7,6 +7,16 @@ public sealed class BackupScheduler(BackupService backups, DatabaseStatus status
 {
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
+        // Doesn't need the database, so old backups get sealed as soon as the API starts
+        try
+        {
+            await backups.SealExistingAsync(ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            log.LogError(ex, "Sealing old backups failed");
+        }
+
         if (!await status.WaitUntilReadyAsync(ct)) return;
 
         while (!ct.IsCancellationRequested)

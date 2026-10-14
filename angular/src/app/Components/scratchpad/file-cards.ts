@@ -120,7 +120,7 @@ export class FileCards {
         }
         setTimeout(() => URL.revokeObjectURL(url), 60_000);
       },
-      error: (err: HttpErrorResponse) => this.notice.show([errorText(err, "Couldn't open " + (item.name || 'that file'))]),
+      error: (err: HttpErrorResponse) => this.notice.show([errorText(err, `Couldn't open "${item.name || 'the file'}"`)]),
     });
   }
 
