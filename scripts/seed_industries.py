@@ -19,6 +19,7 @@ DEFAULT_CONFIG = Path(__file__).with_name("config.toml")    # the main config, w
 DEFAULT_SEEDING = Path(__file__).with_name("seeding.toml")  # how the seed script makes and sends rows
 CONTROL_FILE = Path(__file__).with_name("seeding.control.toml")  # local account, git ignores it
 BAD_ROW_KINDS = {"name_too_long", "empty_name", "price_out_of_range", "duplicate_name"}
+SAMPLE_SECTORS = ["Public Sector", "Private Sector"]  # used when config.toml has no sectors list
 SIGN_IN_MISSING = (
     "The API needs a sign in. Copy scripts/seeding.control.example.toml to "
     "scripts/seeding.control.toml and fill in username and password "
@@ -84,7 +85,8 @@ def load_config(path: Path, seeding_path: Path) -> dict:
         if not 0 <= g["null_rate_min"] <= g["null_rate_max"] <= 1:
             problems.append("generation.null_rate_min and null_rate_max must be between 0 and 1, min first")
         if not f["sectors"]:
-            problems.append("fields.sectors needs at least one sector")
+            # An empty list means the sector is free text, but the seed still needs words to pick from
+            f["sectors"] = SAMPLE_SECTORS
         if f["price_min"] > f["price_max"]:
             problems.append("fields.price_min must not be above fields.price_max")
         if not isinstance(f["release_from"], date) or not isinstance(f["release_to"], date):

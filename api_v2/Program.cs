@@ -18,11 +18,14 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 // Pages that may call the API. Cors:Origins in appsettings overrides this list, the Angular dev server is the default.
+// Any port on this PC is allowed too (localhost, 127.0.0.1, [::1]), so `ng serve --port` works without a config change.
 var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() is { Length: > 0 } configured
     ? configured
     : ["http://localhost:4200"];
+var localOrigin = new System.Text.RegularExpressions.Regex(@"^https?://(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$");
 builder.Services.AddCors(options => options.AddPolicy("Angular", policy =>
-    policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("Content-Disposition", "Retry-After")));
+    policy.SetIsOriginAllowed(origin => origins.Contains(origin) || localOrigin.IsMatch(origin))
+        .AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("Content-Disposition", "Retry-After")));
 // A number has to arrive as a number, "5" as text is refused
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.Strict);

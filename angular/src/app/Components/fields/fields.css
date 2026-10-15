@@ -173,67 +173,6 @@
     color: var(--p-text);
 }
 
-.queue{
-    list-style: none;
-    margin: 0.9rem 0 0;
-    padding: 0;
-    border: 1px solid var(--p-border);
-    border-radius: 12px;
-}
-
-.queue li{
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.55rem 0.75rem;
-    border-bottom: 1px solid var(--p-border);
-}
-
-.queue li:last-child{
-    border-bottom: none;
-}
-
-.queue .name{
-    font-weight: 600;
-    min-width: 0;
-}
-
-.queue-limits{
-    color: var(--p-muted);
-    font-size: 0.85rem;
-}
-
-.queue .remove-btn{
-    margin-left: auto;
-}
-
-/* Always in the last column of the add row and pushed to its right edge, so Add field ends exactly where Send fields does */
-.add-actions{
-    grid-column: -2 / -1;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 0.5rem;
-}
-
-/* Send fields on its own line under the list, with a divider between it and the form */
-.send-bar{
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem 1.5rem;
-    margin-top: 1.25rem;
-    padding-top: 1.25rem;
-    border-top: 1px solid var(--p-border);
-}
-
-.send-bar .hint-line{
-    margin: 0;
-    flex: 1 1 16rem;
-}
-
 /* Checkboxes in the black and white style */
 .check{
     display: inline-flex;
@@ -279,17 +218,6 @@
     flex: 1;
 }
 
-.add-grid{
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-    gap: 0.75rem;
-    align-items: end;
-}
-
-.add-grid .wide{
-    grid-column: span 2;
-}
-
 @media (max-width: 760px) {
     .save-bar{
         flex-wrap: wrap;
@@ -298,26 +226,11 @@
     .save-bar .note{
         flex: 1 0 100%;
     }
-
-    .add-grid .wide{
-        grid-column: auto;
-    }
 }
 
 @media (max-width: 480px) {
     .save-bar button{
         flex: 1;
-    }
-}
-
-@media (max-width: 390px) {
-    .add-actions, .send-bar{
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .queue .remove-btn{
-        margin-left: 0;
     }
 }
 

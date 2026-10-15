@@ -602,12 +602,55 @@ table.versions tr.just-added td:first-child{
     background: var(--hover);
 }
 
-/* The tabs at the top of the page: the open one is filled, the others are plain words */
+/* The tabs along the top edge of the History panel: the open one is filled, the others are plain words.
+   A line under them closes the strip off, and the open tab's content follows in the same box. */
 .page-tabs{
     display: flex;
     flex-wrap: wrap;
     gap: 0.4rem;
-    margin-bottom: 1rem;
+    /* The line runs from edge to edge of the panel, the padding follows the panel's own */
+    --edge: 1.5rem;
+    margin: -0.5rem calc(var(--edge) * -1) 1.5rem;
+    padding: 0 var(--edge) 1rem;
+    border-bottom: 1px solid var(--p-border);
+}
+
+/* Something that belongs to the whole panel, like the Fields rules version, sits at the far end of the tab row */
+.page-tabs .tabs-end{
+    align-self: center;
+    margin-left: auto;
+}
+
+/* Panels get less padding on a small phone, the divider follows */
+@media (max-width: 480px) {
+    .page-tabs{
+        --edge: 1.25rem;
+    }
+}
+
+/* Settings holds two parts in the one panel, split by a line instead of being two cards */
+.shell-section + .shell-section{
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--p-border);
+}
+
+/* On a desktop the saved versions and backups scroll inside their own box, so the header row and the
+   bottom bar stay in view. A phone keeps the long list, its rows are cards there. */
+@media (min-width: 641px) {
+    .panel .table-wrap.scroll-wrap{
+        max-height: 60vh;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+
+    /* A thin line under the stuck header, so the rows read as passing beneath it */
+    .scroll-wrap thead th{
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        box-shadow: 0 1px 0 var(--p-border);
+    }
 }
 
 .page-tab{
@@ -752,3 +795,24 @@ td.actions:has(.row-menu){
 tbody tr:hover td.actions{
     background-image: linear-gradient(var(--hover), var(--hover));
 }
+
+/* Rows a page, sits in the bottom bar next to the arrows. Its own box, not the full width of a form field */
+.page-size{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--p-muted);
+    font-size: 0.85rem;
+}
+
+.page-size .control{
+    width: auto;
+    min-width: 4.5rem;
+}
+
+/* The same height as the page arrows beside it */
+.page-size select{
+    height: 2rem;
+    padding-right: 2rem;
+}
+

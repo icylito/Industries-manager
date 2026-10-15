@@ -37,26 +37,9 @@
             <span class="field-label">Sector</span>
             <span class="control">
                 <i class="fa-solid fa-industry" aria-hidden="true"></i>
-                @if (sectorListed()) {
-                <select formControlName="sector" [class.placeholder]="!form.controls.sector.value" [attr.aria-describedby]="fieldProblem('sector') ? 'problem-sector' : null" [attr.aria-invalid]="fieldProblem('sector') ? true : null">
-                    <option value="">Choose a sector</option>
-                    @for (choice of sectorChoices(); track choice) {
-                        <option [value]="choice">{{ choice }}</option>
-                    }
-                    <!-- An older row can still show the sector it already has -->
-                    @if (otherSector(); as saved) {
-                        <option [value]="saved">{{ saved }}</option>
-                    }
-                </select>
-                <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
-                } @else {
-                <!-- No list in the rules: pick a sector the table already uses, or type a new one -->
-                <input formControlName="sector" list="sector-suggestions" placeholder="Choose or type a sector" autocomplete="off"
+                <!-- Free text: the sector is typed, no list to pick from -->
+                <input formControlName="sector" placeholder="Type a sector" autocomplete="off"
                     [attr.aria-describedby]="fieldProblem('sector') ? 'problem-sector' : null" [attr.aria-invalid]="fieldProblem('sector') ? true : null">
-                <datalist id="sector-suggestions">
-                    @for (choice of sectorChoices(); track choice) { <option [value]="choice"></option> }
-                </datalist>
-                }
             </span>
             @if (fieldProblem('sector'); as p) { <span class="field-error inline" id="problem-sector"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ p }}</span> }
         </label>
@@ -149,7 +132,7 @@
                 } @else if (editingId() === null) {
                     <i class="fa-solid fa-plus" aria-hidden="true"></i>Add industry
                 } @else {
-                    <i class="fa-solid fa-check" aria-hidden="true"></i>Save changes
+                    <i class="fa-solid fa-check" aria-hidden="true"></i>Update Changes
                 }
             </button>
         </div>
@@ -307,18 +290,6 @@
             <span class="muted">· showing {{ count(rangeStart()) }} to {{ count(rangeEnd()) }}</span>
             @if (hasFilters()) { <button type="button" class="link-btn" (click)="clearFilters()">Clear filters</button> }
         </span>
-        <label class="entries">
-            Show
-            <span class="control">
-                <select (change)="pageSize.set(+$any($event.target).value); page.set(1)">
-                    @for (n of [5, 10, 25, 50, 100]; track n) {
-                        <option [value]="n" [selected]="n === pageSize()">{{ n }}</option>
-                    }
-                </select>
-                <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
-            </span>
-            rows
-        </label>
     </div>
     }
 
@@ -442,15 +413,30 @@
     @if (!loading() && !error()) {
         <footer class="panel-foot">
             <span>Page {{ count(currentPage()) }} of {{ count(pageCount()) }}</span>
-            <div class="pager">
-                <button type="button" class="icon-btn" aria-label="Previous page" [disabled]="currentPage() === 1"
-                    (click)="page.set(currentPage() - 1)">
-                    <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
-                </button>
-                <button type="button" class="icon-btn" aria-label="Next page" [disabled]="currentPage() === pageCount()"
-                    (click)="page.set(currentPage() + 1)">
-                    <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
-                </button>
+            <!-- How many rows a page sits by the arrows, at the end of the table where the paging happens -->
+            <div class="foot-right">
+                <label class="entries">
+                    Show
+                    <span class="control">
+                        <select aria-label="Rows per page" (change)="pageSize.set(+$any($event.target).value); page.set(1)">
+                            @for (n of [5, 10, 25, 50, 100]; track n) {
+                                <option [value]="n" [selected]="n === pageSize()">{{ n }}</option>
+                            }
+                        </select>
+                        <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
+                    </span>
+                    rows
+                </label>
+                <div class="pager">
+                    <button type="button" class="icon-btn" aria-label="Previous page" [disabled]="currentPage() === 1"
+                        (click)="page.set(currentPage() - 1)">
+                        <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="icon-btn" aria-label="Next page" [disabled]="currentPage() === pageCount()"
+                        (click)="page.set(currentPage() + 1)">
+                        <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+                    </button>
+                </div>
             </div>
         </footer>
     }

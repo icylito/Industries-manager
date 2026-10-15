@@ -13,6 +13,7 @@ scripts/seeding.control.toml
 
 # Root editor settings, angular/.vscode stays shared for ng serve and ng test
 /.vscode/
+/.claude/
 
 # Documents and notes
 report.txt

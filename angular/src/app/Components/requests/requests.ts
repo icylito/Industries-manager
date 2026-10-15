@@ -1,16 +1,18 @@
-import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, HostListener, OnInit, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DevRequest, RequestMessage } from '../../models/industry';
 import { IndustryApi, errorText } from '../../services/industry-api';
 import { Auth } from '../../services/auth';
+import { FormatField } from './format-field';
+import { RichText } from './rich-text';
 
 type Filter = 'open' | 'in-progress' | 'done' | 'dismissed' | 'all';
 
 @Component({
   selector: 'app-requests',
-  imports: [RouterLink],
+  imports: [RouterLink, FormatField, RichText],
   styleUrls: ['../my-components/my-components.css', '../history/history.css', './requests.css'],
   templateUrl: './requests.html',
   host: { '(document:click)': 'menuId.set(null)', '(window:scroll)': 'menuId.set(null)', '(window:resize)': 'menuId.set(null)' },
@@ -47,13 +49,13 @@ export class RequestsPage implements OnInit {
     dismissed: 'Dismissed',
   };
 
-  // Plain words for what each request is about
+  // The formal name of each request type
   readonly kinds: Record<DevRequest['kind'], { label: string; icon: string }> = {
-    column: { label: 'New column', icon: 'fa-solid fa-table-columns' },
-    rename: { label: 'Old column', icon: 'fa-solid fa-right-left' },
-    'field-type': { label: 'Field type', icon: 'fa-solid fa-shapes' },
-    'restore-layout': { label: 'Old layout', icon: 'fa-solid fa-rotate-left' },
-    other: { label: 'Other', icon: 'fa-solid fa-comment' },
+    column: { label: 'Column addition', icon: 'fa-solid fa-table-columns' },
+    rename: { label: 'Column restoration', icon: 'fa-solid fa-right-left' },
+    'field-type': { label: 'Field type change', icon: 'fa-solid fa-shapes' },
+    'restore-layout': { label: 'Layout restoration', icon: 'fa-solid fa-rotate-left' },
+    other: { label: 'General request', icon: 'fa-solid fa-comment' },
   };
 
   ngOnInit() {
@@ -73,7 +75,12 @@ export class RequestsPage implements OnInit {
 
   // The list
 
+  // The filter is one pill with a list rather than five tabs, so it fits a phone and the head stays quiet
+  filterMenu = signal(false);
+  filterLabel = computed(() => this.filters.find(f => f.value === this.filter())!.label);
+
   setFilter(f: Filter) {
+    this.filterMenu.set(false);
     this.filter.set(f);
     this.load();
   }
@@ -91,8 +98,11 @@ export class RequestsPage implements OnInit {
 
   toggleMenu(id: number, e: Event) {
     e.stopPropagation();
+    // The click stops here, so the document never hears it and the filter list has to be closed by hand
+    this.filterMenu.set(false);
     const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const room = 190;
+    // One item, Open ticket
+    const room = 50;
     const top = box.bottom + 4 + room > window.innerHeight ? Math.max(8, box.top - 4 - room) : box.bottom + 4;
     this.menuAt.set({ top, right: window.innerWidth - box.right });
     this.menuId.update(current => (current === id ? null : id));
@@ -101,6 +111,33 @@ export class RequestsPage implements OnInit {
   open(r: DevRequest) {
     this.menuId.set(null);
     this.router.navigate(['/requests', r.id]);
+  }
+
+  // Who may change a ticket's status. Admins today, a permission from the roles panel later, and this is the one
+  // place that changes when it comes. The API checks it again.
+  canSetStatus = computed(() => this.auth.isAdmin());
+
+  readonly statusOptions: DevRequest['status'][] = ['open', 'in-progress', 'done', 'dismissed'];
+
+  // The status menu of the open ticket, the only place a status changes. A native select can't centre its list, so
+  // this one is drawn with buttons.
+  statusMenu = signal<number | null>(null);
+
+  toggleStatusMenu(id: number) {
+    this.statusMenu.update(open => (open === id ? null : id));
+  }
+
+  pickStatus(r: DevRequest, status: DevRequest['status']) {
+    this.statusMenu.set(null);
+    this.setStatus(r, status);
+  }
+
+  // A click anywhere outside the menu closes it
+  @HostListener('document:click', ['$event'])
+  closeStatusMenu(event: Event) {
+    const target = event.target as HTMLElement;
+    if (this.statusMenu() !== null && !target.closest('.status-menu')) this.statusMenu.set(null);
+    if (this.filterMenu() && !target.closest('.filter-menu')) this.filterMenu.set(false);
   }
 
   setStatus(r: DevRequest, status: DevRequest['status']) {
@@ -129,7 +166,48 @@ export class RequestsPage implements OnInit {
   sent = signal('');
   sendError = signal('');
 
+  private askBox = viewChild<ElementRef<HTMLElement>>('askBox');
+  private askTitle = viewChild<ElementRef<HTMLInputElement>>('askTitle');
+  private newTicketBtn = viewChild<ElementRef<HTMLButtonElement>>('newTicketBtn');
+
+  constructor() {
+    // The list behind the pop up stays still while it is open
+    effect(() => { document.body.style.overflow = this.asking() ? 'hidden' : ''; });
+    this.destroyRef.onDestroy(() => { document.body.style.overflow = ''; });
+  }
+
+  openAsk() {
+    this.sent.set('');
+    this.asking.set(true);
+    setTimeout(() => this.askTitle()?.nativeElement.focus());
+  }
+
+  // Closing keeps what was typed, so a stray click on the backdrop loses nothing. Not while it is sending.
+  closeAsk() {
+    if (this.sending()) return;
+    this.asking.set(false);
+    setTimeout(() => this.newTicketBtn()?.nativeElement.focus());
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape() {
+    if (this.asking()) this.closeAsk();
+  }
+
+  // Tab and Shift+Tab go round the pop up instead of wandering onto the page behind it
+  trapFocus(e: KeyboardEvent) {
+    const box = this.askBox()?.nativeElement;
+    if (e.key !== 'Tab' || !box) return;
+    const items = [...box.querySelectorAll<HTMLElement>('button:not([disabled]), input, textarea, [contenteditable="true"]')]
+      .filter(el => el.tabIndex >= 0);
+    if (!items.length) return;
+    const first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+
   send() {
+    if (this.sending()) return;
     this.sending.set(true);
     this.sent.set('');
     this.sendError.set('');
@@ -142,6 +220,7 @@ export class RequestsPage implements OnInit {
         this.title.set('');
         this.details.set('');
         this.code.set('');
+        this.closeAsk();
         this.api.refreshRequestCount();
         if (this.filter() === 'open' || this.filter() === 'all') this.load();
       },
@@ -153,6 +232,8 @@ export class RequestsPage implements OnInit {
 
   thread = signal<DevRequest | null>(null);
   messages = signal<RequestMessage[]>([]);
+  // Shown in the ticket's facts, so a glance says whether anyone has answered lately
+  lastReply = computed(() => this.messages().at(-1) ?? null);
   threadLoading = signal(false);
   threadError = signal('');
   reply = signal('');
@@ -226,14 +307,6 @@ export class RequestsPage implements OnInit {
     });
   }
 
-  onReplyKey(e: KeyboardEvent) {
-    // Enter sends, Shift+Enter makes a new line
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-      e.preventDefault();
-      this.sendReply();
-    }
-  }
-
   copyCode() {
     const code = this.thread()?.draftedCode;
     if (!code) return;
@@ -241,13 +314,6 @@ export class RequestsPage implements OnInit {
       () => { this.copied.set(true); setTimeout(() => this.copied.set(false), 2000); },
       () => this.threadError.set('Could not copy, select the code and copy it by hand'),
     );
-  }
-
-  // The short form for the list: no year unless it isn't this one
-  formatShort(iso: string): string {
-    const d = new Date(iso);
-    const sameYear = d.getFullYear() === new Date().getFullYear();
-    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }), hour: 'numeric', minute: '2-digit' });
   }
 
   formatDate(iso: string): string {

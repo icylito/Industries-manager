@@ -1,4 +1,4 @@
-import { Component, DestroyRef, computed, effect, inject } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
@@ -23,6 +23,7 @@ const adminPaths = routes.filter(r => r.data?.['admin'] === true).map(r => `/${r
   selector: 'app-root',
   styleUrl: './app.css',
   templateUrl: './app.html',
+  host: { '(document:keydown.escape)': 'closeMenu()' },
 })
 export class App {
   private router = inject(Router);
@@ -48,6 +49,26 @@ export class App {
   // The first page is known from the address, so opening an admin page directly doesn't flash the other nav before the router is done
   ), { initialValue: { title: 'Industries', lede: 'Every change here is saved right away.', admin: adminPaths.some(path => location.pathname.startsWith(path)) } as PageInfo });
 
+  // The sidebar menu on a phone, the links sit in the page itself on a wider screen
+  protected menuOpen = signal(false);
+
+  protected openMenu() {
+    this.menuOpen.set(true);
+    // Focus moves into the sidebar once it is on screen, and comes back to the button when it closes
+    setTimeout(() => document.getElementById('menu-close')?.focus());
+  }
+
+  protected closeMenu() {
+    if (!this.menuOpen()) return;
+    this.menuOpen.set(false);
+    document.getElementById('menu-open')?.focus();
+  }
+
+  // Following a link closes the sidebar. The theme button stays, so the change can be seen.
+  protected onMenuClick(event: Event) {
+    if ((event.target as Element).closest('a')) this.menuOpen.set(false);
+  }
+
   // Home always starts from the top of the table, even when it is the page already open
   protected goHome() {
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -59,7 +80,7 @@ export class App {
     effect(() => document.documentElement.classList.toggle('admin-layout', !!this.page().admin));
     const refresh = () => { if (this.auth.isSignedIn()) this.api.refreshRequestCount(); };
     effect(refresh);
-    const navs = this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(refresh);
+    const navs = this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => { this.menuOpen.set(false); refresh(); });
     const timer = setInterval(refresh, 30000);
     inject(DestroyRef).onDestroy(() => { navs.unsubscribe(); clearInterval(timer); });
   }

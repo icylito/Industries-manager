@@ -1,8 +1,9 @@
 # The main config: what the table's values can be.
 # The API reads the sectors list from here at startup. The seed script reads all of it, see seeding.toml for its own settings.
+# An empty list (sectors = []) means the sector is free text: any words up to the field's limit, suggestions come from the table.
 # Name length and price range get replaced by the API's rules from /schema when the seed script runs
 [fields]
-sectors = ["Public Sector", "Private Sector"]
+sectors = []
 price_min = 0.0
 price_max = 10.0
 price_decimals = 3

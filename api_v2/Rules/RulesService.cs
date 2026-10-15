@@ -42,7 +42,8 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
     }
 
     // After the rules load, copy the sector list from scripts/config.toml when it differs.
-    // A missing or broken file keeps the rules that are already loaded and never stops startup.
+    // An empty list (sectors = []) clears the list, so the sector is free text. A missing or broken file
+    // keeps the rules that are already loaded and never stops startup.
     public async Task SyncSectorsAsync(AppDbContext db, CancellationToken ct)
     {
         try
@@ -73,12 +74,6 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
                 log.LogWarning("Sector list at {Path} was skipped ({Problem}), keeping the current rules", path, problem);
                 return;
             }
-            if (sectors.Count == 0)
-            {
-                log.LogWarning("Sector list at {Path} is empty, keeping the current rules", path);
-                return;
-            }
-
             var fields = Current.Fields.ToList();
             var index = fields.FindIndex(f => f.Key == "sector");
             if (index < 0)
@@ -88,7 +83,7 @@ public class RulesService(CollectorStore collector, IConfiguration config, IWebH
             }
             if (FieldRule.SameOptions(fields[index].Options, sectors)) return;
 
-            fields[index] = fields[index] with { Options = sectors };
+            fields[index] = fields[index] with { Options = sectors.Count == 0 ? null : sectors };
             await SaveAsync(db, fields, "Sector list from config.toml", "system", ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

@@ -24,9 +24,11 @@ Run from the repo root unless a folder is named. `start.bat` starts the API and 
 | One page test file | `cd angular && npx ng test --watch=false --include src/app/Components/history/history.spec.ts` |
 | New migration | `cd api_v2 && .\migrate.ps1 -Context Data -Name Something` (or `-Context State`). The API applies it on its next start. |
 | Seed rows | `python scripts/seed_industries.py` (settings in `scripts/seeding.toml`, login in the git ignored `scripts/seeding.control.toml`) |
-| API and page checks | `python3 -I testing/check_<name>.py`, see `testing/README.md` |
+| API and page checks | `cd testing && python3 -I check_<name>.py`, see `testing/README.md` |
+| Throwaway API for the checks (port 5104) | copy `testing/appsettings.Throwaway.example.json` to `api_v2/appsettings.Throwaway.json`, then in `api_v2`: `set ASPNETCORE_ENVIRONMENT=Throwaway` and `dotnet run -c Release --no-launch-profile --urls http://localhost:5104` |
 
-There is no linter configured. After `package.json` changes run `npm ci` in `angular/`, a stale `node_modules` fails the
+There is no linter configured. The page has a Prettier config (`angular/.prettierrc`: width 100, single quotes, the
+Angular parser for HTML), run it on the files you touch with `cd angular && npx prettier --write <file>`. After `package.json` changes run `npm ci` in `angular/`, a stale `node_modules` fails the
 build with a missing font file.
 
 `api_v2/appsettings.Development.json` holds the database password and is git ignored. Never create or edit it, copy
@@ -77,6 +79,27 @@ sentence, expected ones (bad input, name taken, concurrent change, busy) log one
 `angular/src/app/board/` (pure `ops`, `geometry`, `tools`, plus stores). The carry tray from the Overview is server side
 (`/scratchpad/tray`), uploaded files live on disk under `scratchpad-files/` with a sweeper that removes unused ones.
 
+**Backups are sealed to this computer.** `api_v2/Backups/`: the dumps and the CSV are encrypted (`BackupCipher`) and
+every backup carries a `signature.json` (`BackupSigner`, an HMAC over the files' hashes). Both halves of the key sit in
+`backup-key/`, wrapped by Windows DPAPI, so a backup or a key copied to another PC is refused rather than loaded. The
+signature is checked before anything reaches `pg_restore`, because a dump runs whatever SQL it holds. A missing or
+foreign key is an error, never a reason to make a new one.
+
+**The page layout.** `angular/src/app/app.html` is the shell: the top `.nav` for everyone, the slim `.admin-nav` on admin
+pages, and on a phone the links move into the sliding `.menu-panel`. Each route's `data` (in `app.routes.ts`) sets the
+header (`title`, `lede`, `centered`), `admin` and `wide`. `app.ts` puts an `admin-layout` class on `<html>` for admin
+pages, and `styles.css` gives that class its own dark and light palette on top of the `:root` tokens. The tokens are
+custom properties at the top of `styles.css`, and components use `var(--…)` rather than colours of their own. There is
+no shared breakpoint convention. CSS can't read a variable in `@media`, so each file writes its own `max-width`: 640px
+in nine files (`app.css` and most of the components), 760px in five (`app.css`, `fields`, `history`, `my-components`,
+`tables`), and 390, 460, 480, 560, 620, 860 and 960 once or twice each. Responsive rules stay where the component is.
+
+**Ticket text marks.** Requests text can carry `**bold**`, `_italic_` and backtick code. The stored text stays plain.
+`angular/src/app/Components/requests/format.ts` parses and writes the marks, `format-field.*` is the writing box that
+shows them while typing, and `rich-text.ts` (`app-rich-text`) shows saved text as text nodes. The API only checks the
+length (2000 characters in `Endpoints/RequestEndpoints.cs`) and does not know the marks. Not to be confused with
+`scratchpad/rich-text.ts`, the Scratchpad's note editor.
+
 ## Pairs of files that must change together
 
 | One side | The other side |
@@ -109,3 +132,7 @@ Full text: `docs/plans/2026-10-11-history-hardening.md`.
 | 1 | History hardening: restore note capped at 300 (page, API, storage), import must say skip or keep on duplicates, response compression and a 2 MB body cap, expected errors logged as one line | **Built**, commit `419491d`. Page tests and both builds pass, checked by hand against a copy of the data. |
 | 1b | Run `testing/check_history_limits.py` on a throwaway API | **Not run yet**, needs the setup in `testing/README.md` |
 | 2 | Server side paging: `GET /industries/page`, `/industries/summary`, `/industries/export`, then move Browse and Overview onto them and drop the full list call | **Design only, needs its own approval.** Start when the table nears about 100,000 rows or the compressed list passes about 5 MB. Order: summary, paged list, export. |
+
+Alongside it, `docs/plans/2026-10-15-history-requests-desktop.md` (History and Requests polish, desktop only, page code
+only): all seven asks are built. In the Requests list the status only reads, it changes inside the ticket, and
+`canSetStatus` in `requests.ts` is the one check a roles panel will replace later. The phone gets a later pass of its own.

@@ -951,6 +951,19 @@ input.bad{
     gap: 0.5rem;
 }
 
+/* The right end of a table's bottom bar: how many rows a page, then the arrows */
+.foot-right{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+}
+
+/* The rows control in the bottom bar matches the arrows' height */
+.foot-right .entries select{
+    height: 2rem;
+}
+
 .panel .icon-btn{
     color: var(--p-muted);
 }

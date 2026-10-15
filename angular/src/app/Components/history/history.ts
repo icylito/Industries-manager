@@ -1,5 +1,6 @@
 import { ConfirmPopup } from '../confirm-popup/confirm-popup';
 import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
@@ -16,7 +17,7 @@ type Panel =
   | { kind: 'import'; version: VersionSummary; preview: ImportPreview };
 
 @Component({
-  imports: [RouterLink, ConfirmPopup],
+  imports: [RouterLink, ConfirmPopup, NgTemplateOutlet],
   selector: 'app-history',
   styleUrls: ['../my-components/my-components.css', './history.css'],
   templateUrl: './history.html',
@@ -412,19 +413,49 @@ export class HistoryPage implements OnInit {
     });
   }
 
-  // Ten saved versions a page, newest first. A delete that empties the last page steps back one.
+  // Saved versions a page, newest first, ten by default. A delete that empties the last page steps back one.
   versionPage = signal(1);
-  readonly versionSize = 10;
-  versionPages = computed(() => Math.max(1, Math.ceil(this.versions().length / this.versionSize)));
+  readonly versionSizes = [5, 10, 50, 100];
+  versionSize = signal(10);
+  versionPages = computed(() => Math.max(1, Math.ceil(this.versions().length / this.versionSize())));
   pagedVersions = computed(() => {
+    const size = this.versionSize();
     const page = Math.min(this.versionPage(), this.versionPages());
-    const start = (page - 1) * this.versionSize;
-    return this.versions().slice(start, start + this.versionSize);
+    const start = (page - 1) * size;
+    return this.versions().slice(start, start + size);
   });
   shownPage = computed(() => Math.min(this.versionPage(), this.versionPages()));
 
   goToVersionPage(page: number) {
     this.versionPage.set(Math.max(1, Math.min(page, this.versionPages())));
+    this.confirmingVersion.set(null);
+  }
+
+  // Backups a page, newest first, ten by default, with the same sizes as the saved versions
+  backupPage = signal(1);
+  backupSize = signal(10);
+  backupPages = computed(() => Math.max(1, Math.ceil(this.backups().length / this.backupSize())));
+  pagedBackups = computed(() => {
+    const size = this.backupSize();
+    const page = Math.min(this.backupPage(), this.backupPages());
+    const start = (page - 1) * size;
+    return this.backups().slice(start, start + size);
+  });
+  shownBackupPage = computed(() => Math.min(this.backupPage(), this.backupPages()));
+
+  goToBackupPage(page: number) {
+    this.backupPage.set(Math.max(1, Math.min(page, this.backupPages())));
+  }
+
+  setBackupSize(value: string) {
+    this.backupSize.set(Number(value));
+    this.backupPage.set(1);
+  }
+
+  // A new size starts again at the first page, so nothing is ever past the end of the list
+  setVersionSize(value: string) {
+    this.versionSize.set(Number(value));
+    this.versionPage.set(1);
     this.confirmingVersion.set(null);
   }
 
@@ -456,6 +487,13 @@ export class HistoryPage implements OnInit {
   onDocumentClick(e: MouseEvent) {
     if (!this.menu()) return;
     if (!(e.target as HTMLElement | null)?.closest?.('.menu-btn, .menu')) this.menu.set(null);
+  }
+
+  // The menu is fixed to the window, so a page scroll or a resize would leave it behind its row. It closes instead.
+  @HostListener('window:scroll')
+  @HostListener('window:resize')
+  onWindowMove() {
+    if (this.menu()) this.menu.set(null);
   }
 
   // The up and down keys walk the menu items

@@ -109,7 +109,7 @@ describe('HistoryPage', () => {
     const page = fixture.componentInstance;
     page.setTab('backups');
     fixture.detectChanges();
-    const rows = (fixture.nativeElement as HTMLElement).querySelectorAll('section.card table.versions tbody tr');
+    const rows = (fixture.nativeElement as HTMLElement).querySelectorAll('section.history-shell table.versions tbody tr');
     // One menu element is reused for every row, so each row's state is read while its own menu is open
     const restoreDisabled = Array.from(rows).map(r => menuItems(fixture, r).find(b => /Restore/.test(b.textContent ?? ''))!.disabled);
     expect(restoreDisabled).toEqual([false, true]);
@@ -416,6 +416,34 @@ describe('HistoryPage', () => {
     expect(ids()).toEqual(['#3', '#2', '#1']);
     expect(el.textContent).toContain('Showing 21 to 23 of 23');
     expect((el.querySelector('[aria-label="Next page of saved versions"]') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('lets you pick 5, 10, 50 or 100 saved versions a page, back to the first page each time', () => {
+    const fixture = setup();
+    const page = fixture.componentInstance;
+    const el = fixture.nativeElement as HTMLElement;
+    page.versions.set(Array.from({ length: 120 }, (_, i) => version(120 - i)));
+    fixture.detectChanges();
+    const rows = () => el.querySelectorAll('table.versions td.id').length;
+    const pick = (value: string) => {
+      const select = el.querySelector('[aria-label="Saved versions per page"]') as HTMLSelectElement;
+      select.value = value;
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+    };
+
+    expect(rows()).toBe(10);
+    (el.querySelector('[aria-label="Next page of saved versions"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    pick('50');
+    expect(rows()).toBe(50);
+    expect(page.versionPage()).toBe(1);
+    expect(el.textContent).toContain('Page 1 of 3');
+    pick('100');
+    expect(rows()).toBe(100);
+    pick('5');
+    expect(rows()).toBe(5);
+    expect(el.textContent).toContain('Page 1 of 24');
   });
 
   it('has no pager while every version fits on one page', () => {

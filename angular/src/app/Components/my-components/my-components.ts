@@ -49,14 +49,6 @@ export class MyComponents implements OnInit {
     return listed.length ? listed : this.sectors();
   });
 
-  // True when the rules carry a list of sectors, which is then the only thing the API accepts
-  sectorListed = computed(() => (this.rules()?.fields.find(f => f.key === 'sector')?.options ?? []).some(o => o.trim().length > 0));
-
-  otherSector(): string | null {
-    const value = this.form.controls.sector.value;
-    if (!value || this.sectorChoices().includes(value)) return null;
-    return value;
-  }
 // signals for error, saving, editingId, formError
   industries = signal<Industry[]>([]);
   // Big counts read as 50,001, not 50001. Done here rather than with the number pipe, which adds weight to the first page
@@ -180,7 +172,7 @@ export class MyComponents implements OnInit {
       const errors = control.errors;
       if (!errors || !(control.dirty || control.touched)) return null;
       const label = rule?.label ?? (key === 'name' ? 'Name' : key === 'sector' ? 'Sector' : key === 'price' ? 'Price' : key);
-      if (errors['required']) return key === 'sector' ? 'Choose a sector' : `${label} is required`;
+      if (errors['required']) return key === 'sector' ? 'Type a sector' : `${label} is required`;
       if (errors['maxlength'] && rule) return `${label} can be at most ${rule.maxLength} characters`;
       if ((errors['min'] || errors['max']) && rule) return this.rangeText(rule, true);
       return null;
@@ -260,10 +252,8 @@ export class MyComponents implements OnInit {
   );
 
   private ruleText(rule: FieldRule): string {
-    if (rule.key === 'sector') {
-      const choices = rule.options?.length ? rule.options : this.sectorChoices();
-      return `${rule.label}, ${choices.join(' or ')}`;
-    }
+    // Only a list in the rules is named here. Free text just gets the length limit below
+    if (rule.key === 'sector' && rule.options?.length) return `${rule.label}, ${rule.options.join(' or ')}`;
     if (rule.type === 'text' && rule.maxLength !== null) return `${rule.label}, up to ${rule.maxLength} characters`;
     if (rule.type === 'number' && (rule.min !== null || rule.max !== null)) return this.rangeText(rule, false);
     const what = rule.type === 'date' ? `${rule.label} date` : rule.label;
@@ -741,12 +731,6 @@ export class MyComponents implements OnInit {
     this.pickDate(this.toIso(new Date()));
   }
 
-  // Close the picker on outside click or Escape
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent) {
-    if (this.calendarOpen() && !(event.target as HTMLElement).closest('.datepicker')) this.calendarOpen.set(false);
-  }
-
   @HostListener('document:keydown.escape')
   onEscape() {
     // The first Escape closes the calendar, the next one the edit pop up (never while it is saving)
@@ -860,10 +844,12 @@ export class MyComponents implements OnInit {
   sectorTotal = countUp(this.sectorCount);
   shownTotal = countUp(computed(() => this.sorted().length));
 
+  // Any click outside the date picker closes it, and closes an open row menu. Scrolling and resizing only close the row menu.
   @HostListener('window:scroll')
   @HostListener('window:resize')
-  @HostListener('document:click')
-  closeRowMenu() {
+  @HostListener('document:click', ['$event'])
+  closeRowMenu(event?: Event) {
     this.menuRow.set(null);
+    if (event?.type === 'click' && !(event.target as HTMLElement).closest('.datepicker')) this.calendarOpen.set(false);
   }
 }

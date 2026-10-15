@@ -3,7 +3,7 @@
  * License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License)
  * Copyright 2024 Fonticons, Inc.
  *
- * Made by scripts/icons.mjs with only the 85 icons the app uses. Don't edit by hand: run the script.
+ * Made by scripts/icons.mjs with only the 90 icons the app uses. Don't edit by hand: run the script.
  */
 :root, :host {
   --fa-style-family-classic: 'Font Awesome 6 Free';
@@ -327,12 +327,12 @@
   --fa: "\f056"; }
 .fa-right-from-bracket {
   --fa: "\f2f5"; }
+.fa-comments {
+  --fa: "\f086"; }
 .fa-box-archive {
   --fa: "\f187"; }
 .fa-table {
   --fa: "\f0ce"; }
-.fa-bars {
-  --fa: "\f0c9"; }
 .fa-ruler-horizontal {
   --fa: "\f547"; }
 .fa-circle-exclamation {
@@ -357,6 +357,8 @@
   --fa: "\f61f"; }
 .fa-right-to-bracket {
   --fa: "\f2f6"; }
+.fa-bold {
+  --fa: "\f032"; }
 .fa-mug-hot {
   --fa: "\f7b6"; }
 .fa-image {
@@ -375,6 +377,8 @@
   --fa: "\f5fd"; }
 .fa-file-zipper {
   --fa: "\f1c6"; }
+.fa-italic {
+  --fa: "\f033"; }
 .fa-filter-circle-xmark {
   --fa: "\e17b"; }
 .fa-sort {
@@ -383,10 +387,10 @@
   --fa: "\f0cb"; }
 .fa-filter {
   --fa: "\f0b0"; }
+.fa-code {
+  --fa: "\f121"; }
 .fa-file-excel {
   --fa: "\f1c3"; }
-.fa-arrow-right {
-  --fa: "\f061"; }
 .fa-screwdriver-wrench {
   --fa: "\f7d9"; }
 .fa-circle-question {
@@ -401,6 +405,8 @@
   --fa: "\f0c7"; }
 .fa-sort-up {
   --fa: "\f0de"; }
+.fa-person-digging {
+  --fa: "\f85e"; }
 .fa-trash {
   --fa: "\f1f8"; }
 .fa-arrow-left {
@@ -419,10 +425,14 @@
   --fa: "\f162"; }
 .fa-gear {
   --fa: "\f013"; }
+.fa-clock {
+  --fa: "\f017"; }
 .fa-keyboard {
   --fa: "\f11c"; }
 .fa-sliders {
   --fa: "\f1de"; }
+.fa-ticket {
+  --fa: "\f145"; }
 .fa-download {
   --fa: "\f019"; }
 .fa-industry {
@@ -461,8 +471,6 @@
   --fa: "\f110"; }
 .fa-building {
   --fa: "\f1ad"; }
-.fa-clock {
-  --fa: "\f017"; }
 .fa-clock-rotate-left {
   --fa: "\f1da"; }
 .fa-file-export {

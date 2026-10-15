@@ -46,33 +46,12 @@ textarea::placeholder{
 .send-row{
     display: flex;
     justify-content: flex-end;
+    gap: 0.5rem;
 }
 
-/* Open / Done / Dismissed / All */
-.tabs{
-    display: inline-flex;
-    gap: 0.15rem;
-    padding: 0.2rem;
-    border: 1px solid var(--p-border);
-    border-radius: 999px;
-}
-
-.tab{
-    height: 2rem;
-    padding: 0 0.85rem;
-    border-radius: 999px;
-    color: var(--p-muted);
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-
-.tab:hover{
-    color: var(--p-text);
-}
-
-.tab.on{
-    background: var(--accent);
-    color: var(--accent-text);
+/* The New ticket pop up holds a code box too, so it gets more width than the small edit pop ups */
+.ask-modal{
+    max-width: 36rem;
 }
 
 /* One line per request. The title is the only wide column, details and drafted code open under it. */
@@ -148,7 +127,8 @@ textarea::placeholder{
 }
 
 @media (max-width: 640px) {
-    .panel-head .tabs{
+    /* The filter and New ticket share the row under the title, one at each end */
+    .panel-head .tools{
         width: 100%;
         justify-content: space-between;
     }
@@ -352,17 +332,6 @@ textarea::placeholder{
     line-height: 1.35;
 }
 
-.ticket-meta{
-    margin: 0;
-    font-size: 0.85rem;
-}
-
-.ticket-status{
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-}
-
 .ticket-details{
     margin: 0;
     padding: 0 1.1rem 1rem;
@@ -387,7 +356,11 @@ textarea::placeholder{
     background: var(--surface-2);
 }
 
+/* The icon keeps a clear gap from the words, the way the other empty states do */
 .chat-empty{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
     margin: auto;
     color: var(--muted);
     font-size: 0.9rem;
@@ -452,10 +425,17 @@ textarea::placeholder{
     min-height: 3.5rem;
 }
 
+/* Sits at the right of the row under the reply box, after the format buttons */
 .composer-foot{
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 0.75rem;
+    margin-left: auto;
+}
+
+/* The shared top margin of a primary button would push Send below the count and the format buttons */
+.composer-foot .add-btn{
+    margin-top: 0;
 }
 
 /* Fixed to the window so a table's scrolling box can't clip it, placed by the script from the button's position */
@@ -513,8 +493,79 @@ a.tool-btn{
     text-decoration: none;
 }
 
-.ticket-status .control select{
-    height: 2.25rem;
+/* The status pill and its list: white with black text in light mode, the field colours in dark mode. The list is centred under the pill. */
+.status-menu{
+    position: relative;
+    display: inline-flex;
+}
+
+.status-trigger{
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 2rem;
+    min-width: 9rem;
+    padding: 0 2.2rem;
+    border: 0;
+    border-radius: 999px;
+    background: var(--p-field);
+    color: var(--p-text);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.status-trigger .caret{
+    position: absolute;
+    right: 0.9rem;
+    font-size: 0.75rem;
+}
+
+.status-trigger:hover{
+    background: var(--p-hover);
+}
+
+.status-list{
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 100%;
+    padding: 0.3rem;
+    border: 1px solid var(--p-border);
+    border-radius: 14px;
+    background: var(--p-field);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.status-list button{
+    height: 2rem;
+    padding: 0 1rem;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    color: var(--p-text);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.status-list button:hover{
+    background: var(--p-hover);
+}
+
+.status-list button.on{
+    background: var(--accent);
+    color: var(--accent-text);
 }
 
 /* Every table in the app: the same gray band behind the whole header row and the same bold heading text.
@@ -565,8 +616,11 @@ table thead th .th, table thead th .sort-btn, table thead th .th-actions{
     margin-inline: 0;
 }
 
+/* The back link has room around it when hovered, and a negative margin keeps its text lined up with the ticket title */
 .ticket .panel-head .tool-btn{
-    padding-left: 0;
+    height: 2.5rem;
+    padding: 0 1.1rem;
+    margin-left: -1.1rem;
 }
 
 .requests-table td.actions, .requests-table th.actions-col{
@@ -639,4 +693,83 @@ td.actions:has(.row-menu){
 /* The pinned Action cell takes the same hover tint as the rest of its row, so the row reads as one band */
 tbody tr:hover td.actions{
     background-image: linear-gradient(var(--hover), var(--hover));
+}
+
+/* The filter pill sits on a filled panel head, so it takes a line to stay a button. Its list lines up under it. */
+.filter-menu .status-trigger{
+    box-shadow: inset 0 0 0 1px var(--p-border);
+}
+
+.filter-menu .status-list{
+    min-width: 10rem;
+}
+
+/* The ticket's facts: a small label over each value, wrapping onto more lines as the page narrows */
+.ticket-facts{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.9rem 2.5rem;
+    margin: 0 0 1.25rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--p-border);
+    border-radius: 14px;
+}
+
+.ticket-facts dt{
+    margin-bottom: 0.3rem;
+    color: var(--p-muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.ticket-facts dd{
+    display: flex;
+    align-items: center;
+    min-height: 2rem;
+    margin: 0;
+    color: var(--p-text);
+    font-size: 0.875rem;
+}
+
+/* The facts spread evenly across the card and Status keeps the right end, its label centred over the pill */
+.ticket-facts .fact-status{
+    text-align: center;
+}
+
+.ticket-facts .fact-status dd{
+    justify-content: center;
+}
+
+/* The status pill in the facts is the same pill with a line, so it reads as a control on the card */
+.ticket-facts .status-trigger{
+    box-shadow: inset 0 0 0 1px var(--p-border);
+}
+
+/* On a phone the facts sit two to a row, so they line up instead of wrapping wherever they happen to end */
+@media (max-width: 640px) {
+    .ticket-facts{
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.9rem 1rem;
+    }
+
+    /* Status takes its own row at the end, on the left like the rest, still with its label centred over the pill */
+    .ticket-facts .fact-status{
+        grid-column: 1 / -1;
+        justify-self: start;
+    }
+}
+
+.ticket-section{
+    margin: 0 0 0.5rem;
+    color: var(--p-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* Status is a short pill, so its heading and its cells are both centred, like Action next to it */
+.requests-table th.status-col .th, .requests-table td.status-cell{
+    text-align: center;
 }
