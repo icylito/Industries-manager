@@ -8,18 +8,7 @@ api_v2/appsettings.Development.json
 
 # Seed script cache, and the local account the seed script signs in as
 scripts/__pycache__/
-testing/__pycache__/
 scripts/seeding.control.toml
-
-# Root editor settings, angular/.vscode stays shared for ng serve and ng test
-/.vscode/
-/.claude/
-
-# Documents and notes
-report.txt
-HANDOFF.md
-OVERVIEW_HANDOFF.md
-backup.txt
 
 # Copies of the database made by the nightly backup, only the root folder (api_v2/Backups is code)
 /backups/
@@ -29,43 +18,17 @@ backup.txt
 # The key that signs backups. Whoever holds it can make a backup the app trusts, keep it out of the repo
 /backup-key/
 
-# Each host keeps its own data, none of it goes into git. Requests and the History versions are rows in Postgres,
-# so they never appear as files; the full copies of them are the backups below.
-/profile-pictures/
 # Dumps, zips and the temp copies a restore or download makes, wherever they land
 *.dump
 *.zip
 .plain-*
 *.sealing
-# Build output of the transfer check, same as api_v2's
-testing/transfer-check/bin/
-testing/transfer-check/obj/
 
 # The checks in testing/: the throwaway API's settings and its backups
 api_v2/appsettings.Throwaway.json
-/testing/throwaway-backups/
 
 # The page's copy of the https development certificate, start.bat https and share make it
 angular/.cert/
 
-# The page checks in testing/ (playwright), installed there and not part of the repo
-testing/node_modules/
-# Downloaded by the page checks: Playwright's browsers (over 200 MB, GitHub refuses it), the npm cache and the debug log
-testing/.pw-browsers/
-testing/.npm-cache/
-testing/debug.log
-
-# Screenshots saved while checking the page, regenerated every run
-/shots/
-
-# Plan workspaces for the subagent-driven runs (scratch, not part of the project)
-.superpowers/
-
 # Design files, planning notes, handoffs and grading rubrics: each machine keeps its own, not in git
 /design/
-/docs/
-/HANDOFF.md
-/OVERVIEW_HANDOFF.md
-/report.txt
-/testing/rubric.txt
-/testing/rubric_batches_8_9.md
