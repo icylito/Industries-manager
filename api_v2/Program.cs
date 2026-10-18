@@ -1,13 +1,21 @@
-using api_v2.Model;
-using api_v2.Endpoints;
+using api_v2.Domain.Entities;
+using api_v2.Presentation.Endpoints;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.OpenApi;
 using Microsoft.EntityFrameworkCore;
 using static Microsoft.OpenApi.OpenApiSpecVersion;
-using api_v2.Data;
-using api_v2.Auth;
-using api_v2.Rules;
-using api_v2.Backups;
+using api_v2.Application.Health;
+using api_v2.Application.Hosted;
+using api_v2.Application.Settings;
+using api_v2.Application.Startup;
+using api_v2.Infrastructure.Configuration;
+using api_v2.Infrastructure.Export;
+using api_v2.Infrastructure.Files;
+using api_v2.Infrastructure.Persistence;
+using api_v2.Application.Auth;
+using api_v2.Infrastructure.Security;
+using api_v2.Domain.Rules;
+using api_v2.Application.Backups;
 using Npgsql;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
@@ -32,7 +40,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddValidation(); // Validating all the required, range, and length in Dtos folder
 builder.Services.AddProblemDetails();
 // What a failed request answers, and how loudly it is logged: Errors/ApiExceptionHandler.cs
-builder.Services.AddExceptionHandler<api_v2.Errors.ApiExceptionHandler>();
+builder.Services.AddExceptionHandler<api_v2.Presentation.Errors.ApiExceptionHandler>();
 builder.Services.Configure<RouteHandlerOptions>(o => o.ThrowOnBadRequest = true);
 // No JSON body here is big on purpose: the biggest is a Scratchpad board, held to 1,000,000 bytes by BoardRules.
 // Anything above this is refused before it is read. An upload that needs more raises its own limit on its request,
@@ -69,12 +77,12 @@ builder.Services.AddSingleton<CollectorStore>();
 builder.Services.AddSingleton<AppLocks>();
 // Where uploaded Scratchpad files live on disk, created on startup. See Data/ScratchFileStore.cs
 builder.Services.AddSingleton<ScratchFileStore>();
-builder.Services.AddHostedService<api_v2.Scratchpad.ScratchFileSweeper>();
+builder.Services.AddHostedService<api_v2.Application.Hosted.ScratchFileSweeper>();
 // The readable JSON copy of every table from the Tables page, and the job that writes it on start and empties
 // the bin. See Tables/UserTableMirror.cs and UserTables:Mirror in appsettings.
-builder.Services.AddSingleton<api_v2.Tables.UserTableMirror>();
-builder.Services.AddHostedService<api_v2.Tables.TableBinSweeper>();
-builder.Services.AddSingleton<api_v2.History.TableWriter>();
+builder.Services.AddSingleton<api_v2.Application.Tables.UserTableMirror>();
+builder.Services.AddHostedService<api_v2.Application.Hosted.TableBinSweeper>();
+builder.Services.AddSingleton<api_v2.Application.History.TableWriter>();
 builder.Services.AddSingleton<RulesService>();
 // Signs every backup so only this app's own can be dropped back in, see Backups/BackupSigner.cs
 builder.Services.AddSingleton<BackupSigner>();
@@ -97,7 +105,7 @@ builder.Services.AddRateLimiter(options =>
     options.OnRejected = async (context, token) =>
     {
         var wait = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retry) ? retry : TimeSpan.FromMinutes(1);
-        await api_v2.Endpoints.AuthEndpoints.TooManyTries(context.HttpContext, wait).ExecuteAsync(context.HttpContext);
+        await api_v2.Presentation.Endpoints.AuthEndpoints.TooManyTries(context.HttpContext, wait).ExecuteAsync(context.HttpContext);
     };
 });
 // Wrong passwords per username, from any address, see Auth/LoginFailures.cs
@@ -117,7 +125,7 @@ var app = builder.Build();
 // first upload. See Scratchpad:Files in appsettings.
 app.Services.GetRequiredService<ScratchFileStore>();
 // The same for the folder of table copies
-app.Services.GetRequiredService<api_v2.Tables.UserTableMirror>();
+app.Services.GetRequiredService<api_v2.Application.Tables.UserTableMirror>();
 // The backup signing key is made now if there isn't one, so the first backup doesn't wait on it
 app.Services.GetRequiredService<BackupSigner>();
 

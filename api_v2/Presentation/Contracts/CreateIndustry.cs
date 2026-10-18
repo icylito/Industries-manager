@@ -1,0 +1,13 @@
+using System.Text.Json;
+
+namespace api_v2.Presentation.Contracts;
+
+// Limits come from the rules in the database (GET /schema), checked in Endpoints/IndustryEndpoints.cs
+// Extra holds the custom fields from the Fields page, keyed by field key
+public record CreateIndustry(
+    string Name,
+    string? Sector,
+    decimal? Price,
+    DateOnly? Release,
+    Dictionary<string, JsonElement>? Extra = null
+);
