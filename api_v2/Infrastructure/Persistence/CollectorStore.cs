@@ -10,18 +10,6 @@ using api_v2.Domain.Collector;
 
 namespace api_v2.Infrastructure.Persistence;
 
-// Damaged means a saved value in the collector couldn't be read (edited by hand, or a format that changed).
-// The version still shows in the list but can't be restored or imported.
-public record VersionSummary(long Id, DateTimeOffset CreatedAt, string Reason, string CreatedBy, int RowCount,
-    int? RulesVersion, bool Pinned, List<string> Migrations, bool Damaged = false);
-
-public enum VersionRemoval { Removed, NotFound, Pinned }
-
-// One saved version with everything in it, what View, Download, Restore and Import read
-public record VersionDetail(VersionSummary Summary, List<VersionColumn> Columns, string? Rules, List<JsonElement> Rows);
-
-public record VersionColumn(string Name, string Type, bool Nullable);
-
 // Everything that goes into the collector database. The only thing that deletes is retention,
 // which the team sets on the History page, and it never touches pinned versions.
 //
@@ -32,19 +20,12 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
 {
     private const string Table = "Industries";
 
-    // The longest a saved version's reason is kept. A reason is a few words, or for a database update a list of
-    // migration names. The restore note is held to a much shorter limit at the door (HistoryEndpoints.NoteMax), this
-    // is the backstop so no caller can ever put a huge text in a list every History visit has to carry.
-    public const int ReasonMax = 1000;
+    // The reason cut to the reason limit, with an ellipsis, never through the middle of a character. The rule
+    // itself lives in CollectorText, so a list and a save clip the same way.
+    public static string Clip(string reason) => CollectorText.Clip(reason);
 
-    // The reason cut to ReasonMax, with an ellipsis, never through the middle of a character
-    public static string Clip(string reason)
-    {
-        if (reason.Length <= ReasonMax) return reason;
-        var cut = ReasonMax - 1;
-        if (char.IsHighSurrogate(reason[cut - 1])) cut--;
-        return reason[..cut] + "…";
-    }
+    // The longest a saved version's reason is kept, see CollectorText.ReasonMax
+    public const int ReasonMax = CollectorText.ReasonMax;
 
     public const string UnreachableMessage = "The history database (collector) isn't reachable";
 
@@ -67,6 +48,18 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
             if (!down) continue;
             if (status.HistoryWasReady && status.HistoryReady) status.SetHistory(false, UnreachableMessage);
             return true;
+        }
+        return false;
+    }
+
+    // True when a failure means the history routes can't answer at all: the collector's tables aren't there yet,
+    // or the database isn't answering. Narrower than NoteFailure, which also marks the badge down for a refused sign in.
+    public bool IsDown(Exception ex)
+    {
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is PostgresException { SqlState: PostgresErrorCodes.UndefinedTable }) return true;
+            if (current is NpgsqlException and not PostgresException) return true;
         }
         return false;
     }

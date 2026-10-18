@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using api_v2.Application.Health;
+using api_v2.Application.Ports;
 using api_v2.Infrastructure.Configuration;
 using api_v2.Infrastructure.Persistence;
 using api_v2.Domain.Rules;
@@ -10,19 +11,10 @@ using NpgsqlTypes;
 
 namespace api_v2.Infrastructure.Persistence;
 
-public record RowProblem(string Level, string Text);
-
-// One old row after it's been fitted into today's table. Level "red" means data didn't make it, "black" is minor.
-public record PlannedRow(int? OldId, string? Name, Dictionary<string, object?> Values, Dictionary<string, object?> Columns,
-    JsonObject? Extra, List<string> Lost, List<RowProblem> Problems, int? SimilarTo, bool SimilarInBatch, string? Skip,
-    int? KeepDuplicateOf, int? KeepImportedFrom);
-
-public record ImportPlan(long VersionId, bool RulesDiffer, List<string> UnmatchedColumns, List<PlannedRow> Rows);
-
 // Reads old rows out of a collector version and writes them into today's table, for Restore and Import.
 // Old values get converted to today's types where they fit, anything that doesn't fit becomes empty (--)
 // and the row remembers it in LostFields so the page shows a red triangle.
-public class TableWriter(DatabaseConnections connections, RulesService rules)
+public class TableWriter(DatabaseConnections connections, RulesService rules) : ITableWriter
 {
     private const string Table = "Industries";
 
@@ -297,17 +289,6 @@ public class TableWriter(DatabaseConnections connections, RulesService rules)
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct)) ids.Add(reader.GetInt32(0));
         return ids;
-    }
-
-    // True when two rows that would be restored as originals share a name, the unique index would refuse that.
-    // Flagged copies keep their flag and don't count, nor do names of only symbols, same as the index. PlanAsync
-    // already flags the later of two names the one name rule says are the same, so this is only a last guard.
-    public static bool HasNameClash(ImportPlan plan)
-    {
-        var names = plan.Rows.Where(r => r.Skip is null && r.KeepDuplicateOf is null && !string.IsNullOrEmpty(r.Name) && !Names.HasNoLetters(r.Name))
-            .Select(r => r.Name!).ToList();
-        var seen = new HashSet<string>();
-        return names.Any(n => !seen.Add(Names.Key(n)));
     }
 
     // Swaps every row in the table for the version's rows, keeping their old ids.

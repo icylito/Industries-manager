@@ -4,10 +4,7 @@ import { Router } from '@angular/router';
 import { Observable, firstValueFrom, tap } from 'rxjs';
 import { AuthUser, LoginResult } from '../domain/models/industry';
 import { environment } from '../../environments/environment';
-
-const TOKEN_KEY = 'stock-listing-token';
-// Only used when the browser won't keep the token, so it lasts for this visit
-let memoryToken: string | null = null;
+import { loadToken, saveToken } from '../infrastructure/token-store';
 
 // Who is signed in. The token lives in this browser's storage and is sent with every call (see auth.interceptor.ts).
 @Service()
@@ -23,23 +20,12 @@ export class Auth {
   // Set when the page sent someone to the sign in page because their sign in ran out
   expired = signal(false);
 
-  // Storage can be blocked (private window, blocked site data), the page still works, you just sign in again each visit
   token(): string | null {
-    try {
-      return localStorage.getItem(TOKEN_KEY) ?? memoryToken;
-    } catch {
-      return memoryToken;
-    }
+    return loadToken();
   }
 
-  private saveToken(token: string | null) {
-    memoryToken = token;
-    try {
-      if (token) localStorage.setItem(TOKEN_KEY, token);
-      else localStorage.removeItem(TOKEN_KEY);
-    } catch {
-      // Blocked storage, the token stays in memory for this visit only
-    }
+  private storeToken(token: string | null) {
+    saveToken(token);
   }
 
   // Set when there is a saved sign in but the API couldn't be asked whose it is (stopped, restarting, database down).
@@ -71,7 +57,7 @@ export class Auth {
       .post<LoginResult>(`${environment.apiUrl}/auth/login`, { username, password })
       .pipe(
         tap((result) => {
-          this.saveToken(result.token);
+          this.storeToken(result.token);
           this.expired.set(false);
           this.user.set(result.user);
         }),
@@ -104,7 +90,7 @@ export class Auth {
   }
 
   clear() {
-    this.saveToken(null);
+    this.storeToken(null);
     this.user.set(null);
     this.unreachable.set(false);
   }

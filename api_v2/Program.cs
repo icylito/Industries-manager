@@ -16,7 +16,9 @@ using api_v2.Infrastructure.Security;
 using api_v2.Domain.Rules;
 using api_v2.Infrastructure.Backups;
 using api_v2.Application.Industries;
+using api_v2.Application.History;
 using api_v2.Application.Ports;
+using api_v2.Application.Tables;
 using Npgsql;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
@@ -100,8 +102,12 @@ builder.Services.AddHostedService<api_v2.Application.Hosted.ScratchFileSweeper>(
 builder.Services.AddSingleton<api_v2.Infrastructure.Files.UserTableMirror>();
 builder.Services.AddSingleton<IUserTableMirror>(services => services.GetRequiredService<api_v2.Infrastructure.Files.UserTableMirror>());
 builder.Services.AddScoped<IUserTablesStore, UserTablesStore>();
+builder.Services.AddScoped<UserTableService>();
 builder.Services.AddHostedService<api_v2.Application.Hosted.TableBinSweeper>();
 builder.Services.AddSingleton<api_v2.Infrastructure.Persistence.TableWriter>();
+builder.Services.AddSingleton<ITableWriter>(services => services.GetRequiredService<api_v2.Infrastructure.Persistence.TableWriter>());
+builder.Services.AddScoped<IHistoryRestoreRunner, HistoryRestoreRunner>();
+builder.Services.AddScoped<HistoryService>();
 builder.Services.AddSingleton<RulesService>();
 // The rules table and the sector file sit behind ports; the admin use cases load, save and delete versions
 builder.Services.AddScoped<IRulesStore, RulesStore>();
