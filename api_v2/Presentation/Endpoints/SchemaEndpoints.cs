@@ -10,6 +10,7 @@ using api_v2.Infrastructure.Files;
 using api_v2.Infrastructure.Persistence;
 using api_v2.Domain.Rules;
 using Microsoft.EntityFrameworkCore;
+using api_v2.Application.Ports;
 
 namespace api_v2.Presentation.Endpoints;
 

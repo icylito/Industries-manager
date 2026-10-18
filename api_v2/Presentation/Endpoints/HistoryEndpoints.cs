@@ -18,6 +18,7 @@ using api_v2.Presentation.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
+using api_v2.Application.Ports;
 
 namespace api_v2.Presentation.Endpoints;
 
@@ -126,7 +127,7 @@ public static class HistoryEndpoints
         // Puts the table back the way it was in this version, rows and rules. The current state gets saved first.
         history.MapPost("/versions/{id:long}/restore", async (long id, RestoreBody body, CollectorStore collector,
             TableWriter writer, RulesService rules, AppDbContext db, DatabaseStatus status, ICurrentUser user,
-            ILogger<TableWriter> log, AppLocks locks, CancellationToken ct) =>
+            ILogger<TableWriter> log, AppLocks locks, RequestService requestService, CancellationToken ct) =>
         {
             var note = body.Note?.Trim();
             if (note is null || note.Length < 10)
@@ -162,7 +163,7 @@ public static class HistoryEndpoints
             RestoreOutcome outcome;
             try
             {
-                outcome = await RestoreInOneStepAsync(v, plan, id, db, writer, rules, status, user, locks, ct);
+                outcome = await RestoreInOneStepAsync(v, plan, id, db, writer, rules, status, user, locks, requestService, ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -198,7 +199,7 @@ public static class HistoryEndpoints
 
         // What an import from this version would add, nothing gets written
         history.MapPost("/versions/{id:long}/import/preview", async (long id, CollectorStore collector, TableWriter writer,
-            AppLocks locks, CancellationToken ct) =>
+            AppLocks locks, RequestService requestService, CancellationToken ct) =>
         {
             await using var tableLock = await locks.TakeAsync(AppLock.Table, ct);
             var v = await collector.GetVersionAsync(id, ct);
@@ -233,7 +234,7 @@ public static class HistoryEndpoints
         // Adds the version's rows as new rows with new ids. Nothing gets replaced.
         history.MapPost("/versions/{id:long}/import", async (long id, ImportBody body, CollectorStore collector,
             TableWriter writer, RulesService rules, AppDbContext db, ICurrentUser user, ILogger<TableWriter> log,
-            AppLocks locks, CancellationToken ct) =>
+            AppLocks locks, RequestService requestService, CancellationToken ct) =>
         {
             await using var tableLock = await locks.TakeAsync(AppLock.Table, ct);
             var v = await collector.GetVersionAsync(id, ct);
@@ -323,7 +324,7 @@ public static class HistoryEndpoints
             var requests = new List<int>();
             foreach (var column in plan.UnmatchedColumns)
             {
-                var request = await RequestService.CreateAsync(db, locks, "rename", $"Old column \"{column}\" has no place in today's table",
+                var request = await requestService.CreateAsync("rename", $"Old column \"{column}\" has no place in today's table",
                     $"Version #{id} has a column \"{column}\" that today's table doesn't have. If it was renamed, a developer can point it to the new column so imports bring its values over.",
                     Drafts.RenamedColumn(column, id), user.Name, ct: ct);
                 requests.Add(request.Request.Id);
@@ -391,7 +392,7 @@ public static class HistoryEndpoints
     // Rows, rules and the developer request go in together. If any of them fails nothing is kept,
     // and the rules in memory are loaded again so they match the database.
     private static Task<RestoreOutcome> RestoreInOneStepAsync(VersionDetail v, ImportPlan plan, long id, AppDbContext db,
-        TableWriter writer, RulesService rules, DatabaseStatus status, ICurrentUser user, AppLocks locks, CancellationToken ct)
+        TableWriter writer, RulesService rules, DatabaseStatus status, ICurrentUser user, AppLocks locks, RequestService requestService, CancellationToken ct)
     {
         var strategy = db.Database.CreateExecutionStrategy();
         return strategy.ExecuteAsync(async () =>
@@ -415,7 +416,7 @@ public static class HistoryEndpoints
                 var then = status.DataSteps(v.Summary.Migrations);
                 if (!status.SameLayout(v.Summary.Migrations))
                 {
-                    var request = await RequestService.CreateAsync(db, locks, "restore-layout",
+                    var request = await requestService.CreateAsync("restore-layout",
                         $"Bring back the table layout of version #{id}",
                         $"Version #{id} was restored, but the table looked different back then. Its rows were fitted into today's layout. A developer is needed to bring the old layout back.",
                         Drafts.RestoreLayout(id, then.Except(current), current.Except(then)),

@@ -19,6 +19,7 @@ using api_v2.Domain.Tables;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using api_v2.Presentation.Contracts;
+using api_v2.Application.Ports;
 
 namespace api_v2.Presentation.Endpoints;
 

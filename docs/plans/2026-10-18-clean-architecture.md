@@ -1,6 +1,19 @@
 # Clean architecture refactor
 
-Status: in progress. Branch: `clean-architecture` (from `main` at `2b929a6`). Owner: Lead (deepseek-flash), with GPT-6 Luna (`openai/gpt-6-luna`, through workflow agents) for mechanical file-local edits.
+Status: in progress on branch `clean-architecture` (from `main` at `2b929a6`). Owner: Lead (deepseek-flash), with GPT-6 Luna (`openai/gpt-6-luna`, through workflow agents) for mechanical file-local edits.
+
+Done so far, one commit each:
+
+| Phase | State |
+|---|---|
+| P0 baseline | green build, 287 page tests, both migration chains clean, OpenAPI baseline captured (64 paths, 33 schemas), plan doc written |
+| P1 folders | every file moved to its layer folder with a matching namespace; EF entity type strings patched in the 14 Designer files and both snapshots; model checks clean; full rebuild green |
+| P2 contracts | 10 endpoint files lost their inline request records to `Presentation/Contracts` (Luna, two batches); Dtos already in Contracts |
+| P3 | Industries fully behind `IndustryService`, `IIndustryStore`, `INameIndex`, `ICollectorStore`, `IAppLocks`; sign in, sign out, who-am-i and password behind `AuthService`, `IAccounts`, `IPasswordHasher`; settings and profile card behind `MeService`, `ProfileService` and their stores, with `ShortcutRules` and `ProfileRules` in the domain; requests behind `RequestService` and `IRequestsStore` (the open-request dedupe moved with it); the industry, auth, me, profile and request endpoints no longer touch `AppDbContext`; OpenAPI surface identical every time |
+| P4 (part) | `RulesService` reduced to state plus database and starter file work: `FieldChecks` (reading, validating, limits, keys) and `RuleJson` (parse, convert, store) are now pure in `Domain/Rules`, and `Names` no longer queries the database (`INameIndex` does). `CurrentUser` split into `ICurrentUser` (Ports), `SessionPolicy` (Application), `Roles` (Domain), `SessionUser` (Infrastructure) and the `Require*` filters (Presentation/Authorization) |
+
+Still open: P3 for SettingsFile and Schema (they depend on the rules ports); P4 for the rules store/use cases, `BackupService`/`BackupRestore`, `TableWriter`, `MigrationService`, `UserTableMirror`, `SettingsService`, and the `UserService` EF helpers; P5 the Angular restructure; P6 the dependency gates and final smoke.
+
 
 ## Goal
 

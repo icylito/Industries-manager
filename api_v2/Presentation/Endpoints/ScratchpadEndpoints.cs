@@ -15,6 +15,7 @@ using api_v2.Application.Hosted;
 using api_v2.Domain.Scratchpad;
 using api_v2.Presentation.Contracts;
 using Microsoft.EntityFrameworkCore;
+using api_v2.Application.Ports;
 
 namespace api_v2.Presentation.Endpoints;
 

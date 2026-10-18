@@ -1,14 +1,12 @@
 using Npgsql;
+using api_v2.Application.Ports;
 using api_v2.Infrastructure.Configuration;
 
 namespace api_v2.Infrastructure.Persistence;
 
-// Advisory locks belong to the database session, so a crash frees them, and they work if the API runs twice.
-public enum AppLock { Table = 1, Rules = 2, Requests = 3, Settings = 4, Scratchpad = 5, UserTables = 6 }
-
 public class AppBusyException : Exception;
 
-public class AppLocks(DatabaseConnections connections)
+public class AppLocks(DatabaseConnections connections) : IAppLocks
 {
     // One lock for everyone: changes to the table, the rules, the requests and the settings take turns
     public Task<IAsyncDisposable> TakeAsync(AppLock which, CancellationToken ct = default) =>

@@ -5,6 +5,7 @@ using api_v2.Infrastructure.Configuration;
 using api_v2.Application.Settings;
 using api_v2.Application.Health;
 using api_v2.Domain.Rules;
+using api_v2.Application.Ports;
 
 namespace api_v2.Infrastructure.Persistence;
 
@@ -26,7 +27,7 @@ public record VersionColumn(string Name, string Type, bool Nullable);
 // versions      one row per full copy, taken before the structure or the rules change
 // version_rows  the rows of that copy, each one as JSON so old structures stay readable
 // row_changes   a small log of every add, edit and delete, before and after
-public class CollectorStore(DatabaseConnections connections, SettingsService settings, DatabaseStatus status, ILogger<CollectorStore> log)
+public class CollectorStore(DatabaseConnections connections, SettingsService settings, DatabaseStatus status, ILogger<CollectorStore> log) : ICollectorStore
 {
     private const string Table = "Industries";
 
@@ -338,9 +339,9 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
 
     // Which rows were added or edited by hand lately, read from the change log so the table needs no extra columns.
     // A row added on the page is "new", a row saved from its edit form is "updated". Imports are not counted.
-    public async Task<List<(int RowId, DateTimeOffset? Added, DateTimeOffset? Edited)>> RecentActivityAsync(int days, CancellationToken ct)
+    public async Task<IReadOnlyList<ActivityRow>> RecentActivityAsync(int days, CancellationToken ct)
     {
-        var found = new List<(int, DateTimeOffset?, DateTimeOffset?)>();
+        var found = new List<ActivityRow>();
         await using var conn = await OpenAsync(connections.Collector, ct);
         await using var cmd = new NpgsqlCommand("""
             SELECT row_id,
@@ -356,7 +357,7 @@ public class CollectorStore(DatabaseConnections connections, SettingsService set
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            found.Add((reader.GetInt32(0),
+            found.Add(new ActivityRow(reader.GetInt32(0),
                 reader.IsDBNull(1) ? null : reader.GetFieldValue<DateTimeOffset>(1),
                 reader.IsDBNull(2) ? null : reader.GetFieldValue<DateTimeOffset>(2)));
         }

@@ -16,9 +16,14 @@ using api_v2.Application.Auth;
 using api_v2.Infrastructure.Security;
 using api_v2.Domain.Rules;
 using api_v2.Application.Backups;
+using api_v2.Application.Industries;
+using api_v2.Application.Ports;
 using Npgsql;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
+using api_v2.Application.Me;
+using api_v2.Application.Profile;
+using api_v2.Application.Requests;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -75,6 +80,13 @@ builder.Services.AddHostedService<MigrationService>();
 builder.Services.AddSingleton<SettingsService>();
 builder.Services.AddSingleton<CollectorStore>();
 builder.Services.AddSingleton<AppLocks>();
+// The live Industries table and the name check sit behind ports; the use cases in Application/Industries call them.
+// The store is scoped because it works through the scoped AppDbContext.
+builder.Services.AddScoped<IIndustryStore, IndustryStore>();
+builder.Services.AddScoped<INameIndex, NameIndex>();
+builder.Services.AddScoped<IndustryService>();
+builder.Services.AddSingleton<ICollectorStore>(services => services.GetRequiredService<CollectorStore>());
+builder.Services.AddSingleton<IAppLocks>(services => services.GetRequiredService<AppLocks>());
 // Where uploaded Scratchpad files live on disk, created on startup. See Data/ScratchFileStore.cs
 builder.Services.AddSingleton<ScratchFileStore>();
 builder.Services.AddHostedService<api_v2.Application.Hosted.ScratchFileSweeper>();
@@ -94,6 +106,18 @@ builder.Services.AddHostedService<HistoryMonitor>();
 // Who is signed in comes from the token the page sends, see Auth/CurrentUser.cs
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, SessionUser>();
+// Accounts, sessions and password checking sit behind ports, the use cases in Application/Auth call them
+builder.Services.AddScoped<IAccounts, AccountStore>();
+builder.Services.AddSingleton<IPasswordHasher, PasswordHasherAdapter>();
+builder.Services.AddScoped<AuthService>();
+// The person's own settings and profile card, and the rules their values are checked against
+builder.Services.AddScoped<IMeStore, MeStore>();
+builder.Services.AddScoped<MeService>();
+builder.Services.AddScoped<IProfileStore, ProfileStore>();
+builder.Services.AddScoped<ProfileService>();
+// Requests for a developer, the same open one never made twice, behind one store
+builder.Services.AddScoped<IRequestsStore, RequestStore>();
+builder.Services.AddScoped<RequestService>();
 // Signing in is limited per address, so a password can't be guessed by trying over and over
 var loginTries = builder.Configuration.GetValue("Auth:LoginTriesPerMinute", 5);
 builder.Services.AddRateLimiter(options =>
