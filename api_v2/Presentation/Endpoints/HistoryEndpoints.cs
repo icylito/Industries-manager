@@ -2,14 +2,9 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using api_v2.Application.Auth;
-using api_v2.Infrastructure.Security;
 using api_v2.Application.Health;
-using api_v2.Application.Hosted;
 using api_v2.Application.Settings;
-using api_v2.Application.Startup;
-using api_v2.Infrastructure.Configuration;
 using api_v2.Infrastructure.Export;
-using api_v2.Infrastructure.Files;
 using api_v2.Infrastructure.Persistence;
 using api_v2.Application.History;
 using api_v2.Application.Requests;
@@ -19,6 +14,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
 using api_v2.Application.Ports;
+
+using api_v2.Presentation.Authorization;
+using api_v2.Application.Rules;
+using api_v2.Domain.Collector;
 
 namespace api_v2.Presentation.Endpoints;
 
@@ -126,7 +125,7 @@ public static class HistoryEndpoints
 
         // Puts the table back the way it was in this version, rows and rules. The current state gets saved first.
         history.MapPost("/versions/{id:long}/restore", async (long id, RestoreBody body, CollectorStore collector,
-            TableWriter writer, RulesService rules, AppDbContext db, DatabaseStatus status, ICurrentUser user,
+            TableWriter writer, RulesService rules, RulesAdminService admin, AppDbContext db, DatabaseStatus status, ICurrentUser user,
             ILogger<TableWriter> log, AppLocks locks, RequestService requestService, CancellationToken ct) =>
         {
             var note = body.Note?.Trim();
@@ -163,7 +162,7 @@ public static class HistoryEndpoints
             RestoreOutcome outcome;
             try
             {
-                outcome = await RestoreInOneStepAsync(v, plan, id, db, writer, rules, status, user, locks, requestService, ct);
+                outcome = await RestoreInOneStepAsync(v, plan, id, db, writer, rules, admin, status, user, locks, requestService, ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -357,12 +356,12 @@ public static class HistoryEndpoints
         });
 
         history.MapPut("/settings", async (Retention body, SettingsService settings, CollectorStore collector,
-            AppDbContext db, ICurrentUser user, AppLocks locks, ILogger<SettingsService> log, CancellationToken ct) =>
+            AppDbContext db, ISettingsStore store, ICurrentUser user, AppLocks locks, ILogger<SettingsService> log, CancellationToken ct) =>
         {
             await using var settingsLock = await locks.TakeAsync(AppLock.Settings, ct);
             var errors = SettingsService.Check(body);
             if (errors.Count > 0) return Results.ValidationProblem(errors);
-            await settings.SaveRetentionAsync(db, body, user.Name, ct);
+            await settings.SaveRetentionAsync(store, body, user.Name, ct);
             try
             {
                 var removed = await collector.ApplyRetentionAsync(ct);
@@ -392,7 +391,7 @@ public static class HistoryEndpoints
     // Rows, rules and the developer request go in together. If any of them fails nothing is kept,
     // and the rules in memory are loaded again so they match the database.
     private static Task<RestoreOutcome> RestoreInOneStepAsync(VersionDetail v, ImportPlan plan, long id, AppDbContext db,
-        TableWriter writer, RulesService rules, DatabaseStatus status, ICurrentUser user, AppLocks locks, RequestService requestService, CancellationToken ct)
+        TableWriter writer, RulesService rules, RulesAdminService admin, DatabaseStatus status, ICurrentUser user, AppLocks locks, RequestService requestService, CancellationToken ct)
     {
         var strategy = db.Database.CreateExecutionStrategy();
         return strategy.ExecuteAsync(async () =>
@@ -407,7 +406,7 @@ public static class HistoryEndpoints
                 var rulesRestored = false;
                 if (v.Rules is not null && rules.Differs(v.Rules))
                 {
-                    await rules.SaveAsync(db, RulesService.ParseFields(v.Rules), $"Restored from version {id}", user.Name, ct, copyFirst: false);
+                    await admin.SaveAsync(RulesService.ParseFields(v.Rules), $"Restored from version {id}", user.Name, ct, copyFirst: false);
                     rulesRestored = true;
                 }
 
@@ -440,7 +439,7 @@ public static class HistoryEndpoints
                 db.ChangeTracker.Clear();
                 try
                 {
-                    await rules.LoadAsync(db, CancellationToken.None);
+                    await admin.LoadAsync(CancellationToken.None);
                 }
                 catch
                 {

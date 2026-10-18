@@ -4,6 +4,9 @@ using api_v2.Application.Industries;
 using api_v2.Domain.Entities;
 using api_v2.Presentation.Contracts;
 
+using api_v2.Presentation.Authorization;
+using api_v2.Application.Ports;
+
 namespace api_v2.Presentation.Endpoints;
 
 // The Industries routes. Every endpoint binds its input, calls one use case in Application/Industries and

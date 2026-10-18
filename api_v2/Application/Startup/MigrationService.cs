@@ -1,13 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
-using api_v2.Domain.Rules;
 using Npgsql;
 using api_v2.Application.Health;
 using api_v2.Infrastructure.Configuration;
 using api_v2.Infrastructure.Persistence;
 using api_v2.Application.Settings;
 using api_v2.Application.Ports;
+using api_v2.Application.Rules;
 
 namespace api_v2.Application.Startup;
 
@@ -20,7 +20,7 @@ public class MigrationService(
     DatabaseStatus status,
     DatabaseConnections connections,
     CollectorStore collector,
-    RulesService rules,
+
     SettingsService settings,
     AppLocks locks,
     IConfiguration config,
@@ -90,14 +90,16 @@ public class MigrationService(
                     await data.Database.MigrateAsync(ct);
                     var statePending = (await state.Database.GetPendingMigrationsAsync(ct)).ToList();
                     await state.Database.MigrateAsync(ct);
-                    await rules.LoadAsync(db, ct);
+                    var rulesAdmin = scope.ServiceProvider.GetRequiredService<RulesAdminService>();
+                    await rulesAdmin.LoadAsync(ct);
                     // The sector list is saved with a table copy, so it needs history. When history isn't set up yet
                     // it waits for BringHistoryUpAsync, so a slow history database never holds the main one back.
                     if (collectorReady)
                     {
-                        await rules.SyncSectorsAsync(db, ct);
+                        await rulesAdmin.SyncSectorsAsync(ct);
                     }
-                    await settings.LoadAsync(db, ct);
+                    var settingsStore = scope.ServiceProvider.GetRequiredService<ISettingsStore>();
+                    await settings.LoadAsync(settingsStore, ct);
                     // Someone must always be able to sign in, see UserService.EnsureAdminAsync
                     await Auth.UserService.EnsureAdminAsync(db, config, log, ct);
 
@@ -192,8 +194,9 @@ public class MigrationService(
                     await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);
                     using var scope = scopes.CreateScope();
                     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                    await rules.LoadAsync(db, ct);
-                    await rules.SyncSectorsAsync(db, ct);
+                    var rulesAdmin = scope.ServiceProvider.GetRequiredService<RulesAdminService>();
+                    await rulesAdmin.LoadAsync(ct);
+                    await rulesAdmin.SyncSectorsAsync(ct);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {

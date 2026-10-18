@@ -1,16 +1,12 @@
 using System.Diagnostics;
 using System.Globalization;
 using api_v2.Application.Health;
-using api_v2.Application.Hosted;
-using api_v2.Application.Settings;
-using api_v2.Application.Startup;
 using api_v2.Infrastructure.Configuration;
-using api_v2.Infrastructure.Export;
-using api_v2.Infrastructure.Files;
 using api_v2.Infrastructure.Persistence;
 using api_v2.Domain.Rules;
 using Npgsql;
 using api_v2.Application.Ports;
+using api_v2.Application.Rules;
 
 namespace api_v2.Application.Backups;
 
@@ -176,8 +172,8 @@ public sealed class BackupRestore(
     private async Task ReloadAsync(CancellationToken ct)
     {
         using var scope = scopes.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await rules.LoadAsync(db, ct);
+        var admin = scope.ServiceProvider.GetRequiredService<RulesAdminService>();
+        await admin.LoadAsync(ct);
     }
 
     // Empties the live tables and copies the scratch rows in, in one transaction. Returns rows before and after.

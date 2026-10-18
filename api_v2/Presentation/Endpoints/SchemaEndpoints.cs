@@ -1,19 +1,13 @@
 using api_v2.Application.Auth;
-using api_v2.Infrastructure.Security;
-using api_v2.Application.Health;
-using api_v2.Application.Hosted;
-using api_v2.Application.Settings;
-using api_v2.Application.Startup;
-using api_v2.Infrastructure.Configuration;
-using api_v2.Infrastructure.Export;
-using api_v2.Infrastructure.Files;
-using api_v2.Infrastructure.Persistence;
-using api_v2.Domain.Rules;
-using Microsoft.EntityFrameworkCore;
 using api_v2.Application.Ports;
+using api_v2.Application.Rules;
+using api_v2.Domain.Rules;
+using api_v2.Presentation.Authorization;
 
 namespace api_v2.Presentation.Endpoints;
 
+// The rules routes. Reads come from the rules in use; every change is one call into Application/Rules,
+// which owns the lock order, the version check and the copy saved before a rules version.
 public static class SchemaEndpoints
 {
     public static void MapSchema(this WebApplication app)
@@ -24,18 +18,15 @@ public static class SchemaEndpoints
         schema.MapGet("/", (RulesService rules) => Results.Ok(rules.Current)).RequireViewer();
 
         // Every rules version, newest first
-        schema.MapGet("/versions", async (AppDbContext db) =>
-        {
-            var rows = await db.RuleVersions.OrderByDescending(r => r.Id).ToListAsync();
-            return Results.Ok(rows.Select(RulesService.ToRuleSet));
-        }).RequireSignIn();
+        schema.MapGet("/versions", async (IRulesStore store) =>
+            Results.Ok((await store.VersionsAsync(CancellationToken.None)).Select(RulesService.ToRuleSet))).RequireSignIn();
 
         // Saves new rules as the next version, a full copy of the table goes to the collector first
-        schema.MapPut("/", async (SaveRules body, AppDbContext db, RulesService rules, ICurrentUser user,
-            ILogger<RulesService> log, AppLocks locks, CancellationToken ct) =>
+        schema.MapPut("/", async (SaveRules body, RulesAdminService admin, RulesService rules, ICurrentUser user,
+            ILogger<RulesAdminService> log, IAppLocks locks, CancellationToken ct) =>
         {
             await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);
-            await rules.LoadAsync(db, ct);
+            await admin.LoadAsync(ct);
             if (body.BasedOn is not int v) return NoBasedOn();
             if (v != rules.Current.Version)
             {
@@ -54,7 +45,7 @@ public static class SchemaEndpoints
                 var current = rules.Current.Fields.ToDictionary(f => f.Key);
                 var fields = body.Fields.Select(f =>
                     current.TryGetValue(f.Key, out var was) ? f with { Options = was.Options } : f).ToList();
-                return Results.Ok(await rules.SaveAsync(db, fields, body.Note, user.Name, ct));
+                return Results.Ok(await admin.SaveAsync(fields, body.Note, user.Name, ct));
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -65,11 +56,11 @@ public static class SchemaEndpoints
         }).RequireAdmin();
 
         // Adds a custom field, its values live in each row's Extra JSON so no C# or migration is needed
-        schema.MapPost("/fields", async (NewField body, AppDbContext db, RulesService rules, ICurrentUser user,
-            ILogger<RulesService> log, AppLocks locks, CancellationToken ct) =>
+        schema.MapPost("/fields", async (NewField body, RulesAdminService admin, RulesService rules, ICurrentUser user,
+            ILogger<RulesAdminService> log, IAppLocks locks, CancellationToken ct) =>
         {
             await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);
-            await rules.LoadAsync(db, ct);
+            await admin.LoadAsync(ct);
             var errors = rules.CheckNewField(body);
             if (errors.Count > 0)
             {
@@ -78,7 +69,7 @@ public static class SchemaEndpoints
 
             try
             {
-                return Results.Ok(await rules.AddFieldAsync(db, body, user.Name, ct));
+                return Results.Ok(await admin.AddFieldAsync(body, user.Name, ct));
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -89,8 +80,8 @@ public static class SchemaEndpoints
         }).RequireAdmin();
 
         // Several custom fields in one rules version and one table copy
-        schema.MapPost("/fields/many", async (NewFields body, AppDbContext db, RulesService rules, ICurrentUser user,
-            ILogger<RulesService> log, AppLocks locks, CancellationToken ct) =>
+        schema.MapPost("/fields/many", async (NewFields body, RulesAdminService admin, RulesService rules, ICurrentUser user,
+            ILogger<RulesAdminService> log, IAppLocks locks, CancellationToken ct) =>
         {
             if (body.Fields is null || body.Fields.Count == 0)
             {
@@ -98,7 +89,7 @@ public static class SchemaEndpoints
             }
 
             await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);
-            await rules.LoadAsync(db, ct);
+            await admin.LoadAsync(ct);
             if (body.BasedOn is not int v) return NoBasedOn();
             if (v != rules.Current.Version)
             {
@@ -114,7 +105,7 @@ public static class SchemaEndpoints
 
             try
             {
-                return Results.Ok(await rules.AddFieldsAsync(db, body.Fields, user.Name, ct));
+                return Results.Ok(await admin.AddFieldsAsync(body.Fields, user.Name, ct));
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -125,12 +116,12 @@ public static class SchemaEndpoints
         }).RequireAdmin();
 
         // Removes a field the page added. Built in fields stay. A copy of the table is saved first.
-        schema.MapDelete("/fields/{key}", async (string key, int? basedOn, AppDbContext db, RulesService rules,
-            CollectorStore collector, ICurrentUser user, ILogger<RulesService> log, AppLocks locks, CancellationToken ct) =>
+        schema.MapDelete("/fields/{key}", async (string key, int? basedOn, RulesAdminService admin, RulesService rules,
+            ICurrentUser user, ILogger<RulesAdminService> log, IAppLocks locks, CancellationToken ct) =>
         {
             await using var tableLock = await locks.TakeAsync(AppLock.Table, ct);
             await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);
-            await rules.LoadAsync(db, ct);
+            await admin.LoadAsync(ct);
 
             var field = rules.Current.Fields.FirstOrDefault(f => f.Key == key);
             if (field is null)
@@ -150,7 +141,7 @@ public static class SchemaEndpoints
 
             try
             {
-                await collector.SaveVersionAsync($"Before deleting the field {field.Label}", user.Name, ct);
+                return Results.Ok(await admin.DeleteFieldAsync(field.Key, field.Label, user.Name, ct));
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -159,8 +150,6 @@ public static class SchemaEndpoints
                     "Couldn't save a copy of the table first, so the field wasn't deleted. Try again in a moment",
                     statusCode: StatusCodes.Status503ServiceUnavailable, title: "Backup not available");
             }
-
-            return Results.Ok(await rules.DeleteFieldAsync(db, field.Key, field.Label, user.Name, ct));
         }).RequireAdmin();
     }
 
@@ -174,8 +163,8 @@ public static class SchemaEndpoints
     public static RouteGroupBuilder RequireDatabaseReady(this RouteGroupBuilder group) =>
         group.AddEndpointFilter(async (context, next) =>
         {
-            var status = context.HttpContext.RequestServices.GetRequiredService<DatabaseStatus>();
-            if (status.State != DatabaseState.Ready)
+            var status = context.HttpContext.RequestServices.GetRequiredService<api_v2.Application.Health.DatabaseStatus>();
+            if (status.State != api_v2.Application.Health.DatabaseState.Ready)
             {
                 return Results.Problem(status.Message, statusCode: StatusCodes.Status503ServiceUnavailable,
                     title: "Database not ready");

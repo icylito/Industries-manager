@@ -67,11 +67,11 @@ public class AuthService(IAccounts accounts, IPasswordHasher hasher, LoginFailur
         user.LastLoginAt = now;
 
         var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-        var expires = now + SessionUser.IdleLimit;
+        var expires = now + SessionPolicy.IdleLimit;
         await accounts.AddSessionAsync(new Session
         {
             UserId = user.Id,
-            TokenHash = SessionUser.HashToken(token),
+            TokenHash = SessionPolicy.HashToken(token),
             CreatedAt = now,
             LastSeenAt = now,
             ExpiresAt = expires

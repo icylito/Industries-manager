@@ -16,6 +16,9 @@ public interface ICollectorStore
 
     Task FinishChangeAsync(long changeId, bool done, int? rowId = null, object? after = null, CancellationToken ct = default);
 
+    // Saves a full copy of the live table. The rules save takes this first, so no version can be lost.
+    Task<long?> SaveVersionAsync(string reason, string createdBy, CancellationToken ct = default, bool applyRetention = true);
+
     // Which rows were added or edited by hand lately, for the New and Updated tags
     Task<IReadOnlyList<ActivityRow>> RecentActivityAsync(int days, CancellationToken ct);
 }

@@ -2,6 +2,9 @@ using api_v2.Application.Auth;
 using api_v2.Application.Requests;
 using api_v2.Presentation.Contracts;
 
+using api_v2.Presentation.Authorization;
+using api_v2.Application.Ports;
+
 namespace api_v2.Presentation.Endpoints;
 
 // The requests routes. Each endpoint binds its input, calls one use case in Application/Requests and turns the

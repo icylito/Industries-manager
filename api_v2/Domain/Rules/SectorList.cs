@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace api_v2.Infrastructure.Configuration;
+namespace api_v2.Domain.Rules;
 
 // Reads the sectors list out of scripts/config.toml. Only that one key, no TOML package.
 internal static class SectorList

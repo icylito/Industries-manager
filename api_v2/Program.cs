@@ -9,7 +9,6 @@ using api_v2.Application.Hosted;
 using api_v2.Application.Settings;
 using api_v2.Application.Startup;
 using api_v2.Infrastructure.Configuration;
-using api_v2.Infrastructure.Export;
 using api_v2.Infrastructure.Files;
 using api_v2.Infrastructure.Persistence;
 using api_v2.Application.Auth;
@@ -24,6 +23,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using api_v2.Application.Me;
 using api_v2.Application.Profile;
 using api_v2.Application.Requests;
+using api_v2.Application.Rules;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -96,6 +96,12 @@ builder.Services.AddSingleton<api_v2.Application.Tables.UserTableMirror>();
 builder.Services.AddHostedService<api_v2.Application.Hosted.TableBinSweeper>();
 builder.Services.AddSingleton<api_v2.Application.History.TableWriter>();
 builder.Services.AddSingleton<RulesService>();
+// The rules table and the sector file sit behind ports; the admin use cases load, save and delete versions
+builder.Services.AddScoped<IRulesStore, RulesStore>();
+builder.Services.AddSingleton<ISectorConfig, SectorConfigFile>();
+builder.Services.AddScoped<RulesAdminService>();
+// The retention setting row
+builder.Services.AddScoped<ISettingsStore, SettingsStore>();
 // Signs every backup so only this app's own can be dropped back in, see Backups/BackupSigner.cs
 builder.Services.AddSingleton<BackupSigner>();
 builder.Services.AddSingleton<BackupService>();

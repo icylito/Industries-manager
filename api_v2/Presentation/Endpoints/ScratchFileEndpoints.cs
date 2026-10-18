@@ -1,11 +1,4 @@
-using api_v2.Application.Auth;
-using api_v2.Infrastructure.Security;
 using api_v2.Application.Health;
-using api_v2.Application.Hosted;
-using api_v2.Application.Settings;
-using api_v2.Application.Startup;
-using api_v2.Infrastructure.Configuration;
-using api_v2.Infrastructure.Export;
 using api_v2.Infrastructure.Files;
 using api_v2.Infrastructure.Persistence;
 using api_v2.Domain.Entities;
@@ -13,6 +6,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Net.Http.Headers;
+using api_v2.Application.Ports;
 
 namespace api_v2.Presentation.Endpoints;
 

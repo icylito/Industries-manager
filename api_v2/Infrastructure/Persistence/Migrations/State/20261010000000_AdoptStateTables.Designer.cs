@@ -2,12 +2,6 @@
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using api_v2.Application.Health;
-using api_v2.Application.Hosted;
-using api_v2.Application.Settings;
-using api_v2.Application.Startup;
-using api_v2.Infrastructure.Configuration;
-using api_v2.Infrastructure.Export;
-using api_v2.Infrastructure.Files;
 using api_v2.Infrastructure.Persistence;
 
 #nullable disable

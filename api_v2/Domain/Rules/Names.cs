@@ -1,17 +1,6 @@
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
-using api_v2.Application.Health;
-using api_v2.Application.Hosted;
-using api_v2.Application.Settings;
-using api_v2.Application.Startup;
-using api_v2.Infrastructure.Configuration;
-using api_v2.Infrastructure.Export;
-using api_v2.Infrastructure.Files;
-using api_v2.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
-using Npgsql;
-using NpgsqlTypes;
 
 namespace api_v2.Domain.Rules;
 
@@ -70,16 +59,6 @@ public static class Names
             if (category is UnicodeCategory.Format or UnicodeCategory.Control) return true;
         }
         return false;
-    }
-
-    // Rows flagged as copies (DuplicateOf set) don't count, same as the unique index
-    public static async Task<bool> TakenAsync(AppDbContext db, string name, int? exceptId, CancellationToken ct = default)
-    {
-        var count = await db.Database.SqlQuery<int>($"""
-            SELECT count(*)::int AS "Value" FROM "Industries"
-            WHERE "DuplicateOf" IS NULL AND "Name" COLLATE name_rule = {name} AND "Id" <> {exceptId ?? 0}
-            """).SingleAsync(ct);
-        return count > 0;
     }
 
     // The key of each name, for grouping a batch of names by the rule

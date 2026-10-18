@@ -2,6 +2,9 @@ using api_v2.Application.Auth;
 using api_v2.Application.Me;
 using api_v2.Presentation.Contracts;
 
+using api_v2.Presentation.Authorization;
+using api_v2.Application.Ports;
+
 namespace api_v2.Presentation.Endpoints;
 
 // The signed in person's own things. Only ever their own: there is no id in these addresses.

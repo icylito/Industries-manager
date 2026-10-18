@@ -1,18 +1,14 @@
 using System.Text;
 using System.Text.Json;
 using api_v2.Application.Auth;
-using api_v2.Infrastructure.Security;
 using api_v2.Application.Health;
-using api_v2.Application.Hosted;
 using api_v2.Application.Settings;
-using api_v2.Application.Startup;
-using api_v2.Infrastructure.Configuration;
-using api_v2.Infrastructure.Export;
-using api_v2.Infrastructure.Files;
 using api_v2.Infrastructure.Persistence;
 using api_v2.Domain.Rules;
 using api_v2.Presentation.Contracts;
 using api_v2.Application.Ports;
+using api_v2.Domain.Collector;
+using api_v2.Application.Rules;
 
 namespace api_v2.Presentation.Endpoints;
 
@@ -32,11 +28,11 @@ public static class SettingsFileEndpoints
         });
 
         // What importing this file would change, nothing is saved
-        history.MapPost("/settings/import/preview", async (SettingsFile? body, AppDbContext db, RulesService rules,
+        history.MapPost("/settings/import/preview", async (SettingsFile? body, RulesAdminService admin, RulesService rules,
             SettingsService settings, CollectorStore collector, AppLocks locks, CancellationToken ct) =>
         {
             await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);
-            await rules.LoadAsync(db, ct);
+            await admin.LoadAsync(ct);
             var plan = Plan(body, rules, settings);
             if (plan.Problem is not null) return plan.Problem;
 
@@ -52,13 +48,13 @@ public static class SettingsFileEndpoints
         });
 
         // Applies the file. The table is copied first, like any rules change, so it can be undone from History.
-        history.MapPost("/settings/import", async (SettingsFile? body, AppDbContext db, RulesService rules,
-            SettingsService settings, CollectorStore collector, ICurrentUser user, AppLocks locks,
+        history.MapPost("/settings/import", async (SettingsFile? body, RulesAdminService admin, RulesService rules,
+            SettingsService settings, ISettingsStore store, CollectorStore collector, ICurrentUser user, AppLocks locks,
             ILogger<RulesService> log, CancellationToken ct) =>
         {
             await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);
             await using var settingsLock = await locks.TakeAsync(AppLock.Settings, ct);
-            await rules.LoadAsync(db, ct);
+            await admin.LoadAsync(ct);
             var plan = Plan(body, rules, settings);
             if (plan.Problem is not null) return plan.Problem;
 
@@ -66,7 +62,7 @@ public static class SettingsFileEndpoints
             {
                 try
                 {
-                    await rules.SaveAsync(db, plan.Fields, "Imported settings from a file", user.Name, ct);
+                    await admin.SaveAsync(plan.Fields, "Imported settings from a file", user.Name, ct);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -79,7 +75,7 @@ public static class SettingsFileEndpoints
             int? removed = null;
             if (plan.Retention is { } retention && plan.RetentionChanged)
             {
-                await settings.SaveRetentionAsync(db, retention, user.Name, ct);
+                await settings.SaveRetentionAsync(store, retention, user.Name, ct);
                 try
                 {
                     removed = await collector.ApplyRetentionAsync(ct);

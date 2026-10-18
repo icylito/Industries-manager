@@ -1,6 +1,6 @@
 using System.Text.Json;
-using api_v2.Application.Settings;
 using api_v2.Domain.Rules;
+using api_v2.Domain.Collector;
 
 namespace api_v2.Presentation.Contracts;
 
