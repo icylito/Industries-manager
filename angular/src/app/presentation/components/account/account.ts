@@ -3,7 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Auth } from '../../../application/auth';
 import { Profile } from '../../../application/profile';
-import { errorText } from '../../../infrastructure/industry-api';
+import { errorText } from '../../../application/http-text';
 
 type Box = 'current' | 'next' | 'repeat';
 

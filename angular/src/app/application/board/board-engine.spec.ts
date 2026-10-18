@@ -288,17 +288,15 @@ describe('Board engine', () => {
       // Long after the toast went, the board opens as it was left, with the conflict and its choices
       await vi.advanceTimersByTimeAsync(60_000);
       const back = board.open(1);
-      http
-        .expectOne(`${url}/1`)
-        .flush({
-          id: 1,
-          name: 'Ideas',
-          pinned: false,
-          view: null,
-          createdAt: 'c',
-          updatedAt: 't9',
-          document: { version: 1, items: [note('a')], lines: [], groups: [] },
-        });
+      http.expectOne(`${url}/1`).flush({
+        id: 1,
+        name: 'Ideas',
+        pinned: false,
+        view: null,
+        createdAt: 'c',
+        updatedAt: 't9',
+        document: { version: 1, items: [note('a')], lines: [], groups: [] },
+      });
       expect(await back).toBe(true);
       expect(board.doc().items[0].x).toBe(40);
       expect(board.conflict()).toBe('changed');
@@ -420,35 +418,33 @@ describe('Board engine', () => {
     it('lands an upload on a board that is closed by reading, changing and saving it', async () => {
       await open([]);
       board.fileStored('f', { id: 9, name: 'b.png', contentType: 'image/png', sizeBytes: 3 }, 5);
-      http
-        .expectOne(`${url}/5`)
-        .flush({
-          id: 5,
-          name: 'Other',
-          pinned: false,
-          view: null,
-          createdAt: 'c',
-          updatedAt: 'u5',
-          document: {
-            version: 1,
-            items: [
-              {
-                id: 'f',
-                type: 'file',
-                x: 0,
-                y: 0,
-                w: 1,
-                h: 1,
-                fileId: null,
-                name: 'b.png',
-                contentType: 'image/png',
-                sizeBytes: 3,
-              },
-            ],
-            lines: [],
-            groups: [],
-          },
-        });
+      http.expectOne(`${url}/5`).flush({
+        id: 5,
+        name: 'Other',
+        pinned: false,
+        view: null,
+        createdAt: 'c',
+        updatedAt: 'u5',
+        document: {
+          version: 1,
+          items: [
+            {
+              id: 'f',
+              type: 'file',
+              x: 0,
+              y: 0,
+              w: 1,
+              h: 1,
+              fileId: null,
+              name: 'b.png',
+              contentType: 'image/png',
+              sizeBytes: 3,
+            },
+          ],
+          lines: [],
+          groups: [],
+        },
+      });
       await vi.advanceTimersByTimeAsync(0);
       const put = http.expectOne((r) => r.method === 'PUT' && r.url === `${url}/5`);
       expect(put.request.body.updatedAt).toBe('u5');

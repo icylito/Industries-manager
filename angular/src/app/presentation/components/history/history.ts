@@ -16,7 +16,8 @@ import {
   VersionDetail,
   VersionSummary,
 } from '../../../domain/models/industry';
-import { IndustryApi, errorText } from '../../../infrastructure/industry-api';
+import { IndustryApi } from '../../../infrastructure/industry-api';
+import { errorText } from '../../../application/http-text';
 import { Auth } from '../../../application/auth';
 import { age } from './age';
 
@@ -334,12 +335,10 @@ export class HistoryPage implements OnInit {
         if (!this.auth.isAdmin()) return;
         // The saved versions and the retention boxes come from the restored database now
         this.load();
-        this.api
-          .retention()
-          .subscribe({
-            next: (r) => this.setRetention(r.keepVersions, r.keepDays),
-            error: () => {},
-          });
+        this.api.retention().subscribe({
+          next: (r) => this.setRetention(r.keepVersions, r.keepDays),
+          error: () => {},
+        });
       },
       error: (err: HttpErrorResponse) => {
         this.restoreBackupBusy.set(false);
@@ -858,12 +857,10 @@ export class HistoryPage implements OnInit {
           ? ` ${r.removed} old version${r.removed === 1 ? '' : 's'} removed.`
           : '';
         this.settingsMsg.set(`Settings imported.${removed}`);
-        this.api
-          .retention()
-          .subscribe({
-            next: (x) => this.setRetention(x.keepVersions, x.keepDays),
-            error: () => {},
-          });
+        this.api.retention().subscribe({
+          next: (x) => this.setRetention(x.keepVersions, x.keepDays),
+          error: () => {},
+        });
         this.load();
       },
       error: (err: HttpErrorResponse) => {

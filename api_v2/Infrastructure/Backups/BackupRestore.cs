@@ -3,6 +3,8 @@ using System.Globalization;
 using api_v2.Application.Health;
 using api_v2.Infrastructure.Configuration;
 using api_v2.Infrastructure.Persistence;
+using api_v2.Application.Exceptions;
+using api_v2.Application.Ports;
 using api_v2.Domain.Rules;
 using Npgsql;
 using api_v2.Application.Ports;
@@ -12,9 +14,6 @@ namespace api_v2.Infrastructure.Backups;
 
 // Thrown when a restore is refused before anything changes, the page shows the message as a conflict.
 public sealed class BackupRefusedException(string message) : Exception(message);
-
-// What POST /backups/{id}/restore gives back
-public sealed record BackupRestoreResult(string Backup, int RowsBefore, int Rows, int RulesVersion, long? CopyId, string? UndoBackup = null);
 
 // Puts the data back the way it was in a backup: the industries, their rules (the Fields), and every table from the
 // Tables page with its columns and rows. Only the data travels in time. Accounts, sign ins, notes, the Scratchpad,
@@ -33,7 +32,7 @@ public sealed class BackupRestore(
     AppLocks locks,
     api_v2.Infrastructure.Files.UserTableMirror mirror,
     IServiceScopeFactory scopes,
-    ILogger<BackupRestore> log)
+    ILogger<BackupRestore> log) : IBackupRestore
 {
     // The data tables, the only ones that come back from a backup. Accounts would bring back old passwords and sign
     // everyone out; notes, the Scratchpad, requests and app settings belong to now, so they stay too.
@@ -47,6 +46,8 @@ public sealed class BackupRestore(
         "That backup was made when the table had a different layout, so it can't be restored from the page. Nothing was changed";
 
     // True when the backup's layout matches today's database, null when the backup didn't record it
+    public string PlainMessage(Exception ex) => backups.PlainMessage(ex);
+
     public bool? SameLayout(BackupEntry entry) =>
         entry.Migrations is null ? null : status.SameLayout(entry.Migrations);
 

@@ -119,6 +119,8 @@ builder.Services.AddScoped<ISettingsStore, SettingsStore>();
 builder.Services.AddSingleton<BackupSigner>();
 builder.Services.AddSingleton<BackupService>();
 builder.Services.AddSingleton<BackupRestore>();
+builder.Services.AddSingleton<IBackupService>(services => services.GetRequiredService<BackupService>());
+builder.Services.AddSingleton<IBackupRestore>(services => services.GetRequiredService<BackupRestore>());
 builder.Services.AddHostedService<BackupScheduler>();
 // Notices when the history database goes away or comes back after startup, so the page's badge stays right
 builder.Services.AddHostedService<HistoryMonitor>();

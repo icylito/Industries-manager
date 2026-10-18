@@ -59,14 +59,12 @@ describe('Settings per person', () => {
     const store = TestBed.inject(SettingsStore);
     TestBed.inject(Auth).user.set(user);
     TestBed.tick();
-    http
-      .expectOne(me)
-      .flush({
-        shortcuts: { 'sp.hand': ['Q'] },
-        mouse: { 'mouse.add': 'Alt' },
-        theme: 'dark',
-        updatedAt: 'u',
-      });
+    http.expectOne(me).flush({
+      shortcuts: { 'sp.hand': ['Q'] },
+      mouse: { 'mouse.add': 'Alt' },
+      theme: 'dark',
+      updatedAt: 'u',
+    });
     await tick();
     http.expectNone((r) => r.method === 'PUT');
     expect(store.theme()).toBe('dark');

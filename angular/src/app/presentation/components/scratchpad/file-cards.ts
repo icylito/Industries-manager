@@ -1,7 +1,7 @@
 import { DestroyRef, Injectable, effect, inject, signal, untracked } from '@angular/core';
 import { HttpErrorResponse, HttpEventType } from '@angular/common/http';
 import { FileItem } from '../../../domain/models/board';
-import { errorText } from '../../../infrastructure/industry-api';
+import { errorText } from '../../../application/http-text';
 import { BoardEngine } from '../../../application/board/board-engine';
 import { ScratchApi } from '../../../infrastructure/board/scratch-api';
 import { KINDS, fileView } from '../../../domain/board/item-kinds';

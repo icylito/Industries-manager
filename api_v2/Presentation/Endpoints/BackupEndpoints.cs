@@ -4,7 +4,7 @@
 using api_v2.Application.Exceptions;
 using api_v2.Application.Auth;
 using api_v2.Presentation.Contracts;
-using api_v2.Infrastructure.Backups;
+using api_v2.Application.Ports;
 using api_v2.Application.Health;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.WebUtilities;
@@ -23,13 +23,13 @@ public static class BackupEndpoints
         // because restoring is how a team gets its tables back. Rules, History and Settings stay admin only.
         var group = app.MapGroup("/backups").RequireDatabaseReady().RequireManager();
 
-        group.MapGet("/", (BackupService backups, BackupRestore restore) => Results.Ok(new
+        group.MapGet("/", (IBackupService backups, IBackupRestore restore) => Results.Ok(new
         {
             backups = backups.List().Select(b => Describe(b, restore)),
             status = backups.Status()
         }));
 
-        group.MapPost("/", async (BackupService backups, BackupRestore restore, ICurrentUser user, ILogger<BackupService> log, CancellationToken ct) =>
+        group.MapPost("/", async (IBackupService backups, IBackupRestore restore, ICurrentUser user, ILogger<IBackupService> log, CancellationToken ct) =>
         {
             try
             {
@@ -50,14 +50,14 @@ public static class BackupEndpoints
                 // Only this code's own words reach the page, the tool's and the framework's stay in the log
                 log.LogError(ex, "Backup failed");
                 return Results.Problem(
-                    $"The backup didn't finish. {BackupService.PlainMessage(ex)}",
+                    $"The backup didn't finish. {backups.PlainMessage(ex)}",
                     statusCode: StatusCodes.Status503ServiceUnavailable,
                     title: "Backup didn't finish");
             }
         });
 
         // Admins only: a deleted backup can't be brought back
-        group.MapDelete("/{id}", (string id, BackupService backups) =>
+        group.MapDelete("/{id}", (string id, IBackupService backups) =>
         {
             try
             {
@@ -75,7 +75,7 @@ public static class BackupEndpoints
         }).RequireAdmin();
 
         // What a restore from this backup would do. Nothing is changed.
-        group.MapGet("/{id}/restore/preview", async (string id, BackupService backups, BackupRestore restore,
+        group.MapGet("/{id}/restore/preview", async (string id, IBackupService backups, IBackupRestore restore,
             DatabaseStatus status, IIndustryStore industries, CancellationToken ct) =>
         {
             var entry = backups.Find(id);
@@ -95,8 +95,8 @@ public static class BackupEndpoints
         // Puts the table, its rules, settings, requests and every table from the Tables page back the way they were
         // in this backup. Accounts and sign ins stay as they are now. A full backup of right now is taken first
         // (UndoBackup in the answer), and the industries as they are now are saved to History too.
-        group.MapPost("/{id}/restore", async (string id, RestoreBackupBody body, BackupRestore restore, DatabaseStatus status,
-            ICurrentUser user, ILogger<BackupRestore> log, CancellationToken ct) =>
+        group.MapPost("/{id}/restore", async (string id, RestoreBackupBody body, IBackupRestore restore, DatabaseStatus status,
+            ICurrentUser user, ILogger<IBackupRestore> log, CancellationToken ct) =>
         {
             if (body.Confirm != "RESTORE")
             {
@@ -123,15 +123,15 @@ public static class BackupEndpoints
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 log.LogError(ex, "Restoring backup {Backup} failed", id);
-                return Results.Problem(BackupService.PlainMessage(ex),
+                return Results.Problem(restore.PlainMessage(ex),
                     statusCode: StatusCodes.Status503ServiceUnavailable, title: "Restore didn't finish");
             }
         });
 
         // The whole backup as one signed zip, to keep somewhere else and drop back in later
-        group.MapGet("/{id}/download", (string id, BackupService backups) =>
+        group.MapGet("/{id}/download", (string id, IBackupService backups) =>
         {
-            if (!BackupService.ValidId(id)) return Results.BadRequest("That isn't a backup");
+            if (!backups.ValidId(id)) return Results.BadRequest("That isn't a backup");
             var zip = backups.ZipOf(id);
             if (zip is null) return Results.NotFound($"No backup called {id} exists. Nothing was changed");
             // Deleted as soon as it has been sent
@@ -141,8 +141,8 @@ public static class BackupEndpoints
 
         // A backup zip dropped in from the page. It is checked and added to the list; restoring it is a separate step.
         // Read as it arrives, with the size cap counted on the way in, so a huge file never fills the disk.
-        group.MapPost("/upload", async (HttpRequest request, BackupService backups, BackupRestore restore, IConfiguration config,
-            ICurrentUser user, ILogger<BackupService> log, CancellationToken ct) =>
+        group.MapPost("/upload", async (HttpRequest request, IBackupService backups, IBackupRestore restore, IConfiguration config,
+            ICurrentUser user, ILogger<IBackupService> log, CancellationToken ct) =>
         {
             var maxBytes = Math.Max(1, config.GetValue("Backup:MaxUploadMb", 2048)) * 1024L * 1024L;
             if (!MediaTypeHeaderValue.TryParse(request.ContentType, out var media)
@@ -216,9 +216,9 @@ public static class BackupEndpoints
             }
         });
 
-        group.MapGet("/{id}/{file}", async (string id, string file, BackupService backups, CancellationToken ct) =>
+        group.MapGet("/{id}/{file}", async (string id, string file, IBackupService backups, CancellationToken ct) =>
         {
-            if (!BackupService.ValidId(id) || file is not ("main" or "collector" or "excel"))
+            if (!backups.ValidId(id) || file is not ("main" or "collector" or "excel"))
             {
                 return Results.BadRequest("That isn't a backup file");
             }
@@ -241,7 +241,7 @@ public static class BackupEndpoints
     }
 
     // What the page sees about one backup. SameLayout says if Restore is possible from the page.
-    private static object Describe(BackupEntry b, BackupRestore restore) => new
+    private static object Describe(BackupEntry b, IBackupRestore restore) => new
     {
         b.Id, b.CreatedAt, b.Kind, b.By, b.MainSize, b.CollectorSize, b.RulesVersion, b.HasExcel, b.RowCount, b.UploadedAt,
         // Only a signed backup can be downloaded and dropped back in. Older ones still restore from this list.

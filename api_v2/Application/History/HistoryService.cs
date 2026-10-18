@@ -6,6 +6,7 @@ using api_v2.Application.Ports;
 using api_v2.Application.Requests;
 using api_v2.Application.Settings;
 using api_v2.Domain.Collector;
+using api_v2.Domain.Export;
 using api_v2.Domain.Rules;
 
 namespace api_v2.Application.History;
@@ -68,11 +69,11 @@ public class HistoryService(
         if (v is null) return null;
         var columns = v.Columns.Select(c => c.Name).ToList();
         var csv = new StringBuilder();
-        csv.AppendLine(string.Join(",", columns.Select(Csv)));
+        csv.AppendLine(string.Join(",", columns.Select(c => CsvText.Cell(CsvText.GuardFormula(c)))));
         foreach (var row in v.Rows)
         {
             csv.AppendLine(string.Join(",", columns.Select(c =>
-                row.TryGetProperty(c, out var value) ? Csv(CellText(value)) : "")));
+                row.TryGetProperty(c, out var value) ? CsvText.Cell(CellText(value)) : "")));
         }
         var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray();
         return new VersionDownload(bytes, $"version-{id}-{v.Summary.CreatedAt:yyyy-MM-dd}.csv");
@@ -337,18 +338,10 @@ public class HistoryService(
     private static string? Level(PlannedRow r) =>
         r.Problems.Any(p => p.Level == "red") ? "red" : r.Problems.Count > 0 ? "black" : null;
 
-    // The same two CSV rules as Infrastructure/Export/CsvText, which a use case can't reach. A leading quote stops
-    // Excel treating the cell as a formula, and numbers stay numbers.
-    private static string GuardFormula(string text) =>
-        text.Length > 0 && text[0] is '=' or '+' or '-' or '@' or '\t' or '\r' ? "'" + text : text;
-
-    private static string Csv(string text) =>
-        text.IndexOfAny([',', '"', '\n', '\r']) >= 0 ? $"\"{text.Replace("\"", "\"\"")}\"" : text;
-
     private static string CellText(JsonElement value) => value.ValueKind switch
     {
         JsonValueKind.Null => "",
-        JsonValueKind.String => GuardFormula(value.GetString()!),
+        JsonValueKind.String => CsvText.GuardFormula(value.GetString()!),
         _ => value.GetRawText()
     };
 }

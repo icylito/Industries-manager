@@ -4,7 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ColumnInput, FieldRule, TableRow, UserTable } from '../../../domain/models/industry';
-import { errorText } from '../../../infrastructure/industry-api';
+import { errorText } from '../../../application/http-text';
 import { TablesApi } from '../../../infrastructure/tables-api';
 import { Auth } from '../../../application/auth';
 import { Toast } from '../../../application/toast';
@@ -346,11 +346,9 @@ export class TablesPage {
   private refreshTable() {
     const id = this.tableId();
     if (id === null) return;
-    this.api
-      .get(id)
-      .subscribe({
-        next: (t) => this.tables.update((list) => list.map((x) => (x.id === t.id ? t : x))),
-      });
+    this.api.get(id).subscribe({
+      next: (t) => this.tables.update((list) => list.map((x) => (x.id === t.id ? t : x))),
+    });
   }
 
   // ---- making and changing tables ----

@@ -5,7 +5,7 @@ using api_v2.Application.Ports;
 using api_v2.Domain.Entities;
 using api_v2.Domain.Rules;
 using api_v2.Domain.Tables;
-using api_v2.Infrastructure.Export;
+using api_v2.Domain.Export;
 using Microsoft.EntityFrameworkCore;
 
 namespace api_v2.Infrastructure.Persistence;

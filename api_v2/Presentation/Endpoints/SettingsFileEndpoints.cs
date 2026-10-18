@@ -6,7 +6,6 @@ using api_v2.Application.Settings;
 using api_v2.Domain.Rules;
 using api_v2.Presentation.Contracts;
 using api_v2.Application.Ports;
-using api_v2.Infrastructure.Persistence;
 using api_v2.Domain.Collector;
 using api_v2.Application.Rules;
 
@@ -29,7 +28,7 @@ public static class SettingsFileEndpoints
 
         // What importing this file would change, nothing is saved
         history.MapPost("/settings/import/preview", async (SettingsFile? body, RulesAdminService admin, RulesService rules,
-            SettingsService settings, CollectorStore collector, AppLocks locks, CancellationToken ct) =>
+            SettingsService settings, ICollectorStore collector, IAppLocks locks, CancellationToken ct) =>
         {
             await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);
             await admin.LoadAsync(ct);
@@ -49,7 +48,7 @@ public static class SettingsFileEndpoints
 
         // Applies the file. The table is copied first, like any rules change, so it can be undone from History.
         history.MapPost("/settings/import", async (SettingsFile? body, RulesAdminService admin, RulesService rules,
-            SettingsService settings, ISettingsStore store, CollectorStore collector, ICurrentUser user, AppLocks locks,
+            SettingsService settings, ISettingsStore store, ICollectorStore collector, ICurrentUser user, IAppLocks locks,
             ILogger<RulesService> log, CancellationToken ct) =>
         {
             await using var rulesLock = await locks.TakeAsync(AppLock.Rules, ct);

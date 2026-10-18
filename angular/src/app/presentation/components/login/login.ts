@@ -2,7 +2,7 @@ import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Auth } from '../../../application/auth';
-import { errorText } from '../../../infrastructure/industry-api';
+import { errorText } from '../../../application/http-text';
 
 // Only a page of this app. A value with a backslash, a colon or a line break could be read by a browser as another site
 // ("/\\evil.com" becomes "//evil.com"), so anything like that goes to the table instead.

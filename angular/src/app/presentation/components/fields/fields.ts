@@ -4,7 +4,8 @@ import { hasNoLetters, sameName } from '../../../domain/name-key';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FieldRule, RuleSet } from '../../../domain/models/industry';
-import { IndustryApi, errorText } from '../../../infrastructure/industry-api';
+import { IndustryApi } from '../../../infrastructure/industry-api';
+import { errorText } from '../../../application/http-text';
 
 type FieldType = 'text' | 'number' | 'date';
 

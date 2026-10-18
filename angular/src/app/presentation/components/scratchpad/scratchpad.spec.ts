@@ -137,18 +137,16 @@ describe('Scratchpad page', () => {
     const fixture = TestBed.createComponent(ScratchpadPage);
     fixture.detectChanges();
     await tick();
-    http
-      .expectOne(url + '/boards')
-      .flush([
-        {
-          id: 7,
-          name: 'Ideas',
-          pinned: true,
-          createdAt: 'a',
-          updatedAt: '2026-10-10T08:00:00Z',
-          things: 3,
-        },
-      ]);
+    http.expectOne(url + '/boards').flush([
+      {
+        id: 7,
+        name: 'Ideas',
+        pinned: true,
+        createdAt: 'a',
+        updatedAt: '2026-10-10T08:00:00Z',
+        things: 3,
+      },
+    ]);
     await tick();
     await tick();
     expect(params.value.get('board')).toBe('7');

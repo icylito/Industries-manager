@@ -5,7 +5,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { AuthUser } from '../../../domain/models/industry';
 import { Auth } from '../../../application/auth';
 import { UserNote } from '../../../domain/models/industry';
-import { IndustryApi, errorText } from '../../../infrastructure/industry-api';
+import { IndustryApi } from '../../../infrastructure/industry-api';
+import { errorText } from '../../../application/http-text';
 
 // Everything the menu can do to someone. Turning an account back on takes nothing away, so it is the one that does not ask.
 type RowAction = 'reset' | 'off' | 'admin' | 'manager' | 'normal' | 'delete' | 'rename';

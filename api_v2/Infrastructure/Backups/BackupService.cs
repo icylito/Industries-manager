@@ -6,30 +6,17 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using api_v2.Application.Health;
 using api_v2.Infrastructure.Configuration;
-using api_v2.Infrastructure.Export;
+using api_v2.Domain.Export;
+using api_v2.Application.Exceptions;
+using api_v2.Application.Ports;
 using api_v2.Domain.Rules;
 using Npgsql;
 using api_v2.Infrastructure.Security;
 
 namespace api_v2.Infrastructure.Backups;
 
-// Thrown when a second backup is asked for while one is already running.
-public sealed class BackupBusyException : Exception
-{
-    public BackupBusyException() : base("A backup is already running, try again in a minute") { }
-}
-
 // A backup or restore that stopped for a reason the page can show as it is. Anything else only goes to the log.
 public sealed class BackupFailedException(string message) : Exception(message);
-
-// An uploaded backup file that was turned away, with the status the page should get. The message is shown as it is.
-public sealed class BackupUploadException(string message, int status) : Exception(message)
-{
-    public int Status { get; } = status;
-
-    // The backup already in the list, when the file is one of those. The page scrolls to it.
-    public string? ExistingId { get; init; }
-}
 
 // Where pg_dump and pg_restore live. Docker means they run inside the database container.
 public readonly record struct DatabaseTool(bool Docker, string? Path)
@@ -37,25 +24,6 @@ public readonly record struct DatabaseTool(bool Docker, string? Path)
     public static DatabaseTool FromFile(string path) => new(false, path);
     public static DatabaseTool InDocker() => new(true, null);
 }
-
-// One saved backup, what GET /backups lists and what POST /backups returns.
-public sealed record BackupEntry(
-    string Id,
-    DateTimeOffset CreatedAt,
-    string Kind,
-    string By,
-    long MainSize,
-    long CollectorSize,
-    int RulesVersion,
-    bool HasExcel,
-    // Rows in the table when the copy was made. Backups from before this was recorded don't have it.
-    int? RowCount = null,
-    // The database layout at the time, so a restore knows if the table looked the same
-    List<string>? Migrations = null,
-    // Set for a backup that was dropped in from a file. It is kept 14 days from then, not from when it was made.
-    DateTimeOffset? UploadedAt = null,
-    // Has a signature.json, so its zip can be dropped back in. Backups from before signing don't.
-    bool Signed = false);
 
 // Runs pg_dump for main and the collector, one backup at a time.
 public sealed class BackupService(
@@ -65,7 +33,7 @@ public sealed class BackupService(
     DatabaseStatus status,
     RulesService rules,
     BackupSigner signer,
-    ILogger<BackupService> log)
+    ILogger<BackupService> log) : IBackupService
 {
     public const string MissingToolMessage =
         "Backups need pg_dump. Install the Postgres tools or set Backup:PgDump in appsettings";
@@ -110,10 +78,10 @@ public sealed class BackupService(
 
     public TimeSpan NightlyTime { get; } = ReadTime(config);
 
-    public static bool ValidId(string? id) => id is not null && IdPattern.IsMatch(id);
+    public bool ValidId(string? id) => id is not null && IdPattern.IsMatch(id);
 
     // What the page may show about a failure. Only messages this code wrote itself, never a tool's or the framework's.
-    public static string PlainMessage(Exception ex) =>
+    public string PlainMessage(Exception ex) =>
         ex is BackupFailedException or BackupBusyException ? ex.Message : "Something went wrong. Nothing was changed, the details are in the API log";
 
     // The folder a backup lives in, or null when the id isn't one

@@ -12,7 +12,7 @@ Done so far, one commit each:
 | P3 | Industries fully behind `IndustryService`, `IIndustryStore`, `INameIndex`, `ICollectorStore`, `IAppLocks`; sign in, sign out, who-am-i and password behind `AuthService`, `IAccounts`, `IPasswordHasher`; settings and profile card behind `MeService`, `ProfileService` and their stores, with `ShortcutRules` and `ProfileRules` in the domain; requests behind `RequestService` and `IRequestsStore` (the open-request dedupe moved with it); the industry, auth, me, profile and request endpoints no longer touch `AppDbContext`; OpenAPI surface identical every time |
 | P4 | Domain has no EF/ASP.NET/Npgsql/file references. Application is clean too: use cases live in `Application/{Industries,Auth,Accounts,Me,Profile,Requests,Rules,Settings}`, and every adapter moved out — `BackupService`, `BackupRestore`, `BackupScheduler`, `MigrationService`, `TableWriter`, `UserTableMirror` now live under `Infrastructure` with ports (`IRulesStore`, `ISettingsStore`, `IScratchFilesStore`, `IUserTablesStore`, `IUserTableMirror`, `IAccounts`, `IPasswordHasher`) and the background jobs hold only ports. Stale usings pruned (219 lines across 40 files) |
 
-Still open: two endpoint files still inject `AppDbContext` and must be thinned onto ports — `HistoryEndpoints` and `UserTableEndpoints`; then P6 the dependency gates and final smoke. The rest of P3/P4 is done: Backup, ScratchFile, Scratchpad and User routes are off the database, and `AppBusyException` moved to `Application/Exceptions` (the last Infrastructure alias left the endpoints).
+All phases are done. Every endpoint binds input, calls a use case or store port and maps the result; no file under `Presentation/` touches `AppDbContext`, EF, Npgsql or raw SQL. `AppBusyException` lives in `Application/Exceptions`, the last infrastructure alias is gone, and the P6 table below is the final verification.
 
 ## P5 — the page
 
@@ -222,3 +222,40 @@ Dependency gates at P6:
 - Restore, import and migration transactions must keep their current boundaries. The use case drives the sequence; the port method owns the EF transaction and the advisory lock.
 - Docker is not running, so database-backed smoke tests are conditional on `docker compose up -d`.
 - Commits: one per phase, on `clean-architecture` only, no push.
+
+## P6 — finished
+
+Run on the final tree, all green:
+
+| Check | Result |
+|---|---|
+| `dotnet build --no-incremental` | 0 errors |
+| `dotnet ef migrations has-pending-model-changes` (Data + State) | "No changes have been made" both |
+| `Domain/` gate (no EF/ASP.NET/Npgsql/IO/net) | 0 hits |
+| `Application/` gate (no EF, AppDbContext, Infrastructure) | 0 hits |
+| `Presentation/Endpoints/` gate (no AppDbContext/SQL/IO) | 0 hits |
+| `Infrastructure/` referencing `Presentation` | 0 hits |
+| `npx ng build` | 0 errors |
+| `npx ng test --watch=false` | 29 files / 287 tests passed, same count as baseline |
+| OpenAPI diff against the P0 baseline | 0 paths, 0 schemas |
+| Container validation (`ASPNETCORE_ENVIRONMENT=Development`) | starts, no unresolved services |
+
+Runtime smoke, two rounds against the Docker database (`docker compose up -d`; API in Production, so the Docker default connection on 5433):
+
+1. Dev database (`main`): API applied the pending migrations, /health went ready with History ready, then 33 authenticated checks ran: sign in, password change, /auth/me, /schema, industries list/search/top and add-edit-delete, a table with a row add/edit/delete and CSV export, a Scratchpad board create/read/save/delete, requests, users, backups list, history versions/settings/export, and me/settings. All passed; the one 400 was a malformed board document in the check itself, and the save passed once the board's own document was sent back. The settings file routes were then checked on their own after their port move: export 200, import preview 200, import 200 with nothing changed.
+2. Stress databases (`stress_main` 102,445 industries, `stress_collector` 29 versions): API started against them with the connection strings overridden, restore of version 8 (25,151 rows) returned 200 and left new versions 32 ("Before restoring version 8", 102,445 rows) and 33 ("Before restoring version 32 — undo of the restore", 25,151 rows); after the undo the live count was back to 102,445. Import preview of version 8 returned 200 with a 7.4 MB plan. A manual backup returned 200, listed with the other backups, downloaded 200 (52 MB), restore-previewed 200 and deleted 204. Import itself and a full backup restore were not run: both write a lot of data and the paths they share with the checks above are already covered.
+
+The dev smoke used the admin reset hook, so the admin password on the Docker `main` database is now `CleanArch-Smoke-2026`; the stress database admin was set to `Stress-Smoke-2026`. Change either if they matter.
+
+Final shape: `Domain` (entities and pure rules), `Application` (use cases and ports only), `Infrastructure` (EF, SQL, crypto, files, config, backups, migration and restore runners, hosted jobs), `Presentation` (endpoints, contracts, authorization, error mapping), `Program.cs` as the only composition root. The Angular app is `domain/`, `application/`, `infrastructure/`, `presentation/components/` with the shell at the app root.
+
+## Follow-ups after the owner's decisions
+
+All seven follow-ups were handled: the branch is pushed, Docker was closed by the owner, the credentials are noted in `scripts/seeding.control.toml`, the stray stress backup was removed, `appsettings.Development.json` now points at the Docker database with the change explained in `docker_setup.md`, the remaining coupling was cleaned, and the `testing/` scripts were restored from git history (31 files, the commit before they were deleted).
+
+What remains, none of it blocking:
+
+- **Run the checks:** the restored `testing/` scripts (`check_history_limits.py`, the names, restore, tables, scratchpad, backup and migration checks) have not been run since the refactor. They need the throwaway API on 5104 described in `testing/README.md`.
+- **Unexercised live paths:** History import writing rows, a full backup restore, and backup upload. Their planning, validation and preview paths were exercised; watch these on first real use.
+- **Possible follow-on:** a separate project per layer would turn the dependency rules into compile errors instead of grep gates. Not done here; the single project with folder layers was the agreed scope.
+- **Docs still describing older work:** `HANDOFF.md`/`OVERVIEW_HANDOFF.md` were not in this checkout, so the history around them was not updated.

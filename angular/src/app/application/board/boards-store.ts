@@ -3,7 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { BoardSummary } from '../../domain/models/board';
 import { ScratchApi } from '../../infrastructure/board/scratch-api';
-import { errorText } from '../../infrastructure/industry-api';
+import { errorText } from '../http-text';
 
 const LAST_BOARD = 'stock-listing-last-board';
 

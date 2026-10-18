@@ -1,6 +1,6 @@
-namespace api_v2.Infrastructure.Export;
+namespace api_v2.Domain.Export;
 
-// CSV cells that open cleanly in Excel, used by the History download and the backup Excel file
+// CSV cells that open cleanly in Excel: the History download, the Tables export and the backup Excel file.
 public static class CsvText
 {
     // A leading quote stops Excel treating the cell as a formula. Numbers stay numbers.

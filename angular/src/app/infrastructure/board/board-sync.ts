@@ -2,7 +2,7 @@ import { signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Observable, firstValueFrom } from 'rxjs';
 import { BoardDocument } from '../../domain/models/board';
-import { errorText } from '../industry-api';
+import { errorText } from '../../application/http-text';
 
 // The pill next to Shortcuts. Three states, one rule: nothing is called Saved until the server says so.
 // See OVERVIEW_HANDOFF.md, "the save state".

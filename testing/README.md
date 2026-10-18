@@ -1,0 +1,102 @@
+# Checks
+
+The scripts that checked batch 8, kept so the next round doesn't start from nothing. They only ever talk to a throwaway API on its own port, pointed at throwaway databases. Never point them at the real one, `check_big.py` and `stress.py` delete rows.
+
+## Setup
+
+1. A Postgres on 5433. `docker compose up -d` gives one. The checks use their own databases on it, `throwaway_main` and `throwaway_collector`, so the `main` and `collector` that `start.bat` uses are never touched. `t.py` refuses to run against `main`, `collector` or `api_v2`, and refuses the API on 5005 or 7165.
+2. A throwaway API. In `api_v2`, copy `..\testing\appsettings.Throwaway.example.json` to `appsettings.Throwaway.json` (git ignores it), then from the `api_v2` folder:
+
+   ```
+   set ASPNETCORE_ENVIRONMENT=Throwaway
+   dotnet run -c Release --no-launch-profile --urls http://localhost:5104
+   ```
+
+   `-c Release` builds into its own folder, so it runs next to `start.bat`'s API without fighting over the files. The first start makes both throwaway databases and prints the admin password in that window. Backups go to `testing/throwaway-backups` (git ignores it).
+3. Set `ADMIN_PASSWORD` to the password the checks should use, for example `set ADMIN_PASSWORD=Pick-one-2026!`. There's no default on purpose. `check_restore.py` and `grade_setup.py` set it as the admin password on a first run.
+4. Python 3.13 or newer, nothing to install. The page checks need Node 22.23.3 or newer and the `playwright` package with Chromium.
+
+   **Two playwrights share one browser cache, and they want different Chromium builds.** The `playwright` in `testing/node_modules` is 1.64 and asks for one Chromium revision; the Python `playwright` wheel asks for another. Installing only the Python one, or only `npm install` in `testing/`, leaves the other's browser missing and the check stops before printing anything with `Executable doesn't exist at ...\ms-playwright\chromium_headless_shell-<revision>\...`. Install the Node side's browser once, from `testing/`:
+
+   ```
+   node node_modules\playwright\cli.js install chromium-headless-shell
+   ```
+
+   That only adds the revision it needs, so the Python checks keep working. A first run here needed 1248 while the cache held 1228 and took about 120 MB.
+
+The Python scripts read `API` (default `http://localhost:5104`), `ADMIN_PASSWORD`, `MAIN_DB`, `COLLECTOR_DB` and `BACKUPS` from the environment.
+
+The page checks (`check_page.mjs`, `check_design.mjs`, `grade_capture.mjs`, `grade_recapture.mjs`) drive the page, and the page calls the API on 5005. For those, close `start.bat`'s API window and run the throwaway API with `--urls http://localhost:5005` instead.
+
+## The scripts
+
+| Script | What it checks | How to run |
+|---|---|---|
+| `check_restore.py` | The whole restore from a backup round trip: rows, rules, requests and retention back, accounts and the token kept, the copy at the top of History, then a backup from another layout refused and a damaged dump refused with no copy left behind | first time `python3 -I check_restore.py <password from the API window>`, it sets the admin password. After that `python3 -I check_restore.py x again` |
+| `check_big.py` | Timings on a big table: copy to History, restore from History, bring back, restore from a backup | `python3 -I check_big.py 100000` (rows to insert) |
+| `check_monitor.py` | History taken away under the running API: adds answer 503, `/health` says offline at once, back within 30 seconds | `python3 -I check_monitor.py` (renames the collector database and back, needs psql on 5433) |
+| `stress.py` | The race test: three restores at once each round under 8 threads of adds, edits, deletes, bring backs, rules saves, retention saves and backups. Fails on any 500, a lock wait that ran out, a pending change log entry, a scratch database left behind or two originals with one name | `python3 -I stress.py 30` for 30 rounds on 300 rows, `python3 -I stress.py 10 20000` for 10 rounds on 20,000 rows |
+| `check_page.mjs` | The Restore panel in a headless browser at 1280 and 390 wide and in dark mode, runs a restore, saves screenshots, reports console errors and sideways scroll | with the page on 4200 and the API on the address in `environment.ts`: `node check_page.mjs <folder for screenshots>` from a folder that has `playwright` in `node_modules` |
+| `check_ui.mjs` | The five changes a jsdom test cannot see: Fields and History on the normal nav, the restore question asking for a note and flashing the signal colour, the age line on each saved copy, and the shortcuts panel blurring the page behind it and dimming it only a little, light and dark. It **never confirms a restore**: it opens the question, types into the note box to prove the button turns on at ten characters, and leaves with Escape | with the page on 4200 and the API on 5005: `node check_ui.mjs <folder for screenshots>` from `testing/`. Reads the sign in from `../scripts/seeding.control.toml` and refuses any host that is not localhost. With no folder it writes beside the repo, at `../dsh-shots/after`, never inside it |
+| `check_design.mjs` | The batch 9 design checks: the nav at 390, errors under their field, the delete question, the History card on a phone, the sign in page, a disabled button in dark mode, screenshots of each | same setup as `check_page.mjs`: `node check_design.mjs <folder for screenshots>` |
+| `contrast.py` | WCAG contrast of the colour pairs the UI judge pointed at, read from `styles.css`, light and dark | `python3 -I contrast.py ../angular/src/styles.css`, every line should say ok |
+| `grade_setup.py` | Builds the state `rubric_batches_8_9.md` asks for on a throwaway API: 300 rows with a long name, a custom field with a value in 12 rows, two amber rows, a backup, 20 rows deleted after it, and a copy of the backup marked as another layout | `python3 -I grade_setup.py <password from the API window>` on a fresh database, with `BACKUPS` pointing at the backup folder if it isn't the default |
+| `grade_capture.mjs` | Takes captures 1 to 7 of the rubric (screenshots and `facts.json` with the console readings) for a critic to grade. `START=4` resumes from capture 4 | `node grade_capture.mjs <folder>` after `grade_setup.py`, with the page on 4200. Capture 7 signs in six times in a row, the example settings already allow 100 tries a minute |
+| `grade_recapture.mjs` | The captures the first grading round found missing: a real amber row with its red Delete text and its flag, the flag focused by Tab, the spinner read from the DOM, the account page problems under their boxes, the phone cells | `node grade_recapture.mjs <folder>` after `grade_capture.mjs`, adds to its `facts.json` |
+| `check_tables.py` | The Tables page's API: making, changing and deleting tables, every column rule, a column hidden and brought back with its values, a type change that rewrites values or is refused, stale edits refused, the four limits (50 tables with four people racing for the last one, 20 columns, 100,000 rows, 64 KB a row), who may do what, and the JSON copies in the mirror folder | `python3 -I check_tables.py`. Makes its own manager and normal accounts. Start the throwaway API with `UserTables__Mirror=../testing/throwaway-backups/user-tables` so the copies land beside the other throwaway files |
+| `check_backup_tables.py` | Backups carry the Tables page: a restore brings tables and rows back, takes a full backup first and that backup undoes it; a backup downloads as one signed zip and drops back in; a changed byte, an extra file, a path in a name, an unsigned zip, a non-zip and a file over the cap are each refused, with nothing left behind | `python3 -I check_backup_tables.py`. Start the throwaway API with `Backup__MaxUploadMb=5` and `Backup__SigningKeyFile=../testing/throwaway-backups/backup-signing.key`, so it never shares the real key |
+| `check_migration.py` | One migration forward, back and forward again on `throwaway_main`, each step timed. `CHAIN=state` checks one from the chain of what is always current (`api_v2/Migrations/State`) instead of the data chain. `KEPT=Table1,Table2` names tables whose rows the Down deliberately keeps as going forward left them (for `OneNameRule`: `Industries,UserTables`). Both throwaway databases are dumped first and loaded back at the end (`KEEP=1` leaves them at the migration). Passes only when the migration list is right at every step, going back leaves the layout exactly as it was (a `pg_dump --schema-only` diff), every row in both throwaway databases is exactly what it was (a count and an md5 per table), the only losses are the ones the migration's `Down` names, and going forward again matches the first forward. It doesn't start the old code on the rolled-back database or try backups across layouts, those stay by hand | stop the throwaway API, then `python3 -I check_migration.py` for the newest migration, or `set MIGRATION=AddScratchFiles` first for another. Doesn't sign in, so no `ADMIN_PASSWORD` needed. Refuses to run while anything is connected to the throwaway databases, and leaves `throwaway_main` at the migration it checked. `EXPECT_CHANGED=Table1,Table2` names tables a migration is meant to rewrite |
+| `check_migration_walk.py` | Every data migration down one at a time to the oldest layout and up again, then the same in one jump each way. At each step the migration list is right, every table the migration doesn't name keeps every row, what the named tables lose going back is listed, and each layout on the way up is the one seen on the way down. Fields are played with: a company with no release date and one with a price go down, the price is changed and a company added in the oldest layout, and the newest layout must still have them; then two names differing only in case are put in before `UniqueNameIgnoringCase`, which must go forward with the later one flagged. At every step the always-current tables (accounts, notes, the Scratchpad, requests, settings) must keep every row, and a new database built by both chains must have exactly the upgraded one's layout | stop the throwaway API, then `python3 -I check_migration_walk.py`, or `set FLOOR=AddUsersAndSessions` first to stop higher. Dumps both throwaway databases first and loads them back at the end (`KEEP=1` leaves them as the walk left them) |
+| `check_dump.py` | A dump comes back whole: dumps both throwaway databases (or takes the `main.dump` and `collector.dump` of a backup the app made), loads them into `throwaway_main_copy` and `throwaway_collector_copy`, and compares the migration list, the layout, every row of every table (count and md5) and every id counter. Then the Scratchpad's files: every file row has its file on disk at the size it says. A dump never carries those bytes, they are only in the files folder | stop the throwaway API, then `python3 -I check_dump.py`, or `python3 -I check_dump.py throwaway-backups\<backup id>` for an app backup. The copies are dropped at the end (`KEEP_COPY=1` keeps them) |
+| `pg.py` | What the database checks share: psql, pg_dump and pg_restore on 5433, the migration list, a picture of the layout and of every row, dumping and loading, and moving the throwaway database to a migration | not run on its own |
+| `check_names.py` | The one name rule (`api_v2/Rules/Names.cs`, ICU): the database's collation `name_rule` and the API's C# held to the same 16 example pairs as the page's `name-key.spec.ts` (Latin, accents, Hindi, Greek, Turkish, Arabic, full width, rare CJK, symbols, currency), a History version holding two names the rule calls one restoring with the later flagged, then companies, tables, their columns, fields and accounts each refusing a name that is the same by the rule and a name of only symbols, and a flagged account clash cleared by a rename | with the throwaway API running: `python3 -I check_names.py` |
+| `check_handover.py` | The start-up hand-over between the two migration chains: makes the database look like one from before the split (`NamedBoardsSettingsTray` recorded in the data chain's history, no state history), starts the API on port 5106, and checks the step moved to the state history and ran once, every state step is recorded, no one-board-per-person index is left, the layout ends as it started, and no failed command shows in the API window | stop the throwaway API, then `python3 -I check_handover.py`. Dumps both databases first and loads them back at the end |
+| `check_versions.py` | Deleting a saved version: an admin deletes it and its saved rows go with it, a pinned one is refused, a manager is refused, a second delete says it isn't there, and a delete meeting a restore of the same version waits for it | `python3 -I check_versions.py`. Adds three fields to make fresh versions and removes them at the end |
+| `check_history_limits.py` | History's limits from the 2026-10-11 stress test: a restore note over 300 characters is refused (emoji counted as the page counts them) and saves no copy, a stored reason can't be made huge and an old long one is clipped in the list but whole in the version, a JSON body over 2 MB is refused, and an import with no answer about duplicates is answered 409 with the counts and writes nothing | `python3 -I check_history_limits.py` (set `PGPORT` and `PGPASSWORD` for a Postgres that isn't the container's) |
+| `check_fixes.py` | The fixes from the stress test of 2026-10-09: a Browse edit made from an old copy of the row is refused and the other person's change stays (20 edits from one copy at once: one saves, 19 are refused), a Scratchpad save from a page that never saw the board can't write over it, Fields saves without `basedOn` are refused, sign in answers 429 with `Retry-After` after 5 tries a minute from one address and after 10 wrong passwords for one name from any address (a right password clears the count), and `/health` only says the state to someone not signed in | start the throwaway API with `set Auth__LoginTriesPerMinute=5` first (the throwaway settings allow 100, which the other checks need), then `python3 -I check_fixes.py`. It plays other addresses with `X-Forwarded-For`, which the API only trusts from this PC |
+| `check_scratchpad.py` | The Scratchpad's API since 2026-10-10: named boards (make, save with the stale-tab guard, rename, pin, a pinned board refused delete, a name over 60 characters refused, a copy made from a document), another person's board answering 404 to every call, every board rule (strokes and their point limits, boxes, unknown kinds, ids, far off places, lines and groups pointing at nothing, note size, sizes under 1, fonts not on the page's list of 48), the carry tray (kept to 20, no doubles), a person's settings and their refusals (two mouse rows on one key, keys no keyboard has, a key twice), the page's shortcut ids and fonts matching the API's, and the file sweep (a file unused for 7 days goes, a used one never does, whichever board uses it) | start the throwaway API with `set Scratchpad__SweepMinutes=1` and `set Scratchpad__Files=../testing/throwaway-backups/scratchpad-files`, then `python3 -I check_scratchpad.py`. Makes a second admin account |
+| `t.py` | What the others share: the API client, the throwaway database names, psql and the safety checks | not run on its own |
+
+`check_restore.py` and `check_big.py` can run one after the other on the same database. `stress.py` empties the table first and leaves it with whatever the rounds made, run it last or on its own copy.
+
+## What a pass looks like
+
+- `check_restore.py` ends with `RESTORE OK` and `REFUSALS OK`
+- `check_big.py` ends with `BIG OK` and prints each timing
+- `check_monitor.py` ends with `MONITOR OK`
+- `stress.py` ends with `STRESS OK` and `errors: 0`
+- `check_scratchpad.py` ends with `SCRATCHPAD OK`
+- `check_migration.py` ends with `MIGRATION OK`; for `NamedBoardsSettingsTray` run it with `CHAIN=state` and `EXPECT_CHANGED=ScratchBoards,ScratchFiles`
+- `check_design.mjs` prints `no sideways scroll: true` twice, a focus ring of `solid 2px`, two field problems with matching `describedBy`, and `page errors: none`
+- `check_page.mjs` prints `no sideways scroll: true` three times and `console errors: none` (blocked font and icon downloads show up as errors on a box without internet, those don't count)
+- `check_tables.py` ends with `TABLES OK` (46 `ok` lines)
+- `check_backup_tables.py` ends with `BACKUP TABLES OK` (25 `ok` lines)
+- `check_migration.py` ends with `MIGRATION OK` (12 `ok` lines for `AddUserTablesAndManager`, 10 for a migration with nothing to lose, each with the dump loaded back at the end)
+- `check_migration_walk.py` ends with `WALK OK` (93 `ok` lines)
+- `check_dump.py` ends with `DUMP OK`
+- `check_names.py` ends with `NAMES OK`
+- `check_handover.py` ends with `HANDOVER OK`
+- `check_versions.py` ends with `VERSIONS OK`
+- `check_fixes.py` ends with `FIXES OK` (21 `ok` lines)
+- `check_ui.mjs` prints fifteen `ok` lines and ends with `all checks passed`, exit 0. The dim line prints the real opacity it read, `0.85`, so a pass shows the number rather than just a tick
+
+## Transfer test: backups stay on the PC that made them
+
+Proves the backups and their key only work where they were made. Needs one PC to test on and a second device.
+
+1. **Make a copy with this PC's data.** From the project root:
+   `powershell -ExecutionPolicy Bypass -File testing\make-copy.ps1 -WithData`
+   This writes `Desktop\stock-listing-copy` with the backups, the backup key and the database login.
+2. **Run the copy here.** Stop the original API first (both use port 5005). Start `start.bat` inside the copy.
+   Open History: every backup should be listed, and a Download should give a readable file.
+3. **Check the copy here.** From the copy's folder:
+   `dotnet run --project testing\transfer-check -- --folder "$PWD\backups" --key "$PWD\backup-key\backup-signing.key"`
+   Give full paths as above, because `dotnet run --project` changes the folder it runs in.
+   Every line should say `OK`, with `Computer:` showing this PC's name.
+4. **Move the copy to the other device** (zip it, copy it, anything). Run step 3 there. Expected output:
+   `KEY LOCKED HERE`, and exit code 1. Nothing in that folder opens on that device.
+5. **Start clean on each host.** On every device that should run the app on its own, run
+   `powershell -ExecutionPolicy Bypass -File testing\make-copy.ps1` without `-WithData`. That copy has no data and no key, so
+   the app makes its own key and starts empty.
+
+The check only reads. It never makes or migrates a key, so it is safe to run on a copy.

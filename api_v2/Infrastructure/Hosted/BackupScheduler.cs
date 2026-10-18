@@ -1,3 +1,4 @@
+using api_v2.Application.Exceptions;
 using api_v2.Application.Health;
 using api_v2.Infrastructure.Backups;
 

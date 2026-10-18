@@ -12,7 +12,7 @@ import {
 import { ScratchApi } from '../../infrastructure/board/scratch-api';
 import { BoardSync, Conflict, DrainEnd, SaveState } from '../../infrastructure/board/board-sync';
 import { Toast } from '../toast';
-import { errorText } from '../../infrastructure/industry-api';
+import { errorText } from '../http-text';
 import { MAX_BOARD_ITEMS, MAX_BOARD_POINTS } from '../../domain/board/tools';
 import {
   Op,

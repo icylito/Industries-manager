@@ -19,7 +19,7 @@ import { Shortcuts, capsOf } from '../../../application/shortcuts';
 import { Toast } from '../../../application/toast';
 import { TrayStore } from '../../../application/board/tray-store';
 import { CARD_DRAG } from '../carry-tray/snapshot-look';
-import { countUp } from './count-up';
+import { countUp } from '../../../application/count-up';
 import {
   Bar,
   Metric,
@@ -461,10 +461,14 @@ export class OverviewPage implements OnInit {
   private sizeFor(n: number): string {
     return n >= 10000 ? 'five' : 'big';
   }
-  centreNumber = countUp(() => this.centre().value ?? 0);
-  statCount = countUp(() => this.view().stats[0].count);
-  statNulls = countUp(() => this.view().stats[0].nulls);
-  statAvg = countUp(() => (this.view().stats[0].avg ?? 0) * 100);
+  centreNumber = countUp(() => this.centre().value ?? 0, { ms: 650, fromZero: true, round: false });
+  statCount = countUp(() => this.view().stats[0].count, { ms: 650, fromZero: true, round: false });
+  statNulls = countUp(() => this.view().stats[0].nulls, { ms: 650, fromZero: true, round: false });
+  statAvg = countUp(() => (this.view().stats[0].avg ?? 0) * 100, {
+    ms: 650,
+    fromZero: true,
+    round: false,
+  });
 
   // The colour of a slice: orange when picked or hovered (and dimmed the rest), otherwise the ink at its own shade
   sliceOpacity(s: { on: boolean; key: string; tone: number }): number {

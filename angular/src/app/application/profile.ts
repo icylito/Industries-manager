@@ -2,7 +2,7 @@ import { Service, effect, inject, signal, untracked } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, firstValueFrom } from 'rxjs';
 import { Auth } from './auth';
-import { errorText } from '../infrastructure/industry-api';
+import { errorText } from './http-text';
 import { AuthUser } from '../domain/models/industry';
 import { colorsOf, squarePicture } from './profile-picture';
 import { environment } from '../../environments/environment';
