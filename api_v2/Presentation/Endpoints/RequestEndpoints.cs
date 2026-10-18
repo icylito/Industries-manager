@@ -10,16 +10,11 @@ using api_v2.Infrastructure.Files;
 using api_v2.Infrastructure.Persistence;
 using api_v2.Domain.Entities;
 using api_v2.Application.Requests;
+using api_v2.Presentation.Contracts;
 using api_v2.Domain.Rules;
 using Microsoft.EntityFrameworkCore;
 
 namespace api_v2.Presentation.Endpoints;
-
-public record AskBody(string? Title, string? Details, string? Code = null);
-public record ColumnAsk(string? Label, string? Type, string? FieldKey, string? Details);
-public record TypeAsk(string? FieldKey, string? Type);
-public record StatusBody(string? Status);
-public record MessageBody(string? Body);
 
 public static class RequestEndpoints
 {

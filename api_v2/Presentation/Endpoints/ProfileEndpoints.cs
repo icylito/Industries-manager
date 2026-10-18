@@ -10,11 +10,10 @@ using api_v2.Infrastructure.Files;
 using api_v2.Infrastructure.Persistence;
 using api_v2.Domain.Entities;
 using api_v2.Domain.Rules;
+using api_v2.Presentation.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace api_v2.Presentation.Endpoints;
-
-public record MyProfile(string? DisplayName);
 
 // The signed in person's profile card: the name they show and their picture. Only ever their own.
 // The page crops and shrinks a picture to a small square before it sends it, so the API only keeps what fits that.

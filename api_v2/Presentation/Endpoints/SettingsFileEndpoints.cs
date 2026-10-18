@@ -11,11 +11,9 @@ using api_v2.Infrastructure.Export;
 using api_v2.Infrastructure.Files;
 using api_v2.Infrastructure.Persistence;
 using api_v2.Domain.Rules;
+using api_v2.Presentation.Contracts;
 
 namespace api_v2.Presentation.Endpoints;
-
-// What Export settings writes and Import settings reads. Retention and the rules for the fields that exist.
-public record SettingsFile(string? App, int? Format, DateTimeOffset? ExportedAt, Retention? Retention, List<FieldRule>? Fields);
 
 public static class SettingsFileEndpoints
 {

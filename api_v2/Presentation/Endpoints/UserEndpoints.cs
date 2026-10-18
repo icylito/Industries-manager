@@ -10,12 +10,9 @@ using api_v2.Infrastructure.Files;
 using api_v2.Infrastructure.Persistence;
 using api_v2.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using api_v2.Presentation.Contracts;
 
 namespace api_v2.Presentation.Endpoints;
-
-public record NewUserBody(string? Username, string? Role);
-public record UserChangeBody(string? Username, string? Role, bool? Disabled);
-public record NoteBody(string? Text);
 
 // Accounts, admin only. There is no sign up, so nobody else on the network can make one.
 public static class UserEndpoints

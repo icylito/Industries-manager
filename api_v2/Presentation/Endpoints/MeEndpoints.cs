@@ -7,6 +7,7 @@ using api_v2.Infrastructure.Security;
 using api_v2.Application.Health;
 using api_v2.Application.Hosted;
 using api_v2.Application.Settings;
+using api_v2.Presentation.Contracts;
 using api_v2.Application.Startup;
 using api_v2.Infrastructure.Configuration;
 using api_v2.Infrastructure.Export;
@@ -16,9 +17,6 @@ using api_v2.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace api_v2.Presentation.Endpoints;
-
-// The whole of a person's own settings, sent and saved as one
-public record MySettings(JsonElement? Shortcuts, JsonElement? Mouse, string? Theme);
 
 // The signed in person's own things. Only ever their own: there is no id in these addresses.
 public static partial class MeEndpoints

@@ -10,12 +10,10 @@ using api_v2.Infrastructure.Export;
 using api_v2.Infrastructure.Files;
 using api_v2.Infrastructure.Persistence;
 using api_v2.Domain.Entities;
+using api_v2.Presentation.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace api_v2.Presentation.Endpoints;
-
-public record LoginBody(string? Username, string? Password);
-public record PasswordBody(string? Current, string? New);
 
 public static class AuthEndpoints
 {

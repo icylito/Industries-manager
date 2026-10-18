@@ -1,4 +1,5 @@
 using api_v2.Application.Auth;
+using api_v2.Presentation.Contracts;
 using api_v2.Infrastructure.Security;
 using api_v2.Application.Backups;
 using api_v2.Application.Hosted;
@@ -17,8 +18,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Net.Http.Headers;
 
 namespace api_v2.Presentation.Endpoints;
-
-public record RestoreBackupBody(string? Confirm);
 
 public static class BackupEndpoints
 {

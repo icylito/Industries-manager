@@ -18,12 +18,10 @@ using api_v2.Application.Tables;
 using api_v2.Domain.Tables;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using api_v2.Presentation.Contracts;
 
 namespace api_v2.Presentation.Endpoints;
 
-public record NewTableBody(string? Name, List<ColumnInput>? Columns);
-public record EditTableBody(string? Name, List<ColumnInput>? Columns, int? Version);
-public record RowBody(Dictionary<string, JsonElement>? Values, DateTimeOffset? UpdatedAt);
 
 // The Tables page: tables that managers and admins make, fill and delete. They are rows in UserTables and
 // UserTableRows, never real Postgres tables, so nothing here runs DDL and nothing a person types becomes SQL.

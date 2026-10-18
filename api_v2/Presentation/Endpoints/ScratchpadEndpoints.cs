@@ -13,21 +13,18 @@ using api_v2.Infrastructure.Persistence;
 using api_v2.Domain.Entities;
 using api_v2.Application.Hosted;
 using api_v2.Domain.Scratchpad;
+using api_v2.Presentation.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace api_v2.Presentation.Endpoints;
 
 // What the page sends when it saves a board. updatedAt is the value it last read, so a save from a stale
 // tab is refused instead of quietly writing over a newer board.
-public record BoardSave(JsonElement Document, DateTimeOffset? UpdatedAt);
 // A new board. With a document it starts as a copy of that, which is how "Keep mine as a new board" keeps
 // changes a stale tab could not save.
-public record NewBoard(string? Name, JsonElement? Document);
 // Renaming, pinning and where the person left the board. None of these is a change to the board itself.
-public record BoardChange(string? Name, bool? Pinned, JsonElement? View);
 
 // One row of the History tab
-public record BoardSummary(int Id, string Name, bool Pinned, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, int Things);
 
 // The Scratchpad: a person's boards (each one endless canvas), their carry tray, and the files on their boards.
 // Admin only for now, and every board, tray and file is the person's own: someone else's board answers 404.
