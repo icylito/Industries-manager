@@ -1,12 +1,8 @@
-using api_v2.Application.Health;
-using api_v2.Infrastructure.Files;
-using api_v2.Infrastructure.Persistence;
+using api_v2.Application.Ports;
 using api_v2.Domain.Entities;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Net.Http.Headers;
-using api_v2.Application.Ports;
 
 namespace api_v2.Presentation.Endpoints;
 
@@ -35,8 +31,8 @@ public static class ScratchFileEndpoints
         // The body is read part by part rather than as a whole form: the file's name arrives before its bytes,
         // so a refused kind is answered before anything is read, and a file over the cap is stopped at the cap
         // and still named in the answer, however big it is.
-        group.MapPost("/files", async (HttpRequest request, AppDbContext db, ICurrentUser user,
-            ScratchFileStore store, CancellationToken ct) =>
+        group.MapPost("/files", async (HttpRequest request, IScratchFilesStore rows, IScratchFiles files,
+            ICurrentUser user, CancellationToken ct) =>
         {
             var boundary = BoundaryOf(request.ContentType);
             if (boundary is null)
@@ -86,7 +82,7 @@ public static class ScratchFileEndpoints
                     long size;
                     try
                     {
-                        size = await store.WriteAsync(storedName, section.Body, MaxBytes, ct);
+                        size = await files.WriteAsync(storedName, section.Body, MaxBytes, ct);
                     }
                     catch (Exception ex) when (ex is not BadHttpRequestException && ex is IOException or UnauthorizedAccessException)
                     {
@@ -104,15 +100,15 @@ public static class ScratchFileEndpoints
                         StoredName = storedName,
                         CreatedAt = DateTimeOffset.UtcNow,
                     };
-                    db.ScratchFiles.Add(row);
+                    rows.Add(row);
                     try
                     {
-                        await db.SaveChangesAsync(ct);
+                        await rows.SaveAsync(ct);
                     }
                     catch
                     {
                         // The row is the file's only handle, so take the bytes back off disk if the row cannot be saved
-                        store.Delete(storedName);
+                        files.Delete(storedName);
                         throw;
                     }
 
@@ -137,19 +133,18 @@ public static class ScratchFileEndpoints
         });
 
         // Stream one file back. Only the person who uploaded it may read it.
-        group.MapGet("/files/{id:int}", async (int id, HttpContext http, AppDbContext db, ICurrentUser user,
-            ScratchFileStore store, CancellationToken ct) =>
+        group.MapGet("/files/{id:int}", async (int id, HttpContext http, IScratchFilesStore rows, IScratchFiles files,
+            ICurrentUser user, CancellationToken ct) =>
         {
-            var file = await db.ScratchFiles.AsNoTracking().FirstOrDefaultAsync(f => f.Id == id, ct);
+            var file = await rows.FindAsync(id, ct);
             if (file is null || !IsOwner(user, file)) return FileNotFound();
 
-            var path = store.PathFor(file.StoredName);
-            if (!File.Exists(path)) return FileNotFound();
+            var stream = files.OpenRead(file.StoredName);
+            if (stream is null) return FileNotFound();
 
             // Never let the browser guess what it is: an odd type must not run as a page
             http.Response.Headers["X-Content-Type-Options"] = "nosniff";
 
-            var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
             var media = MediaTypeOf(file.ContentType);
             // Images and PDF render in place; everything else, SVG included, is offered as a download
             var inline = (media.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
@@ -162,16 +157,16 @@ public static class ScratchFileEndpoints
         });
 
         // Remove the row and the bytes on disk.
-        group.MapDelete("/files/{id:int}", async (int id, AppDbContext db, ICurrentUser user,
-            ScratchFileStore store, CancellationToken ct) =>
+        group.MapDelete("/files/{id:int}", async (int id, IScratchFilesStore rows, IScratchFiles files,
+            ICurrentUser user, CancellationToken ct) =>
         {
-            var file = await db.ScratchFiles.FirstOrDefaultAsync(f => f.Id == id, ct);
+            var file = await rows.FindAsync(id, ct);
             if (file is null || !IsOwner(user, file)) return FileNotFound();
 
-            db.ScratchFiles.Remove(file);
-            await db.SaveChangesAsync(ct);
+            rows.Remove(file);
+            await rows.SaveAsync(ct);
             // The row is gone, so a stubborn disk file is litter, not something the API can still serve
-            store.Delete(file.StoredName);
+            files.Delete(file.StoredName);
             return Results.Ok(new { deleted = 1, id });
         });
     }

@@ -3,10 +3,10 @@ using System.Text.Json;
 using api_v2.Application.Auth;
 using api_v2.Application.Health;
 using api_v2.Application.Settings;
-using api_v2.Infrastructure.Persistence;
 using api_v2.Domain.Rules;
 using api_v2.Presentation.Contracts;
 using api_v2.Application.Ports;
+using api_v2.Infrastructure.Persistence;
 using api_v2.Domain.Collector;
 using api_v2.Application.Rules;
 

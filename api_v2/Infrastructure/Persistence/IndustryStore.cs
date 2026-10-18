@@ -13,6 +13,8 @@ public class IndustryStore(AppDbContext db) : IIndustryStore
     public async Task<IReadOnlyList<Industry>> AllAsync(CancellationToken ct) =>
         await db.Industries.AsNoTracking().OrderBy(i => i.Id).ToListAsync(ct);
 
+    public Task<int> CountAsync(CancellationToken ct) => db.Industries.CountAsync(ct);
+
     // The same comparison the unique name rule uses: lower(btrim(Name)) in Postgres, never C#.
     // position() keeps the needle a plain substring, so a % or _ in it can't act as a wildcard.
     public async Task<IReadOnlyList<Industry>> SearchAsync(string needle, int take, CancellationToken ct) =>

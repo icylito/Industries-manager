@@ -1,221 +1,384 @@
-.app{
-    max-width: 64rem;
-    margin: 0 auto;
-    padding: 1rem 1rem 6rem;
+.app {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 1rem 1rem 6rem;
 }
 
 /* The Scratchpad draws a full width board. Every other page stays in the readable column. */
-.app.wide{
-    max-width: none;
+.app.wide {
+  max-width: none;
 }
 
 /* The nav stays at the top while the page scrolls. The strip behind it is solid, then fades out, so page text never shows beside or above the pill. */
-.nav-wrap{
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    margin: -1rem -1rem 0;
-    padding: 1rem 1rem 1.5rem;
-    background: linear-gradient(var(--bg) calc(100% - 1.5rem), transparent);
+.nav-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  margin: -1rem -1rem 0;
+  padding: 1rem 1rem 1.5rem;
+  background: linear-gradient(var(--bg) calc(100% - 1.5rem), transparent);
 }
 
 /* One gap for every item in both navbars, so the space between the links, the tabs and the icons is the same
    whatever the words are. The theme button and the bell get the same room as everything else. */
 /* Floating pill nav */
-.nav{
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.6rem 0.75rem 0.6rem 1.25rem;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--nav-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+.nav {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem 0.6rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--nav-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
-.brand{
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    color: var(--text);
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    text-decoration: none;
-    white-space: nowrap;
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+  white-space: nowrap;
 }
 
-.brand i{
-    color: var(--text);
+.brand i {
+  color: var(--text);
 }
 
-.nav-links a{
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
+.nav-links a {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
-.nav-links i{
-    font-size: 0.75rem;
+.nav-links i {
+  font-size: 0.75rem;
 }
 
 @media print {
-    .nav-wrap, .nav, .hero{
-        display: none;
-    }
+  .nav-wrap,
+  .nav,
+  .hero {
+    display: none;
+  }
 }
 
-.nav-links{
-    display: flex;
-    gap: var(--nav-gap);
+.nav-links {
+  display: flex;
+  gap: var(--nav-gap);
 }
 
-.nav-links a{
-    padding: 0.4rem 0.9rem;
-    border-radius: 999px;
-    color: var(--muted);
-    font-size: 0.875rem;
-    font-weight: 500;
-    text-decoration: none;
-    transition: color 0.15s, background-color 0.15s;
+.nav-links a {
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition:
+    color 0.15s,
+    background-color 0.15s;
 }
 
-.nav-links a:hover, .nav-links a.active{
-    color: var(--text);
-    background: var(--hover);
+.nav-links a:hover,
+.nav-links a.active {
+  color: var(--text);
+  background: var(--hover);
 }
 
 /* The theme button on this nav. It is the same round button the admin nav uses, sized to sit quietly beside the
    links rather than as tall as them, and it never takes a label, so the crowded nav keeps its width at 390px. */
-.nav-links .theme-btn{
-    flex: 0 0 32px;
-    width: 32px;
-    height: 32px;
+.nav-links .theme-btn {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
 }
 
-.nav-links .theme-btn svg{
-    width: 15px;
-    height: 15px;
+.nav-links .theme-btn svg {
+  width: 15px;
+  height: 15px;
 }
 
-.nav-wrap .theme-btn:focus-visible{
-    outline: 2px solid var(--text);
-    outline-offset: 2px;
+.nav-wrap .theme-btn:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
 }
 
 /* The person's own picture in place of the account icon. A square crop of it, so it stays round at any size. */
-.nav-pic{
-    flex: 0 0 20px;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    object-fit: cover;
+.nav-pic {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 /* Bell count, a small solid pill so it reads in both themes */
-.bell{
-    position: relative;
+.bell {
+  position: relative;
 }
 
-.badge{
-    min-width: 1.15rem;
-    height: 1.15rem;
-    padding: 0 0.3rem;
-    border-radius: 999px;
-    background: #af2b2b;
-    color: #fff;
-    font-size: 0.65rem;
-    font-weight: 700;
-    line-height: 1.15rem;
-    text-align: center;
+.badge {
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: #af2b2b;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.15rem;
+  text-align: center;
 }
 
 /* Page header, plain title and one line under it */
-.hero{
-    padding: 3.5rem 0 1.5rem;
+.hero {
+  padding: 3.5rem 0 1.5rem;
 }
 
-.hero h1{
-    margin: 0;
-    font-size: 2.25rem;
-    font-weight: 700;
-    line-height: 1.1;
-    letter-spacing: -0.03em;
+.hero h1 {
+  margin: 0;
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
 }
 
 /* The sign in and account pages: title and line sit over the middle of the page, where the one card is */
-.hero.centered{
-    text-align: center;
+.hero.centered {
+  text-align: center;
 }
 
-.lede{
-    margin: 0.5rem 0 0;
-    color: var(--muted);
-    font-size: 1rem;
+.lede {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: 1rem;
 }
 
 @media (max-width: 640px) {
-    .hero{
-        padding: 2.5rem 0 1.25rem;
-    }
+  .hero {
+    padding: 2.5rem 0 1.25rem;
+  }
 
-    .hero h1{
-        font-size: 1.85rem;
-    }
+  .hero h1 {
+    font-size: 1.85rem;
+  }
 }
 
 /* The Overview's slim nav: brand, the page tabs, then the theme button and the account pill. It scrolls away with the page. */
-.admin-nav{
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--nav-gap);
-    margin-bottom: 1.25rem;
-    padding: 10px 12px 10px 20px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--surface);
+.admin-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nav-gap);
+  margin-bottom: 1.25rem;
+  padding: 10px 12px 10px 20px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
 }
 
-.admin-nav .brand{
-    gap: 8px;
-    font-size: 17px;
+.admin-nav .brand {
+  gap: 8px;
+  font-size: 17px;
 }
 
-.tabs{
-    display: flex;
-    align-items: center;
-    gap: var(--nav-gap);
-    font-size: 15px;
-    font-weight: 500;
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--nav-gap);
+  font-size: 15px;
+  font-weight: 500;
 }
 
-.tabs a{
-    padding: 9px 18px;
-    border-radius: 999px;
-    color: var(--muted);
-    text-decoration: none;
+.tabs a {
+  padding: 9px 18px;
+  border-radius: 999px;
+  color: var(--muted);
+  text-decoration: none;
 }
 
-.tabs a:hover{
-    color: var(--text);
+.tabs a:hover {
+  color: var(--text);
 }
 
-.tabs a.current{
-    background: var(--surface-2);
-    color: var(--text);
-    font-weight: 600;
+.tabs a.current {
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 600;
 }
 
-.side{
-    display: flex;
-    align-items: center;
-    gap: var(--nav-gap);
+.side {
+  display: flex;
+  align-items: center;
+  gap: var(--nav-gap);
 }
 
-.theme-btn, .side .bell{
-    position: relative;
+.theme-btn,
+.side .bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.theme-btn:hover,
+.who:hover,
+.side .bell:hover {
+  background: var(--border);
+}
+
+/* The bell and the theme button are bare icons with no circle behind them, only the bell's red count sits on its corner */
+.side .bell,
+.side .bell:hover,
+.theme-btn,
+.theme-btn:hover {
+  background: none;
+}
+
+.side .bell:hover,
+.theme-btn:hover {
+  opacity: 0.7;
+}
+
+.side .bell .badge {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+}
+
+.who {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* The picture sits where the account icon was, 22px so the pill keeps the height of the round buttons beside it */
+.who-pic {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.admin-nav a:focus-visible,
+.admin-nav button:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+/* One line at the bottom, above the dimmed page and the Shortcuts panel. It is dark on the light page and light on the dark one. */
+.toast {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 24px;
+  z-index: 60;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  margin: 0 auto;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  animation: toast-in 0.25s ease both;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+
+/* The bell on the links nav is only the icon, a small round button like the theme button, with its count on the corner */
+.nav-links .bell-mini {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 999px;
+  background: none;
+}
+
+.nav-links .bell-mini:hover {
+  background: none;
+  opacity: 0.7;
+}
+
+.nav-links .bell-mini .badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+}
+
+/* The sidebar menu. Above 760px the panel is invisible to the layout and the links sit in the nav as before,
+   at 760px and below the nav is the brand and one button, and the links slide in from the top right. */
+.menu-btn,
+.menu-head,
+.menu-backdrop {
+  display: none;
+}
+
+.menu-panel {
+  display: contents;
+}
+
+.nav-links.menu-panel {
+  display: flex;
+}
+
+@media (max-width: 760px) {
+  .nav {
+    padding: 0.4rem 0.5rem 0.4rem 1rem;
+    /* A backdrop filter would make the fixed sidebar position itself against the nav instead of the screen */
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .admin-nav {
+    padding: 8px 8px 8px 16px;
+  }
+
+  .menu-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -228,347 +391,226 @@
     background: var(--surface-2);
     color: var(--text);
     cursor: pointer;
-}
+  }
 
-.theme-btn:hover, .who:hover, .side .bell:hover{
+  .menu-btn:hover,
+  .menu-close:hover {
     background: var(--border);
-}
+  }
 
-/* The bell and the theme button are bare icons with no circle behind them, only the bell's red count sits on its corner */
-.side .bell, .side .bell:hover, .theme-btn, .theme-btn:hover{
-    background: none;
-}
-
-.side .bell:hover, .theme-btn:hover{
-    opacity: 0.7;
-}
-
-.side .bell .badge{
-    position: absolute;
-    top: 2px;
-    right: 3px;
-}
-
-.who{
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 9px 16px;
-    border-radius: 999px;
-    background: var(--surface-2);
-    color: var(--text);
-    font-size: 15px;
-    font-weight: 600;
-    text-decoration: none;
-}
-
-/* The picture sits where the account icon was, 22px so the pill keeps the height of the round buttons beside it */
-.who-pic{
-    flex: 0 0 22px;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    object-fit: cover;
-}
-
-.admin-nav a:focus-visible, .admin-nav button:focus-visible{
-    outline: 2px solid var(--signal);
+  .menu-btn:focus-visible,
+  .menu-close:focus-visible {
+    outline: 2px solid var(--text);
     outline-offset: 2px;
-}
+  }
 
-/* One line at the bottom, above the dimmed page and the Shortcuts panel. It is dark on the light page and light on the dark one. */
-.toast{
+  .nav-wrap.menu-open {
+    z-index: 70;
+  }
+
+  .menu-backdrop {
+    display: block;
     position: fixed;
-    left: 0;
+    inset: 0;
+    z-index: 65;
+    background: rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity 0.2s ease,
+      visibility 0.2s;
+  }
+
+  .menu-backdrop.open {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .menu-panel,
+  .nav-links.menu-panel {
+    position: fixed;
+    top: 0;
     right: 0;
-    bottom: 24px;
-    z-index: 60;
-    width: max-content;
-    max-width: calc(100vw - 32px);
-    margin: 0 auto;
-    padding: 10px 18px;
-    border-radius: 999px;
-    background: var(--accent);
-    color: var(--accent-text);
-    font-size: 13px;
-    font-weight: 600;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-    animation: toast-in 0.25s ease both;
-}
+    bottom: 0;
+    z-index: 70;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.15rem;
+    width: min(19rem, 85vw);
+    padding: max(0.75rem, env(safe-area-inset-top)) 0.75rem 1rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-left: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow: -12px 0 32px rgba(0, 0, 0, 0.18);
+    transform: translateX(100%);
+    visibility: hidden;
+    transition:
+      transform 0.25s ease,
+      visibility 0.25s;
+  }
 
-@keyframes toast-in{
-    from{ opacity: 0; transform: translateY(-4px); }
-    to{ opacity: 1; transform: none; }
-}
+  /* It becomes visible at once so focus can move into it, and only hides after it has slid out */
+  .menu-panel.open {
+    transform: none;
+    visibility: visible;
+    transition:
+      transform 0.25s ease,
+      visibility 0s;
+  }
 
-@media (prefers-reduced-motion: reduce) {
-    .toast{
-        animation: none;
-    }
-}
+  .menu-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0.25rem 0.5rem 0.9rem;
+    font-weight: 700;
+    color: var(--text);
+  }
 
-/* The bell on the links nav is only the icon, a small round button like the theme button, with its count on the corner */
-.nav-links .bell-mini{
+  .menu-close {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    flex: 0 0 32px;
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     padding: 0;
+    border: 0;
     border-radius: 999px;
-    background: none;
-}
+    background: var(--surface-2);
+    color: var(--text);
+    cursor: pointer;
+  }
 
-.nav-links .bell-mini:hover{
-    background: none;
-    opacity: 0.7;
-}
+  /* Both navs list their items the same way: one row each, icon then label, thumb sized */
+  .menu-panel .tabs,
+  .menu-panel .side {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.15rem;
+    font-size: 1rem;
+  }
 
-.nav-links .bell-mini .badge{
+  .menu-panel .side {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .menu-panel a,
+  .menu-panel .theme-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.7rem;
+    flex: 0 0 auto;
+    width: 100%;
+    height: auto;
+    min-height: 44px;
+    padding: 0.65rem 0.9rem;
+    border-radius: 14px;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 500;
+    text-align: left;
+  }
+
+  .menu-panel a:hover,
+  .menu-panel .theme-btn:hover,
+  .menu-panel a.active,
+  .menu-panel a.current {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+
+  .menu-panel a.current,
+  .menu-panel a.active {
+    font-weight: 600;
+  }
+
+  .menu-panel a span {
+    display: inline;
+  }
+
+  /* The account is the last full row. Under it the notification bell and the light switch sit side by side as plain
+       icons, so they read as controls rather than pages. Their names stay on aria-label and title. */
+  .nav-links.menu-panel,
+  .menu-panel .side {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-content: flex-start;
+  }
+
+  .menu-head {
+    width: 100%;
+  }
+
+  .menu-panel a[aria-label^='Your account'] {
+    order: 2;
+  }
+
+  .menu-panel a.bell,
+  .menu-panel .theme-btn {
+    order: 3;
+    flex: 0 0 48px;
+    width: 48px;
+    height: 48px;
+    min-height: 0;
+    margin: 0.5rem 0.4rem 0 0;
+    padding: 0;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text);
+  }
+
+  .menu-panel a.bell:hover,
+  .menu-panel .theme-btn:hover {
+    background: var(--border);
+  }
+
+  .menu-panel .bell i {
+    width: auto;
+    font-size: 1.05rem;
+  }
+
+  .menu-panel i {
+    width: 1.25rem;
+    font-size: 0.95rem;
+    text-align: center;
+  }
+
+  .menu-panel .theme-btn svg,
+  .menu-panel .bell svg {
+    flex: 0 0 18px;
+    width: 18px;
+    height: 18px;
+  }
+
+  .menu-panel .who-pic,
+  .menu-panel .nav-pic {
+    flex: 0 0 22px;
+    width: 22px;
+    height: 22px;
+  }
+
+  /* The count sits on the corner of the bell */
+  .menu-panel .bell .badge {
     position: absolute;
     top: -2px;
     right: -2px;
-}
-
-/* The sidebar menu. Above 760px the panel is invisible to the layout and the links sit in the nav as before,
-   at 760px and below the nav is the brand and one button, and the links slide in from the top right. */
-.menu-btn, .menu-head, .menu-backdrop{
-    display: none;
-}
-
-.menu-panel{
-    display: contents;
-}
-
-.nav-links.menu-panel{
-    display: flex;
-}
-
-@media (max-width: 760px) {
-    .nav{
-        padding: 0.4rem 0.5rem 0.4rem 1rem;
-        /* A backdrop filter would make the fixed sidebar position itself against the nav instead of the screen */
-        backdrop-filter: none;
-        -webkit-backdrop-filter: none;
-    }
-
-    .admin-nav{
-        padding: 8px 8px 8px 16px;
-    }
-
-    .menu-btn{
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        flex: 0 0 40px;
-        width: 40px;
-        height: 40px;
-        padding: 0;
-        border: 0;
-        border-radius: 999px;
-        background: var(--surface-2);
-        color: var(--text);
-        cursor: pointer;
-    }
-
-    .menu-btn:hover, .menu-close:hover{
-        background: var(--border);
-    }
-
-    .menu-btn:focus-visible, .menu-close:focus-visible{
-        outline: 2px solid var(--text);
-        outline-offset: 2px;
-    }
-
-    .nav-wrap.menu-open{
-        z-index: 70;
-    }
-
-    .menu-backdrop{
-        display: block;
-        position: fixed;
-        inset: 0;
-        z-index: 65;
-        background: rgba(0, 0, 0, 0.4);
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity 0.2s ease, visibility 0.2s;
-    }
-
-    .menu-backdrop.open{
-        opacity: 1;
-        visibility: visible;
-    }
-
-    .menu-panel, .nav-links.menu-panel{
-        position: fixed;
-        top: 0;
-        right: 0;
-        bottom: 0;
-        z-index: 70;
-        display: flex;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0.15rem;
-        width: min(19rem, 85vw);
-        padding: max(0.75rem, env(safe-area-inset-top)) 0.75rem 1rem;
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        border-left: 1px solid var(--border);
-        background: var(--surface);
-        box-shadow: -12px 0 32px rgba(0, 0, 0, 0.18);
-        transform: translateX(100%);
-        visibility: hidden;
-        transition: transform 0.25s ease, visibility 0.25s;
-    }
-
-    /* It becomes visible at once so focus can move into it, and only hides after it has slid out */
-    .menu-panel.open{
-        transform: none;
-        visibility: visible;
-        transition: transform 0.25s ease, visibility 0s;
-    }
-
-    .menu-head{
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0 0.25rem 0.5rem 0.9rem;
-        font-weight: 700;
-        color: var(--text);
-    }
-
-    .menu-close{
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 40px;
-        height: 40px;
-        padding: 0;
-        border: 0;
-        border-radius: 999px;
-        background: var(--surface-2);
-        color: var(--text);
-        cursor: pointer;
-    }
-
-    /* Both navs list their items the same way: one row each, icon then label, thumb sized */
-    .menu-panel .tabs, .menu-panel .side{
-        display: flex;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0.15rem;
-        font-size: 1rem;
-    }
-
-    .menu-panel .side{
-        margin-top: 0.5rem;
-        padding-top: 0.5rem;
-        border-top: 1px solid var(--border);
-    }
-
-    .menu-panel a, .menu-panel .theme-btn{
-        position: relative;
-        display: flex;
-        align-items: center;
-        justify-content: flex-start;
-        gap: 0.7rem;
-        flex: 0 0 auto;
-        width: 100%;
-        height: auto;
-        min-height: 44px;
-        padding: 0.65rem 0.9rem;
-        border-radius: 14px;
-        background: none;
-        color: var(--muted);
-        font: inherit;
-        font-size: 1rem;
-        font-weight: 500;
-        text-align: left;
-    }
-
-    .menu-panel a:hover, .menu-panel .theme-btn:hover, .menu-panel a.active, .menu-panel a.current{
-        background: var(--surface-2);
-        color: var(--text);
-    }
-
-    .menu-panel a.current, .menu-panel a.active{
-        font-weight: 600;
-    }
-
-    .menu-panel a span{
-        display: inline;
-    }
-
-    /* The account is the last full row. Under it the notification bell and the light switch sit side by side as plain
-       icons, so they read as controls rather than pages. Their names stay on aria-label and title. */
-    .nav-links.menu-panel, .menu-panel .side{
-        flex-direction: row;
-        flex-wrap: wrap;
-        align-content: flex-start;
-    }
-
-    .menu-head{
-        width: 100%;
-    }
-
-    .menu-panel a[aria-label^="Your account"]{
-        order: 2;
-    }
-
-    .menu-panel a.bell, .menu-panel .theme-btn{
-        order: 3;
-        flex: 0 0 48px;
-        width: 48px;
-        height: 48px;
-        min-height: 0;
-        margin: 0.5rem 0.4rem 0 0;
-        padding: 0;
-        justify-content: center;
-        border-radius: 999px;
-        background: var(--surface-2);
-        color: var(--text);
-    }
-
-    .menu-panel a.bell:hover, .menu-panel .theme-btn:hover{
-        background: var(--border);
-    }
-
-    .menu-panel .bell i{
-        width: auto;
-        font-size: 1.05rem;
-    }
-
-    .menu-panel i{
-        width: 1.25rem;
-        font-size: 0.95rem;
-        text-align: center;
-    }
-
-    .menu-panel .theme-btn svg, .menu-panel .bell svg{
-        flex: 0 0 18px;
-        width: 18px;
-        height: 18px;
-    }
-
-    .menu-panel .who-pic, .menu-panel .nav-pic{
-        flex: 0 0 22px;
-        width: 22px;
-        height: 22px;
-    }
-
-    /* The count sits on the corner of the bell */
-    .menu-panel .bell .badge{
-        position: absolute;
-        top: -2px;
-        right: -2px;
-        margin: 0;
-    }
+    margin: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .menu-panel, .menu-backdrop{
-        transition: none;
-    }
+  .menu-panel,
+  .menu-backdrop {
+    transition: none;
+  }
 }

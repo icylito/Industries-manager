@@ -1,10 +1,9 @@
 using Npgsql;
+using api_v2.Application.Exceptions;
 using api_v2.Application.Ports;
 using api_v2.Infrastructure.Configuration;
 
 namespace api_v2.Infrastructure.Persistence;
-
-public class AppBusyException : Exception;
 
 public class AppLocks(DatabaseConnections connections) : IAppLocks
 {

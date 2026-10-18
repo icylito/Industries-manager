@@ -8,6 +8,9 @@ public interface IIndustryStore
 {
     Task<IReadOnlyList<Industry>> AllAsync(CancellationToken ct);
 
+    // How many rows the table holds now, which is what a restore would replace
+    Task<int> CountAsync(CancellationToken ct);
+
     // The Scratchpad rail searches by name so it never pulls the whole table down
     Task<IReadOnlyList<Industry>> SearchAsync(string needle, int take, CancellationToken ct);
 

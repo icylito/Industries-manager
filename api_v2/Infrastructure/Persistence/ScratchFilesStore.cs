@@ -1,4 +1,5 @@
 using api_v2.Application.Ports;
+using api_v2.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace api_v2.Infrastructure.Persistence;
@@ -6,6 +7,15 @@ namespace api_v2.Infrastructure.Persistence;
 // The uploaded-file rows, through EF. Which files a board still uses is read from the board JSON in SQL.
 public class ScratchFilesStore(AppDbContext db) : IScratchFilesStore
 {
+    public Task<ScratchFile?> FindAsync(int id, CancellationToken ct) =>
+        db.ScratchFiles.FirstOrDefaultAsync(f => f.Id == id, ct);
+
+    public void Add(ScratchFile file) => db.ScratchFiles.Add(file);
+
+    public void Remove(ScratchFile file) => db.ScratchFiles.Remove(file);
+
+    public Task SaveAsync(CancellationToken ct) => db.SaveChangesAsync(ct);
+
     public async Task<IReadOnlyList<int>> OwnersAsync(CancellationToken ct) =>
         await db.ScratchFiles.Select(f => f.UserId).Distinct().ToListAsync(ct);
 

@@ -1,5 +1,4 @@
 using api_v2.Application.Health;
-using api_v2.Application.Hosted;
 using api_v2.Infrastructure.Backups;
 
 namespace api_v2.Infrastructure.Hosted;

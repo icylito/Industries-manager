@@ -23,6 +23,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using api_v2.Application.Me;
 using api_v2.Application.Profile;
 using api_v2.Application.Requests;
+using api_v2.Application.Scratchpad;
 using api_v2.Application.Rules;
 using api_v2.Application.Accounts;
 using api_v2.Infrastructure.Hosted;
@@ -123,6 +124,10 @@ builder.Services.AddScoped<IAccounts, AccountStore>();
 builder.Services.AddSingleton<IPasswordHasher, PasswordHasherAdapter>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AccountsAdminService>();
+builder.Services.AddScoped<IUserAdminStore, UserAdminStore>();
+builder.Services.AddScoped<IScratchpadStore, ScratchpadStore>();
+builder.Services.AddScoped<ScratchpadService>();
+builder.Services.AddScoped<UserAdminService>();
 // The person's own settings and profile card, and the rules their values are checked against
 builder.Services.AddScoped<IMeStore, MeStore>();
 builder.Services.AddScoped<MeService>();

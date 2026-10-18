@@ -4,8 +4,8 @@ import { Router, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { App } from './app';
-import { Auth } from './services/auth';
-import { Theme } from './services/theme';
+import { Auth } from './application/auth';
+import { Theme } from './application/theme';
 import { routes } from './app.routes';
 
 describe('App', () => {
@@ -13,8 +13,7 @@ describe('App', () => {
     await TestBed.configureTestingModule({
       imports: [App],
       providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
-    })
-      .compileComponents();
+    }).compileComponents();
   });
 
   it('should create the app', () => {
@@ -38,7 +37,8 @@ class StubPage {}
 // The admin pages share the Overview's slim nav and its colours. The table, Sign in and Account keep the normal nav.
 describe('App admin shell', () => {
   const adminPaths = ['overview', 'scratchpad', 'settings'];
-  const isAdminRoute = (path: string) => routes.find(r => r.path === path)?.data?.['admin'] === true;
+  const isAdminRoute = (path: string) =>
+    routes.find((r) => r.path === path)?.data?.['admin'] === true;
 
   afterEach(() => {
     document.documentElement.classList.remove('admin-layout');
@@ -58,7 +58,13 @@ describe('App admin shell', () => {
       await TestBed.configureTestingModule({
         imports: [App],
         providers: [
-          provideRouter([{ path: 'history', component: StubPage, data: { title: 'History', lede: '', admin: true } }]),
+          provideRouter([
+            {
+              path: 'history',
+              component: StubPage,
+              data: { title: 'History', lede: '', admin: true },
+            },
+          ]),
           provideHttpClient(),
           provideHttpClientTesting(),
         ],
@@ -75,8 +81,9 @@ describe('App admin shell', () => {
 
       const el = fixture.nativeElement as HTMLElement;
       expect(el.querySelector('nav.nav')).toBeFalsy();
-      expect([...el.querySelectorAll('nav.admin-nav .tabs a')].map(a => a.textContent?.trim()))
-        .toEqual(['Overview', 'Scratchpad', 'Settings']);
+      expect(
+        [...el.querySelectorAll('nav.admin-nav .tabs a')].map((a) => a.textContent?.trim()),
+      ).toEqual(['Overview', 'Scratchpad', 'Settings']);
       expect(el.querySelector('nav.admin-nav a[href="/requests"]')).toBeTruthy();
       expect(document.documentElement.classList.contains('admin-layout')).toBe(true);
     });
@@ -95,7 +102,9 @@ describe('App admin shell', () => {
       await TestBed.configureTestingModule({
         imports: [App],
         providers: [
-          provideRouter([{ path: '', component: StubPage, data: { title: 'Industries', lede: '' } }]),
+          provideRouter([
+            { path: '', component: StubPage, data: { title: 'Industries', lede: '' } },
+          ]),
           provideHttpClient(),
           provideHttpClientTesting(),
         ],
@@ -118,7 +127,9 @@ describe('App admin shell', () => {
       await TestBed.configureTestingModule({
         imports: [App],
         providers: [
-          provideRouter([{ path: '', component: StubPage, data: { title: 'Industries', lede: '' } }]),
+          provideRouter([
+            { path: '', component: StubPage, data: { title: 'Industries', lede: '' } },
+          ]),
           provideHttpClient(),
           provideHttpClientTesting(),
         ],
@@ -126,7 +137,15 @@ describe('App admin shell', () => {
     });
 
     it('keeps Overview and People out of the crowded nav, and sends the name item to Settings', () => {
-      TestBed.inject(Auth).user.set({ id: 1, username: 'ada', role: 'admin', disabled: false, mustChangePassword: false, createdAt: '', lastLoginAt: null });
+      TestBed.inject(Auth).user.set({
+        id: 1,
+        username: 'ada',
+        role: 'admin',
+        disabled: false,
+        mustChangePassword: false,
+        createdAt: '',
+        lastLoginAt: null,
+      });
       const fixture = TestBed.createComponent(App);
       fixture.detectChanges();
 
@@ -140,12 +159,22 @@ describe('App admin shell', () => {
 
     // History and Fields sit on this nav, and they had a theme button before they moved here, so it has to stay on both navs
     it('keeps the theme button in this nav too, and it still switches the theme', () => {
-      TestBed.inject(Auth).user.set({ id: 1, username: 'ada', role: 'admin', disabled: false, mustChangePassword: false, createdAt: '', lastLoginAt: null });
+      TestBed.inject(Auth).user.set({
+        id: 1,
+        username: 'ada',
+        role: 'admin',
+        disabled: false,
+        mustChangePassword: false,
+        createdAt: '',
+        lastLoginAt: null,
+      });
       const theme = TestBed.inject(Theme);
       const fixture = TestBed.createComponent(App);
       fixture.detectChanges();
 
-      const button = (fixture.nativeElement as HTMLElement).querySelector('nav.nav .theme-btn') as HTMLButtonElement;
+      const button = (fixture.nativeElement as HTMLElement).querySelector(
+        'nav.nav .theme-btn',
+      ) as HTMLButtonElement;
       expect(button).toBeTruthy();
       expect(button.getAttribute('aria-label')).toBe('Switch to dark mode');
 

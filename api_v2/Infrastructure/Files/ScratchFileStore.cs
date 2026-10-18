@@ -70,6 +70,14 @@ public class ScratchFileStore : IScratchFiles
         return -1;
     }
 
+    // The stored file's bytes, or null when it is no longer on disk. A page only ever reads a file the
+    // endpoint has already said the person owns.
+    public Stream? OpenRead(string storedName)
+    {
+        var path = PathFor(storedName);
+        return File.Exists(path) ? new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read) : null;
+    }
+
     public void Delete(string storedName)
     {
         try

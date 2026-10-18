@@ -1,4 +1,3 @@
-using api_v2.Application.Auth;
 using api_v2.Application.Ports;
 using api_v2.Domain.Accounts;
 using api_v2.Domain.Entities;

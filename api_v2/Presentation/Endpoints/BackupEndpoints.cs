@@ -1,11 +1,13 @@
+// The busy lock exception still lives beside the locks in Infrastructure/Persistence. The restore handler below
+// rethrows it so the exception handler answers 503 Busy rather than "Restore didn't finish", which is the only
+// thing this file still needs that namespace for.
+using api_v2.Application.Exceptions;
 using api_v2.Application.Auth;
 using api_v2.Presentation.Contracts;
 using api_v2.Infrastructure.Backups;
 using api_v2.Application.Health;
-using api_v2.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Net.Http.Headers;
 
 using api_v2.Presentation.Authorization;
@@ -74,7 +76,7 @@ public static class BackupEndpoints
 
         // What a restore from this backup would do. Nothing is changed.
         group.MapGet("/{id}/restore/preview", async (string id, BackupService backups, BackupRestore restore,
-            DatabaseStatus status, AppDbContext db, CancellationToken ct) =>
+            DatabaseStatus status, IIndustryStore industries, CancellationToken ct) =>
         {
             var entry = backups.Find(id);
             if (entry is null) return Results.NotFound($"No backup called {id} exists. Nothing was changed");
@@ -85,7 +87,7 @@ public static class BackupEndpoints
                 entry.RulesVersion,
                 entry.RowCount,
                 SameLayout = restore.SameLayout(entry),
-                CurrentRows = await db.Industries.CountAsync(ct),
+                CurrentRows = await industries.CountAsync(ct),
                 HistoryReady = status.HistoryReady
             });
         });
