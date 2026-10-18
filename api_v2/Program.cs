@@ -7,14 +7,14 @@ using static Microsoft.OpenApi.OpenApiSpecVersion;
 using api_v2.Application.Health;
 using api_v2.Application.Hosted;
 using api_v2.Application.Settings;
-using api_v2.Application.Startup;
+using api_v2.Infrastructure.Startup;
 using api_v2.Infrastructure.Configuration;
 using api_v2.Infrastructure.Files;
 using api_v2.Infrastructure.Persistence;
 using api_v2.Application.Auth;
 using api_v2.Infrastructure.Security;
 using api_v2.Domain.Rules;
-using api_v2.Application.Backups;
+using api_v2.Infrastructure.Backups;
 using api_v2.Application.Industries;
 using api_v2.Application.Ports;
 using Npgsql;
@@ -24,6 +24,8 @@ using api_v2.Application.Me;
 using api_v2.Application.Profile;
 using api_v2.Application.Requests;
 using api_v2.Application.Rules;
+using api_v2.Application.Accounts;
+using api_v2.Infrastructure.Hosted;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -89,12 +91,16 @@ builder.Services.AddSingleton<ICollectorStore>(services => services.GetRequiredS
 builder.Services.AddSingleton<IAppLocks>(services => services.GetRequiredService<AppLocks>());
 // Where uploaded Scratchpad files live on disk, created on startup. See Data/ScratchFileStore.cs
 builder.Services.AddSingleton<ScratchFileStore>();
+builder.Services.AddSingleton<IScratchFiles>(services => services.GetRequiredService<ScratchFileStore>());
+builder.Services.AddScoped<IScratchFilesStore, ScratchFilesStore>();
 builder.Services.AddHostedService<api_v2.Application.Hosted.ScratchFileSweeper>();
 // The readable JSON copy of every table from the Tables page, and the job that writes it on start and empties
 // the bin. See Tables/UserTableMirror.cs and UserTables:Mirror in appsettings.
-builder.Services.AddSingleton<api_v2.Application.Tables.UserTableMirror>();
+builder.Services.AddSingleton<api_v2.Infrastructure.Files.UserTableMirror>();
+builder.Services.AddSingleton<IUserTableMirror>(services => services.GetRequiredService<api_v2.Infrastructure.Files.UserTableMirror>());
+builder.Services.AddScoped<IUserTablesStore, UserTablesStore>();
 builder.Services.AddHostedService<api_v2.Application.Hosted.TableBinSweeper>();
-builder.Services.AddSingleton<api_v2.Application.History.TableWriter>();
+builder.Services.AddSingleton<api_v2.Infrastructure.Persistence.TableWriter>();
 builder.Services.AddSingleton<RulesService>();
 // The rules table and the sector file sit behind ports; the admin use cases load, save and delete versions
 builder.Services.AddScoped<IRulesStore, RulesStore>();
@@ -116,6 +122,7 @@ builder.Services.AddScoped<ICurrentUser, SessionUser>();
 builder.Services.AddScoped<IAccounts, AccountStore>();
 builder.Services.AddSingleton<IPasswordHasher, PasswordHasherAdapter>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<AccountsAdminService>();
 // The person's own settings and profile card, and the rules their values are checked against
 builder.Services.AddScoped<IMeStore, MeStore>();
 builder.Services.AddScoped<MeService>();
@@ -155,7 +162,7 @@ var app = builder.Build();
 // first upload. See Scratchpad:Files in appsettings.
 app.Services.GetRequiredService<ScratchFileStore>();
 // The same for the folder of table copies
-app.Services.GetRequiredService<api_v2.Application.Tables.UserTableMirror>();
+app.Services.GetRequiredService<api_v2.Infrastructure.Files.UserTableMirror>();
 // The backup signing key is made now if there isn't one, so the first backup doesn't wait on it
 app.Services.GetRequiredService<BackupSigner>();
 

@@ -4,6 +4,7 @@ using api_v2.Application.Health;
 using api_v2.Infrastructure.Persistence;
 using api_v2.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using api_v2.Application.Accounts;
 using api_v2.Presentation.Contracts;
 
 using api_v2.Presentation.Authorization;
@@ -29,7 +30,7 @@ public static class UserEndpoints
         });
 
         // Makes the account with a random password that's shown once. The person has to pick their own at first sign in.
-        users.MapPost("/", async (NewUserBody body, AppDbContext db, ICurrentUser admin, CancellationToken ct) =>
+        users.MapPost("/", async (NewUserBody body, AccountsAdminService accounts, AppDbContext db, ICurrentUser admin, CancellationToken ct) =>
         {
             var problem = UserService.CheckUsername(body.Username, out var username);
             if (problem is not null)
@@ -41,7 +42,7 @@ public static class UserEndpoints
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["role"] = [Roles.InvalidMessage] });
             }
-            if (await UserService.UsernameTakenAsync(db, username, null, ct))
+            if (await accounts.UsernameTakenAsync(username, null, ct))
             {
                 return Results.Conflict("That username is already taken");
             }
@@ -90,7 +91,7 @@ public static class UserEndpoints
 
         // Make someone admin or normal, turn the account off or on, or change their username.
         // A rename changes the name from here on: what History already recorded keeps the name it was written with.
-        users.MapPut("/{id:int}", async (int id, UserChangeBody body, AppDbContext db, ICurrentUser admin, CancellationToken ct) =>
+        users.MapPut("/{id:int}", async (int id, UserChangeBody body, AccountsAdminService accounts, AppDbContext db, ICurrentUser admin, CancellationToken ct) =>
         {
             var user = await db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
             if (user is null) return Results.NotFound("There's no such person");
@@ -113,7 +114,7 @@ public static class UserEndpoints
                 }
                 if (!string.Equals(clean, user.Username, StringComparison.Ordinal))
                 {
-                    if (await UserService.UsernameTakenAsync(db, clean, id, ct))
+                    if (await accounts.UsernameTakenAsync(clean, id, ct))
                     {
                         return Results.Conflict("That username is already taken");
                     }
@@ -149,12 +150,12 @@ public static class UserEndpoints
                 await db.Sessions.Where(s => s.UserId == id).ExecuteDeleteAsync(ct);
             }
             // A new name can free an account that clashed with the old one
-            if (renamed is not null) await UserService.RefreshNameClashesAsync(db, ct);
+            if (renamed is not null) await accounts.RefreshNameClashesAsync(ct);
             return Results.Ok(UserService.ToDto(user));
         });
 
         // Deletes an account for good. What History already recorded keeps the name, so old entries still read right.
-        users.MapDelete("/{id:int}", async (int id, AppDbContext db, ICurrentUser admin, CancellationToken ct) =>
+        users.MapDelete("/{id:int}", async (int id, AccountsAdminService accounts, AppDbContext db, ICurrentUser admin, CancellationToken ct) =>
         {
             var user = await db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
             if (user is null) return Results.NotFound("There's no such person");
@@ -172,7 +173,7 @@ public static class UserEndpoints
             db.Users.Remove(user);
             await db.SaveChangesAsync(ct);
             // An account that clashed with this one doesn't any more
-            await UserService.RefreshNameClashesAsync(db, ct);
+            await accounts.RefreshNameClashesAsync(ct);
             return Results.Ok(new { Deleted = 1, user.Username });
         });
 

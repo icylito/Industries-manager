@@ -8,7 +8,7 @@ using api_v2.Domain.Rules;
 using Npgsql;
 using NpgsqlTypes;
 
-namespace api_v2.Application.History;
+namespace api_v2.Infrastructure.Persistence;
 
 public record RowProblem(string Level, string Text);
 

@@ -6,6 +6,12 @@ public record ActivityRow(int RowId, DateTimeOffset? Added, DateTimeOffset? Edit
 // The collector database: copies of old versions and the log of every change made to the live table
 public interface ICollectorStore
 {
+    // The message /health shows while the history database can't be reached
+    const string UnreachableMessage = "The history database (collector) isn't reachable";
+
+    // A quick look at the collector, true when it answers and its tables are there
+    Task<bool> PingAsync(CancellationToken ct);
+
     // Looks at a failure from any collector call, and marks history offline when the database itself is down
     bool NoteFailure(Exception ex);
 

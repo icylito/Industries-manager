@@ -1,11 +1,11 @@
-using api_v2.Infrastructure.Persistence;
 using api_v2.Application.Health;
+using api_v2.Application.Ports;
 
 namespace api_v2.Application.Hosted;
 
 // Keeps /health honest about the history database after startup. MigrationService brings history up the first
 // time. From then on this checks it every 30 seconds, marks it down when it stops answering and up again when it's back.
-public sealed class HistoryMonitor(CollectorStore collector, DatabaseStatus status, ILogger<HistoryMonitor> log) : BackgroundService
+public sealed class HistoryMonitor(ICollectorStore collector, DatabaseStatus status, ILogger<HistoryMonitor> log) : BackgroundService
 {
     private static readonly TimeSpan Every = TimeSpan.FromSeconds(30);
 
@@ -33,7 +33,7 @@ public sealed class HistoryMonitor(CollectorStore collector, DatabaseStatus stat
             }
             else if (!up && status.HistoryReady)
             {
-                status.SetHistory(false, CollectorStore.UnreachableMessage);
+                status.SetHistory(false, ICollectorStore.UnreachableMessage);
                 log.LogWarning("The history database stopped answering, History is offline until it's back");
             }
         }

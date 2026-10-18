@@ -7,13 +7,15 @@ using api_v2.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using api_v2.Domain.Tables;
 
-namespace api_v2.Application.Tables;
+using api_v2.Application.Ports;
+
+namespace api_v2.Infrastructure.Files;
 
 // A readable copy of every table from the Tables page, one JSON file each, so anyone looking at the PC can see
 // what was made, by whom and how big it is. The database is the real storage: the API never reads these
 // files back, so editing one changes nothing. UserTables:Mirror picks the folder, default user-tables/ at the
 // repo root. It is rebuilt from the database on start and after a restore, so it can't drift for long.
-public sealed class UserTableMirror
+public sealed class UserTableMirror : IUserTableMirror
 {
     private const string ReadMe =
         "A readable copy made by the API. The database is the real storage: editing this file changes nothing.";

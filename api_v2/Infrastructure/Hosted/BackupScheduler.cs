@@ -1,8 +1,8 @@
 using api_v2.Application.Health;
 using api_v2.Application.Hosted;
-using api_v2.Application.Backups;
+using api_v2.Infrastructure.Backups;
 
-namespace api_v2.Application.Hosted;
+namespace api_v2.Infrastructure.Hosted;
 
 // Nightly backups, plus a catch-up when this PC was off at backup time.
 public sealed class BackupScheduler(BackupService backups, DatabaseStatus status, ILogger<BackupScheduler> log) : BackgroundService

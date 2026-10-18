@@ -1,8 +1,5 @@
 using api_v2.Application.Health;
-using api_v2.Application.Hosted;
-using api_v2.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
-using api_v2.Application.Tables;
+using api_v2.Application.Ports;
 using api_v2.Domain.Tables;
 
 namespace api_v2.Application.Hosted;
@@ -12,7 +9,7 @@ namespace api_v2.Application.Hosted;
 public sealed class TableBinSweeper(
     IServiceScopeFactory scopes,
     DatabaseStatus status,
-    UserTableMirror mirror,
+    IUserTableMirror mirror,
     ILogger<TableBinSweeper> log) : BackgroundService
 {
     private static readonly TimeSpan Every = TimeSpan.FromHours(1);
@@ -47,14 +44,10 @@ public sealed class TableBinSweeper(
     public async Task SweepAsync(CancellationToken ct)
     {
         using var scope = scopes.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var store = scope.ServiceProvider.GetRequiredService<IUserTablesStore>();
         var cutoff = DateTimeOffset.UtcNow - TableLimits.BinKeeps;
-        var expired = await db.UserTables.Where(t => t.DeletedAt != null && t.DeletedAt < cutoff)
-            .Select(t => new { t.Id, t.Name }).ToListAsync(ct);
-        foreach (var table in expired)
+        foreach (var table in await store.DeleteExpiredAsync(cutoff, ct))
         {
-            // The rows go with it (cascade)
-            await db.UserTables.Where(t => t.Id == table.Id && t.DeletedAt != null && t.DeletedAt < cutoff).ExecuteDeleteAsync(ct);
             await mirror.RemovedAsync(table.Id, ct);
             log.LogInformation("Table {Name} ({Id}) was in the bin for 14 days and is now deleted for good", table.Name, table.Id);
         }

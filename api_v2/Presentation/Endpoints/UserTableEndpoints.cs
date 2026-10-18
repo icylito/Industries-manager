@@ -7,7 +7,7 @@ using api_v2.Infrastructure.Export;
 using api_v2.Infrastructure.Persistence;
 using api_v2.Domain.Entities;
 using api_v2.Domain.Rules;
-using api_v2.Application.Tables;
+using api_v2.Infrastructure.Files;
 using api_v2.Domain.Tables;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;

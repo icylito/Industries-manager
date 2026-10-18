@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using api_v2.Application.Auth;
 using api_v2.Application.Health;
-using api_v2.Application.Startup;
+using api_v2.Infrastructure.Startup;
 using api_v2.Infrastructure.Persistence;
 using api_v2.Domain.Entities;
 using api_v2.Domain.Scratchpad;

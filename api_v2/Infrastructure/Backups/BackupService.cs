@@ -11,7 +11,7 @@ using api_v2.Domain.Rules;
 using Npgsql;
 using api_v2.Infrastructure.Security;
 
-namespace api_v2.Application.Backups;
+namespace api_v2.Infrastructure.Backups;
 
 // Thrown when a second backup is asked for while one is already running.
 public sealed class BackupBusyException : Exception

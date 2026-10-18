@@ -11,4 +11,6 @@ public class PasswordHasherAdapter : api_v2.Application.Ports.IPasswordHasher
     public void VerifyDummy(string password) => PasswordHasher.VerifyDummy(password);
 
     public string? CheckNew(string? password, string username) => PasswordHasher.CheckNew(password, username);
+
+    public string Generate() => PasswordHasher.Generate();
 }

@@ -8,7 +8,7 @@ using Npgsql;
 using api_v2.Application.Ports;
 using api_v2.Application.Rules;
 
-namespace api_v2.Application.Backups;
+namespace api_v2.Infrastructure.Backups;
 
 // Thrown when a restore is refused before anything changes, the page shows the message as a conflict.
 public sealed class BackupRefusedException(string message) : Exception(message);
@@ -31,7 +31,7 @@ public sealed class BackupRestore(
     CollectorStore collector,
     RulesService rules,
     AppLocks locks,
-    api_v2.Application.Tables.UserTableMirror mirror,
+    api_v2.Infrastructure.Files.UserTableMirror mirror,
     IServiceScopeFactory scopes,
     ILogger<BackupRestore> log)
 {

@@ -8,8 +8,9 @@ using api_v2.Infrastructure.Persistence;
 using api_v2.Application.Settings;
 using api_v2.Application.Ports;
 using api_v2.Application.Rules;
+using api_v2.Application.Accounts;
 
-namespace api_v2.Application.Startup;
+namespace api_v2.Infrastructure.Startup;
 
 // Applies any pending migrations when the API starts. Runs in the background so
 // the API is already listening and /health can report progress or failure.
@@ -101,7 +102,8 @@ public class MigrationService(
                     var settingsStore = scope.ServiceProvider.GetRequiredService<ISettingsStore>();
                     await settings.LoadAsync(settingsStore, ct);
                     // Someone must always be able to sign in, see UserService.EnsureAdminAsync
-                    await Auth.UserService.EnsureAdminAsync(db, config, log, ct);
+                    var accountsAdmin = scope.ServiceProvider.GetRequiredService<AccountsAdminService>();
+                    await accountsAdmin.EnsureAdminAsync(config, ct);
 
                     // The data chain's list is the layout backups and History versions are compared by
                     var applied = (await data.Database.GetAppliedMigrationsAsync(ct)).ToList();

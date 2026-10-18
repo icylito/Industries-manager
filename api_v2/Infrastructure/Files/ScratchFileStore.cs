@@ -1,3 +1,4 @@
+using api_v2.Application.Ports;
 using Microsoft.AspNetCore.Hosting;
 
 namespace api_v2.Infrastructure.Files;
@@ -6,7 +7,7 @@ namespace api_v2.Infrastructure.Files;
 // lands at the repo root's scratchpad-files/, the same convention as BackupService.ResolveFolder. It is created
 // when the API starts and has to stay outside the web root, so the only way to read a file is the endpoint that
 // checks who is asking.
-public class ScratchFileStore
+public class ScratchFileStore : IScratchFiles
 {
     public string Root { get; }
 

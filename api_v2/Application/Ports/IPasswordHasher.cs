@@ -14,4 +14,7 @@ public interface IPasswordHasher
 
     // The problem in plain words, or null when the new password is fine
     string? CheckNew(string? password, string username);
+
+    // A random password that's easy to read out loud, for a new or reset account
+    string Generate();
 }
