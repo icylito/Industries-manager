@@ -154,12 +154,13 @@ send("PUT", "/me/settings", {"shortcuts": {}, "mouse": {}, "theme": None}, admin
 
 # The ids the API knows are the page's ids, read from both sources
 here = os.path.dirname(os.path.abspath(__file__))
-ts = open(os.path.join(here, "..", "angular", "src", "app", "application", "shortcuts.ts"), encoding="utf-8").read()
+# Prettier spreads a command over several lines, so the text is read as one line and each match stays inside its braces
+ts = re.sub(r"\s+", " ", open(os.path.join(here, "..", "angular", "src", "app", "application", "shortcuts.ts"), encoding="utf-8").read())
 cs = open(os.path.join(here, "..", "backend", "Domain", "Accounts", "ShortcutRules.cs"), encoding="utf-8").read()
 ts_fonts = open(os.path.join(here, "..", "angular", "src", "app", "presentation", "components", "scratchpad", "rich-text.ts"), encoding="utf-8").read()
 rules = open(os.path.join(here, "..", "backend", "Domain", "Scratchpad", "BoardRules.cs"), encoding="utf-8").read()
 # Each command with its default keys: ('sp.pen', ('P',)), from the page's COMMANDS and the API's CommandDefaults
-page_defaults = {i: tuple(re.findall(r"'([^']+)'", d)) for i, d in re.findall(r"\{ id: '([a-z]+\.[A-Za-z0-9]+)'[^\n]*?def: \[([^\]]*(?:\][^,\]]*)?)\]", ts)}
+page_defaults = {i: tuple(re.findall(r"'([^']+)'", d)) for i, d in re.findall(r"\{ id: '([a-z]+\.[A-Za-z0-9]+)'[^}]*?def: \[([^\]]*(?:\][^,\]]*)?)\]", ts)}
 page_defaults.update({f"ov.slice{n}": (str(n),) for n in range(1, 6)})
 page_defaults.pop("ov.slice", None)
 api_block = cs[cs.index("CommandDefaults = new()"):cs.index("};", cs.index("CommandDefaults = new()"))]
@@ -169,7 +170,7 @@ check("the API knows exactly the page's shortcut ids and their default keys", pa
 page_fonts = set(re.findall(r"'([A-Za-z0-9 ]+)'", ts_fonts[ts_fonts.index("FONT_GROUPS"):ts_fonts.index("];", ts_fonts.index("FONT_GROUPS"))])) - {"Sans serif", "Serif", "Monospace", "Display", "Handwriting"}
 api_fonts = set(re.findall(r'"([A-Za-z0-9 ]+)"', rules[rules.index("Fonts ="):rules.index("];", rules.index("Fonts ="))]))
 check("the API knows exactly the page's 48 fonts", page_fonts == api_fonts and len(api_fonts) == 48, (sorted(page_fonts ^ api_fonts), len(api_fonts)))
-mouse_ts = set(i for i in re.findall(r"\{ id: '(mouse\.[a-z]+)'.*?def: '", ts))
+mouse_ts = set(i for i in re.findall(r"\{ id: '(mouse\.[a-z]+)'[^}]*?def: '", ts))
 mouse_cs = set(re.findall(r'"(mouse\.[a-z]+)"', cs))
 check("and the mouse rows that can change", mouse_ts == mouse_cs, (mouse_ts, mouse_cs))
 

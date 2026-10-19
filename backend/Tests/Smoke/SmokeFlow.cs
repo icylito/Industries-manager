@@ -179,6 +179,8 @@ public sealed class SmokeFlow(SmokeHost host, ITestOutputHelper output) : IClass
         await Expect(api, HttpMethod.Get, "/backups/2026-01-01_000000/restore/preview", null, HttpStatusCode.NotFound);
         await Expect(api, HttpMethod.Get, "/backups/2026-01-01_000000/download", null, null);
         await Expect(api, HttpMethod.Get, "/backups/2026-01-01_000000/elsewhere", null, HttpStatusCode.BadRequest);
+        // A refused restore is a conflict with the reason, not a 503 for something unexpected
+        await Expect(api, HttpMethod.Post, "/backups/2026-01-01_000000/restore", new { confirm = "RESTORE" }, HttpStatusCode.Conflict);
 
         // History: the versions the steps above left, the retention settings, the settings file
         var versions = await Expect(api, HttpMethod.Get, "/history/versions", null, HttpStatusCode.OK);

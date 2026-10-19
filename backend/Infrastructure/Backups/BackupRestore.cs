@@ -11,9 +11,6 @@ using api_v2.Application.Rules;
 
 namespace api_v2.Infrastructure.Backups;
 
-// Thrown when a restore is refused before anything changes, the page shows the message as a conflict.
-public sealed class BackupRefusedException(string message) : Exception(message);
-
 // Puts the data back the way it was in a backup: the industries, their rules (the Fields), and every table from the
 // Tables page with its columns and rows. Only the data travels in time. Accounts, sign ins, notes, the Scratchpad,
 // requests and app settings are always current, so they stay as they are now.

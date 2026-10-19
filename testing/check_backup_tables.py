@@ -2,7 +2,7 @@
 # Only a zip this app signed is ever loaded. Throwaway API only, like the other checks.
 #   python3 -I check_backup_tables.py
 # Start the throwaway API with Backup__MaxUploadMb=5 and its own Backup__SigningKeyFile (see testing/README.md).
-import io, json, os, secrets, shutil, sys, time, urllib.request, uuid, zipfile
+import http.client, io, json, os, secrets, shutil, sys, time, urllib.parse, urllib.request, uuid, zipfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import t
 from t import call, login
@@ -30,6 +30,25 @@ def raw(method, path, token, data=None, ctype=None):
     try:
         with urllib.request.urlopen(req, timeout=600) as r: return r.status, r.read()
     except urllib.error.HTTPError as e: return e.code, e.read()
+    except urllib.error.URLError as e:
+        if not isinstance(e.reason, (BrokenPipeError, ConnectionResetError)): raise
+        return early_answer(method, path, token, data, ctype)
+
+# The API answers a file over the cap before it has all of it and closes. Where the socket buffer is small (Linux) the
+# send breaks first, so the answer it already sent is read after the broken send instead
+def early_answer(method, path, token, data, ctype):
+    u = urllib.parse.urlparse(t.BASE)
+    conn = http.client.HTTPConnection(u.hostname, u.port, timeout=600)
+    conn.putrequest(method, path)
+    conn.putheader("Authorization", "Bearer " + token)
+    if ctype: conn.putheader("Content-Type", ctype)
+    conn.putheader("Content-Length", str(len(data or b"")))
+    conn.endheaders()
+    try: conn.send(data or b"")
+    except (BrokenPipeError, ConnectionResetError): pass
+    r = conn.getresponse()
+    try: return r.status, r.read()
+    finally: conn.close()
 
 def upload(token, name, content):
     b = "----b" + uuid.uuid4().hex
