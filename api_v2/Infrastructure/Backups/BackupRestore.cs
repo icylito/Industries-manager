@@ -7,7 +7,6 @@ using api_v2.Application.Exceptions;
 using api_v2.Application.Ports;
 using api_v2.Domain.Rules;
 using Npgsql;
-using api_v2.Application.Ports;
 using api_v2.Application.Rules;
 
 namespace api_v2.Infrastructure.Backups;

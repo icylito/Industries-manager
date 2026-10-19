@@ -1,6 +1,3 @@
-// The busy lock exception still lives beside the locks in Infrastructure/Persistence. The restore handler below
-// rethrows it so the exception handler answers 503 Busy rather than "Restore didn't finish", which is the only
-// thing this file still needs that namespace for.
 using api_v2.Application.Exceptions;
 using api_v2.Application.Auth;
 using api_v2.Presentation.Contracts;
@@ -11,7 +8,6 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Net.Http.Headers;
 
 using api_v2.Presentation.Authorization;
-using api_v2.Application.Ports;
 
 namespace api_v2.Presentation.Endpoints;
 

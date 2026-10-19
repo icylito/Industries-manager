@@ -24,8 +24,10 @@ scripts/seeding.control.toml
 .plain-*
 *.sealing
 
-# The checks in testing/: the throwaway API's settings and its backups
+# The checks in testing/: the throwaway API's settings, its backups and its Python cache
 api_v2/appsettings.Throwaway.json
+/testing/throwaway-backups/
+/testing/__pycache__/
 
 # The page's copy of the https development certificate, start.bat https and share make it
 angular/.cert/
