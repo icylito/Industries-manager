@@ -2,6 +2,10 @@
 api_v2/bin/
 api_v2/obj/
 api_v2/artifacts/
+backend/*/bin/
+backend/*/obj/
+testing/transfer-check/bin/
+testing/transfer-check/obj/
 
 # Has the database password, copy appsettings.Development.example.json to make yours
 api_v2/appsettings.Development.json

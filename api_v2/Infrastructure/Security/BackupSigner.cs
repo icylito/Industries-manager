@@ -27,19 +27,18 @@ public sealed class BackupSigner
     // dates, sizes and row counts, and the signature needs them without the key.
     public static readonly string[] Sealed = ["main.dump", "collector.dump", "main.csv"];
 
-    // Ties the wrapped key to this app, so a key blob from another program can't be unwrapped by accident
-    private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("stock-listing backup key v1");
-
     private const int HalfKeySize = 32;
 
     // Signing half first, then the encryption half
     private readonly byte[]? _keys;
     private readonly string? _unavailable;
+    private readonly IKeyProtector _protector;
 
     public string KeyFile { get; }
 
-    public BackupSigner(IConfiguration config, IWebHostEnvironment env, ILogger<BackupSigner> log)
+    public BackupSigner(IConfiguration config, IWebHostEnvironment env, IKeyProtector protector, ILogger<BackupSigner> log)
     {
+        _protector = protector;
         var configured = config["Backup:SigningKeyFile"];
         KeyFile = string.IsNullOrWhiteSpace(configured)
             ? Path.GetFullPath(Path.Combine(env.ContentRootPath, "..", "backup-key", "backup-signing.key"))
@@ -70,7 +69,7 @@ public sealed class BackupSigner
 
         try
         {
-            _keys = ProtectedData.Unprotect(stored, Entropy, DataProtectionScope.LocalMachine);
+            _keys = _protector.Unprotect(stored);
         }
         catch (CryptographicException)
         {
@@ -164,7 +163,7 @@ public sealed class BackupSigner
     // Wrapped for this computer and written over the old file in one step
     private void Save(byte[] keys)
     {
-        var wrapped = ProtectedData.Protect(keys, Entropy, DataProtectionScope.LocalMachine);
+        var wrapped = _protector.Protect(keys);
         var temp = KeyFile + ".new";
         File.WriteAllText(temp, Convert.ToBase64String(wrapped));
         File.Move(temp, KeyFile, overwrite: true);

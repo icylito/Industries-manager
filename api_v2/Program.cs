@@ -116,6 +116,7 @@ builder.Services.AddScoped<RulesAdminService>();
 // The retention setting row
 builder.Services.AddScoped<ISettingsStore, SettingsStore>();
 // Signs every backup so only this app's own can be dropped back in, see Backups/BackupSigner.cs
+builder.Services.AddSingleton(_ => DpapiKeyProtector.ForThisComputer());
 builder.Services.AddSingleton<BackupSigner>();
 builder.Services.AddSingleton<BackupService>();
 builder.Services.AddSingleton<BackupRestore>();
