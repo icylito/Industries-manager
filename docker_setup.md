@@ -35,6 +35,7 @@ dotnet run --launch-profile http
 ```
 
 This only lasts for that terminal, so your own `appsettings.Development.json` stays the same. If you don't have that file at all, skip the first line, the API uses Docker by itself.
+`api_v2/appsettings.Development.json` in this copy points at the Docker database already (`Port=5433`, password `postgres`), so `dotnet run --launch-profile http` uses it with no environment line. If you want to go back to your own Postgres on `5432`, change both connection strings there back to `Port=5432` with your own password; that file is git ignored, so the change stays on your machine. `appsettings.Development.example.json` keeps the Docker values as the example.
 
 On the first run the API creates 2 databases, `main` with the `Industries` table, and `collector`. Both start empty. To get fake rows in, run `python scripts/seed_industries.py` from the project folder (or `py`, check with `python --version`) while the API is running. The account is `username` and `password` in `scripts/seeding.control.toml` (copy `seeding.control.example.toml`). Row counts and names stay in `seeding.toml`.
 

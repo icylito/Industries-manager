@@ -1,0 +1,158 @@
+/* Laid out as part of the page's rail, so the list scrolls inside it */
+:host {
+  display: contents;
+}
+
+.rail-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0.75rem 0.5rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--muted);
+}
+
+.rail-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+
+.rail-helper {
+  margin: 0 0.9rem 0.55rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+/* Paper sits straight under the list, as in the design; the keys note takes the room left at the bottom */
+.rail-list {
+  flex: 0 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0 0.6rem;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.rail-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+  padding: 0.45rem 0.5rem 0.45rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.rail-list li:hover {
+  border-color: var(--border-strong);
+}
+
+.rail-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.rail-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.rail-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.rail-price {
+  flex: 0 0 auto;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.rail-add {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.rail-add:hover:not(:disabled) {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+
+.rail-add:disabled {
+  border-color: var(--border);
+  color: var(--muted);
+  cursor: default;
+}
+
+.rail-list li[draggable='true'] {
+  cursor: grab;
+}
+
+/* Already on the board: still listed, dimmed, and its + turns into a tick */
+.rail-list li.on-board {
+  opacity: 0.6;
+}
+
+.rail-empty {
+  padding: 0.6rem 0.25rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.link {
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.rail-add:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+@media (max-width: 560px) {
+  .rail-helper {
+    margin-bottom: 0.4rem;
+    font-size: 0.72rem;
+  }
+
+  .rail-list {
+    max-height: 7rem;
+  }
+
+  .rail-list li {
+    margin-bottom: 0.3rem;
+    padding-top: 0.3rem;
+    padding-bottom: 0.3rem;
+  }
+}

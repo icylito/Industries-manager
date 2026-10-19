@@ -1,0 +1,465 @@
+<!-- Tickets for a developer. Some get made by the app, like when an import finds an old column. -->
+
+@if (ticketId() === null) {
+  @if (asking()) {
+    <!-- New ticket opens over the list. What was typed stays if it closes by accident, it only clears once sent. -->
+    <div class="modal-backdrop" (click)="closeAsk()" aria-hidden="true"></div>
+    <div class="modal-wrap">
+      <section
+        class="modal ask-modal"
+        #askBox
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ask-title"
+        (keydown)="trapFocus($event)"
+      >
+        <header class="card-head">
+          <h2 id="ask-title">
+            <span class="title-icon"
+              ><i class="fa-solid fa-paper-plane" aria-hidden="true"></i></span
+            >New ticket
+          </h2>
+          <button
+            type="button"
+            class="icon-btn"
+            aria-label="Close"
+            [disabled]="sending()"
+            (click)="closeAsk()"
+          >
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+          </button>
+        </header>
+        <div class="ask-grid">
+          <label class="field">
+            <span class="field-label">What do you need</span>
+            <span class="control">
+              <i class="fa-solid fa-pen" aria-hidden="true"></i>
+              <input
+                #askTitle
+                placeholder="Add a sector filter to the export"
+                maxlength="120"
+                [value]="title()"
+                (input)="title.set($any($event.target).value)"
+              />
+            </span>
+          </label>
+          <!-- Not a label: a click anywhere in a label clicks its first button, which would be Bold -->
+          <div class="field">
+            <span class="field-label">Details <em>optional</em></span>
+            <app-format-field
+              [rows]="3"
+              [max]="2000"
+              placeholder="Only the rows we filtered, not the whole table"
+              label="Details"
+              [(value)]="details"
+            />
+          </div>
+          <label class="field code-field">
+            <span class="field-label">Code <em>optional</em></span>
+            <textarea
+              class="code-input"
+              rows="5"
+              maxlength="20000"
+              spellcheck="false"
+              placeholder="Paste code you drafted for this"
+              [value]="code()"
+              (input)="code.set($any($event.target).value)"
+            ></textarea>
+          </label>
+          @if (sendError()) {
+            <p class="field-error" role="alert">
+              <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ sendError() }}
+            </p>
+          }
+          <div class="send-row">
+            <button type="button" class="cancel-btn" [disabled]="sending()" (click)="closeAsk()">
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="add-btn"
+              [disabled]="!title().trim() || sending()"
+              (click)="send()"
+            >
+              @if (sending()) {
+                <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Sending
+              } @else {
+                <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>Send
+              }
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  }
+
+  <section class="panel">
+    <header class="panel-head">
+      <div class="panel-title">
+        <h2><i class="fa-solid fa-ticket" aria-hidden="true"></i>Tickets</h2>
+        <span class="db-status">{{ api.openRequests() }} waiting</span>
+      </div>
+      <div class="tools">
+        <!-- Which tickets show, the same pill and list as the status on an open ticket -->
+        <div class="status-menu filter-menu" (keydown.escape)="filterMenu.set(false)">
+          <button
+            type="button"
+            class="status-trigger"
+            aria-haspopup="listbox"
+            [attr.aria-expanded]="filterMenu()"
+            [attr.aria-label]="'Show ' + filterLabel() + ' tickets. Change it'"
+            (click)="filterMenu.set(!filterMenu())"
+          >
+            <span>{{ filterLabel() }}</span>
+            <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
+          </button>
+          @if (filterMenu()) {
+            <div class="status-list" role="listbox" aria-label="Show tickets">
+              @for (f of filters; track f.value) {
+                <button
+                  type="button"
+                  role="option"
+                  [attr.aria-selected]="filter() === f.value"
+                  [class.on]="filter() === f.value"
+                  (click)="setFilter(f.value)"
+                >
+                  {{ f.label }}
+                </button>
+              }
+            </div>
+          }
+        </div>
+        <button type="button" class="add-btn" #newTicketBtn (click)="openAsk()">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>New ticket
+        </button>
+      </div>
+    </header>
+
+    @if (sent()) {
+      <p class="result small" role="status">
+        <i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ sent() }}
+      </p>
+    }
+    @if (notice()) {
+      <p class="field-error">
+        <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ notice() }}
+      </p>
+    }
+
+    @if (loading()) {
+      <p class="state">
+        <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading tickets
+      </p>
+    } @else if (error()) {
+      <p class="state state-error">
+        <i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"></i>{{ error() }}
+      </p>
+    } @else if (requests().length === 0) {
+      <p class="state">
+        <i class="fa-solid fa-mug-hot" aria-hidden="true"></i>
+        {{
+          filter() === 'open'
+            ? 'Nothing waiting for a developer.'
+            : 'No ' +
+              (filter() === 'all' ? '' : statusLabel[filter()].toLowerCase() + ' ') +
+              'tickets yet.'
+        }}
+        @if (filter() !== 'open') {
+          <button type="button" class="link-btn" (click)="setFilter('open')">
+            See the open ones
+          </button>
+        }
+      </p>
+    } @else {
+      <div class="table-wrap">
+        <table class="requests-table">
+          <thead>
+            <tr>
+              <th><span class="th">#</span></th>
+              <th><span class="th">Ticket</span></th>
+              <th><span class="th">Created by</span></th>
+              <th class="status-col"><span class="th">Status</span></th>
+              <th class="actions-col"><span class="th">Action</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of requests(); track r.id) {
+              <tr
+                class="ticket-row"
+                tabindex="-1"
+                [class.closed]="r.status === 'done' || r.status === 'dismissed'"
+                (click)="open(r)"
+              >
+                <td class="id" data-label="#">#{{ r.id }}</td>
+                <td class="request-cell" data-label="Ticket">
+                  <a
+                    class="request-title"
+                    [routerLink]="['/requests', r.id]"
+                    (click)="$event.stopPropagation()"
+                    [attr.title]="'Open the conversation'"
+                    >{{ r.title }}</a
+                  >
+                </td>
+                <td class="muted" data-label="Created by">{{ r.createdBy }}</td>
+                <!-- The status only reads here, it is changed inside the ticket -->
+                <td class="status-cell" data-label="Status">
+                  <span class="status" [attr.data-status]="r.status">{{
+                    statusLabel[r.status]
+                  }}</span>
+                </td>
+                <td class="actions" data-label="Action" (click)="$event.stopPropagation()">
+                  <span class="menu-host">
+                    <button
+                      type="button"
+                      class="kebab"
+                      aria-haspopup="menu"
+                      [attr.aria-expanded]="menuId() === r.id"
+                      [attr.aria-label]="'Actions for ticket ' + r.id"
+                      (click)="toggleMenu(r.id, $event)"
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <circle cx="12" cy="5" r="2" />
+                        <circle cx="12" cy="12" r="2" />
+                        <circle cx="12" cy="19" r="2" />
+                      </svg>
+                    </button>
+                    @if (menuId() === r.id) {
+                      <div
+                        class="row-menu"
+                        role="menu"
+                        (click)="$event.stopPropagation()"
+                        [style.top.px]="menuAt().top"
+                        [style.right.px]="menuAt().right"
+                      >
+                        <button type="button" role="menuitem" (click)="open(r)">
+                          <i class="fa-solid fa-comments" aria-hidden="true"></i>Open ticket
+                        </button>
+                      </div>
+                    }
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+} @else {
+  <!-- One ticket: what was asked, then the conversation with the developers -->
+  <section class="panel ticket">
+    <header class="panel-head">
+      <div class="panel-title">
+        <a class="tool-btn" routerLink="/requests"
+          ><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>All tickets</a
+        >
+      </div>
+    </header>
+
+    @if (threadLoading()) {
+      <p class="state">
+        <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Opening the ticket
+      </p>
+    } @else if (threadError() && !thread()) {
+      <p class="state state-error">
+        <i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"></i>{{ threadError() }}
+      </p>
+    } @else if (thread(); as t) {
+      <div class="ticket-head">
+        <h2 class="ticket-title">#{{ t.id }} {{ t.title }}</h2>
+      </div>
+
+      <!-- Everything about the ticket in one place: who asked and when on the left, what has happened since, where it stands on the right -->
+      <dl class="ticket-facts">
+        <div>
+          <dt>Created by</dt>
+          <dd>{{ t.createdBy }}</dd>
+        </div>
+        <div>
+          <dt>Created at</dt>
+          <dd>{{ formatDate(t.createdAt) }}</dd>
+        </div>
+        <div>
+          <dt>Type</dt>
+          <dd>
+            <span class="kind"
+              ><i [class]="kinds[t.kind].icon" aria-hidden="true"></i
+              >{{ kinds[t.kind].label }}</span
+            >
+          </dd>
+        </div>
+        <div>
+          <dt>Replies</dt>
+          <dd>{{ messages().length }}</dd>
+        </div>
+        @if (lastReply(); as last) {
+          <div>
+            <dt>Last reply</dt>
+            <dd>{{ formatDate(last.createdAt) }} by {{ last.author }}</dd>
+          </div>
+        }
+        @if (t.resolvedAt) {
+          <div>
+            <dt>Closed</dt>
+            <dd>{{ formatDate(t.resolvedAt) }} by {{ t.resolvedBy }}</dd>
+          </div>
+        }
+        <div class="fact-status">
+          <dt>Status</dt>
+          <dd>
+            @if (!canSetStatus()) {
+              <span class="status" [attr.data-status]="t.status">{{ statusLabel[t.status] }}</span>
+            }
+            @if (canSetStatus()) {
+              <!-- The status pill that opens a centred list of the four statuses -->
+              <div class="status-menu" (keydown.escape)="statusMenu.set(null)">
+                <button
+                  type="button"
+                  class="status-trigger"
+                  aria-haspopup="listbox"
+                  [attr.aria-expanded]="statusMenu() === t.id"
+                  aria-label="Change the status"
+                  (click)="toggleStatusMenu(t.id)"
+                >
+                  <span>{{ statusLabel[t.status] }}</span>
+                  <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
+                </button>
+                @if (statusMenu() === t.id) {
+                  <div class="status-list" role="listbox" aria-label="Status">
+                    @for (s of statusOptions; track s) {
+                      <button
+                        type="button"
+                        role="option"
+                        [attr.aria-selected]="s === t.status"
+                        [class.on]="s === t.status"
+                        (click)="pickStatus(t, s)"
+                      >
+                        {{ statusLabel[s] }}
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </dd>
+        </div>
+      </dl>
+
+      @if (notice()) {
+        <p class="field-error">
+          <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ notice() }}
+        </p>
+      }
+
+      <h3 class="ticket-section">Request</h3>
+      @if (t.details) {
+        <p class="ticket-details"><app-rich-text [text]="t.details" /></p>
+      } @else {
+        <p class="ticket-details muted">No details were written for this ticket.</p>
+      }
+      @if (t.draftedCode) {
+        <div class="code-head">
+          <button
+            type="button"
+            class="link-btn"
+            [class.open]="codeShown()"
+            [attr.aria-expanded]="codeShown()"
+            (click)="codeShown.set(!codeShown())"
+          >
+            <i class="fa-solid fa-chevron-down" aria-hidden="true"></i
+            >{{ codeShown() ? 'Hide the drafted code' : 'Show the drafted code' }}
+          </button>
+          @if (codeShown()) {
+            <button
+              type="button"
+              class="link-btn copy-btn"
+              [class.copied]="copied()"
+              (click)="copyCode()"
+            >
+              <i class="fa-regular fa-copy" aria-hidden="true"></i
+              ><i class="fa-solid fa-check" aria-hidden="true"></i
+              >{{ copied() ? 'Copied' : 'Copy' }}
+            </button>
+          }
+        </div>
+        @if (codeShown()) {
+          <pre class="code"><code>{{ t.draftedCode }}</code></pre>
+        }
+      }
+
+      <div class="chat" id="chat-log" role="log" aria-live="polite" aria-label="Conversation">
+        @if (messages().length === 0) {
+          <p class="chat-empty">
+            <i class="fa-regular fa-comments" aria-hidden="true"></i>No replies yet. Write the first
+            one below.
+          </p>
+        }
+        @for (m of messages(); track m.id) {
+          <div
+            class="bubble-row"
+            [class.dev]="m.fromDeveloper"
+            [class.me]="m.author === auth.user()?.username"
+          >
+            <div class="bubble">
+              <span class="bubble-meta"
+                >{{ m.author }}
+                @if (m.fromDeveloper) {
+                  <em>developer</em>
+                }
+                · {{ formatDate(m.createdAt) }}</span
+              >
+              <p><app-rich-text [text]="m.body" /></p>
+            </div>
+          </div>
+        }
+      </div>
+
+      @if (canReply()) {
+        <div class="composer">
+          <!-- The count and Send share the row under the box with the format buttons -->
+          <app-format-field
+            [rows]="2"
+            [max]="replyMax"
+            label="Your reply"
+            placeholder="Write a reply, Enter sends, Shift+Enter is a new line"
+            [submitOnEnter]="true"
+            [(value)]="reply"
+            (submitted)="sendReply()"
+          >
+            <div class="composer-foot">
+              <span class="muted">{{ reply().length }}/{{ replyMax }}</span>
+              <button
+                type="button"
+                class="add-btn"
+                [disabled]="!reply().trim() || replying()"
+                (click)="sendReply()"
+              >
+                @if (replying()) {
+                  <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Sending
+                } @else {
+                  <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>Send
+                }
+              </button>
+            </div>
+          </app-format-field>
+          @if (replyError()) {
+            <p class="field-error">
+              <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ replyError() }}
+            </p>
+          }
+        </div>
+      } @else {
+        <p class="hint-line">
+          <i class="fa-solid fa-lock" aria-hidden="true"></i>Only {{ t.createdBy }} and the admins
+          can reply to this ticket.
+        </p>
+      }
+    }
+  </section>
+}

@@ -1,17 +1,9 @@
-using api_v2.Model;
-using api_v2.Endpoints;
-using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.OpenApi;
-using Microsoft.EntityFrameworkCore;
-using static Microsoft.OpenApi.OpenApiSpecVersion;
-using api_v2.Data;
-using api_v2.Auth;
-using api_v2.Rules;
-using api_v2.Backups;
-using Npgsql;
-using System.Threading.RateLimiting;
-using Microsoft.AspNetCore.RateLimiting;
-
+// The composition root. Each layer in backend/ registers its own part: the use cases (Application), what the ports
+// are implemented with (Infrastructure), and the routes (Presentation). What stays here is the host itself: logging,
+// CORS, Kestrel's limits, compression, https and the OpenAPI page.
+using api_v2.Application;
+using api_v2.Infrastructure;
+using api_v2.Presentation;
 
 var builder = WebApplication.CreateBuilder(args);
 // Logs go to the console only. The default Windows Event Log writer needs an elevated window and crashed startup when it was refused
@@ -26,14 +18,8 @@ var localOrigin = new System.Text.RegularExpressions.Regex(@"^https?://(localhos
 builder.Services.AddCors(options => options.AddPolicy("Angular", policy =>
     policy.SetIsOriginAllowed(origin => origins.Contains(origin) || localOrigin.IsMatch(origin))
         .AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("Content-Disposition", "Retry-After")));
-// A number has to arrive as a number, "5" as text is refused
-builder.Services.ConfigureHttpJsonOptions(options =>
-    options.SerializerOptions.NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.Strict);
-builder.Services.AddValidation(); // Validating all the required, range, and length in Dtos folder
-builder.Services.AddProblemDetails();
-// What a failed request answers, and how loudly it is logged: Errors/ApiExceptionHandler.cs
-builder.Services.AddExceptionHandler<api_v2.Errors.ApiExceptionHandler>();
-builder.Services.Configure<RouteHandlerOptions>(o => o.ThrowOnBadRequest = true);
+// No body type carries validation attributes today, so this checks nothing yet; it is kept so one added later works
+builder.Services.AddValidation();
 // No JSON body here is big on purpose: the biggest is a Scratchpad board, held to 1,000,000 bytes by BoardRules.
 // Anything above this is refused before it is read. An upload that needs more raises its own limit on its request,
 // see BackupEndpoints.cs and ScratchFileEndpoints.cs. Http:MaxRequestBodyKb in appsettings changes it.
@@ -47,61 +33,11 @@ builder.Services.AddResponseCompression(options =>
     options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProvider>();
     options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
 });
-builder.Services.AddOpenApi(options => 
-options.OpenApiVersion = Microsoft.OpenApi.OpenApiSpecVersion.OpenApi3_0);
-var connections = DatabaseConnections.From(builder.Configuration);
-builder.Services.AddSingleton(connections);
-// EnableRetryOnFailure retries a query up to 3 times on transient errors like a dropped connection
-builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connections.Main,
-    npgsql => npgsql.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null)));
-// The two migration chains, only used to migrate: the data's, and what is always current with its own history table
-builder.Services.AddDbContext<DataMigrationsContext>(options => options.UseNpgsql(connections.Main));
-builder.Services.AddDbContext<StateMigrationsContext>(options => options.UseNpgsql(connections.Main,
-    npgsql => npgsql.MigrationsHistoryTable(StateMigrationsContext.HistoryTable)));
+builder.Services.AddOpenApi(options => options.OpenApiVersion = Microsoft.OpenApi.OpenApiSpecVersion.OpenApi3_0);
 
-// Auto migration, applies pending migrations on startup and tracks the result for /health
-builder.Services.AddSingleton<DatabaseStatus>();
-builder.Services.AddHostedService<MigrationService>();
-
-// Collector copies, versioned rules, backups and the restore from a backup
-builder.Services.AddSingleton<SettingsService>();
-builder.Services.AddSingleton<CollectorStore>();
-builder.Services.AddSingleton<AppLocks>();
-// Where uploaded Scratchpad files live on disk, created on startup. See Data/ScratchFileStore.cs
-builder.Services.AddSingleton<ScratchFileStore>();
-builder.Services.AddHostedService<api_v2.Scratchpad.ScratchFileSweeper>();
-// The readable JSON copy of every table from the Tables page, and the job that writes it on start and empties
-// the bin. See Tables/UserTableMirror.cs and UserTables:Mirror in appsettings.
-builder.Services.AddSingleton<api_v2.Tables.UserTableMirror>();
-builder.Services.AddHostedService<api_v2.Tables.TableBinSweeper>();
-builder.Services.AddSingleton<api_v2.History.TableWriter>();
-builder.Services.AddSingleton<RulesService>();
-// Signs every backup so only this app's own can be dropped back in, see Backups/BackupSigner.cs
-builder.Services.AddSingleton<BackupSigner>();
-builder.Services.AddSingleton<BackupService>();
-builder.Services.AddSingleton<BackupRestore>();
-builder.Services.AddHostedService<BackupScheduler>();
-// Notices when the history database goes away or comes back after startup, so the page's badge stays right
-builder.Services.AddHostedService<HistoryMonitor>();
-// Who is signed in comes from the token the page sends, see Auth/CurrentUser.cs
-builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ICurrentUser, SessionUser>();
-// Signing in is limited per address, so a password can't be guessed by trying over and over
-var loginTries = builder.Configuration.GetValue("Auth:LoginTriesPerMinute", 5);
-builder.Services.AddRateLimiter(options =>
-{
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddPolicy("login", context => RateLimitPartition.GetFixedWindowLimiter(
-        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-        _ => new FixedWindowRateLimiterOptions { PermitLimit = loginTries, Window = TimeSpan.FromMinutes(1) }));
-    options.OnRejected = async (context, token) =>
-    {
-        var wait = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retry) ? retry : TimeSpan.FromMinutes(1);
-        await api_v2.Endpoints.AuthEndpoints.TooManyTries(context.HttpContext, wait).ExecuteAsync(context.HttpContext);
-    };
-});
-// Wrong passwords per username, from any address, see Auth/LoginFailures.cs
-builder.Services.AddSingleton<LoginFailures>();
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddPresentation(builder.Configuration);
 
 // Https:Required turns http into a redirect to https and adds HSTS. Off by default so a fresh clone runs with no certificate,
 // start.bat https turns it on together with the https launch profile. See README, Https.
@@ -113,13 +49,7 @@ if (httpsRequired)
 
 var app = builder.Build();
 
-// Make the Scratchpad file folder now, so a bad path or a denied folder fails at startup instead of on the
-// first upload. See Scratchpad:Files in appsettings.
-app.Services.GetRequiredService<ScratchFileStore>();
-// The same for the folder of table copies
-app.Services.GetRequiredService<api_v2.Tables.UserTableMirror>();
-// The backup signing key is made now if there isn't one, so the first backup doesn't wait on it
-app.Services.GetRequiredService<BackupSigner>();
+app.Services.PrepareInfrastructure();
 
 if (httpsRequired)
 {
@@ -133,7 +63,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
     app.Logger.LogWarning("Signing in goes over plain http here, fine on this PC only. On a shared network start with start.bat https, see README under Https");
 });
 
-// Errors/ApiExceptionHandler.cs answers and logs every exception a request throws
+// backend/Presentation/Errors/ApiExceptionHandler.cs answers and logs every exception a request throws
 app.UseExceptionHandler();
 
 // start.bat share puts the page server in front of the API. It says who the real caller is, so the sign in limit counts each
@@ -143,50 +73,7 @@ app.UseResponseCompression();
 app.UseCors("Angular");
 app.UseRateLimiter();
 
-// Always 200 so the frontend can read the state, the body says if the database is usable.
-// databases names the live table and the history database. The old fields stay as they are.
-// Someone not signed in only learns if the database is up, which is all the page's badge needs. Signed in, it also
-// names the databases and the migrations applied, which the seeding script prints.
-app.MapGet("/health", async (DatabaseStatus status, DatabaseConnections connections, ICurrentUser user, CancellationToken ct) =>
-{
-    var body = System.Text.Json.JsonSerializer.SerializeToNode(status.Snapshot())!.AsObject();
-    var signedIn = false;
-    if (status.State == DatabaseState.Ready)
-    {
-        try
-        {
-            await user.LoadAsync(ct);
-            signedIn = user.IsSignedIn;
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            // The answer still goes out, just the short one
-        }
-    }
-    if (!signedIn)
-    {
-        var history = body["history"]?.AsObject();
-        return Results.Json(new
-        {
-            state = body["state"]?.GetValue<string>(),
-            // The ready message lists every migration, the others say what's wrong in plain words
-            message = status.State == DatabaseState.Ready ? "Ready" : body["message"]?.GetValue<string>(),
-            history = new { ready = history?["ready"]?.GetValue<bool>() ?? false, message = history?["message"]?.GetValue<string>() ?? "" }
-        });
-    }
-    body["databases"] = System.Text.Json.JsonSerializer.SerializeToNode(connections.PublicView());
-    return Results.Json(body);
-});
-app.MapAuth();
-app.MapUsers();
-app.MapIndustries();
-app.MapSchema();
-app.MapHistory();
-app.MapBackups();
-app.MapRequests();
-app.MapScratchpad();
-app.MapMe();
-app.MapUserTables();
+app.MapPresentation();
 app.MapOpenApi();
 app.UseSwaggerUI(options =>
 {

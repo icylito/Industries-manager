@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Entities and pure rules. No packages and no other project: nothing here may know about storage, HTTP or the
+       framework, and the build fails if it tries. -->
+
+</Project>

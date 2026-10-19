@@ -1,0 +1,158 @@
+@if (keys.panelOpen()) {
+  <!-- A click outside closes it -->
+  <div class="backdrop" (click)="close()" aria-hidden="true"></div>
+  <div class="holder">
+    <div #dialog class="panel pop" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+      <div class="head">
+        <span class="title">Keyboard shortcuts</span>
+        <button type="button" class="close" (click)="close()" aria-label="Close shortcuts">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="3"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
+      <div class="tools">
+        <label class="find">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-4-4" />
+          </svg>
+          <input
+            #search
+            type="text"
+            [value]="query()"
+            (input)="query.set($any($event.target).value)"
+            placeholder="Search by name, what it does, or the key"
+            autocomplete="off"
+            aria-label="Search the shortcuts"
+          />
+        </label>
+        <!-- Puts every key back to its default, so it asks first: a small box over this panel -->
+        <button #resetBtn type="button" class="reset" (click)="askReset()">Reset</button>
+      </div>
+      <div class="cols" aria-hidden="true">
+        <span>FUNCTION</span><span>WHAT IT DOES</span><span>KEY</span>
+      </div>
+      <div class="list">
+        @for (r of rows(); track r.id) {
+          <div class="row" role="group" [attr.aria-label]="r.name">
+            <span class="name">{{ r.name }}</span>
+            <span class="desc">{{ r.desc }}</span>
+            <span class="key-cell">
+              @if (r.editing) {
+                <span class="key-box">
+                  @for (k of r.caps; track $index) {
+                    <span [class]="k.then ? 'then' : 'cap'">{{ k.text }}</span>
+                  }
+                  <input
+                    readonly
+                    (keydown)="record($event)"
+                    aria-label="Press the new key"
+                    placeholder="Press the new key"
+                  />
+                </span>
+              } @else {
+                <button
+                  type="button"
+                  class="key"
+                  (click)="edit(r.id)"
+                  [attr.aria-label]="r.keyLabel + '. Change the key for ' + r.name"
+                  title="Click to change this key"
+                >
+                  @for (k of r.caps; track $index) {
+                    <span [class]="k.then ? 'then' : 'cap'">{{ k.text }}</span
+                    >{{ ' ' }}
+                  }
+                  @if (r.none) {
+                    <span class="no-key">Click to set a key</span>
+                  }
+                </button>
+              }
+            </span>
+          </div>
+          @if (r.message) {
+            <div class="msg" role="alert">
+              <span>{{ r.message }}</span>
+              @if (r.canTake) {
+                <button type="button" class="take" (click)="takeOver()">Take it over</button>
+              }
+              <button type="button" class="cancel" (click)="rec.set(null)">Cancel</button>
+            </div>
+          }
+        } @empty {
+          @if (mouseRows().length === 0) {
+            <div class="none">Nothing matches your search.</div>
+          }
+        }
+        @if (mouseRows().length) {
+          <div class="group-head">Mouse</div>
+          @for (m of mouseRows(); track m.id) {
+            <div class="row" role="group" [attr.aria-label]="m.name">
+              <span class="name">{{ m.name }}</span>
+              <span class="desc">{{ m.desc }}</span>
+              <span class="key-cell">
+                @if (m.mod) {
+                  <span class="mouse-key">
+                    <select
+                      class="mod"
+                      [value]="m.mod"
+                      (change)="setMod(m.id, $any($event.target).value)"
+                      [attr.aria-label]="'The key held for ' + m.name"
+                    >
+                      @for (mod of mods; track mod) {
+                        <option [value]="mod" [selected]="mod === m.mod">{{ mod }}</option>
+                      }
+                    </select>
+                    <span class="gesture">+ {{ m.gesture }}</span>
+                  </span>
+                } @else {
+                  <span class="gesture fixed">{{ m.fixed }}</span>
+                }
+              </span>
+            </div>
+          }
+        }
+      </div>
+    </div>
+  </div>
+
+  @if (confirmReset()) {
+    <!-- A second small box over the panel: Reset is never one press away from losing every key -->
+    <div class="confirm-backdrop" (click)="cancelReset()" aria-hidden="true"></div>
+    <div class="confirm-wrap">
+      <div
+        #confirm
+        class="confirm-pop"
+        role="alertdialog"
+        aria-modal="true"
+        aria-label="Reset every key"
+      >
+        <p class="confirm-q">Are you sure?</p>
+        <div class="confirm-actions">
+          <button #confirmCancel type="button" class="cancel" (click)="cancelReset()">
+            Cancel
+          </button>
+          <button type="button" class="take" (click)="doReset()">Reset</button>
+        </div>
+      </div>
+    </div>
+  }
+}
