@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -44,6 +45,12 @@ public sealed class SmokeFlow(SmokeHost host, ITestOutputHelper output) : IClass
         await Expect(api, HttpMethod.Post, "/auth/password", new { current = firstPassword, @new = NewPassword }, HttpStatusCode.OK);
         var me = await Expect(api, HttpMethod.Get, "/auth/me", null, HttpStatusCode.OK);
         Assert.Equal("admin", me!["username"]?.GetValue<string>() ?? me["user"]?["username"]?.GetValue<string>());
+
+        // Signed in, /health also names the databases, with the names it always had
+        var fullHealth = await Expect(api, HttpMethod.Get, "/health", null, HttpStatusCode.OK);
+        Assert.Equal(SmokeHost.MainDb, fullHealth!["databases"]?["live"]?["database"]?.GetValue<string>());
+        Assert.Equal(SmokeHost.CollectorDb, fullHealth["databases"]?["history"]?["database"]?.GetValue<string>());
+        Assert.NotNull(fullHealth["databases"]?["live"]?["port"]);
 
         // Rules
         var schema = await Expect(api, HttpMethod.Get, "/schema", null, HttpStatusCode.OK);
@@ -119,6 +126,21 @@ public sealed class SmokeFlow(SmokeHost host, ITestOutputHelper output) : IClass
         await Expect(api, HttpMethod.Get, "/scratchpad/tray", null, HttpStatusCode.OK);
         await Expect(api, HttpMethod.Delete, $"/scratchpad/boards/{boardId}", null, HttpStatusCode.OK);
 
+        // Scratchpad files: a picture up, read back in place, a refused kind, then deleted
+        var png = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3 };
+        var uploaded = await Upload(api, "/scratchpad/files", "pixel.png", "image/png", png, HttpStatusCode.Created);
+        var fileId = uploaded!["id"]!.GetValue<int>();
+        Assert.Equal(png.Length, uploaded["sizeBytes"]!.GetValue<int>());
+        var picture = await api.GetAsync($"/scratchpad/files/{fileId}");
+        Assert.Equal(HttpStatusCode.OK, picture.StatusCode);
+        Assert.Equal(png, await picture.Content.ReadAsByteArrayAsync());
+        Assert.Equal("inline", picture.Content.Headers.ContentDisposition?.DispositionType);
+        Assert.Contains("nosniff", picture.Headers.GetValues("X-Content-Type-Options"));
+        var refused = await Upload(api, "/scratchpad/files", "plan.docx", "application/octet-stream", [1], HttpStatusCode.BadRequest);
+        Assert.Contains("Word, PowerPoint and Excel", refused!.ToJsonString());
+        await Expect(api, HttpMethod.Delete, $"/scratchpad/files/{fileId}", null, HttpStatusCode.OK);
+        await Expect(api, HttpMethod.Get, $"/scratchpad/files/{fileId}", null, HttpStatusCode.NotFound);
+
         // Requests: ask, read, reply, the bell count, mark done
         var ask = await Expect(api, HttpMethod.Post, "/requests", new { title = "Smoke ask", details = "Checking **requests** work" },
             HttpStatusCode.Created);
@@ -137,8 +159,11 @@ public sealed class SmokeFlow(SmokeHost host, ITestOutputHelper output) : IClass
         await Expect(api, HttpMethod.Get, $"/users/{viewerId}/notes", null, HttpStatusCode.OK);
         await Expect(api, HttpMethod.Delete, $"/users/{viewerId}", null, null);
 
-        // Backups list (making one needs pg_dump and is not part of the smoke run)
+        // Backups list (making one needs pg_dump and is not part of the smoke run), and the answers for one that isn't there
         await Expect(api, HttpMethod.Get, "/backups", null, HttpStatusCode.OK);
+        await Expect(api, HttpMethod.Get, "/backups/2026-01-01_000000/restore/preview", null, HttpStatusCode.NotFound);
+        await Expect(api, HttpMethod.Get, "/backups/2026-01-01_000000/download", null, null);
+        await Expect(api, HttpMethod.Get, "/backups/2026-01-01_000000/elsewhere", null, HttpStatusCode.BadRequest);
 
         // History: the versions the steps above left, the retention settings, the settings file
         var versions = await Expect(api, HttpMethod.Get, "/history/versions", null, HttpStatusCode.OK);
@@ -146,6 +171,12 @@ public sealed class SmokeFlow(SmokeHost host, ITestOutputHelper output) : IClass
         await Expect(api, HttpMethod.Get, "/history/settings", null, HttpStatusCode.OK);
         var settingsFile = await Expect(api, HttpMethod.Get, "/history/settings/export", null, HttpStatusCode.OK);
         await Expect(api, HttpMethod.Post, "/history/settings/import/preview", settingsFile, HttpStatusCode.OK);
+        var imported = await Expect(api, HttpMethod.Post, "/history/settings/import", settingsFile, HttpStatusCode.OK);
+        Assert.False(imported!["rulesChanged"]!.GetValue<bool>(), "Importing the file just exported changes nothing");
+        await Expect(api, HttpMethod.Post, "/history/settings/import/preview", new { app = "someone-else" }, HttpStatusCode.BadRequest);
+        // A stale rules version is refused, so two admins can't undo each other
+        await Expect(api, HttpMethod.Post, "/schema/fields/many", new { basedOn = -1, fields = new[] { new { label = "Late", type = "text", required = false } } },
+            HttpStatusCode.Conflict);
 
         // The person's own settings and profile
         var mine = await Expect(api, HttpMethod.Get, "/me/settings", null, HttpStatusCode.OK);
@@ -164,6 +195,22 @@ public sealed class SmokeFlow(SmokeHost host, ITestOutputHelper output) : IClass
         // database at Error, which is how EF finds there is nothing there yet.
         var crashes = host.Logs.Lines.Skip(startupLines).Where(l => l.Level >= Microsoft.Extensions.Logging.LogLevel.Error).Select(l => l.Text).ToList();
         Assert.True(crashes.Count == 0, "Errors were logged:\n" + string.Join("\n", crashes));
+    }
+
+    // Entities are how the database sees a row, so they never come in from the wire: every body is a contract
+    [Fact]
+    public void No_endpoint_takes_an_entity()
+    {
+        var sources = host.Services.GetServices<Microsoft.AspNetCore.Routing.EndpointDataSource>();
+        var taken = sources.SelectMany(s => s.Endpoints)
+            .Select(e => (Name: e.DisplayName, Method: e.Metadata.GetMetadata<System.Reflection.MethodInfo>()))
+            .Where(e => e.Method is not null)
+            .SelectMany(e => e.Method!.GetParameters()
+                .Where(p => p.ParameterType.Namespace == "api_v2.Domain.Entities")
+                .Select(p => $"{e.Name}: {p.ParameterType.Name} {p.Name}"))
+            .ToList();
+        Assert.True(taken.Count == 0, "Endpoints taking an entity:\n" + string.Join("\n", taken));
+        Assert.True(sources.SelectMany(s => s.Endpoints).Count() > 50, "The endpoints should all be mapped");
     }
 
     // The OpenAPI document, written out when SMOKE_OPENAPI_OUT names a file, so two trees can be compared
@@ -189,6 +236,19 @@ public sealed class SmokeFlow(SmokeHost host, ITestOutputHelper output) : IClass
             await Task.Delay(500);
         }
         return last!;
+    }
+
+    private async Task<JsonNode?> Upload(HttpClient api, string path, string fileName, string contentType, byte[] bytes, HttpStatusCode expected)
+    {
+        using var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(bytes);
+        file.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        form.Add(file, "file", fileName);
+        using var answer = await api.PostAsync(path, form);
+        var text = await answer.Content.ReadAsStringAsync();
+        output.WriteLine($"POST {path} ({fileName}) -> {(int)answer.StatusCode}");
+        Assert.True(answer.StatusCode == expected, $"POST {path} {fileName}: expected {(int)expected}, got {(int)answer.StatusCode}: {text}");
+        return string.IsNullOrWhiteSpace(text) ? null : JsonNode.Parse(text);
     }
 
     // Sends one step and checks its status. A null expected status only refuses a server error.
