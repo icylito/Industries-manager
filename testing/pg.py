@@ -8,6 +8,9 @@ import t
 
 ROOT = os.path.dirname(t.HERE)
 API = os.path.join(ROOT, "api_v2")
+# Where the contexts and both migration chains live; dotnet ef builds the host (API) to reach them
+INFRA = os.path.join(ROOT, "backend", "Infrastructure")
+MIGRATIONS = os.path.join(INFRA, "Persistence")
 PASSWORD = os.environ.get("PGPASSWORD", "postgres")
 REAL = {"main", "collector", "api_v2", "postgres"}
 
@@ -62,7 +65,7 @@ def sequences(db):
 def sql(db, q):
     return run(["psql", "-d", db, "-qAt", "-c", q]).strip()
 
-# The two migration chains (api_v2/Data/MigrationContexts.cs): the data, which travels in time, and what is always
+# The two migration chains (backend/Infrastructure/Persistence/MigrationContexts.cs): the data, which travels in time, and what is always
 # current. Each has its own context, history table and folder.
 CHAINS = {
     "data": ("DataMigrationsContext", "__EFMigrationsHistory", "Migrations"),
@@ -77,7 +80,7 @@ def applied(db=t.MAIN_DB, chain="data"):
 
 def migrations(chain="data"):
     # Every migration in the chain's folder, oldest first
-    return sorted(f[:-3] for f in os.listdir(os.path.join(API, CHAINS[chain][2])) if re.fullmatch(r"\d{14}_\w+\.cs", f))
+    return sorted(f[:-3] for f in os.listdir(os.path.join(MIGRATIONS, CHAINS[chain][2])) if re.fullmatch(r"\d{14}_\w+\.cs", f))
 
 def short(name):
     return name.split("_", 1)[-1]
@@ -129,7 +132,7 @@ def build():
 def update(to, db=t.MAIN_DB, chain="data"):
     # to is a migration's full name in that chain, or "0" for none at all
     started = time.time()
-    done = subprocess.run(["dotnet", "ef", "database", "update", to, "--project", API, "--configuration", "Release",
+    done = subprocess.run(["dotnet", "ef", "database", "update", to, "--project", INFRA, "--startup-project", API, "--configuration", "Release",
                            "--no-build", "--context", CHAINS[chain][0], "--connection", connection(db)],
                           cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
                           env=dict(os.environ, ASPNETCORE_ENVIRONMENT="Throwaway"))

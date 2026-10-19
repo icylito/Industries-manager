@@ -17,7 +17,7 @@ from pg import API, changed, layout_diff, sql, snapshot
 check = pg.Checks()
 fails = check.fails
 
-# The data chain, or with CHAIN=state the chain of what is always current (api_v2/Migrations/State)
+# The data chain, or with CHAIN=state the chain of what is always current (backend/Infrastructure/Persistence/Migrations/State)
 CHAIN = os.environ.get("CHAIN", "data")
 if CHAIN not in pg.CHAINS: sys.exit(f"CHAIN is data or state, not {CHAIN}")
 LIST = "applied" if CHAIN == "data" else "state"
@@ -34,7 +34,7 @@ def update(to):
 # What a migration's Down is allowed to lose, set up after going forward and looked at after going back.
 # A migration without an entry here must come back with nothing lost at all.
 # The Tables page: going back loses every table made on it (its Down says so). A manager made before going forward
-# stays a manager going back, since accounts are always current and belong to the state chain (api_v2/Data/StateModel.cs).
+# stays a manager going back, since accounts are always current and belong to the state chain (backend/Infrastructure/Persistence/StateModel.cs).
 manager = None
 
 def user_tables_prepare():
@@ -182,7 +182,7 @@ FIXTURES = {"AddUserTablesAndManager": (user_tables_forward, user_tables_back, u
 names = pg.migrations(CHAIN)
 wanted = os.environ.get("MIGRATION") or names[-1]
 found = [n for n in names if wanted in (n, n.split("_", 1)[1])]
-if not found: sys.exit(f"There's no migration called {wanted} in api_v2/Migrations")
+if not found: sys.exit(f"There's no migration called {wanted} in backend/Infrastructure/Persistence/Migrations")
 target = found[0]
 short = target.split("_", 1)[1]
 previous = names[names.index(target) - 1] if names.index(target) > 0 else "0"

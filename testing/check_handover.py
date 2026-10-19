@@ -1,4 +1,4 @@
-# The start-up hand-over between the two migration chains (api_v2/Data/MigrationService.cs, HandOverAsync).
+# The start-up hand-over between the two migration chains (backend/Infrastructure/Startup/MigrationService.cs, HandOverAsync).
 # A database from before the chains were split has state steps (here NamedBoardsSettingsTray) recorded in the data
 # chain's history. Starting the API must move them to the state chain's history and never run them twice, run the
 # state steps that are left, keep every row, and leave no one-board-per-person index behind (ManyBoardsPerPerson).

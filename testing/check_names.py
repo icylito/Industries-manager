@@ -1,7 +1,7 @@
-# The one name rule (api_v2/Rules/Names.cs): two names are the same when they match ignoring capital letters, accents,
+# The one name rule (backend/Domain/Rules/Names.cs): two names are the same when they match ignoring capital letters, accents,
 # spaces, punctuation and symbols, by ICU. Checked on the throwaway API for everything with a name: companies, tables
 # and their columns, fields and accounts. The rule lives in three places (the database's collation name_rule, C#'s
-# Names, the page's services/name-key.ts); each is held to the same examples below, the page's in name-key.spec.ts.
+# Names, the page's domain/name-key.ts); each is held to the same examples below, the page's in name-key.spec.ts.
 #   python3 -I check_names.py      with the throwaway API running, ADMIN_PASSWORD set
 import json, os, sys, uuid
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -17,7 +17,7 @@ def check(label, ok, detail=""):
 t.TOK, _ = t.login("admin", t.ADMIN_PASSWORD)
 stamp = uuid.uuid4().hex[:5]
 
-# The same pairs as angular/src/app/services/name-key.spec.ts: (a, b, one name?)
+# The same pairs as angular/src/app/domain/name-key.spec.ts: (a, b, one name?)
 PAIRS = [("Acme, Inc.", "acme-inc", True), ("Ácmé Inc", "ACME inc", True), ("ali.k", "ali_k", True), ("काम", "कम", False),
          ("ΟΔΟΣ", "οδος", True), ("İzmir", "izmir", True), ("Acme 1", "Acme 2", False), ("Sales 2", "sales. (2)", True),
          ("شركة", "شَرِكة", True), ("Ｆｕｌｌ", "full", True), ("a+b", "ab", True), ("$Cash", "cash", True),

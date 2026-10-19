@@ -4,7 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Stock Listing: an Angular 22 page (`angular/`) and a .NET 10 minimal API (`api_v2/`) over Postgres, for a team that keeps a
+Stock Listing: an Angular 22 page (`angular/`) and a .NET 10 minimal API (`api_v2/` hosts it, the layers are in
+`backend/`) over Postgres, for a team that keeps a
 table of industries. Read `README.md` first (what it does, the pages, the roles, where files go). `HANDOFF.md` and
 `OVERVIEW_HANDOFF.md` carry the history and the briefs, `docs/plans/` holds dated plans, `testing/README.md` explains the
 check scripts. This file is only what needs several files to see.
@@ -19,15 +20,17 @@ Run from the repo root unless a folder is named. `start.bat` starts the API and 
 | API (port 5005) | `cd api_v2 && dotnet run --launch-profile http` |
 | Page (port 4200) | `cd angular && npx ng serve` |
 | Database | `docker compose up -d` (Postgres 17 on **5433**). `appsettings.Development.json` points at it in this copy; change the two strings there to `5432` to use your own Postgres instead. |
-| Build | `cd api_v2 && dotnet build` and `cd angular && npx ng build` |
+| Build | `dotnet build api_v2.slnx` and `cd angular && npx ng build` |
+| API tests | `dotnet test api_v2.slnx` (layer rules, unit tests and the smoke run). The smoke run needs Postgres on 5433, `SMOKE_PG` names another server; `--filter Category!=Smoke` skips it |
+| Page layer check | `cd angular && npm run lint:layers` (dependency-cruiser, rules in `angular/.dependency-cruiser.cjs`) |
 | All page tests | `cd angular && npx ng test --watch=false` |
 | One page test file | `cd angular && npx ng test --watch=false --include src/app/presentation/components/history/history.spec.ts` |
-| New migration | `cd api_v2 && .\migrate.ps1 -Context Data -Name Something` (or `-Context State`). The API applies it on its next start. |
+| New migration | `cd api_v2 && .\migrate.ps1 -Context Data -Name Something` (or `-Context State`). It runs the pinned `dotnet-ef` from `dotnet-tools.json` against `backend/Infrastructure` with `api_v2` as the startup project. The API applies it on its next start. |
 | Seed rows | `python scripts/seed_industries.py` (settings in `scripts/seeding.toml`, login in the git ignored `scripts/seeding.control.toml`) |
 | API and page checks | `cd testing && python3 -I check_<name>.py`, see `testing/README.md` |
 | Throwaway API for the checks (port 5104) | copy `testing/appsettings.Throwaway.example.json` to `api_v2/appsettings.Throwaway.json`, then in `api_v2`: `set ASPNETCORE_ENVIRONMENT=Throwaway` and `dotnet run -c Release --no-launch-profile --urls http://localhost:5104` |
 
-There is no linter configured. The page has a Prettier config (`angular/.prettierrc`: width 100, single quotes, the
+The only lint is the page's layer check above. The page has a Prettier config (`angular/.prettierrc`: width 100, single quotes, the
 Angular parser for HTML), run it on the files you touch with `cd angular && npx prettier --write <file>`. After `package.json` changes run `npm ci` in `angular/`, a stale `node_modules` fails the
 build with a missing font file.
 
@@ -36,19 +39,37 @@ build with a missing font file.
 
 ## Architecture
 
-**Four layers, one project, and the arrows point inward.** `api_v2/Domain/` is entities and pure rules: no EF, no
-ASP.NET, no Npgsql, no files or network. `api_v2/Application/` holds the use cases and the ports they call out through,
-and references `Domain` only. `api_v2/Infrastructure/` implements the ports: EF stores, the collector's SQL, crypto,
-file folders, configuration readers, backups, the migration and restore runners, the hosted jobs. `api_v2/Presentation/`
-is the API surface: endpoints, request/response contracts, authorization filters, error mapping. `Program.cs` is the
-only composition root; everything else is wired there. The page follows the same split under `angular/src/app/`:
-`domain/`, `application/`, `infrastructure/`, `presentation/components/`, with the shell at the app root. A use case
-names an interface in `Application/Ports/`; the implementing class lives in `Infrastructure/` and is registered next to
-its interface in `Program.cs`. Keep it that way: an endpoint binds input, calls one use case or store, and maps the
-answer to a `Results.*`.
+**Four layers, four projects, and the arrows point inward.** Each layer of the API is its own project under `backend/`,
+so a reference the wrong way doesn't compile, and `backend/Tests/Architecture/LayerRules.cs` fails on a framework
+package a layer has no business with.
+
+| Project | Holds | May reference |
+|---|---|---|
+| `backend/Domain` | entities and pure rules (names, fields, boards, tables, file kinds) | nothing, not even a package |
+| `backend/Application` | use cases, the ports in `Ports/`, result records, the settings records in `Settings/AppOptions.cs`, the work of the background jobs in `Jobs/` | Domain, and the logging and DI abstractions |
+| `backend/Infrastructure` | EF and both migration chains, stores, SQL, files, crypto, backups, the timers in `Hosted/`, the one place appsettings is read (`DependencyInjection.cs`) | Application, EF, Npgsql, ASP.NET |
+| `backend/Presentation` | endpoints, contracts, the sign in filters, the error answers | Application only |
+| `api_v2` | `Program.cs`, the composition root: logging, CORS, Kestrel limits, compression, https, OpenAPI, then `AddApplication`, `AddInfrastructure`, `AddPresentation` | Presentation and Infrastructure |
+
+A path below that starts with `Domain/`, `Application/`, `Infrastructure/` or `Presentation/` is under `backend/`.
+
+An endpoint binds input, calls one use case, and maps the answer to a `Results.*`; it never takes a lock, builds an
+entity or touches a file. Entities never cross the wire either way: a body is a contract in `Presentation/Contracts/`
+(the smoke run checks no endpoint takes an entity). A use case asks for a port; the class behind it lives in
+Infrastructure and is wired in `backend/Infrastructure/DependencyInjection.cs`. What the database refused (name taken,
+changed meanwhile, too long) is read by `IStorageErrors`, so the error handler knows HTTP and nothing about Postgres.
+
+The page has the same four folders under `angular/src/app/`. `application/ports/` holds the ports as abstract classes
+(`IndustryGateway`, `TablesGateway`, `ScratchGateway`, `AuthGateway`, `ProfileGateway`, `SettingsGateway`, `TokenStore`)
+and `ApiFailure`, the shape of a failed call; `infrastructure/` implements them and `infrastructure/providers.ts` wires
+them, used by `app.config.ts` and by every spec that builds a test module. Components and use cases inject ports, never
+`IndustryApi` and friends, and never import `@angular/common/http`. The domain imports nothing, not even Angular: the
+board tools work against `domain/board/editor.ts`, which the board engine implements. `npm run lint:layers` fails on
+any of it. When adding a feature, put the rule in the domain, the order of the steps in an application use case, the
+database or HTTP work behind a port, and the request shape in an endpoint plus a contract.
 
 **Three places data lives.** The main database (the live tables), the **collector** database (History: `versions`,
-`version_rows`, `row_changes`, read and written with plain SQL in `Infrastructure/Persistence/CollectorStore.cs`, its
+`version_rows`, `row_changes`, read and written with plain SQL in `backend/Infrastructure/Persistence/CollectorStore.cs`, its
 schema is made by `EnsureSchemaAsync`, not by EF), and folders on disk (`backups/`, `scratchpad-files/`, `user-tables/`,
 `backup-key/`, all git ignored). `DatabaseStatus` (`Application/Health/DatabaseStatus.cs`) tracks whether each is
 reachable and `/health` reports it.
@@ -75,36 +96,43 @@ new ids. A name that is already in the table is not refused: it comes in as a fl
 import API makes the caller say skip or keep.
 
 **Rules live in the database, not in code.** Field labels, limits and custom fields are versioned in `RuleVersions` and
-served by `GET /schema`. `Domain/Rules/RulesService.cs` keeps the current set in memory, `Domain/Rules/FieldChecks.cs`
-does the checking, and `Application/Rules/RulesAdminService.cs` loads, saves and deletes versions through
-`Application/Ports/IRulesStore.cs`. Custom field values sit in `Industries."Extra"`. The page reads the rules and the API
+served by `GET /schema`. `Application/Rules/RulesService.cs` keeps the current set in memory (state shared by every
+request, so it is not in the domain), `Domain/Rules/FieldChecks.cs` does the checking, `Application/Rules/RuleChanges.cs`
+takes the locks and checks the version the page was looking at, and `Application/Rules/RulesAdminService.cs` loads,
+saves and deletes versions through `Application/Ports/IRulesStore.cs`. Custom field values sit in `Industries."Extra"`. The page reads the rules and the API
 checks them again, so a page is never the only guard.
 
 **One name rule everywhere.** Two names are the same when they match ignoring case, accents, spaces, punctuation and
 symbols, by ICU. It exists three times, kept in step by hand: the Postgres collation `name_rule`,
-`api_v2/Domain/Rules/Names.cs`, and `angular/src/app/domain/name-key.ts`. `testing/check_names.py` holds the shared examples.
+`backend/Domain/Rules/Names.cs`, and `angular/src/app/domain/name-key.ts`. `testing/check_names.py` holds the shared examples,
+and `backend/Tests/Domain/NamesTests.cs` holds C# to the same pairs.
 
 **Auth** is a Bearer token kept in `localStorage` (`stock-listing-token`), attached by
-`angular/src/app/infrastructure/auth.interceptor.ts` and stored by `infrastructure/token-store.ts`. Anyone can browse.
+`angular/src/app/infrastructure/auth.interceptor.ts` and stored by `infrastructure/token-store.ts` (behind the
+`TokenStore` port). Anyone can browse.
 Endpoint groups choose `RequireViewer`, `RequireManager` or `RequireAdmin` (`Presentation/Authorization/Policies.cs`)
 and `RequireDatabaseReady` (`Presentation/Endpoints/SchemaEndpoints.cs`). The signed-in user comes from
 `Application/Ports/ICurrentUser.cs`, loaded by `Infrastructure/Persistence/SessionUser.cs`. Route guards are in
 `angular/src/app/application/guards.ts` and must agree with the endpoint groups.
 
-**Errors.** Every exception goes through `Presentation/Errors/ApiExceptionHandler.cs`: `Describe` maps it to a status
+**Errors.** Every exception goes through `backend/Presentation/Errors/ApiExceptionHandler.cs`: `Describe` maps it to a status
 and a plain sentence, expected ones (bad input, name taken, concurrent change, busy) log one line, only the unexpected
 log a stack. `RouteHandlerOptions.ThrowOnBadRequest` is on, so bad JSON reaches it as `BadHttpRequestException`.
 
-**The Scratchpad** keeps each board as one JSON document validated by `Domain/Scratchpad/BoardRules.cs`. The client
+**The Scratchpad** keeps each board as one JSON document validated by `backend/Domain/Scratchpad/BoardRules.cs`. The client
 engine is `angular/src/app/domain/board/` (pure `ops`, `geometry`, `tools`) with the stores and board engine in
 `application/board/`. The carry tray from the Overview is server side (`/scratchpad/tray`), uploaded files live on disk
-under `scratchpad-files/` with a sweeper that removes unused ones.
+under `scratchpad-files/` with a sweeper that removes unused ones (`Application/Jobs/ScratchFileSweep.cs`, run hourly by
+`Infrastructure/Hosted/ScratchFileSweeper.cs`). What a file may be is `Domain/Scratchpad/ScratchFileRules.cs`.
 
-**Backups are sealed to this computer.** `api_v2/Infrastructure/Backups/`: the dumps and the CSV are encrypted
+**Backups are sealed to this computer.** `backend/Infrastructure/Backups/`: the dumps and the CSV are encrypted
 (`BackupCipher`) and every backup carries a `signature.json` (`BackupSigner`, an HMAC over the files' hashes). Both
-halves of the key sit in `backup-key/`, wrapped by Windows DPAPI, so a backup or a key copied to another PC is refused
+halves of the key sit in `backup-key/`, wrapped by Windows DPAPI (`DpapiKeyProtector`, behind `IKeyProtector` in
+`Infrastructure/Security/KeyProtector.cs`), so a backup or a key copied to another PC is refused
 rather than loaded. The signature is checked before anything reaches `pg_restore`, because a dump runs whatever SQL it
-holds. A missing or foreign key is an error, never a reason to make a new one.
+holds. A missing or foreign key is an error, never a reason to make a new one. So the API runs on Windows only: on
+anything else `KeyProtection.ForThisComputer` stops startup. The smoke run swaps `IKeyProtector` alone, which is how it
+runs on Linux.
 
 **The page layout.** `angular/src/app/app.html` is the shell: the top `.nav` for everyone, the slim `.admin-nav` on admin
 pages, and on a phone the links move into the sliding `.menu-panel`. Each route's `data` (in `app.routes.ts`) sets the
@@ -125,25 +153,28 @@ to be confused with `presentation/components/scratchpad/rich-text.ts`, the Scrat
 
 | One side | The other side |
 |---|---|
-| `angular/src/app/domain/models/board.ts` | `api_v2/Domain/Scratchpad/BoardRules.cs` (the board shape) |
+| `angular/src/app/domain/models/board.ts` | `backend/Domain/Scratchpad/BoardRules.cs` (the board shape) |
 | `HistoryPage.noteMax` in `history.ts` | `HistoryEndpoints.NoteMax`, which aliases `HistoryService.NoteMax` (the restore note limit, 300) |
-| `angular/src/app/domain/name-key.ts` | `api_v2/Domain/Rules/Names.cs` and the `name_rule` collation |
-| A model in `api_v2/Domain/Entities/` | an EF migration in the right chain, and the TS type in `domain/models/industry.ts` |
+| `angular/src/app/domain/name-key.ts` | `backend/Domain/Rules/Names.cs` and the `name_rule` collation |
+| A model in `backend/Domain/Entities/` | an EF migration in the right chain, and the TS type in `domain/models/industry.ts` |
+| A method on an API class in `angular/src/app/infrastructure/` | the same method on its port in `application/ports/` |
 | A route in `app.routes.ts` | its guard, and the `Require*` on the endpoint group |
 
 ## Things that bite
 
-- **A request body only gets `AddValidation()` if it is a record in `Presentation/Contracts/`.** The bodies all live
-  there now, so the attributes work; free text checked by a hand written rule inside a use case still needs that rule
-  kept next to the contract it guards. JSON bodies are capped at 2 MB (`Http:MaxRequestBodyKb`), uploads raise their
-  own limit on the request.
+- **No request body carries validation attributes.** `AddValidation()` stays in `Program.cs`, but every check is a
+  hand written rule in the domain or a use case, so a new free text field needs its own length check there. JSON
+  bodies are capped at 2 MB (`Http:MaxRequestBodyKb`), uploads raise their own limit on the request.
 - `GET /industries` returns the whole table, and Browse and Overview compute everything from it in the browser. Fine at
   tens of thousands of rows, see Phase 2 below. The Scratchpad uses `/industries/search`, `/top` and `/by-ids` instead.
 - A restore brings back rows and rules, not old columns. That is by design, old columns are a developer request.
 - The checks in `testing/` delete rows. `testing/t.py` refuses the API on 5005 or 7165 and any database called `main`,
   `collector` or `api_v2`, so run them against a throwaway API on 5104 only. The `testing/` scripts were restored from history after the refactor and have not been run since; run them against a throwaway API on 5104.
-- The CSV escaping lives once, in `Domain/Export/CsvText.cs`, used by the History download, the Tables export and the backup Excel file; new CSV output goes through it.
+- The CSV escaping lives once, in `backend/Domain/Export/CsvText.cs`, used by the History download, the Tables export and the backup Excel file; new CSV output goes through it.
 - Comments in this repo are plain sentences about intent and the reason, not labels. Match that.
+- Migrations keep the namespaces `api_v2.Migrations` and `api_v2.Migrations.State` though they sit in
+  `backend/Infrastructure/Persistence/`, and the entities keep `api_v2.Domain.Entities`: the snapshots name them, so a
+  rename would make EF see a model change. `migrate.ps1` passes `--namespace` for that.
 - Commit only when asked, as one plain line in the owner's lowercase style with a `Contributor:` trailer, no co-author line.
 
 ## Current plan
@@ -160,9 +191,6 @@ Alongside it, `docs/plans/2026-10-15-history-requests-desktop.md` (History and R
 only): all seven asks are built. In the Requests list the status only reads, it changes inside the ticket, and
 `canSetStatus` in `requests.ts` is the one check a roles panel will replace later. The phone gets a later pass of its own.
 
-The clean architecture pass is built on branch `clean-architecture`, full text in
-`docs/plans/2026-10-18-clean-architecture.md`: `api_v2` split into Domain, Application, Infrastructure and Presentation,
-every endpoint behind a use case or store port, and the page split into domain, application, infrastructure and
-presentation. A request body lives in `Presentation/Contracts/`, a rule that is pure in `Domain/`, a query in
-`Infrastructure/`. When adding a feature, put the rule in the domain, the order of the steps in an application use case,
-the database work in an infrastructure store, and the HTTP shape in an endpoint plus a contract.
+The clean architecture pass is built on branch `clean-architecture`: `docs/plans/2026-10-18-clean-architecture.md` split
+the code into the four folders, and `docs/plans/2026-10-19-clean-architecture-projects.md` made each layer its own
+project, moved what still bent the rules, and added the layer tests, the page's layer check and the smoke run.

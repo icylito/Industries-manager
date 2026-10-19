@@ -154,10 +154,10 @@ send("PUT", "/me/settings", {"shortcuts": {}, "mouse": {}, "theme": None}, admin
 
 # The ids the API knows are the page's ids, read from both sources
 here = os.path.dirname(os.path.abspath(__file__))
-ts = open(os.path.join(here, "..", "angular", "src", "app", "services", "shortcuts.ts"), encoding="utf-8").read()
-cs = open(os.path.join(here, "..", "api_v2", "Endpoints", "MeEndpoints.cs"), encoding="utf-8").read()
-ts_fonts = open(os.path.join(here, "..", "angular", "src", "app", "Components", "scratchpad", "rich-text.ts"), encoding="utf-8").read()
-rules = open(os.path.join(here, "..", "api_v2", "Scratchpad", "BoardRules.cs"), encoding="utf-8").read()
+ts = open(os.path.join(here, "..", "angular", "src", "app", "application", "shortcuts.ts"), encoding="utf-8").read()
+cs = open(os.path.join(here, "..", "backend", "Domain", "Accounts", "ShortcutRules.cs"), encoding="utf-8").read()
+ts_fonts = open(os.path.join(here, "..", "angular", "src", "app", "presentation", "components", "scratchpad", "rich-text.ts"), encoding="utf-8").read()
+rules = open(os.path.join(here, "..", "backend", "Domain", "Scratchpad", "BoardRules.cs"), encoding="utf-8").read()
 # Each command with its default keys: ('sp.pen', ('P',)), from the page's COMMANDS and the API's CommandDefaults
 page_defaults = {i: tuple(re.findall(r"'([^']+)'", d)) for i, d in re.findall(r"\{ id: '([a-z]+\.[A-Za-z0-9]+)'[^\n]*?def: \[([^\]]*(?:\][^,\]]*)?)\]", ts)}
 page_defaults.update({f"ov.slice{n}": (str(n),) for n in range(1, 6)})

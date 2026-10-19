@@ -10,7 +10,7 @@
 #   python3 -I check_migration_walk.py                  down to the oldest migration and back
 #   set FLOOR=AddUsersAndSessions & python3 -I ...      down to that one instead
 # Only the data travels in time: at every step the tables that are always current (accounts, notes, the Scratchpad,
-# requests, settings, see api_v2/Data/StateModel.cs) must keep every row. And a new database built by both migration
+# requests, settings, see backend/Infrastructure/Persistence/StateModel.cs) must keep every row. And a new database built by both migration
 # chains must come out exactly like the one that was upgraded.
 # Stop the throwaway API first. A dump of both throwaway databases is taken before anything moves and loaded back
 # at the end (KEEP=1 leaves the database as the walk left it), because going back past a table drops its rows.
@@ -52,7 +52,7 @@ def step_on(to, db, chain):
 
 def touched(migration, *layouts):
     # The tables a migration names, in its builder calls or its plain SQL, out of the tables either side has
-    text = open(os.path.join(pg.API, "Migrations", migration + ".cs"), encoding="utf-8").read()
+    text = open(os.path.join(pg.MIGRATIONS, "Migrations", migration + ".cs"), encoding="utf-8").read()
     known = set().union(*(pg.tables_in(l) for l in layouts))
     return {n for n in re.findall(r'"(\w+)"', text) if n in known}
 
@@ -66,7 +66,7 @@ def company(name, column):
 def table_of(key):
     return key.rsplit(".", 1)[-1].strip('"')
 
-# The tables the state chain owns, from api_v2/Data/StateModel.cs
+# The tables the state chain owns, from backend/Infrastructure/Persistence/StateModel.cs
 STATE_TABLES = {"Users", "Sessions", "UserNotes", "UserSettings", "ScratchBoards", "ScratchFiles", "ScratchTrays", "Requests", "Settings"}
 
 def state_kept(before, after):
