@@ -11,10 +11,12 @@ using Npgsql;
 
 namespace api_v2.Tests.Smoke;
 
-// The real API host over a throwaway Postgres. Only the backup key wrapping is swapped, because Windows DPAPI is the
-// one piece that can't run everywhere; everything else is what start.bat runs. SMOKE_PG names the server (default
-// the docker database on 5433). The two databases are dropped and made fresh on every run, and the folders the API
-// writes to sit in a temp folder, so nothing a person uses is touched.
+// The real API host over its own Postgres databases. Only the backup key wrapping is swapped, because Windows DPAPI is
+// the one piece that can't run everywhere; everything else is what start.bat runs. SMOKE_PG names the server (default
+// the docker database on 5433). The databases (smoke_main, smoke_collector) and the folders the API writes to
+// (api_v2-smoke in the temp folder) are kept from one run to the next, so a small change is checked without setting
+// everything up again. SMOKE_FRESH=1 drops them and starts from an empty database, which is also what the first run
+// does when they aren't there yet. Nothing a person uses is touched either way.
 public sealed class SmokeHost : WebApplicationFactory<Program>
 {
     public const string MainDb = "smoke_main";
@@ -23,21 +25,37 @@ public sealed class SmokeHost : WebApplicationFactory<Program>
     private static readonly string PgServer = Environment.GetEnvironmentVariable("SMOKE_PG")
         ?? "Host=localhost;Port=5433;Username=postgres;Password=postgres";
 
-    public string Folder { get; } = Path.Combine(Path.GetTempPath(), "api_v2-smoke-" + Guid.NewGuid().ToString("N")[..8]);
+    private static readonly bool AskedFresh = Environment.GetEnvironmentVariable("SMOKE_FRESH") == "1";
+
+    public string Folder { get; } = Path.Combine(Path.GetTempPath(), "api_v2-smoke");
     public LogCapture Logs { get; } = new();
+
+    // True when this run starts from empty databases, so the API makes the first admin and prints its password
+    public bool Fresh { get; }
 
     public SmokeHost()
     {
-        Directory.CreateDirectory(Folder);
         using var connection = new NpgsqlConnection(new NpgsqlConnectionStringBuilder(PgServer) { Database = "postgres" }.ConnectionString);
         connection.Open();
+        var missing = false;
         foreach (var db in new[] { MainDb, CollectorDb })
         {
-            using var drop = new NpgsqlCommand($"DROP DATABASE IF EXISTS \"{db}\" WITH (FORCE)", connection);
-            drop.ExecuteNonQuery();
+            if (AskedFresh)
+            {
+                using var drop = new NpgsqlCommand($"DROP DATABASE IF EXISTS \"{db}\" WITH (FORCE)", connection);
+                drop.ExecuteNonQuery();
+            }
+            using var exists = new NpgsqlCommand("SELECT 1 FROM pg_database WHERE datname = @name", connection);
+            exists.Parameters.AddWithValue("name", db);
+            if (exists.ExecuteScalar() is not null) continue;
             using var create = new NpgsqlCommand($"CREATE DATABASE \"{db}\"", connection);
             create.ExecuteNonQuery();
+            missing = true;
         }
+        Fresh = AskedFresh || missing;
+        // The folders go with the databases: a new database with an old backup key or old files would not match
+        if (Fresh && Directory.Exists(Folder)) Directory.Delete(Folder, recursive: true);
+        Directory.CreateDirectory(Folder);
     }
 
     private static string Db(string name) => new NpgsqlConnectionStringBuilder(PgServer) { Database = name }.ConnectionString;
@@ -61,8 +79,8 @@ public sealed class SmokeHost : WebApplicationFactory<Program>
 
     protected override void Dispose(bool disposing)
     {
+        // The databases and the folder stay for the next run, see the top of this file
         base.Dispose(disposing);
-        try { Directory.Delete(Folder, recursive: true); } catch (IOException) { }
     }
 }
 

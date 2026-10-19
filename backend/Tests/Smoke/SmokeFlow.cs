@@ -9,13 +9,17 @@ using Xunit.Abstractions;
 
 namespace api_v2.Tests.Smoke;
 
-// One walk through every part of the app the way a person uses it, against a fresh database: the API migrates both
-// chains, makes the first admin, and each step checks the status it should answer, not only that nothing failed.
-// Steps run in order because each builds on the last (signed in, a row added, a table made...).
+// One walk through every part of the app the way a person uses it: the API migrates both chains (and on an empty
+// database makes the first admin), and each step checks the status it should answer, not only that nothing failed.
+// Steps run in order because each builds on the last (signed in, a row added, a table made...). The databases are
+// kept between runs, so every name this run makes carries the run's stamp and the run tidies what it made.
 [Trait("Category", "Smoke")]
 public sealed class SmokeFlow(SmokeHost host, ITestOutputHelper output) : IClassFixture<SmokeHost>
 {
     private const string NewPassword = "Smoke-Run-2026-strong";
+
+    // Letters only, so it fits a username, and new on every run, so a kept database never sees the same name twice
+    private static readonly string Stamp = new(Guid.NewGuid().ToString("N").Where(char.IsLetter).Take(6).ToArray());
 
     [Fact]
     public async Task The_whole_app_answers_as_before()
@@ -33,16 +37,25 @@ public sealed class SmokeFlow(SmokeHost host, ITestOutputHelper output) : IClass
         await Expect(api, HttpMethod.Post, "/industries", new { name = "Nobody's row", sector = "Tech" }, HttpStatusCode.Unauthorized);
         await Expect(api, HttpMethod.Get, "/auth/me", null, HttpStatusCode.Unauthorized);
 
-        // The first start made an admin and printed the password once
-        var firstPassword = host.Logs.Value("Password");
-        Assert.False(string.IsNullOrEmpty(firstPassword), "The API should print the new admin's password");
         await Expect(api, HttpMethod.Post, "/auth/login", new { username = "admin", password = "wrong" }, HttpStatusCode.Unauthorized);
-        var login = await Expect(api, HttpMethod.Post, "/auth/login", new { username = "admin", password = firstPassword }, HttpStatusCode.OK);
-        api.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login!["token"]!.GetValue<string>());
+        if (host.Fresh)
+        {
+            // The first start made an admin and printed the password once
+            var firstPassword = host.Logs.Value("Password");
+            Assert.False(string.IsNullOrEmpty(firstPassword), "The API should print the new admin's password");
+            var login = await Expect(api, HttpMethod.Post, "/auth/login", new { username = "admin", password = firstPassword }, HttpStatusCode.OK);
+            api.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login!["token"]!.GetValue<string>());
 
-        // A new admin has to pick a password before anything else
-        await Expect(api, HttpMethod.Get, "/users", null, HttpStatusCode.Forbidden);
-        await Expect(api, HttpMethod.Post, "/auth/password", new { current = firstPassword, @new = NewPassword }, HttpStatusCode.OK);
+            // A new admin has to pick a password before anything else
+            await Expect(api, HttpMethod.Get, "/users", null, HttpStatusCode.Forbidden);
+            await Expect(api, HttpMethod.Post, "/auth/password", new { current = firstPassword, @new = NewPassword }, HttpStatusCode.OK);
+        }
+        else
+        {
+            // A kept database: the admin has the password the first run gave it
+            var login = await Expect(api, HttpMethod.Post, "/auth/login", new { username = "admin", password = NewPassword }, HttpStatusCode.OK);
+            api.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login!["token"]!.GetValue<string>());
+        }
         var me = await Expect(api, HttpMethod.Get, "/auth/me", null, HttpStatusCode.OK);
         Assert.Equal("admin", me!["username"]?.GetValue<string>() ?? me["user"]?["username"]?.GetValue<string>());
 
@@ -59,18 +72,18 @@ public sealed class SmokeFlow(SmokeHost host, ITestOutputHelper output) : IClass
 
         // Industries: add, read, search, edit, refuse a name that's already there, delete
         var row = await Expect(api, HttpMethod.Post, "/industries",
-            new { name = "Smoke Test Co", sector = "Tech", price = 5.5m, release = "2026-10-19" }, HttpStatusCode.Created);
+            new { name = $"Smoke Test Co {Stamp}", sector = "Tech", price = 5.5m, release = "2026-10-19" }, HttpStatusCode.Created);
         var rowId = row!["id"]!.GetValue<int>();
         await Expect(api, HttpMethod.Get, $"/industries/{rowId}", null, HttpStatusCode.OK);
-        var found = await Expect(api, HttpMethod.Get, "/industries/search?q=smoke", null, HttpStatusCode.OK);
+        var found = await Expect(api, HttpMethod.Get, $"/industries/search?q={Stamp}", null, HttpStatusCode.OK);
         Assert.Contains(found!.AsArray(), r => r?["id"]?.GetValue<int>() == rowId);
         await Expect(api, HttpMethod.Get, "/industries/top?limit=5", null, HttpStatusCode.OK);
         await Expect(api, HttpMethod.Get, $"/industries/by-ids?ids={rowId}", null, HttpStatusCode.OK);
         await Expect(api, HttpMethod.Get, "/industries/activity", null, HttpStatusCode.OK);
         await Expect(api, HttpMethod.Put, $"/industries/update/{rowId}",
-            new { name = "Smoke Test Co", sector = "Energy", price = 6m, release = "2026-10-19" }, HttpStatusCode.NoContent);
+            new { name = $"Smoke Test Co {Stamp}", sector = "Energy", price = 6m, release = "2026-10-19" }, HttpStatusCode.NoContent);
         // Same name ignoring case, accents and spaces is the same name
-        await Expect(api, HttpMethod.Post, "/industries", new { name = "smoke  test có", sector = "Tech" }, HttpStatusCode.Conflict);
+        await Expect(api, HttpMethod.Post, "/industries", new { name = $"smoke  test có {Stamp}", sector = "Tech" }, HttpStatusCode.Conflict);
         await Expect(api, HttpMethod.Post, "/industries", new { name = "", sector = "Tech" }, HttpStatusCode.BadRequest);
         await Expect(api, HttpMethod.Delete, $"/industries/{rowId}", null, HttpStatusCode.OK);
         await Expect(api, HttpMethod.Get, $"/industries/{rowId}", null, HttpStatusCode.NotFound);
@@ -78,7 +91,7 @@ public sealed class SmokeFlow(SmokeHost host, ITestOutputHelper output) : IClass
         // Tables page: a table, a row added, edited and deleted, the CSV, then into the bin and back
         var table = await Expect(api, HttpMethod.Post, "/tables", new
         {
-            name = "Smoke table",
+            name = $"Smoke table {Stamp}",
             columns = new object[] { new { label = "Item", type = "text", required = true }, new { label = "Count", type = "number" } }
         }, HttpStatusCode.Created);
         var tableId = table!["id"]!.GetValue<int>();
@@ -101,10 +114,12 @@ public sealed class SmokeFlow(SmokeHost host, ITestOutputHelper output) : IClass
         await Expect(api, HttpMethod.Get, "/tables/bin", null, HttpStatusCode.OK);
         await Expect(api, HttpMethod.Post, $"/tables/{tableId}/restore", null, HttpStatusCode.OK);
         await Expect(api, HttpMethod.Get, "/tables", null, HttpStatusCode.OK);
+        // Back into the bin, so the kept database doesn't fill up with smoke tables
+        await Expect(api, HttpMethod.Delete, $"/tables/{tableId}", null, HttpStatusCode.OK);
 
         // Scratchpad: a board made, read, saved, a stale save refused, renamed, deleted; the tray read
         var emptyBoard = new { version = 1, items = Array.Empty<object>(), lines = Array.Empty<object>(), groups = Array.Empty<object>() };
-        var board = await Expect(api, HttpMethod.Post, "/scratchpad/boards", new { name = "Smoke board", document = emptyBoard }, HttpStatusCode.Created);
+        var board = await Expect(api, HttpMethod.Post, "/scratchpad/boards", new { name = $"Smoke board {Stamp}", document = emptyBoard }, HttpStatusCode.Created);
         var boardId = board!["id"]!.GetValue<int>();
         var opened = await Expect(api, HttpMethod.Get, $"/scratchpad/boards/{boardId}", null, HttpStatusCode.OK);
         var note = new { id = "n1", kind = "note", x = 10, y = 10, w = 200, h = 120, text = "hello", tone = "yellow" };
@@ -121,7 +136,7 @@ public sealed class SmokeFlow(SmokeHost host, ITestOutputHelper output) : IClass
         Assert.NotNull(saved!["updatedAt"]);
         await Expect(api, HttpMethod.Put, $"/scratchpad/boards/{boardId}", new { document = new { version = 7, items = new[] { note } } },
             HttpStatusCode.BadRequest);
-        await Expect(api, HttpMethod.Patch, $"/scratchpad/boards/{boardId}", new { name = "Smoke board renamed" }, HttpStatusCode.OK);
+        await Expect(api, HttpMethod.Patch, $"/scratchpad/boards/{boardId}", new { name = $"Smoke board {Stamp} renamed" }, HttpStatusCode.OK);
         await Expect(api, HttpMethod.Get, "/scratchpad/boards", null, HttpStatusCode.OK);
         await Expect(api, HttpMethod.Get, "/scratchpad/tray", null, HttpStatusCode.OK);
         await Expect(api, HttpMethod.Delete, $"/scratchpad/boards/{boardId}", null, HttpStatusCode.OK);
@@ -142,7 +157,7 @@ public sealed class SmokeFlow(SmokeHost host, ITestOutputHelper output) : IClass
         await Expect(api, HttpMethod.Get, $"/scratchpad/files/{fileId}", null, HttpStatusCode.NotFound);
 
         // Requests: ask, read, reply, the bell count, mark done
-        var ask = await Expect(api, HttpMethod.Post, "/requests", new { title = "Smoke ask", details = "Checking **requests** work" },
+        var ask = await Expect(api, HttpMethod.Post, "/requests", new { title = $"Smoke ask {Stamp}", details = "Checking **requests** work" },
             HttpStatusCode.Created);
         var requestId = ask!["id"]!.GetValue<int>();
         await Expect(api, HttpMethod.Get, $"/requests/{requestId}", null, HttpStatusCode.OK);
@@ -153,7 +168,7 @@ public sealed class SmokeFlow(SmokeHost host, ITestOutputHelper output) : IClass
 
         // Users: list, add a normal account, a note on them, then remove them
         await Expect(api, HttpMethod.Get, "/users", null, HttpStatusCode.OK);
-        var viewer = await Expect(api, HttpMethod.Post, "/users", new { username = "smokeperson", role = "normal" }, HttpStatusCode.Created);
+        var viewer = await Expect(api, HttpMethod.Post, "/users", new { username = $"smoke{Stamp}", role = "normal" }, HttpStatusCode.Created);
         var viewerId = (viewer!["user"] ?? viewer)["id"]!.GetValue<int>();
         await Expect(api, HttpMethod.Post, $"/users/{viewerId}/notes", new { text = "Made by the smoke run" }, null);
         await Expect(api, HttpMethod.Get, $"/users/{viewerId}/notes", null, HttpStatusCode.OK);

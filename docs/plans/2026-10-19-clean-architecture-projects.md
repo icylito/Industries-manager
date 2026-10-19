@@ -99,7 +99,8 @@ refused the `postgres:17` pull with 429 Too Many Requests).
   note, the backups list and three backup answers, History versions and settings, the settings file export, preview
   and import, a stale rules version refused, the person's settings and profile, bad JSON as a 400, sign out, and no
   error logged after startup. It ran green on the tree before the refactor (with only the key seam added) and after
-  every step.
+  every step. It keeps its databases and folder between runs (`SMOKE_FRESH=1` starts over), and was run fresh and
+  then twice more on the kept databases, all green.
 - OpenAPI document: identical to the one from before the refactor, after step 1 and after step 2.
 - Both migration lists identical to before, `has-pending-model-changes` clean for both chains. A probe migration made
   through the new `migrate.ps1` arguments came out empty, in the right folder and namespace, and was removed.

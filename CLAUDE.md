@@ -21,7 +21,7 @@ Run from the repo root unless a folder is named. `start.bat` starts the API and 
 | Page (port 4200) | `cd angular && npx ng serve` |
 | Database | `docker compose up -d` (Postgres 17 on **5433**). `appsettings.Development.json` points at it in this copy; change the two strings there to `5432` to use your own Postgres instead. |
 | Build | `dotnet build api_v2.slnx` and `cd angular && npx ng build` |
-| API tests | `dotnet test api_v2.slnx` (layer rules, unit tests and the smoke run). The smoke run needs Postgres on 5433, `SMOKE_PG` names another server; `--filter Category!=Smoke` skips it |
+| API tests | `dotnet test api_v2.slnx` (layer rules, unit tests and the smoke run). The smoke run needs Postgres on 5433, `SMOKE_PG` names another server; `--filter Category!=Smoke` skips it. It keeps its databases (`smoke_main`, `smoke_collector`) and folder (`api_v2-smoke` in the temp folder) between runs, so a small change is checked without setting up again; `SMOKE_FRESH=1` starts it over from an empty database |
 | Page layer check | `cd angular && npm run lint:layers` (dependency-cruiser, rules in `angular/.dependency-cruiser.cjs`) |
 | All page tests | `cd angular && npx ng test --watch=false` |
 | One page test file | `cd angular && npx ng test --watch=false --include src/app/presentation/components/history/history.spec.ts` |
