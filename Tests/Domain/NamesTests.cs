@@ -3,7 +3,7 @@ using Xunit;
 
 namespace api_v2.Tests.Domain;
 
-// The one name rule, held to the same pairs as testing/check_names.py and angular's name-key.spec.ts. The database's
+// The one name rule, held to the same pairs as angular's name-key.spec.ts. The database's
 // name_rule collation is checked against them by check_names.py.
 public sealed class NamesTests
 {

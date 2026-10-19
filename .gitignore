@@ -4,8 +4,8 @@ api_v2/obj/
 api_v2/artifacts/
 backend/*/bin/
 backend/*/obj/
-testing/transfer-check/bin/
-testing/transfer-check/obj/
+Tests/bin/
+Tests/obj/
 
 # Has the database password, copy appsettings.Development.example.json to make yours
 api_v2/appsettings.Development.json
@@ -28,11 +28,8 @@ scripts/seeding.control.toml
 .plain-*
 *.sealing
 
-# The checks in testing/: the throwaway API's settings, its backups and its Python cache
+# The throwaway API's settings, copied from the example
 api_v2/appsettings.Throwaway.json
-/testing/throwaway-backups/
-/testing/node_modules/
-/testing/__pycache__/
 
 # The page's copy of the https development certificate, start.bat https and share make it
 angular/.cert/

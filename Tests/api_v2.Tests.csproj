@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\api_v2\api_v2.csproj" />
+    <ProjectReference Include="..\api_v2\api_v2.csproj" />
   </ItemGroup>
 
 </Project>

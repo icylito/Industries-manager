@@ -7,8 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Stock Listing: an Angular 22 page (`angular/`) and a .NET 10 minimal API (`api_v2/` hosts it, the layers are in
 `backend/`) over Postgres, for a team that keeps a
 table of industries. Read `README.md` first (what it does, the pages, the roles, where files go). `HANDOFF.md` and
-`OVERVIEW_HANDOFF.md` carry the history and the briefs, `docs/plans/` holds dated plans, `testing/README.md` explains the
-check scripts. This file is only what needs several files to see.
+`OVERVIEW_HANDOFF.md` carry the history and the briefs, `docs/plans/` holds dated plans. This file is only what needs several files to see.
 
 ## Commands
 
@@ -27,8 +26,7 @@ Run from the repo root unless a folder is named. `start.bat` starts the API and 
 | One page test file | `cd angular && npx ng test --watch=false --include src/app/presentation/components/history/history.spec.ts` |
 | New migration | `cd api_v2 && .\migrate.ps1 -Context Data -Name Something` (or `-Context State`). It runs the pinned `dotnet-ef` from `dotnet-tools.json` against `backend/Infrastructure` with `api_v2` as the startup project. The API applies it on its next start. |
 | Seed rows | `python scripts/seed_industries.py` (settings in `scripts/seeding.toml`, login in the git ignored `scripts/seeding.control.toml`) |
-| API and page checks | `cd testing && python3 -I check_<name>.py`, see `testing/README.md` |
-| Throwaway API for the checks (port 5104) | copy `testing/appsettings.Throwaway.example.json` to `api_v2/appsettings.Throwaway.json`, then in `api_v2`: `set ASPNETCORE_ENVIRONMENT=Throwaway` and `dotnet run -c Release --no-launch-profile --urls http://localhost:5104` |
+| Throwaway API (port 5104) | in `api_v2`: `set ASPNETCORE_ENVIRONMENT=Throwaway` and `dotnet run -c Release --no-launch-profile --urls http://localhost:5104` |
 
 The only lint is the page's layer check above. The page has a Prettier config (`angular/.prettierrc`: width 100, single quotes, the
 Angular parser for HTML), run it on the files you touch with `cd angular && npx prettier --write <file>`. After `package.json` changes run `npm ci` in `angular/`, a stale `node_modules` fails the
@@ -40,7 +38,7 @@ build with a missing font file.
 ## Architecture
 
 **Four layers, four projects, and the arrows point inward.** Each layer of the API is its own project under `backend/`,
-so a reference the wrong way doesn't compile, and `backend/Tests/Architecture/LayerRules.cs` fails on a framework
+so a reference the wrong way doesn't compile, and `Tests/Architecture/LayerRules.cs` fails on a framework
 package a layer has no business with.
 
 | Project | Holds | May reference |
@@ -104,8 +102,7 @@ checks them again, so a page is never the only guard.
 
 **One name rule everywhere.** Two names are the same when they match ignoring case, accents, spaces, punctuation and
 symbols, by ICU. It exists three times, kept in step by hand: the Postgres collation `name_rule`,
-`backend/Domain/Rules/Names.cs`, and `angular/src/app/domain/name-key.ts`. `testing/check_names.py` holds the shared examples,
-and `backend/Tests/Domain/NamesTests.cs` holds C# to the same pairs.
+`backend/Domain/Rules/Names.cs`, and `angular/src/app/domain/name-key.ts`. `Tests/Domain/NamesTests.cs` holds C# to the same pairs.
 
 **Auth** is a Bearer token kept in `localStorage` (`stock-listing-token`), attached by
 `angular/src/app/infrastructure/auth.interceptor.ts` and stored by `infrastructure/token-store.ts` (behind the
@@ -168,18 +165,10 @@ to be confused with `presentation/components/scratchpad/rich-text.ts`, the Scrat
 - `GET /industries` returns the whole table, and Browse and Overview compute everything from it in the browser. Fine at
   tens of thousands of rows, see Phase 2 below. The Scratchpad uses `/industries/search`, `/top` and `/by-ids` instead.
 - A restore brings back rows and rules, not old columns. That is by design, old columns are a developer request.
-- The checks in `testing/` delete rows. `testing/t.py` refuses the API on 5005 or 7165 and any database called `main`,
-  `collector` or `api_v2`, so run them against a throwaway API on 5104 only. The last full run (2026-10-19, results in
-  `update.txt`) passed everything except `stress.py` (restores refused while a backup runs, see Current plan),
-  `check_dump.py` on an app backup (it can't read the sealed `SLBAK1` dumps) and the browser scripts (`check_page`,
-  `check_design`, `check_ui`, `grade_capture`), which look for the History page from before its 10-15 redesign.
-- `appsettings.Throwaway.example.json` only moves the backups folder. Start the throwaway API with
-  `Backup__SigningKeyFile`, `Scratchpad__Files` and `UserTables__Mirror` pointed under `testing/throwaway-backups`, or
-  its first start writes `backup-key/`, `scratchpad-files/` and `user-tables/` at the repo root, where the real ones go.
+- The smoke run in `Tests/` uses its own databases (`smoke_main`, `smoke_collector`) and never the real API on 5005 or the
+  real databases. `SMOKE_FRESH=1` starts it over.
 - Postgres must be 17, as in `docker-compose.yml`. A backup restore reads `pg_collation.colllocale` (17 and later), so on
   16 every restore fails, and `pg_dump`/`pg_restore` must be the server's major version.
-- `check_migration.py` on `OneNameRule` needs `EXPECT_CHANGED=Industries,UserTables KEPT=Industries,UserTables`: the
-  migration flags duplicate names and renames clashing tables on purpose, and without them two row checks fail.
 - An exception that crosses layers is defined once, in `backend/Application/Exceptions/`. A class of the same name in
   Infrastructure still compiles, but the endpoint's `catch` never matches it: `BackupRefusedException` had two copies
   and every refused restore answered 503 instead of 409 until 2026-10-19.
@@ -200,7 +189,7 @@ Full text: `docs/plans/2026-10-11-history-hardening.md`.
 | Phase | What | State |
 |---|---|---|
 | 1 | History hardening: restore note capped at 300 (page, API, storage), import must say skip or keep on duplicates, response compression and a 2 MB body cap, expected errors logged as one line | **Built**, commit `419491d`. Page tests and both builds pass, checked by hand against a copy of the data. |
-| 1b | Run `testing/check_history_limits.py` on a throwaway API | **Passed** on 2026-10-19, 21 `ok` lines |
+| 1b | History limits checked on a throwaway API | **Passed** on 2026-10-19, 21 `ok` lines |
 | 2 | Server side paging: `GET /industries/page`, `/industries/summary`, `/industries/export`, then move Browse and Overview onto them and drop the full list call | **Design only, needs its own approval.** Start when the table nears about 100,000 rows or the compressed list passes about 5 MB. Order: summary, paged list, export. |
 
 Alongside it, `docs/plans/2026-10-15-history-requests-desktop.md` (History and Requests polish, desktop only, page code
@@ -210,6 +199,5 @@ only): all seven asks are built. In the Requests list the status only reads, it 
 The clean architecture pass is built on branch `clean-architecture`: `docs/plans/2026-10-18-clean-architecture.md` split
 the code into the four folders, and `docs/plans/2026-10-19-clean-architecture-projects.md` made each layer its own
 project, moved what still bent the rules, and added the layer tests, the page's layer check and the smoke run.
-Open decisions from its testing are in `update.txt`: whether a backup restore should wait for a running backup or be
-refused (`stress.py` expects it to wait, the code refuses), the bundle budget, and running the Windows checks
-(`start.bat`, `migrate.ps1`, DPAPI, the transfer test), which have only been read, never run.
+Still open: the Windows checks (`start.bat`, `migrate.ps1`, the DPAPI key, the transfer test between two PCs), which have
+only been read, never run.

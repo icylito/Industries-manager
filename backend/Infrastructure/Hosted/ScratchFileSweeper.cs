@@ -14,7 +14,7 @@ public sealed class ScratchFileSweeper(
     {
         if (!await status.WaitUntilReadyAsync(ct)) return;
 
-        // Hourly. The throwaway API used by the checks in testing/ sets Scratchpad:SweepMinutes lower.
+        // Hourly. A throwaway API can set Scratchpad:SweepMinutes lower.
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(Math.Max(1, config.GetValue("Scratchpad:SweepMinutes", 60))));
         do
         {

@@ -1,10 +1,10 @@
 <Solution>
   <Project Path="api_v2/api_v2.csproj" />
+  <Project Path="Tests/api_v2.Tests.csproj" />
   <Folder Name="/backend/">
     <Project Path="backend/Domain/api_v2.Domain.csproj" />
     <Project Path="backend/Application/api_v2.Application.csproj" />
     <Project Path="backend/Infrastructure/api_v2.Infrastructure.csproj" />
     <Project Path="backend/Presentation/api_v2.Presentation.csproj" />
-    <Project Path="backend/Tests/api_v2.Tests.csproj" />
   </Folder>
 </Solution>

@@ -31,7 +31,7 @@ backend/Application/        use cases, ports, settings records, jobs    Domain +
 backend/Infrastructure/     EF + both migration chains, stores, files,  Application, EF, Npgsql, ASP.NET
                             crypto, backups, timers, config reading
 backend/Presentation/       endpoints, contracts, filters, errors       Application
-backend/Tests/              layer rules, unit tests, the smoke run
+Tests/                      layer rules, unit tests, the smoke run
 ```
 
 Each layer registers its own part (`AddApplication`, `AddInfrastructure`, `AddPresentation`, `MapPresentation`).
@@ -73,7 +73,7 @@ Two departures from the approved plan, both for the same end:
 ## How the rule is checked
 
 - The compiler: a layer can't name a project it doesn't reference.
-- `backend/Tests/Architecture/LayerRules.cs`: what each assembly references (Domain only the BCL; Application only
+- `Tests/Architecture/LayerRules.cs`: what each assembly references (Domain only the BCL; Application only
   Domain and the logging and DI abstractions; Presentation never Infrastructure, EF or Npgsql; Infrastructure never
   Presentation), each layer's namespace, and no disk, network or process calls in Domain or Application source.
 - `SmokeFlow.No_endpoint_takes_an_entity`: no endpoint parameter is a `Domain.Entities` type.

@@ -107,9 +107,10 @@ public sealed class LayerRules
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
-            if (File.Exists(Path.Combine(dir.FullName, "Directory.Build.props")) && Directory.Exists(Path.Combine(dir.FullName, "Domain")))
+            var backend = Path.Combine(dir.FullName, "backend");
+            if (File.Exists(Path.Combine(backend, "Directory.Build.props")) && Directory.Exists(Path.Combine(backend, "Domain")))
             {
-                return dir.FullName;
+                return backend;
             }
         }
         throw new DirectoryNotFoundException("Couldn't find backend/ above " + AppContext.BaseDirectory);

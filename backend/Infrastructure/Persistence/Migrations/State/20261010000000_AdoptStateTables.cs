@@ -11,7 +11,7 @@ namespace api_v2.Migrations.State
     // only made when it isn't there. One from an earlier step (say AddUsersAndSessions) gets the ones it is missing,
     // and a new database gets all of them.
     // The SQL is the layout pg_dump showed for those tables at AddUserTablesAndManager, so a new database and an
-    // existing one end up the same (testing/check_migration_walk.py compares them).
+    // existing one end up the same.
     public partial class AdoptStateTables : Migration
     {
         /// <inheritdoc />
