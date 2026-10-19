@@ -4,6 +4,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ShortcutsPanel } from './shortcuts-panel';
 import { Shortcuts } from '../../../application/shortcuts';
+import { provideInfrastructure } from '../../../infrastructure/providers';
 
 // Reset puts every key back at once, so it asks first (the design's "are you sure" row, like Users and Fields use)
 describe('ShortcutsPanel reset', () => {
@@ -19,7 +20,12 @@ describe('ShortcutsPanel reset', () => {
     localStorage.clear();
     await TestBed.configureTestingModule({
       imports: [ShortcutsPanel],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        ...provideInfrastructure(),
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     }).compileComponents();
     keys = TestBed.inject(Shortcuts);
     fixture = TestBed.createComponent(ShortcutsPanel);

@@ -1,8 +1,8 @@
 import { Component, DestroyRef, inject, signal } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Auth } from '../../../application/auth';
 import { errorText } from '../../../application/http-text';
+import { ApiFailure } from '../../../application/ports/api-failure';
 
 // Only a page of this app. A value with a backslash, a colon or a line break could be read by a browser as another site
 // ("/\\evil.com" becomes "//evil.com"), so anything like that goes to the table instead.
@@ -108,7 +108,7 @@ export class LoginPage {
         const safe = safeBack(this.route.snapshot.queryParamMap.get('back'));
         this.router.navigateByUrl(result.user.mustChangePassword ? '/account' : safe);
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.busy.set(false);
         this.password.set('');
         if (err.status === 429) {

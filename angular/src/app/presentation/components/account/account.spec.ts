@@ -6,13 +6,19 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { AccountPage } from './account';
 import { Auth } from '../../../application/auth';
 import { routes } from '../../../app.routes';
+import { provideInfrastructure } from '../../../infrastructure/providers';
 
 // E8: the page stops a bad new password before any call is made
 describe('AccountPage', () => {
   it('refuses a short password, two that differ, and one equal to the current one, without a request', () => {
     TestBed.configureTestingModule({
       imports: [AccountPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        ...provideInfrastructure(),
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     });
     const http = TestBed.inject(HttpTestingController);
     TestBed.inject(Auth).user.set({
@@ -66,7 +72,12 @@ describe('AccountPage and the parked admin links', () => {
   const render = (role: 'admin' | 'normal') => {
     TestBed.configureTestingModule({
       imports: [AccountPage],
-      providers: [provideRouter(routes), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        ...provideInfrastructure(),
+        provideRouter(routes),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     });
     TestBed.inject(Auth).user.set({
       id: 1,
@@ -93,7 +104,12 @@ describe('AccountPage as a profile card', () => {
   const render = (mustChangePassword: boolean) => {
     TestBed.configureTestingModule({
       imports: [AccountPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        ...provideInfrastructure(),
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     });
     TestBed.inject(Auth).user.set({
       id: 1,
@@ -145,7 +161,12 @@ describe('AccountPage picture and name', () => {
   const render = (avatarAt: string | null) => {
     TestBed.configureTestingModule({
       imports: [AccountPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        ...provideInfrastructure(),
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     });
     TestBed.inject(Auth).user.set({
       id: 1,

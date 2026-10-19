@@ -7,6 +7,7 @@ import { TablesPage } from './tables';
 import { Auth } from '../../../application/auth';
 import { AuthUser, Role, UserTable } from '../../../domain/models/industry';
 import { environment } from '../../../../environments/environment';
+import { provideInfrastructure } from '../../../infrastructure/providers';
 
 const url = `${environment.apiUrl}/tables`;
 const leads: UserTable = {
@@ -74,6 +75,7 @@ describe('TablesPage', () => {
       imports: [TablesPage],
       // Saving a new table and deleting one navigate, so those addresses have to exist
       providers: [
+        ...provideInfrastructure(),
         provideRouter([
           { path: 'tables', children: [] },
           { path: 'tables/:id', children: [] },

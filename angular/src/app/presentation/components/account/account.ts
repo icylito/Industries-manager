@@ -1,9 +1,9 @@
 import { Component, ElementRef, computed, inject, signal } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Auth } from '../../../application/auth';
 import { Profile } from '../../../application/profile';
 import { errorText } from '../../../application/http-text';
+import { ApiFailure } from '../../../application/ports/api-failure';
 
 type Box = 'current' | 'next' | 'repeat';
 
@@ -170,7 +170,7 @@ export class AccountPage {
           this.editing.set(false);
         }
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.busy.set(false);
         // The API answers per box too ("current" or "new"), so its words land under the right one
         const errors = err.error?.errors as Record<string, string[]> | undefined;

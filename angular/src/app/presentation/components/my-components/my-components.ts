@@ -18,7 +18,7 @@ import {
   RuleSet,
 } from '../../../domain/models/industry';
 import { Auth } from '../../../application/auth';
-import { IndustryApi } from '../../../infrastructure/industry-api';
+import { IndustryGateway } from '../../../application/ports/industry-gateway';
 import { countUp } from '../../../application/count-up';
 import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -40,7 +40,7 @@ function own(obj: object | null | undefined, key: string): unknown {
   templateUrl: './my-components.html',
 })
 export class MyComponents implements OnInit {
-  private api = inject(IndustryApi);
+  private api = inject(IndustryGateway);
   protected auth = inject(Auth);
   private fb = inject(FormBuilder);
   private route = inject(ActivatedRoute);

@@ -1,5 +1,5 @@
 import { BoardView } from '../models/board';
-import type { BoardEngine, Tx } from '../../application/board/board-engine';
+import type { BoardEditor, Tx } from './editor';
 import { KINDS, newId } from './item-kinds';
 import {
   Point,
@@ -67,7 +67,7 @@ export interface Gesture {
 }
 
 export interface Tool {
-  down(c: PointerCtx, engine: BoardEngine, ui: ToolUi): Gesture | null;
+  down(c: PointerCtx, engine: BoardEditor, ui: ToolUi): Gesture | null;
 }
 
 // How wide each stroke is drawn, in board units. The marker is see-through and in the signal colour.
@@ -120,7 +120,7 @@ export function panGesture(start: PointerCtx, ui: ToolUi): Gesture {
 }
 
 // Moves these things together. With duplicating, the first real move leaves the originals and moves copies.
-function dragGesture(start: PointerCtx, ids: string[], engine: BoardEngine, ui: ToolUi): Gesture {
+function dragGesture(start: PointerCtx, ids: string[], engine: BoardEditor, ui: ToolUi): Gesture {
   const tx: Tx = engine.begin();
   let moving = ids;
   let origins = new Map(
@@ -164,7 +164,7 @@ function dragGesture(start: PointerCtx, ids: string[], engine: BoardEngine, ui: 
 function resizeGesture(
   start: PointerCtx,
   id: string,
-  engine: BoardEngine,
+  engine: BoardEditor,
   ui: ToolUi,
 ): Gesture | null {
   const item = engine.doc().items.find((one) => one.id === id);
@@ -188,7 +188,7 @@ function resizeGesture(
 }
 
 // A box dragged on empty space picks everything it touches, added to what was picked when adding
-function boxGesture(start: PointerCtx, engine: BoardEngine, ui: ToolUi): Gesture {
+function boxGesture(start: PointerCtx, engine: BoardEditor, ui: ToolUi): Gesture {
   const kept = start.adding ? engine.selectedIds() : [];
   let box: Rect = { x: start.screen.x, y: start.screen.y, w: 0, h: 0 };
   ui.setBox(box);

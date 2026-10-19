@@ -5,13 +5,19 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { SettingsPage } from './settings';
 import { Auth } from '../../../application/auth';
 import { routes } from '../../../app.routes';
+import { provideInfrastructure } from '../../../infrastructure/providers';
 
 // One place for an admin: their own account, and everyone who can sign in
 describe('SettingsPage', () => {
   const render = async () => {
     await TestBed.configureTestingModule({
       imports: [SettingsPage],
-      providers: [provideRouter(routes), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        ...provideInfrastructure(),
+        provideRouter(routes),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     }).compileComponents();
     TestBed.inject(Auth).user.set({
       id: 1,

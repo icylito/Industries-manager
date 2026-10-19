@@ -5,6 +5,7 @@ import { provideRouter } from '@angular/router';
 import { RequestsPage } from './requests';
 import { Auth } from '../../../application/auth';
 import { DevRequest } from '../../../domain/models/industry';
+import { provideInfrastructure } from '../../../infrastructure/providers';
 
 const ticket: DevRequest = {
   id: 7,
@@ -25,7 +26,12 @@ describe('RequestsPage', () => {
   function setup(role: 'admin' | 'normal', username: string) {
     TestBed.configureTestingModule({
       imports: [RequestsPage],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      providers: [
+        ...provideInfrastructure(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+      ],
     });
     TestBed.inject(Auth).user.set({
       id: 1,

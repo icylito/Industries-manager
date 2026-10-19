@@ -1,8 +1,8 @@
 import { signal } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
 import { Observable, firstValueFrom } from 'rxjs';
 import { BoardDocument } from '../../domain/models/board';
-import { errorText } from '../../application/http-text';
+import { errorText } from '../http-text';
+import { ApiFailure, isApiFailure } from '../ports/api-failure';
 
 // The pill next to Shortcuts. Three states, one rule: nothing is called Saved until the server says so.
 // See OVERVIEW_HANDOFF.md, "the save state".
@@ -118,7 +118,7 @@ export class BoardSync {
       if (this.unsaved) this.later(SAVE_DEBOUNCE_MS);
     } catch (error) {
       if (this.closed) return;
-      const status = error instanceof HttpErrorResponse ? error.status : -1;
+      const status = isApiFailure(error) ? error.status : -1;
       if (status === 409 || status === 404) {
         // Never pretend this one saved, and don't retry into the same wall
         this.conflict.set(status === 409 ? 'changed' : 'deleted');
@@ -126,9 +126,7 @@ export class BoardSync {
         return;
       }
       if (status === 400) {
-        this.problem.set(
-          errorText(error as HttpErrorResponse, "This board can't be saved as it is"),
-        );
+        this.problem.set(errorText(error as ApiFailure, "This board can't be saved as it is"));
         this.state.set('failed');
         return;
       }

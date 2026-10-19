@@ -1,12 +1,12 @@
 import { ConfirmPopup } from '../confirm-popup/confirm-popup';
 import { Component, DestroyRef, HostListener, OnInit, inject, signal } from '@angular/core';
 import { sameName } from '../../../domain/name-key';
-import { HttpErrorResponse } from '@angular/common/http';
 import { AuthUser } from '../../../domain/models/industry';
 import { Auth } from '../../../application/auth';
 import { UserNote } from '../../../domain/models/industry';
-import { IndustryApi } from '../../../infrastructure/industry-api';
+import { IndustryGateway } from '../../../application/ports/industry-gateway';
 import { errorText } from '../../../application/http-text';
+import { ApiFailure } from '../../../application/ports/api-failure';
 
 // Everything the menu can do to someone. Turning an account back on takes nothing away, so it is the one that does not ask.
 type RowAction = 'reset' | 'off' | 'admin' | 'manager' | 'normal' | 'delete' | 'rename';
@@ -24,7 +24,7 @@ type Pending = { user: AuthUser; action: RowAction };
   imports: [ConfirmPopup],
 })
 export class UsersPage implements OnInit {
-  private api = inject(IndustryApi);
+  private api = inject(IndustryGateway);
   protected auth = inject(Auth);
 
   users = signal<AuthUser[]>([]);
@@ -77,7 +77,7 @@ export class UsersPage implements OnInit {
         this.loading.set(false);
         this.error.set('');
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.loading.set(false);
         this.error.set(errorText(err, 'Could not load the people'));
       },
@@ -113,7 +113,7 @@ export class UsersPage implements OnInit {
         this.copied.set(false);
         this.load();
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.busy.set(false);
         this.addError.set(errorText(err));
       },
@@ -196,7 +196,7 @@ export class UsersPage implements OnInit {
         this.notesLoading.set(false);
         this.markNotes(id, list.length > 0);
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.notesLoading.set(false);
         this.error.set(errorText(err, 'Could not load the notes'));
       },
@@ -221,7 +221,7 @@ export class UsersPage implements OnInit {
         this.noteText.set('');
         this.loadNotes(user.id);
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.notesBusy.set(false);
         this.error.set(errorText(err));
       },
@@ -239,7 +239,7 @@ export class UsersPage implements OnInit {
         this.confirmingNote.set(null);
         this.loadNotes(user.id);
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.notesBusy.set(false);
         this.confirmingNote.set(null);
         this.error.set(errorText(err));
@@ -312,7 +312,7 @@ export class UsersPage implements OnInit {
           this.pending.set(null);
           this.load();
         },
-        error: (err: HttpErrorResponse) => {
+        error: (err: ApiFailure) => {
           this.busy.set(false);
           this.pending.set(null);
           this.error.set(errorText(err));
@@ -350,7 +350,7 @@ export class UsersPage implements OnInit {
         this.copied.set(false);
         this.load();
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.busy.set(false);
         this.pending.set(null);
         this.error.set(errorText(err));
@@ -368,7 +368,7 @@ export class UsersPage implements OnInit {
         this.pending.set(null);
         this.load();
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.busy.set(false);
         this.pending.set(null);
         this.error.set(errorText(err));

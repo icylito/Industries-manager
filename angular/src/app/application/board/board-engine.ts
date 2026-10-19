@@ -1,5 +1,4 @@
 import { Service, computed, inject, signal } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import {
   BoardDocument,
@@ -9,8 +8,10 @@ import {
   ItemOf,
   ScratchFileInfo,
 } from '../../domain/models/board';
-import { ScratchApi } from '../../infrastructure/board/scratch-api';
-import { BoardSync, Conflict, DrainEnd, SaveState } from '../../infrastructure/board/board-sync';
+import { ScratchGateway } from '../ports/scratch-gateway';
+import { isApiFailure } from '../ports/api-failure';
+import { BoardSync, Conflict, DrainEnd, SaveState } from './board-sync';
+import { BoardEditor, Placement, Tx } from '../../domain/board/editor';
 import { Toast } from '../toast';
 import { errorText } from '../http-text';
 import { MAX_BOARD_ITEMS, MAX_BOARD_POINTS } from '../../domain/board/tools';
@@ -25,20 +26,9 @@ import {
 import { KINDS, newId } from '../../domain/board/item-kinds';
 import { Point, bestBend, bounds, freeSpot, tidyView } from '../../domain/board/geometry';
 
-export type { SaveState } from '../../infrastructure/board/board-sync';
+export type { SaveState } from './board-sync';
+export type { Placement, Tx } from '../../domain/board/editor';
 export type { Op } from '../../domain/board/ops';
-
-// A change being made over time: a drag, a typing burst, a nudge. Ops applied to it show at once; commit makes
-// all of them one undo step, cancel puts the board back as it was. A newer change commits this one first.
-export interface Tx {
-  readonly open: boolean;
-  apply(op: Op): void;
-  commit(): void;
-  cancel(): void;
-}
-
-// Where a new thing goes: the nearest free spot on screen, or centred on a point (where something was dropped)
-export type Placement = 'auto' | { center: Point };
 
 // What an undo or redo changed, so the page can follow it outside the board (the carry tray). step names the
 // undo step undone or redone, the same as lastStep() answered just after it was made.
@@ -100,8 +90,8 @@ class OpenTx implements Tx {
 // redo and saving work the same for all of them. Undo is essential (the user's words), so nothing on the page
 // asks "are you sure". The view is kept apart: moving around is never an undo step and never saves the board.
 @Service()
-export class BoardEngine {
-  private api = inject(ScratchApi);
+export class BoardEngine implements BoardEditor {
+  private api = inject(ScratchGateway);
   private toast = inject(Toast);
 
   readonly doc = signal<BoardDocument>(emptyDocument());
@@ -275,10 +265,9 @@ export class BoardEngine {
       // Nowhere to put them yet: they wait here, and opening the board again offers Reload or Keep mine again
       away.stranded = true;
       if (!this.leaving.has(away.session.id)) this.leaving.set(away.session.id, away);
-      const reason =
-        error instanceof HttpErrorResponse
-          ? errorText(error, 'the new board could not be made')
-          : 'the new board could not be made';
+      const reason = isApiFailure(error)
+        ? errorText(error, 'the new board could not be made')
+        : 'the new board could not be made';
       this.toast.say(
         '"' +
           away.name +
@@ -321,7 +310,7 @@ export class BoardEngine {
     } catch (error) {
       // Why, in the API's words (the 100 boards limit, say)
       const fallback = "Couldn't make the new board. Try again in a moment";
-      return error instanceof HttpErrorResponse ? errorText(error, fallback) : fallback;
+      return isApiFailure(error) ? errorText(error, fallback) : fallback;
     }
   }
 
@@ -535,7 +524,7 @@ export class BoardEngine {
         await firstValueFrom(this.api.saveBoard(id, next, answer.updatedAt));
         return;
       } catch (error) {
-        if (!(error instanceof HttpErrorResponse && error.status === 409)) return;
+        if (!(isApiFailure(error) && error.status === 409)) return;
       }
     }
   }

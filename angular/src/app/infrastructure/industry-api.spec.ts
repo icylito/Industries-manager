@@ -4,13 +4,14 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { IndustryApi, fileNameFrom } from './industry-api';
 import { errorText } from '../application/http-text';
 import { environment } from '../../environments/environment';
+import { provideInfrastructure } from './providers';
 
 describe('IndustryApi', () => {
   let service: IndustryApi;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [...provideInfrastructure(), provideHttpClient(), provideHttpClientTesting()],
     });
     service = TestBed.inject(IndustryApi);
   });

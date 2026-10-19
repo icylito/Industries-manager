@@ -5,6 +5,7 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { Auth } from './auth';
 import { COMMANDS, Shortcuts, capsOf, comboOf, modHeld, showKey } from './shortcuts';
 import { Toast } from './toast';
+import { provideInfrastructure } from '../infrastructure/providers';
 
 const press = (
   key: string,
@@ -41,7 +42,12 @@ describe('Shortcuts', () => {
   beforeEach(() => {
     localStorage.clear();
     TestBed.configureTestingModule({
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        ...provideInfrastructure(),
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     });
     keys = TestBed.inject(Shortcuts);
     ran = [];
@@ -189,7 +195,12 @@ describe('Mouse rows', () => {
   beforeEach(() => {
     localStorage.clear();
     TestBed.configureTestingModule({
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        ...provideInfrastructure(),
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     });
     keys = TestBed.inject(Shortcuts);
   });

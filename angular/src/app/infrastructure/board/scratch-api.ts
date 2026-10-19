@@ -1,6 +1,6 @@
 import { Service, inject } from '@angular/core';
-import { HttpClient, HttpEvent } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { HttpClient, HttpEventType } from '@angular/common/http';
+import { Observable, filter, map } from 'rxjs';
 import {
   BoardAnswer,
   BoardDocument,
@@ -9,13 +9,14 @@ import {
   ScratchFileInfo,
   Snapshot,
 } from '../../domain/models/board';
+import { ScratchGateway, UploadEvent } from '../../application/ports/scratch-gateway';
 import { retryTransient } from '../industry-api';
 import { environment } from '../../../environments/environment';
 
 // Everything the Scratchpad keeps on the server: the person's boards, their carry tray and their files.
-// See api_v2/Endpoints/ScratchpadEndpoints.cs. Only GETs retry on their own.
+// See backend/Presentation/Endpoints/ScratchpadEndpoints.cs. Only GETs retry on their own.
 @Service()
-export class ScratchApi {
+export class ScratchApi implements ScratchGateway {
   private http = inject(HttpClient);
   private base = environment.apiUrl + '/scratchpad';
 
@@ -75,14 +76,26 @@ export class ScratchApi {
     );
   }
 
-  // A file, sent as a form so the API names it in any refusal. The events carry the progress.
-  uploadFile(file: File): Observable<HttpEvent<ScratchFileInfo>> {
+  // A file, sent as a form so the API names it in any refusal. The events carry the progress, then the stored file.
+  uploadFile(file: File): Observable<UploadEvent> {
     const form = new FormData();
     form.append('file', file, file.name);
-    return this.http.post<ScratchFileInfo>(this.base + '/files', form, {
-      reportProgress: true,
-      observe: 'events',
-    });
+    return this.http
+      .post<ScratchFileInfo>(this.base + '/files', form, {
+        reportProgress: true,
+        observe: 'events',
+      })
+      .pipe(
+        map((event): UploadEvent | null => {
+          if (event.type === HttpEventType.UploadProgress && event.total) {
+            return { kind: 'progress', loaded: event.loaded, total: event.total };
+          }
+          if (event.type === HttpEventType.Response && event.body)
+            return { kind: 'done', file: event.body };
+          return null;
+        }),
+        filter((event): event is UploadEvent => event !== null),
+      );
   }
 
   // The bytes of a stored file, fetched with the sign in so a picture or a video can show and Open can work

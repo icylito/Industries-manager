@@ -2,7 +2,6 @@ import { ConfirmPopup } from '../confirm-popup/confirm-popup';
 import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { HttpErrorResponse } from '@angular/common/http';
 import {
   BackupEntry,
   BackupRestorePreview,
@@ -16,10 +15,11 @@ import {
   VersionDetail,
   VersionSummary,
 } from '../../../domain/models/industry';
-import { IndustryApi } from '../../../infrastructure/industry-api';
+import { IndustryGateway } from '../../../application/ports/industry-gateway';
 import { errorText } from '../../../application/http-text';
 import { Auth } from '../../../application/auth';
 import { age } from './age';
+import { ApiFailure } from '../../../application/ports/api-failure';
 
 type Panel =
   | { kind: 'view'; version: VersionDetail }
@@ -33,7 +33,7 @@ type Panel =
   templateUrl: './history.html',
 })
 export class HistoryPage implements OnInit {
-  private api = inject(IndustryApi);
+  private api = inject(IndustryGateway);
   // Managers only get the Backups card here. Saved versions, retention and the settings file stay admin only.
   auth = inject(Auth);
 
@@ -116,7 +116,7 @@ export class HistoryPage implements OnInit {
         this.backupStatus.set(body.status);
         this.backupsLoaded.set(true);
       },
-      error: (err: HttpErrorResponse) => this.backupError.set(errorText(err)),
+      error: (err: ApiFailure) => this.backupError.set(errorText(err)),
     });
   }
 
@@ -173,7 +173,7 @@ export class HistoryPage implements OnInit {
         );
         this.loadBackups();
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.backingUp.set(false);
         this.backupError.set(errorText(err));
         this.loadBackups();
@@ -184,7 +184,7 @@ export class HistoryPage implements OnInit {
   // The whole backup as one zip, to keep somewhere else and drop back in on this page later
   downloadZip(entry: BackupEntry) {
     this.api.downloadFile(this.api.backupZipUrl(entry.id), `backup-${entry.id}.zip`).subscribe({
-      error: (err: HttpErrorResponse) =>
+      error: (err: ApiFailure) =>
         this.backupError.set(errorText(err, `Couldn't download "${entry.id}" backup`)),
     });
   }
@@ -247,7 +247,7 @@ export class HistoryPage implements OnInit {
           400,
         );
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.uploading.set(false);
         // Already in the list: nothing is added, so the one that is there is marked and brought into view
         const existing: string | undefined = err.error?.existingId;
@@ -275,7 +275,7 @@ export class HistoryPage implements OnInit {
     this.api
       .downloadFile(this.api.backupDownloadUrl(entry.id, file), `backup-${entry.id}-${file}`)
       .subscribe({
-        error: (err: HttpErrorResponse) =>
+        error: (err: ApiFailure) =>
           this.backupError.set(errorText(err, `Couldn't download "${name}"`)),
       });
   }
@@ -297,7 +297,7 @@ export class HistoryPage implements OnInit {
         this.restoreBackupBusy.set(false);
         this.restoreAsk.set({ entry, preview });
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.restoreBackupBusy.set(false);
         this.restoreBackupError.set(errorText(err));
       },
@@ -340,7 +340,7 @@ export class HistoryPage implements OnInit {
           error: () => {},
         });
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.restoreBackupBusy.set(false);
         this.restoreBackupError.set(errorText(err));
       },
@@ -354,7 +354,7 @@ export class HistoryPage implements OnInit {
         this.loading.set(false);
         this.error.set('');
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.error.set(errorText(err, 'Could not load the saved versions'));
         this.loading.set(false);
       },
@@ -440,7 +440,7 @@ export class HistoryPage implements OnInit {
         this.viewPage.set(1);
         this.show({ kind: 'view', version: detail });
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.busy.set(false);
         this.notice.set(errorText(err));
       },
@@ -492,7 +492,7 @@ export class HistoryPage implements OnInit {
 
   download(v: VersionSummary) {
     this.api.downloadFile(this.api.downloadUrl(v.id), `version-${v.id}.csv`).subscribe({
-      error: (err: HttpErrorResponse) =>
+      error: (err: ApiFailure) =>
         this.notice.set(errorText(err, `Couldn't download "version-${v.id}.csv"`)),
     });
   }
@@ -504,7 +504,7 @@ export class HistoryPage implements OnInit {
         this.versions.update((list) =>
           list.map((x) => (x.id === v.id ? { ...x, pinned: !v.pinned } : x)),
         ),
-      error: (err: HttpErrorResponse) => this.notice.set(errorText(err)),
+      error: (err: ApiFailure) => this.notice.set(errorText(err)),
     });
   }
 
@@ -648,7 +648,7 @@ export class HistoryPage implements OnInit {
           () => document.querySelector('.drop-zone')?.closest('section') ?? null,
         );
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.deletingBackup.set(false);
         this.confirmingBackup.set(null);
         this.backupError.set(errorText(err, `Couldn't delete "${id}" backup`));
@@ -683,7 +683,7 @@ export class HistoryPage implements OnInit {
           document.querySelector('.panel'),
         );
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.deletingVersion.set(null);
         this.confirmingVersion.set(null);
         this.notice.set(errorText(err, "Couldn't delete that version"));
@@ -710,7 +710,7 @@ export class HistoryPage implements OnInit {
         this.restoreDone.set(result);
         this.load();
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.busy.set(false);
         this.panelError.set(errorText(err));
       },
@@ -725,7 +725,7 @@ export class HistoryPage implements OnInit {
         this.busy.set(false);
         this.show({ kind: 'import', version: v, preview });
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.busy.set(false);
         this.notice.set(errorText(err));
       },
@@ -755,7 +755,7 @@ export class HistoryPage implements OnInit {
         this.load();
         this.api.refreshRequestCount();
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.busy.set(false);
         this.panelError.set(errorText(err));
       },
@@ -770,7 +770,7 @@ export class HistoryPage implements OnInit {
 
   exportSettings() {
     this.api.downloadFile(this.api.settingsExportUrl(), 'settings.json').subscribe({
-      error: (err: HttpErrorResponse) =>
+      error: (err: ApiFailure) =>
         this.settingsError.set(errorText(err, `Couldn't download "settings.json"`)),
     });
   }
@@ -818,7 +818,7 @@ export class HistoryPage implements OnInit {
           this.settingsBusy.set(false);
           this.settingsAsk.set({ file, preview });
         },
-        error: (err: HttpErrorResponse) => {
+        error: (err: ApiFailure) => {
           this.settingsBusy.set(false);
           this.settingsError.set(errorText(err));
         },
@@ -863,7 +863,7 @@ export class HistoryPage implements OnInit {
         });
         this.load();
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.settingsBusy.set(false);
         this.settingsError.set(errorText(err));
       },
@@ -903,7 +903,7 @@ export class HistoryPage implements OnInit {
           this.sendRetention(body);
         }
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.retentionBusy.set(false);
         this.retentionError.set(errorText(err));
       },
@@ -927,7 +927,7 @@ export class HistoryPage implements OnInit {
         );
         if (r.removed) this.load();
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.retentionBusy.set(false);
         this.retentionError.set(errorText(err));
       },

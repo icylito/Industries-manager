@@ -1,13 +1,14 @@
 import { Service, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { TablesGateway } from '../application/ports/tables-gateway';
 import { ColumnInput, TableRow, TableRowsPage, UserTable } from '../domain/models/industry';
 import { environment } from '../../environments/environment';
 import { IndustryApi } from './industry-api';
 
 // The Tables page's calls. Everyone signed in can read; managers and admins change things (the API checks every call).
 @Service()
-export class TablesApi {
+export class TablesApi implements TablesGateway {
   private http = inject(HttpClient);
   private industries = inject(IndustryApi);
   private url = `${environment.apiUrl}/tables`;

@@ -1,22 +1,10 @@
 import { Service, WritableSignal, effect, inject, signal, untracked } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { Auth } from './auth';
-import { environment } from '../../environments/environment';
+import { SettingsGateway } from './ports/settings-gateway';
+import { MouseMod, MySettings, ThemeChoice } from '../domain/models/settings';
 
-export type ThemeChoice = 'light' | 'dark' | null;
-export type MouseMod = 'Shift' | 'Ctrl' | 'Alt';
-
-// What a person chose for themselves: their changed shortcut keys, the held keys of the Scratchpad's mouse rows,
-// and light or dark. Saved per person on the server (GET and PUT /me/settings) so they follow the person to any
-// browser, and kept in this browser too, so the page starts with them before the server has answered and works
-// signed out. The first time someone signs in with nothing saved on the server, what this browser had is
-// carried up once. After that the server wins.
-export interface MySettings {
-  shortcuts: Record<string, string[]>;
-  mouse: Record<string, MouseMod>;
-  theme: ThemeChoice;
-}
+export type { MouseMod, MySettings, ThemeChoice } from '../domain/models/settings';
 
 const KEYS = {
   shortcuts: 'stock-listing-shortcuts',
@@ -33,9 +21,8 @@ const SAVE_MS = 600;
 
 @Service()
 export class SettingsStore {
-  private http = inject(HttpClient);
+  private api = inject(SettingsGateway);
   private auth = inject(Auth);
-  private url = environment.apiUrl + '/me/settings';
 
   readonly shortcuts = signal<Record<string, string[]>>(readLocal('shortcuts', {}));
   readonly mouse = signal<Record<string, MouseMod>>(readLocal('mouse', {}));
@@ -78,9 +65,7 @@ export class SettingsStore {
     this.loading = id;
     if (id == null) return;
     try {
-      const saved = await firstValueFrom(
-        this.http.get<MySettings & { updatedAt: string | null }>(this.url),
-      );
+      const saved = await firstValueFrom(this.api.load());
       if (this.auth.user()?.id !== id) return;
       this.loadedFor = id;
       const owner = readOwner();
@@ -124,7 +109,7 @@ export class SettingsStore {
     this.timer = null;
     try {
       await firstValueFrom(
-        this.http.put(this.url, {
+        this.api.save({
           shortcuts: this.shortcuts(),
           mouse: this.mouse(),
           theme: this.theme(),

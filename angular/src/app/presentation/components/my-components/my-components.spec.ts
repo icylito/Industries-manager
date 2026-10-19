@@ -5,6 +5,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { MyComponents } from './my-components';
 import { Auth } from '../../../application/auth';
+import { provideInfrastructure } from '../../../infrastructure/providers';
 
 describe('MyComponents', () => {
   let component: MyComponents;
@@ -13,7 +14,12 @@ describe('MyComponents', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [MyComponents],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        ...provideInfrastructure(),
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(MyComponents);

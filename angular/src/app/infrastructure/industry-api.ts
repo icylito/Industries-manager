@@ -1,6 +1,7 @@
 import { Service, inject, signal } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { errorText } from '../application/http-text';
+import { IndustryGateway } from '../application/ports/industry-gateway';
 import { MonoTypeOperatorFunction, Observable, retry, throwError, timer } from 'rxjs';
 import {
   Industry,
@@ -48,7 +49,7 @@ export function retryTransient<T>(): MonoTypeOperatorFunction<T> {
 }
 
 @Service()
-export class IndustryApi {
+export class IndustryApi implements IndustryGateway {
   private http = inject(HttpClient);
   private apiUrl = environment.apiUrl;
   private baseUrl = `${this.apiUrl}/industries`;

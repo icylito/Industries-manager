@@ -8,6 +8,7 @@ import { authInterceptor } from '../infrastructure/auth.interceptor';
 import { adminGuard, signedInGuard } from './guards';
 import { AuthUser } from '../domain/models/industry';
 import { environment } from '../../environments/environment';
+import { provideInfrastructure } from '../infrastructure/providers';
 
 const user = (role: 'admin' | 'normal', mustChangePassword = false): AuthUser => ({
   id: 1,
@@ -28,6 +29,7 @@ describe('Auth', () => {
     localStorage.clear();
     TestBed.configureTestingModule({
       providers: [
+        ...provideInfrastructure(),
         provideRouter([]),
         provideHttpClient(withInterceptors([authInterceptor])),
         provideHttpClientTesting(),

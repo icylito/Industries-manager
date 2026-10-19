@@ -11,6 +11,7 @@ import {
   VersionSummary,
 } from '../../../domain/models/industry';
 import { Auth } from '../../../application/auth';
+import { provideInfrastructure } from '../../../infrastructure/providers';
 
 const version = (id: number, damaged = false): VersionSummary => ({
   id,
@@ -45,7 +46,12 @@ describe('HistoryPage', () => {
   function setup(role: Role = 'admin') {
     TestBed.configureTestingModule({
       imports: [HistoryPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        ...provideInfrastructure(),
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     });
     TestBed.inject(Auth).user.set({
       id: 1,
@@ -700,7 +706,12 @@ describe('HistoryPage for a manager', () => {
   function setup() {
     TestBed.configureTestingModule({
       imports: [HistoryPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        ...provideInfrastructure(),
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     });
     TestBed.inject(Auth).user.set({
       id: 2,

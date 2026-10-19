@@ -9,12 +9,11 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
 import { timeout } from 'rxjs';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FieldRule, Industry } from '../../../domain/models/industry';
 import { Auth } from '../../../application/auth';
-import { IndustryApi } from '../../../infrastructure/industry-api';
+import { IndustryGateway } from '../../../application/ports/industry-gateway';
 import { Shortcuts, capsOf } from '../../../application/shortcuts';
 import { Toast } from '../../../application/toast';
 import { TrayStore } from '../../../application/board/tray-store';
@@ -38,6 +37,7 @@ import {
   toRow,
   usd,
 } from './overview-data';
+import { ApiFailure, isApiFailure } from '../../../application/ports/api-failure';
 
 // The admin Overview: the table at a glance. For spotting, Browse is for acting.
 // One selection (sel) drives every number on the page. All the sums are in overview-data.ts, this file is the page's state and its keys.
@@ -49,7 +49,7 @@ import {
   templateUrl: './overview.html',
 })
 export class OverviewPage implements OnInit {
-  private api = inject(IndustryApi);
+  private api = inject(IndustryGateway);
   private auth = inject(Auth);
   protected keys = inject(Shortcuts);
   private toast = inject(Toast);
@@ -166,7 +166,7 @@ export class OverviewPage implements OnInit {
           // The page may have opened while the server was down, so who is signed in is still to be asked
           this.auth.recheck();
         },
-        error: (err: HttpErrorResponse | Error) => {
+        error: (err: ApiFailure | Error) => {
           this.retrying.set(false);
           this.refreshing.set(false);
           this.slow.set(false);
@@ -182,14 +182,14 @@ export class OverviewPage implements OnInit {
             }
             return;
           }
-          const status = err instanceof HttpErrorResponse ? err.status : -1;
+          const status = isApiFailure(err) ? err.status : -1;
           this.failureKind.set(status === -1 ? 'slow' : status === 0 ? 'down' : 'broken');
           this.failure.set(
             status === -1
               ? `no answer after ${OverviewPage.GiveUpAfterMs / 1000} seconds`
               : status === 0
                 ? 'no response from the server'
-                : `the server answered ${status} ${(err as HttpErrorResponse).statusText}`.trim(),
+                : `the server answered ${status} ${(err as ApiFailure).statusText}`.trim(),
           );
           this.loading.set(false);
           // Pressing Try again and failing again leaves the person where they were, with a word about it

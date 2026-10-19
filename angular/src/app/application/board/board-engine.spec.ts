@@ -10,6 +10,7 @@ import { BoardEngine } from './board-engine';
 import { BoardItem } from '../../domain/models/board';
 import { environment } from '../../../environments/environment';
 import { Toast } from '../toast';
+import { provideInfrastructure } from '../../infrastructure/providers';
 
 const url = environment.apiUrl + '/scratchpad/boards';
 const note = (id: string, x = 0): BoardItem => ({
@@ -31,7 +32,7 @@ describe('Board engine', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [...provideInfrastructure(), provideHttpClient(), provideHttpClientTesting()],
     });
     http = TestBed.inject(HttpTestingController);
     board = TestBed.inject(BoardEngine);

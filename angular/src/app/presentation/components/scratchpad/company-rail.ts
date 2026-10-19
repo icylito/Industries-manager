@@ -1,7 +1,7 @@
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { Industry } from '../../../domain/models/industry';
-import { IndustryApi } from '../../../infrastructure/industry-api';
+import { IndustryGateway } from '../../../application/ports/industry-gateway';
 import { BoardEngine, Placement } from '../../../application/board/board-engine';
 
 // A company dragged from the rail onto the board
@@ -36,7 +36,7 @@ export class CompanyRail {
   static readonly MATCHES = 10;
 
   protected board = inject(BoardEngine);
-  private api = inject(IndustryApi);
+  private api = inject(IndustryGateway);
 
   search = signal('');
   matches = signal<Industry[]>([]);

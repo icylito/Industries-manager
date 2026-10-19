@@ -12,6 +12,7 @@ import { refusalFor, sizeText, typeLabel } from './board-files';
 import { By } from '@angular/platform-browser';
 import { CompanyRail } from './company-rail';
 import { FileCards } from './file-cards';
+import { provideInfrastructure } from '../../../infrastructure/providers';
 
 const url = environment.apiUrl + '/scratchpad';
 // The boards the sidebar lists: the open one, and a pinned one changed earlier
@@ -55,6 +56,7 @@ describe('Scratchpad page', () => {
     await TestBed.configureTestingModule({
       imports: [ScratchpadPage],
       providers: [
+        ...provideInfrastructure(),
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),

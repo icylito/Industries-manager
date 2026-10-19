@@ -3,6 +3,7 @@ import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { LoginPage, safeBack } from './login';
+import { provideInfrastructure } from '../../../infrastructure/providers';
 
 describe('LoginPage', () => {
   afterEach(() => {
@@ -15,7 +16,12 @@ describe('LoginPage', () => {
     sessionStorage.setItem('signInWaitUntil', String(Date.now() + 20_000));
     TestBed.configureTestingModule({
       imports: [LoginPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        ...provideInfrastructure(),
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     });
     const page = TestBed.createComponent(LoginPage).componentInstance;
     expect(page.wait()).toBe(20);
@@ -29,7 +35,12 @@ describe('LoginPage', () => {
     vi.useFakeTimers();
     TestBed.configureTestingModule({
       imports: [LoginPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        ...provideInfrastructure(),
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     });
     const http = TestBed.inject(HttpTestingController);
     const fixture = TestBed.createComponent(LoginPage);

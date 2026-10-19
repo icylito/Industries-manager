@@ -1,19 +1,18 @@
 import { Service, effect, inject, signal, untracked } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, firstValueFrom } from 'rxjs';
 import { Auth } from './auth';
 import { errorText } from './http-text';
 import { AuthUser } from '../domain/models/industry';
 import { colorsOf, squarePicture } from './profile-picture';
-import { environment } from '../../environments/environment';
+import { ProfileGateway } from './ports/profile-gateway';
+import { ApiFailure } from './ports/api-failure';
 
 // The signed in person's profile: the name they show and their picture, with the picture's two main colours for
 // the card behind it. The picture is fetched with the sign in, so the page holds it as a blob address.
 @Service()
 export class Profile {
-  private http = inject(HttpClient);
+  private api = inject(ProfileGateway);
   private auth = inject(Auth);
-  private url = `${environment.apiUrl}/me`;
 
   readonly picture = signal<string | null>(null);
   readonly colors = signal<[string, string] | null>(null);
@@ -31,7 +30,7 @@ export class Profile {
   // Answers the problem in plain words, or null when it was saved
   async saveName(name: string): Promise<string | null> {
     return this.send(
-      this.http.put<AuthUser>(`${this.url}/profile`, { displayName: name.trim() || null }),
+      this.api.saveName(name.trim() || null),
       "Couldn't save the name. Try again in a moment",
     );
   }
@@ -45,16 +44,14 @@ export class Profile {
       return "This picture couldn't be read. Try another one";
     }
     return this.send(
-      this.http.put<AuthUser>(`${this.url}/avatar`, blob, {
-        headers: { 'Content-Type': blob.type },
-      }),
+      this.api.savePicture(blob),
       "Couldn't save the picture. Try again in a moment",
     );
   }
 
   async removePicture(): Promise<string | null> {
     return this.send(
-      this.http.delete<AuthUser>(`${this.url}/avatar`),
+      this.api.removePicture(),
       "Couldn't remove the picture. Try again in a moment",
     );
   }
@@ -65,7 +62,7 @@ export class Profile {
       this.auth.user.set(await firstValueFrom(call));
       return null;
     } catch (err) {
-      return errorText(err as HttpErrorResponse, fallback);
+      return errorText(err as ApiFailure, fallback);
     } finally {
       this.busy.set(false);
     }
@@ -80,9 +77,7 @@ export class Profile {
     this.colors.set(null);
     if (!at) return;
     try {
-      const blob = await firstValueFrom(
-        this.http.get(`${this.url}/avatar`, { responseType: 'blob' }),
-      );
+      const blob = await firstValueFrom(this.api.picture());
       if (this.loadedFor !== at) return;
       this.picture.set(URL.createObjectURL(blob));
       this.colors.set(await colorsOf(blob).catch(() => null));

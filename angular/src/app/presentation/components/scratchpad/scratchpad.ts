@@ -22,7 +22,7 @@ import {
   Snapshot,
   TextAlign,
 } from '../../../domain/models/board';
-import { IndustryApi } from '../../../infrastructure/industry-api';
+import { IndustryGateway } from '../../../application/ports/industry-gateway';
 import { Shortcuts, modHeld } from '../../../application/shortcuts';
 import { BoardEngine } from '../../../application/board/board-engine';
 import { BoardsStore } from '../../../application/board/boards-store';
@@ -89,7 +89,7 @@ export class ScratchpadPage {
   protected tray = inject(TrayStore);
   protected files = inject(FileCards);
   protected notice = inject(PageNotice);
-  private api = inject(IndustryApi);
+  private api = inject(IndustryGateway);
   protected shortcuts = inject(Shortcuts);
   private router = inject(Router);
   private route = inject(ActivatedRoute);

@@ -2,7 +2,7 @@ import { Component, DestroyRef, computed, effect, inject, signal } from '@angula
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
-import { IndustryApi } from './infrastructure/industry-api';
+import { IndustryGateway } from './application/ports/industry-gateway';
 import { Auth } from './application/auth';
 import { Profile } from './application/profile';
 import { IdleTop } from './application/idle-top';
@@ -33,7 +33,7 @@ const adminPaths = routes.filter((r) => r.data?.['admin'] === true).map((r) => `
 })
 export class App {
   private router = inject(Router);
-  protected api = inject(IndustryApi);
+  protected api = inject(IndustryGateway);
   protected auth = inject(Auth);
   // The picture the account pill shows. Injected here so it is fetched on every page, not only on the account card.
   protected profile = inject(Profile);

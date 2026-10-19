@@ -8,6 +8,7 @@ import { TrayStore } from './board/tray-store';
 import { Shortcuts } from './shortcuts';
 import { provideRouter } from '@angular/router';
 import { environment } from '../../environments/environment';
+import { provideInfrastructure } from '../infrastructure/providers';
 
 const me = environment.apiUrl + '/me/settings';
 const user = {
@@ -27,7 +28,12 @@ describe('Settings per person', () => {
   beforeEach(() => {
     localStorage.clear();
     TestBed.configureTestingModule({
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        ...provideInfrastructure(),
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     });
     http = TestBed.inject(HttpTestingController);
   });
@@ -143,7 +149,7 @@ describe('Settings per person', () => {
 describe('Carry tray', () => {
   it('gives a snapshot back when putting it on the board is undone, and takes it again on redo', () => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [...provideInfrastructure(), provideHttpClient(), provideHttpClientTesting()],
     });
     const http = TestBed.inject(HttpTestingController);
     const tray = TestBed.inject(TrayStore);
@@ -166,7 +172,7 @@ describe('Carry tray', () => {
 
   it('leaves the tray alone when a snapshot card is deleted and the delete is redone', () => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [...provideInfrastructure(), provideHttpClient(), provideHttpClientTesting()],
     });
     const http = TestBed.inject(HttpTestingController);
     const tray = TestBed.inject(TrayStore);

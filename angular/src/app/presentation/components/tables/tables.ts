@@ -1,13 +1,13 @@
 import { ConfirmPopup } from '../confirm-popup/confirm-popup';
 import { Component, DestroyRef, HostListener, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ColumnInput, FieldRule, TableRow, UserTable } from '../../../domain/models/industry';
 import { errorText } from '../../../application/http-text';
-import { TablesApi } from '../../../infrastructure/tables-api';
+import { TablesGateway } from '../../../application/ports/tables-gateway';
 import { Auth } from '../../../application/auth';
 import { Toast } from '../../../application/toast';
+import { ApiFailure } from '../../../application/ports/api-failure';
 
 type ColumnType = 'text' | 'number' | 'date';
 
@@ -44,7 +44,7 @@ let nextUid = 1;
   templateUrl: './tables.html',
 })
 export class TablesPage {
-  private api = inject(TablesApi);
+  private api = inject(TablesGateway);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private toast = inject(Toast);
@@ -124,7 +124,7 @@ export class TablesPage {
           else this.error.set("That table isn't there any more. It may have been deleted.");
         }
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.loading.set(false);
         this.error.set(errorText(err, "Couldn't load the tables"));
       },
@@ -140,7 +140,7 @@ export class TablesPage {
   private loadBin() {
     this.api.bin().subscribe({
       next: (list) => this.bin.set(list),
-      error: (err: HttpErrorResponse) => this.toast.say(errorText(err, "Couldn't load the bin")),
+      error: (err: ApiFailure) => this.toast.say(errorText(err, "Couldn't load the bin")),
     });
   }
 
@@ -151,7 +151,7 @@ export class TablesPage {
         this.loadBin();
         this.loadList();
       },
-      error: (err: HttpErrorResponse) => this.toast.say(errorText(err)),
+      error: (err: ApiFailure) => this.toast.say(errorText(err)),
     });
   }
 
@@ -194,7 +194,7 @@ export class TablesPage {
           this.rowsLoading.set(false);
           this.rowsError.set('');
         },
-        error: (err: HttpErrorResponse) => {
+        error: (err: ApiFailure) => {
           this.rowsLoading.set(false);
           this.rowsError.set(errorText(err, "Couldn't load the rows"));
         },
@@ -299,7 +299,7 @@ export class TablesPage {
         this.loadRows();
         this.refreshTable();
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.rowBusy.set(false);
         const fields = err.error?.errors as Record<string, string[]> | undefined;
         if (err.status === 400 && fields) {
@@ -327,7 +327,7 @@ export class TablesPage {
         this.loadRows();
         this.refreshTable();
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.confirmingRowId.set(null);
         this.toast.say(errorText(err));
       },
@@ -339,7 +339,7 @@ export class TablesPage {
     if (!t) return;
     this.api
       .exportCsv(t.id, `${t.name}.csv`)
-      .subscribe({ error: (err: HttpErrorResponse) => this.toast.say(errorText(err)) });
+      .subscribe({ error: (err: ApiFailure) => this.toast.say(errorText(err)) });
   }
 
   // Row counts and the version move with every change, so the open table is read again quietly
@@ -592,7 +592,7 @@ export class TablesPage {
           void this.router.navigate(['/tables', saved.id]);
         }
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.editorBusy.set(false);
         this.editorError.set(this.columnProblems(err));
       },
@@ -600,7 +600,7 @@ export class TablesPage {
   }
 
   // "columns[2]: ..." from the API becomes "Column 3 (Score): ..."
-  private columnProblems(err: HttpErrorResponse): string {
+  private columnProblems(err: ApiFailure): string {
     const fields = err.error?.errors as Record<string, string[]> | undefined;
     if (err.status !== 400 || !fields) return errorText(err, "Couldn't save the table");
     return Object.entries(fields)
@@ -625,7 +625,7 @@ export class TablesPage {
         this.toast.say(`${t.name} is in the bin for 14 days`);
         void this.router.navigate(['/tables']);
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.deleteBusy.set(false);
         this.toast.say(errorText(err));
       },

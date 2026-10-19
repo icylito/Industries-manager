@@ -1,12 +1,12 @@
 import { DestroyRef, Injectable, effect, inject, signal, untracked } from '@angular/core';
-import { HttpErrorResponse, HttpEventType } from '@angular/common/http';
 import { FileItem } from '../../../domain/models/board';
 import { errorText } from '../../../application/http-text';
 import { BoardEngine } from '../../../application/board/board-engine';
-import { ScratchApi } from '../../../infrastructure/board/scratch-api';
+import { ScratchGateway } from '../../../application/ports/scratch-gateway';
 import { KINDS, fileView } from '../../../domain/board/item-kinds';
 import { refusalFor, sizeText, typeLabel } from './board-files';
 import { PageNotice } from './page-notice';
+import { ApiFailure } from '../../../application/ports/api-failure';
 
 // A file's upload while the page is open. Gone after a reload: a card whose upload never finished says so.
 export interface Upload {
@@ -20,7 +20,7 @@ export interface Upload {
 @Injectable()
 export class FileCards {
   private board = inject(BoardEngine);
-  private scratch = inject(ScratchApi);
+  private scratch = inject(ScratchGateway);
   private notice = inject(PageNotice);
 
   readonly uploads = signal<Record<string, Upload>>({});
@@ -124,7 +124,7 @@ export class FileCards {
     this.videos.update((all) => ({ ...all, [id]: 'loading' }));
     this.scratch.fileBlob(id).subscribe({
       next: (blob) => this.videos.update((all) => ({ ...all, [id]: URL.createObjectURL(blob) })),
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.videos.update((all) => {
           const next = { ...all };
           delete next[id];
@@ -151,7 +151,7 @@ export class FileCards {
         }
         setTimeout(() => URL.revokeObjectURL(url), 60_000);
       },
-      error: (err: HttpErrorResponse) =>
+      error: (err: ApiFailure) =>
         this.notice.show([errorText(err, `Couldn't open "${item.name || 'the file'}"`)]),
     });
   }
@@ -161,19 +161,19 @@ export class FileCards {
     this.setUpload(itemId, { pct: 0, failed: false });
     this.scratch.uploadFile(file).subscribe({
       next: (event) => {
-        if (event.type === HttpEventType.UploadProgress && event.total) {
+        if (event.kind === 'progress') {
           this.setUpload(itemId, {
             pct: Math.round((event.loaded / event.total) * 100),
             failed: false,
           });
-        } else if (event.type === HttpEventType.Response && event.body) {
+        } else {
           // The board it was dropped on, even if another is open by now or the page has closed
-          this.board.fileStored(itemId, event.body, boardId);
+          this.board.fileStored(itemId, event.file, boardId);
           this.pending.delete(itemId);
           this.setUpload(itemId, null);
         }
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         // A refusal from the API (it checks again) is said in the toast; anything else waits on the card for Try again
         if (err.status === 400 || err.status === 413)
           this.notice.show([errorText(err, "Couldn't upload " + file.name)]);

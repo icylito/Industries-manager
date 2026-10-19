@@ -1,15 +1,16 @@
 import { Service, computed, inject, signal } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable, firstValueFrom, tap } from 'rxjs';
 import { AuthUser, LoginResult } from '../domain/models/industry';
-import { environment } from '../../environments/environment';
-import { loadToken, saveToken } from '../infrastructure/token-store';
+import { AuthGateway } from './ports/auth-gateway';
+import { isApiFailure } from './ports/api-failure';
+import { TokenStore } from './ports/token-store';
 
 // Who is signed in. The token lives in this browser's storage and is sent with every call (see auth.interceptor.ts).
 @Service()
 export class Auth {
-  private http = inject(HttpClient);
+  private api = inject(AuthGateway);
+  private tokens = inject(TokenStore);
   private router = inject(Router);
 
   user = signal<AuthUser | null>(null);
@@ -21,11 +22,11 @@ export class Auth {
   expired = signal(false);
 
   token(): string | null {
-    return loadToken();
+    return this.tokens.load();
   }
 
   private storeToken(token: string | null) {
-    saveToken(token);
+    this.tokens.save(token);
   }
 
   // Set when there is a saved sign in but the API couldn't be asked whose it is (stopped, restarting, database down).
@@ -37,13 +38,11 @@ export class Auth {
   async init(): Promise<void> {
     if (!this.token()) return;
     try {
-      this.user.set(await firstValueFrom(this.http.get<AuthUser>(`${environment.apiUrl}/auth/me`)));
+      this.user.set(await firstValueFrom(this.api.me()));
       this.unreachable.set(false);
     } catch (err) {
       // A 401 already cleared the token in the interceptor. An API that is down keeps the token and waits.
-      this.unreachable.set(
-        err instanceof HttpErrorResponse && (err.status === 0 || err.status >= 500),
-      );
+      this.unreachable.set(isApiFailure(err) && (err.status === 0 || err.status >= 500));
     }
   }
 
@@ -53,25 +52,21 @@ export class Auth {
   }
 
   login(username: string, password: string): Observable<LoginResult> {
-    return this.http
-      .post<LoginResult>(`${environment.apiUrl}/auth/login`, { username, password })
-      .pipe(
-        tap((result) => {
-          this.storeToken(result.token);
-          this.expired.set(false);
-          this.user.set(result.user);
-        }),
-      );
+    return this.api.login(username, password).pipe(
+      tap((result) => {
+        this.storeToken(result.token);
+        this.expired.set(false);
+        this.user.set(result.user);
+      }),
+    );
   }
 
   changePassword(current: string, next: string): Observable<AuthUser> {
-    return this.http
-      .post<AuthUser>(`${environment.apiUrl}/auth/password`, { current, new: next })
-      .pipe(tap((user) => this.user.set(user)));
+    return this.api.changePassword(current, next).pipe(tap((user) => this.user.set(user)));
   }
 
   logout() {
-    this.http.post(`${environment.apiUrl}/auth/logout`, {}).subscribe({ error: () => {} });
+    this.api.logout().subscribe({ error: () => {} });
     this.clear();
     this.router.navigateByUrl('/');
   }

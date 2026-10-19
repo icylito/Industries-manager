@@ -11,14 +11,14 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DevRequest, RequestMessage } from '../../../domain/models/industry';
-import { IndustryApi } from '../../../infrastructure/industry-api';
+import { IndustryGateway } from '../../../application/ports/industry-gateway';
 import { errorText } from '../../../application/http-text';
 import { Auth } from '../../../application/auth';
 import { FormatField } from './format-field';
 import { RichText } from './rich-text';
+import { ApiFailure } from '../../../application/ports/api-failure';
 
 type Filter = 'open' | 'in-progress' | 'done' | 'dismissed' | 'all';
 
@@ -34,7 +34,7 @@ type Filter = 'open' | 'in-progress' | 'done' | 'dismissed' | 'all';
   },
 })
 export class RequestsPage implements OnInit {
-  protected api = inject(IndustryApi);
+  protected api = inject(IndustryGateway);
   protected auth = inject(Auth);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
@@ -109,7 +109,7 @@ export class RequestsPage implements OnInit {
         this.loading.set(false);
         this.error.set('');
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.error.set(errorText(err, 'Could not load the requests'));
         this.loading.set(false);
       },
@@ -177,7 +177,7 @@ export class RequestsPage implements OnInit {
         if (this.thread()?.id === r.id) this.thread.set({ ...this.thread()!, ...updated });
         this.api.refreshRequestCount();
       },
-      error: (err: HttpErrorResponse) => this.notice.set(errorText(err)),
+      error: (err: ApiFailure) => this.notice.set(errorText(err)),
     });
   }
 
@@ -265,7 +265,7 @@ export class RequestsPage implements OnInit {
         this.api.refreshRequestCount();
         if (this.filter() === 'open' || this.filter() === 'all') this.load();
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.sending.set(false);
         this.sendError.set(errorText(err));
       },
@@ -318,7 +318,7 @@ export class RequestsPage implements OnInit {
         }
         this.threadLoading.set(false);
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.threadLoading.set(false);
         this.threadError.set(errorText(err, 'Could not open that ticket'));
       },
@@ -350,7 +350,7 @@ export class RequestsPage implements OnInit {
         this.api.refreshRequestCount();
         setTimeout(() => this.scrollChat(), 0);
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.replying.set(false);
         this.replyError.set(errorText(err));
       },

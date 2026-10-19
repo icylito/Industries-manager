@@ -1,7 +1,7 @@
 import { Service, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { Snapshot } from '../../domain/models/board';
-import { ScratchApi } from '../../infrastructure/board/scratch-api';
+import { ScratchGateway } from '../ports/scratch-gateway';
 import { Change, StepRef } from './board-engine';
 
 // The carry tray along the bottom of every admin page: snapshots from the Overview on their way to a board.
@@ -9,7 +9,7 @@ import { Change, StepRef } from './board-engine';
 // and never waits on, or disturbs, a board being edited.
 @Service()
 export class TrayStore {
-  private api = inject(ScratchApi);
+  private api = inject(ScratchGateway);
 
   readonly items = signal<Snapshot[]>([]);
   readonly loaded = signal(false);

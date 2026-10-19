@@ -1,8 +1,8 @@
 import { Service, computed, inject, signal } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { BoardSummary } from '../../domain/models/board';
-import { ScratchApi } from '../../infrastructure/board/scratch-api';
+import { ScratchGateway } from '../ports/scratch-gateway';
+import { ApiFailure } from '../ports/api-failure';
 import { errorText } from '../http-text';
 
 const LAST_BOARD = 'stock-listing-last-board';
@@ -11,7 +11,7 @@ const LAST_BOARD = 'stock-listing-last-board';
 // Each call answers a plain message on failure, or null when it worked.
 @Service()
 export class BoardsStore {
-  private api = inject(ScratchApi);
+  private api = inject(ScratchGateway);
 
   readonly list = signal<BoardSummary[]>([]);
   readonly loading = signal(false);
@@ -75,7 +75,7 @@ export class BoardsStore {
       this.list.update((all) => [made, ...all]);
       return made.id;
     } catch (err) {
-      return errorText(err as HttpErrorResponse, "Couldn't make a new board");
+      return errorText(err as ApiFailure, "Couldn't make a new board");
     }
   }
 
@@ -87,7 +87,7 @@ export class BoardsStore {
       );
       return null;
     } catch (err) {
-      return errorText(err as HttpErrorResponse, "Couldn't rename the board");
+      return errorText(err as ApiFailure, "Couldn't rename the board");
     }
   }
 
@@ -100,7 +100,7 @@ export class BoardsStore {
       return null;
     } catch (err) {
       return errorText(
-        err as HttpErrorResponse,
+        err as ApiFailure,
         pinned ? "Couldn't pin the board" : "Couldn't unpin the board",
       );
     }
@@ -112,7 +112,7 @@ export class BoardsStore {
       this.list.update((all) => all.filter((board) => board.id !== id));
       return null;
     } catch (err) {
-      return errorText(err as HttpErrorResponse, "Couldn't delete the board");
+      return errorText(err as ApiFailure, "Couldn't delete the board");
     }
   }
 

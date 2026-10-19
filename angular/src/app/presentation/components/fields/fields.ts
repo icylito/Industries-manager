@@ -2,10 +2,10 @@ import { ConfirmPopup } from '../confirm-popup/confirm-popup';
 import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
 import { hasNoLetters, sameName } from '../../../domain/name-key';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { HttpErrorResponse } from '@angular/common/http';
 import { FieldRule, RuleSet } from '../../../domain/models/industry';
-import { IndustryApi } from '../../../infrastructure/industry-api';
+import { IndustryGateway } from '../../../application/ports/industry-gateway';
 import { errorText } from '../../../application/http-text';
+import { ApiFailure } from '../../../application/ports/api-failure';
 
 type FieldType = 'text' | 'number' | 'date';
 
@@ -16,7 +16,7 @@ type FieldType = 'text' | 'number' | 'date';
   templateUrl: './fields.html',
 })
 export class FieldsPage implements OnInit {
-  private api = inject(IndustryApi);
+  private api = inject(IndustryGateway);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
 
@@ -65,7 +65,7 @@ export class FieldsPage implements OnInit {
         this.setRules(r);
         this.loading.set(false);
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.error.set(errorText(err, 'Could not load the fields'));
         this.loading.set(false);
       },
@@ -241,7 +241,7 @@ export class FieldsPage implements OnInit {
         );
         this.loadVersions();
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.saving.set(false);
         this.saveError.set(errorText(err));
       },
@@ -281,7 +281,7 @@ export class FieldsPage implements OnInit {
         this.loadVersions();
         if (r.requestsClosed) this.api.refreshRequestCount();
       },
-      error: (err: HttpErrorResponse) => {
+      error: (err: ApiFailure) => {
         this.deleteBusy.set(false);
         this.deleteError.set(errorText(err));
       },
@@ -311,14 +311,14 @@ export class FieldsPage implements OnInit {
         this.asked(
           `Asked a developer to make "${f.label}" a ${this.typeLabel(this.askType()).toLowerCase()}.`,
         ),
-      error: (err: HttpErrorResponse) => this.askError.set(errorText(err)),
+      error: (err: ApiFailure) => this.askError.set(errorText(err)),
     });
   }
 
   askRealColumn(f: FieldRule) {
     this.api.askColumn({ fieldKey: f.key }).subscribe({
       next: () => this.asked(`Asked a developer to turn "${f.label}" into a real column.`),
-      error: (err: HttpErrorResponse) => this.askError.set(errorText(err)),
+      error: (err: ApiFailure) => this.askError.set(errorText(err)),
     });
   }
 

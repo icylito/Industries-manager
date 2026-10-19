@@ -5,6 +5,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { OverviewPage } from './overview';
 import { Shortcuts } from '../../../application/shortcuts';
 import { Toast } from '../../../application/toast';
+import { provideInfrastructure } from '../../../infrastructure/providers';
 
 const row = (id: number, over: object = {}) => ({
   id,
@@ -28,7 +29,12 @@ describe('OverviewPage', () => {
     localStorage.clear();
     await TestBed.configureTestingModule({
       imports: [OverviewPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        ...provideInfrastructure(),
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     }).compileComponents();
     fixture = TestBed.createComponent(OverviewPage);
     http = TestBed.inject(HttpTestingController);

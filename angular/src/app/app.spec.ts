@@ -7,12 +7,18 @@ import { App } from './app';
 import { Auth } from './application/auth';
 import { Theme } from './application/theme';
 import { routes } from './app.routes';
+import { provideInfrastructure } from './infrastructure/providers';
 
 describe('App', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        ...provideInfrastructure(),
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     }).compileComponents();
   });
 
@@ -58,6 +64,7 @@ describe('App admin shell', () => {
       await TestBed.configureTestingModule({
         imports: [App],
         providers: [
+          ...provideInfrastructure(),
           provideRouter([
             {
               path: 'history',
@@ -102,6 +109,7 @@ describe('App admin shell', () => {
       await TestBed.configureTestingModule({
         imports: [App],
         providers: [
+          ...provideInfrastructure(),
           provideRouter([
             { path: '', component: StubPage, data: { title: 'Industries', lede: '' } },
           ]),
@@ -127,6 +135,7 @@ describe('App admin shell', () => {
       await TestBed.configureTestingModule({
         imports: [App],
         providers: [
+          ...provideInfrastructure(),
           provideRouter([
             { path: '', component: StubPage, data: { title: 'Industries', lede: '' } },
           ]),

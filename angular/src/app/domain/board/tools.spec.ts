@@ -7,6 +7,7 @@ import { BoardItem, BoardView } from '../models/board';
 import { Draft, Hit, PointerCtx, TOOLS, ToolUi, hitTest } from './tools';
 import { Rect, worldFromScreen } from './geometry';
 import { environment } from '../../../environments/environment';
+import { provideInfrastructure } from '../../infrastructure/providers';
 
 const note = (id: string, x = 0, y = 0): BoardItem => ({
   id,
@@ -63,7 +64,7 @@ describe('Board tools', () => {
     shapes = 0;
     notices = [];
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [...provideInfrastructure(), provideHttpClient(), provideHttpClientTesting()],
     });
     board = TestBed.inject(BoardEngine);
     const opened = board.open(1);

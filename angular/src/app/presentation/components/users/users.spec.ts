@@ -5,6 +5,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { UsersPage } from './users';
 import { Auth } from '../../../application/auth';
 import { AuthUser } from '../../../domain/models/industry';
+import { provideInfrastructure } from '../../../infrastructure/providers';
 
 // E7: the add box, and the temporary password panel
 describe('UsersPage', () => {
@@ -13,7 +14,12 @@ describe('UsersPage', () => {
   function setup() {
     TestBed.configureTestingModule({
       imports: [UsersPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        ...provideInfrastructure(),
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     });
     http = TestBed.inject(HttpTestingController);
     const fixture = TestBed.createComponent(UsersPage);
@@ -117,7 +123,12 @@ describe('UsersPage row actions', () => {
   function setup(list: AuthUser[] = [me, them]) {
     TestBed.configureTestingModule({
       imports: [UsersPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        ...provideInfrastructure(),
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     });
     http = TestBed.inject(HttpTestingController);
     TestBed.inject(Auth).user.set(me);
