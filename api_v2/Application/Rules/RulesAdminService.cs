@@ -11,6 +11,10 @@ public class RulesAdminService(IRulesStore store, ICollectorStore collector, ISe
     RulesService rules, ILogger<RulesAdminService> log)
 {
     // Runs on startup after migrations. A fresh database gets version 1 with the starting limits.
+    // Every rules version, newest first
+    public async Task<IEnumerable<RuleSet>> VersionsAsync(CancellationToken ct) =>
+        (await store.VersionsAsync(ct)).Select(RuleJson.ToRuleSet);
+
     public async Task LoadAsync(CancellationToken ct)
     {
         var latest = await store.LatestAsync(ct);

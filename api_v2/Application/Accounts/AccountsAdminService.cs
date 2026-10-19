@@ -14,12 +14,13 @@ public class AccountsAdminService(IAccounts accounts, IPasswordHasher hasher, IL
     public Task RefreshNameClashesAsync(CancellationToken ct) => accounts.RefreshNameClashesAsync(ct);
 
     // Runs on every start. Makes sure someone can always get in:
-    // - Auth:ResetPassword=<username> gives that account a new random password (for a forgotten password)
+    // - Auth:ResetPassword=<username>, passed in as resetUsername, gives that account a new random password
+    //   (for a forgotten password)
     // - with no working admin, the account "admin" is made or turned back on with a random password
     // Both print the password once in the API window.
-    public async Task EnsureAdminAsync(IConfiguration config, CancellationToken ct)
+    public async Task EnsureAdminAsync(string? resetUsername, CancellationToken ct)
     {
-        var reset = config["Auth:ResetPassword"]?.Trim().ToLowerInvariant();
+        var reset = resetUsername?.Trim().ToLowerInvariant();
         if (!string.IsNullOrEmpty(reset))
         {
             var target = await accounts.FindByUsernameAsync(reset, ct);

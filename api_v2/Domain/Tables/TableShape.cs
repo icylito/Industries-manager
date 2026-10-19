@@ -24,10 +24,10 @@ public static class TableLimits
 }
 
 // Checks a table's name, its columns and its rows. Columns reuse FieldRule and the Fields page's own checks
-// (RulesService), so a column behaves exactly like a custom field does.
+// (FieldChecks), so a column behaves exactly like a custom field does.
 public static class TableShape
 {
-    public static readonly JsonSerializerOptions Json = RulesService.Json;
+    public static readonly JsonSerializerOptions Json = RuleJson.Json;
 
     // The cleaned name, or the problem with it
     public static (string? Name, string? Problem) CheckName(string? raw)
@@ -39,7 +39,7 @@ public static class TableShape
         return (name, null);
     }
 
-    public static List<FieldRule> Parse(string json) => RulesService.ParseFields(json);
+    public static List<FieldRule> Parse(string json) => RuleJson.ParseFields(json);
 
     public static string Write(IEnumerable<FieldRule> columns) => JsonSerializer.Serialize(columns, Json);
 
@@ -67,7 +67,7 @@ public static class TableShape
             var input = list[i];
             var type = input.Type?.Trim().ToLowerInvariant() ?? "";
             var label = Names.Clean(input.Label) ?? "";
-            var problems = RulesService.CheckLimits(label, type, input.MaxLength, input.Min, input.Max);
+            var problems = FieldChecks.CheckLimits(label, type, input.MaxLength, input.Min, input.Max);
             if (type is not ("text" or "number" or "date")) problems.Add("Type has to be text, number or date");
             if (label.Length > 0 && Names.HasNoLetters(label)) problems.Add(Names.NoKeyMessage);
             else if (label.Length > 0 && !labels.Add(Names.Key(label))) problems.Add("Two columns can't have the same name");
@@ -82,7 +82,7 @@ public static class TableShape
             string key;
             if (string.IsNullOrEmpty(input.Key))
             {
-                key = RulesService.MakeKey(label.Length > 0 ? label : "column", taken);
+                key = FieldChecks.MakeKey(label.Length > 0 ? label : "column", taken);
             }
             else if (byKey.ContainsKey(input.Key) && used.Add(input.Key))
             {
@@ -130,14 +130,14 @@ public static class TableShape
             object? value;
             if (input.TryGetValue(column.Key, out var element))
             {
-                var (parsed, problem) = RulesService.FromJson(column, element);
+                var (parsed, problem) = RuleJson.FromJson(column, element);
                 if (problem is not null) { errors[column.Key] = [problem]; continue; }
                 value = parsed;
             }
             else
             {
                 value = existing is not null && existing.TryGetPropertyValue(column.Key, out var kept) && kept is not null
-                    ? RulesService.FromJson(column, JsonSerializer.SerializeToElement(kept)).Value
+                    ? RuleJson.FromJson(column, JsonSerializer.SerializeToElement(kept)).Value
                     : null;
             }
 
@@ -159,13 +159,13 @@ public static class TableShape
         switch (column.Type)
         {
             case "text":
-                var (text, problem) = RulesService.CheckText(column, value as string, null);
+                var (text, problem) = FieldChecks.CheckText(column, value as string, null);
                 return (text, problem);
             case "number":
-                return (value, RulesService.CheckNumber(column, value as decimal?));
+                return (value, FieldChecks.CheckNumber(column, value as decimal?));
             default:
                 if (value is null) return (null, column.Required ? $"{column.Label} is required" : null);
-                return (RulesService.ToStored(value), null);
+                return (RuleJson.ToStored(value), null);
         }
     }
 
@@ -181,7 +181,7 @@ public static class TableShape
             object? value = null;
             if (node is not null)
             {
-                var (parsed, problem) = RulesService.FromJson(column, JsonSerializer.SerializeToElement(node));
+                var (parsed, problem) = RuleJson.FromJson(column, JsonSerializer.SerializeToElement(node));
                 if (problem is not null) return (1, problem, null);
                 value = parsed;
             }

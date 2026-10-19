@@ -5,7 +5,7 @@ using Microsoft.OpenApi;
 using Microsoft.EntityFrameworkCore;
 using static Microsoft.OpenApi.OpenApiSpecVersion;
 using api_v2.Application.Health;
-using api_v2.Application.Hosted;
+using api_v2.Application.Jobs;
 using api_v2.Application.Settings;
 using api_v2.Infrastructure.Startup;
 using api_v2.Infrastructure.Configuration;
@@ -28,6 +28,7 @@ using api_v2.Application.Requests;
 using api_v2.Application.Scratchpad;
 using api_v2.Application.Rules;
 using api_v2.Application.Accounts;
+using api_v2.Application.Backups;
 using api_v2.Infrastructure.Hosted;
 
 
@@ -50,6 +51,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddValidation(); // Validating all the required, range, and length in Dtos folder
 builder.Services.AddProblemDetails();
 // What a failed request answers, and how loudly it is logged: Errors/ApiExceptionHandler.cs
+builder.Services.AddSingleton<IStorageErrors, StorageErrors>();
 builder.Services.AddExceptionHandler<api_v2.Presentation.Errors.ApiExceptionHandler>();
 builder.Services.Configure<RouteHandlerOptions>(o => o.ThrowOnBadRequest = true);
 // No JSON body here is big on purpose: the biggest is a Scratchpad board, held to 1,000,000 bytes by BoardRules.
@@ -82,6 +84,8 @@ builder.Services.AddSingleton<DatabaseStatus>();
 builder.Services.AddHostedService<MigrationService>();
 
 // Collector copies, versioned rules, backups and the restore from a backup
+builder.Services.AddSingleton(new RetentionDefaults(
+    builder.Configuration.GetValue<int?>("Collector:KeepVersions"), builder.Configuration.GetValue<int?>("Collector:KeepDays")));
 builder.Services.AddSingleton<SettingsService>();
 builder.Services.AddSingleton<CollectorStore>();
 builder.Services.AddSingleton<AppLocks>();
@@ -92,18 +96,21 @@ builder.Services.AddScoped<INameIndex, NameIndex>();
 builder.Services.AddScoped<IndustryService>();
 builder.Services.AddSingleton<ICollectorStore>(services => services.GetRequiredService<CollectorStore>());
 builder.Services.AddSingleton<IAppLocks>(services => services.GetRequiredService<AppLocks>());
-// Where uploaded Scratchpad files live on disk, created on startup. See Data/ScratchFileStore.cs
+// Where uploaded Scratchpad files live on disk, created on startup. See Infrastructure/Files/ScratchFileStore.cs
 builder.Services.AddSingleton<ScratchFileStore>();
 builder.Services.AddSingleton<IScratchFiles>(services => services.GetRequiredService<ScratchFileStore>());
 builder.Services.AddScoped<IScratchFilesStore, ScratchFilesStore>();
-builder.Services.AddHostedService<api_v2.Application.Hosted.ScratchFileSweeper>();
+builder.Services.AddScoped<ScratchFileService>();
+builder.Services.AddScoped<ScratchFileSweep>();
+builder.Services.AddHostedService<ScratchFileSweeper>();
 // The readable JSON copy of every table from the Tables page, and the job that writes it on start and empties
-// the bin. See Tables/UserTableMirror.cs and UserTables:Mirror in appsettings.
+// the bin. See Infrastructure/Files/UserTableMirror.cs and UserTables:Mirror in appsettings.
 builder.Services.AddSingleton<api_v2.Infrastructure.Files.UserTableMirror>();
 builder.Services.AddSingleton<IUserTableMirror>(services => services.GetRequiredService<api_v2.Infrastructure.Files.UserTableMirror>());
 builder.Services.AddScoped<IUserTablesStore, UserTablesStore>();
 builder.Services.AddScoped<UserTableService>();
-builder.Services.AddHostedService<api_v2.Application.Hosted.TableBinSweeper>();
+builder.Services.AddScoped<TableBinSweep>();
+builder.Services.AddHostedService<TableBinSweeper>();
 builder.Services.AddSingleton<api_v2.Infrastructure.Persistence.TableWriter>();
 builder.Services.AddSingleton<ITableWriter>(services => services.GetRequiredService<api_v2.Infrastructure.Persistence.TableWriter>());
 builder.Services.AddScoped<IHistoryRestoreRunner, HistoryRestoreRunner>();
@@ -113,17 +120,26 @@ builder.Services.AddSingleton<RulesService>();
 builder.Services.AddScoped<IRulesStore, RulesStore>();
 builder.Services.AddSingleton<ISectorConfig, SectorConfigFile>();
 builder.Services.AddScoped<RulesAdminService>();
+builder.Services.AddScoped<RuleChanges>();
+builder.Services.AddScoped<SettingsFileService>();
 // The retention setting row
 builder.Services.AddScoped<ISettingsStore, SettingsStore>();
 // Signs every backup so only this app's own can be dropped back in, see Backups/BackupSigner.cs
-builder.Services.AddSingleton(_ => DpapiKeyProtector.ForThisComputer());
+builder.Services.AddSingleton(_ => KeyProtection.ForThisComputer());
 builder.Services.AddSingleton<BackupSigner>();
 builder.Services.AddSingleton<BackupService>();
+// Read on every request, as before, so a change to appsettings.json applies without a restart
+builder.Services.AddTransient(services =>
+    new BackupUploadLimit(services.GetRequiredService<IConfiguration>().GetValue("Backup:MaxUploadMb", 2048)));
+builder.Services.AddTransient(services =>
+    new GuestAccess(services.GetRequiredService<IConfiguration>().GetValue("Auth:GuestCanView", true)));
 builder.Services.AddSingleton<BackupRestore>();
 builder.Services.AddSingleton<IBackupService>(services => services.GetRequiredService<BackupService>());
 builder.Services.AddSingleton<IBackupRestore>(services => services.GetRequiredService<BackupRestore>());
+builder.Services.AddScoped<BackupPreview>();
 builder.Services.AddHostedService<BackupScheduler>();
 // Notices when the history database goes away or comes back after startup, so the page's badge stays right
+builder.Services.AddSingleton<HistoryCheck>();
 builder.Services.AddHostedService<HistoryMonitor>();
 // Who is signed in comes from the token the page sends, see Auth/CurrentUser.cs
 builder.Services.AddHttpContextAccessor();
@@ -160,6 +176,8 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 // Wrong passwords per username, from any address, see Auth/LoginFailures.cs
+builder.Services.AddSingleton(new LoginLimits(
+    builder.Configuration.GetValue("Auth:FailedTriesPerName", 10), builder.Configuration.GetValue("Auth:FailedTriesWindowMinutes", 15)));
 builder.Services.AddSingleton<LoginFailures>();
 
 // Https:Required turns http into a redirect to https and adds HSTS. Off by default so a fresh clone runs with no certificate,

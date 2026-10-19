@@ -68,7 +68,7 @@ public static class Drafts
 
             -- Then change the type of "{key}" in the latest rules, either by hand in the RuleVersions table
             -- (copy the newest row's Fields with "type": "{to}" into a new row) or with PUT /schema after
-            -- allowing type changes in Rules/RulesService.cs CheckNewRules.
+            -- allowing type changes in backend/Domain/Rules/FieldChecks.cs CheckNewRules.
             """;
     }
 

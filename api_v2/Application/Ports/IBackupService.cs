@@ -39,15 +39,29 @@ public interface IBackupService
     // Runs pg_dump for main and the collector, one backup at a time
     Task<BackupEntry?> RunAsync(string kind, string by, CancellationToken ct);
 
-    // The zip a backup downloads as
-    string? ZipOf(string id);
+    // The zip a backup downloads as, made on the spot and deleted once it has been read to the end and closed.
+    // Null when there's no such backup.
+    Stream? OpenZip(string id);
 
-    // A fresh temporary path for an uploaded backup
-    string NewUploadPath();
+    // A place for an uploaded backup zip while it arrives. Disposing it removes whatever was written.
+    IBackupUpload BeginUpload();
 
-    Task<BackupEntry> ImportAsync(string zipPath, string by, long maxBytes, CancellationToken ct);
+    // One file of a backup (main, collector or excel), opened in plain
+    Task<BackupFileOpen> OpenFileAsync(string id, string file, CancellationToken ct);
+}
 
-    string? ResolveDump(string id, string file);
+// An uploaded zip on its way in: written through OpenWrite, then checked and added to the list by ImportAsync
+public interface IBackupUpload : IDisposable
+{
+    Stream OpenWrite();
 
-    Task<Stream> OpenFileAsync(string path, CancellationToken ct);
+    Task<BackupEntry> ImportAsync(string by, long maxBytes, CancellationToken ct);
+}
+
+// Invalid: not a backup file name. Missing: no backup by that id. Found: the file, to be closed by the caller.
+public abstract record BackupFileOpen
+{
+    public sealed record Invalid : BackupFileOpen;
+    public sealed record Missing : BackupFileOpen;
+    public sealed record Found(Stream Stream) : BackupFileOpen;
 }

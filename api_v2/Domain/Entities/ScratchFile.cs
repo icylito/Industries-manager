@@ -16,6 +16,6 @@ public class ScratchFile
     public required string StoredName { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     // When the sweep first found no board of the person's using this file. Cleared if a board uses it again.
-    // Seven days after this the file is deleted for good, see Scratchpad/ScratchFileSweeper.cs.
+    // Seven days after this the file is deleted for good, see Application/Jobs/ScratchFileSweep.cs.
     public DateTimeOffset? OrphanedAt { get; set; }
 }

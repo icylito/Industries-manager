@@ -1,15 +1,16 @@
 using System.Collections.Concurrent;
+using api_v2.Application.Settings;
 
 namespace api_v2.Application.Auth;
 
 // Wrong passwords per username, on top of the per-address limit in Program.cs. Someone guessing one account's
 // password from many addresses still gets stopped. Only failures count, so a right password never locks anyone out,
-// and a right password clears the count. Auth:FailedTriesPerName (default 10) in Auth:FailedTriesWindowMinutes (default 15).
+// and a right password clears the count. The limits are LoginLimits, see Settings/AppOptions.cs.
 // The cost: a stranger guessing can keep the real owner waiting until the window passes.
-public sealed class LoginFailures(IConfiguration config)
+public sealed class LoginFailures(LoginLimits limits)
 {
-    private readonly int limit = Math.Max(1, config.GetValue("Auth:FailedTriesPerName", 10));
-    private readonly TimeSpan window = TimeSpan.FromMinutes(Math.Max(1, config.GetValue("Auth:FailedTriesWindowMinutes", 15)));
+    private readonly int limit = Math.Max(1, limits.FailedTriesPerName);
+    private readonly TimeSpan window = TimeSpan.FromMinutes(Math.Max(1, limits.FailedTriesWindowMinutes));
     private readonly ConcurrentDictionary<string, List<DateTimeOffset>> failures = new();
 
     // How long until this name may try again, or null if it may try now

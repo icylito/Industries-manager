@@ -25,7 +25,7 @@ public static class RequestEndpoints
             var result = await service.GetAsync(id, ct);
             return result switch
             {
-                GetRequestResult.Found found => Results.Ok(new { request = found.Request, messages = found.Messages }),
+                GetRequestResult.Found found => Results.Ok(new { request = DevRequestView.From(found.Request), messages = found.Messages.Select(RequestMessageView.From) }),
                 _ => Results.NotFound("There's no request with that id")
             };
         });
@@ -36,7 +36,7 @@ public static class RequestEndpoints
             var result = await service.AddMessageAsync(id, body.Body, user, ct);
             return result switch
             {
-                AddMessageResult.Added added => Results.Ok(new { added.Message, added.Status }),
+                AddMessageResult.Added added => Results.Ok(new { Message = RequestMessageView.From(added.Message), added.Status }),
                 AddMessageResult.Forbidden => Results.Json(new { message = "Only the person who asked and the admins can reply here" },
                     statusCode: StatusCodes.Status403Forbidden),
                 AddMessageResult.Invalid invalid => Results.ValidationProblem(invalid.Errors),
@@ -66,7 +66,7 @@ public static class RequestEndpoints
             var result = await service.SetStatusAsync(id, body.Status, user, ct);
             return result switch
             {
-                SetStatusResult.Updated updated => Results.Ok(updated.Request),
+                SetStatusResult.Updated updated => Results.Ok(DevRequestView.From(updated.Request)),
                 SetStatusResult.Invalid invalid => Results.ValidationProblem(invalid.Errors),
                 SetStatusResult.Conflict conflict => Results.Conflict($"The same request is already open (#{conflict.OtherId})"),
                 _ => Results.NotFound("There's no request with that id")
@@ -76,8 +76,8 @@ public static class RequestEndpoints
 
     private static IResult AskResult(AskRequestResult result) => result switch
     {
-        AskRequestResult.Created created => Results.Created($"/requests/{created.Request.Id}", created.Request),
-        AskRequestResult.Existing existing => Results.Ok(existing.Request),
+        AskRequestResult.Created created => Results.Created($"/requests/{created.Request.Id}", DevRequestView.From(created.Request)),
+        AskRequestResult.Existing existing => Results.Ok(DevRequestView.From(existing.Request)),
         AskRequestResult.Invalid invalid => Results.ValidationProblem(invalid.Errors),
         _ => Results.Problem()
     };

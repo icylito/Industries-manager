@@ -1,8 +1,7 @@
 using api_v2.Application.Exceptions;
 using api_v2.Application.Health;
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.EntityFrameworkCore;
-using Npgsql;
+using api_v2.Application.Ports;
 
 namespace api_v2.Presentation.Errors;
 
@@ -10,7 +9,7 @@ namespace api_v2.Presentation.Errors;
 // Input a person got wrong, a name already taken, someone else changing the same row and a busy lock are all
 // expected: the page gets a plain sentence and the log gets one short line. Only what nobody planned for is
 // logged as an error with its stack, so a real failure is never lost among a client's bad requests.
-public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> log) : IExceptionHandler
+public sealed class ApiExceptionHandler(IStorageErrors storage, ILogger<ApiExceptionHandler> log) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext context, Exception exception, CancellationToken ct)
     {
@@ -29,26 +28,18 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> log) : IExc
     }
 
     // The answer for an exception, and whether it was something the API expects to happen now and then.
-    // The wording and the codes are what Program.cs always answered, only the log level is new.
-    public static (int Status, string Title, string Detail, bool Expected) Describe(Exception? error)
+    // The wording and the codes are what Program.cs always answered, only the log level is new. What the database
+    // refused is read by IStorageErrors, so this file knows HTTP and nothing about EF or Postgres.
+    public (int Status, string Title, string Detail, bool Expected) Describe(Exception? error)
     {
-        PostgresException? postgres = null;
         var busy = false;
-        var concurrency = false;
         var badRequest = false;
-
         for (var current = error; current is not null; current = current.InnerException)
         {
             switch (current)
             {
                 case AppBusyException:
                     busy = true;
-                    break;
-                case PostgresException pg:
-                    postgres ??= pg;
-                    break;
-                case DbUpdateConcurrencyException:
-                    concurrency = true;
                     break;
                 case BadHttpRequestException:
                     badRequest = true;
@@ -61,22 +52,17 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> log) : IExc
             return (StatusCodes.Status503ServiceUnavailable, "Busy",
                 "Someone else is changing this right now. Try again in a moment", true);
         }
-        if (postgres?.SqlState == PostgresErrorCodes.UniqueViolation)
+        switch (error is null ? StorageError.None : storage.Classify(error))
         {
-            return (StatusCodes.Status409Conflict, "Already taken", "That name is already taken", true);
-        }
-        if (concurrency)
-        {
-            return (StatusCodes.Status409Conflict, "Changed meanwhile",
-                "Someone else changed or deleted this at the same time. Reload and try again", true);
-        }
-        if (postgres?.SqlState == PostgresErrorCodes.ProgramLimitExceeded)
-        {
-            return (StatusCodes.Status400BadRequest, "Too long", "That value is too long to save", true);
-        }
-        if (postgres?.SqlState is PostgresErrorCodes.UntranslatableCharacter or PostgresErrorCodes.CharacterNotInRepertoire)
-        {
-            return (StatusCodes.Status400BadRequest, "Bad character", "The text has a character that can't be saved", true);
+            case StorageError.NameTaken:
+                return (StatusCodes.Status409Conflict, "Already taken", "That name is already taken", true);
+            case StorageError.ChangedMeanwhile:
+                return (StatusCodes.Status409Conflict, "Changed meanwhile",
+                    "Someone else changed or deleted this at the same time. Reload and try again", true);
+            case StorageError.TooLong:
+                return (StatusCodes.Status400BadRequest, "Too long", "That value is too long to save", true);
+            case StorageError.BadCharacter:
+                return (StatusCodes.Status400BadRequest, "Bad character", "The text has a character that can't be saved", true);
         }
         if (badRequest)
         {

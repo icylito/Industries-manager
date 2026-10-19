@@ -3,6 +3,7 @@ using api_v2.Application.Auth;
 using api_v2.Application.Ports;
 using api_v2.Domain.Entities;
 using api_v2.Domain.Rules;
+using api_v2.Application.Rules;
 
 namespace api_v2.Application.Requests;
 

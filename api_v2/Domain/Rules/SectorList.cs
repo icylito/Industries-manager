@@ -3,7 +3,7 @@ using System.Text;
 namespace api_v2.Domain.Rules;
 
 // Reads the sectors list out of scripts/config.toml. Only that one key, no TOML package.
-internal static class SectorList
+public static class SectorList
 {
     public static bool TryRead(string text, out List<string> sectors, out string problem)
     {

@@ -8,6 +8,7 @@ using api_v2.Application.Settings;
 using api_v2.Domain.Collector;
 using api_v2.Domain.Export;
 using api_v2.Domain.Rules;
+using api_v2.Application.Rules;
 
 namespace api_v2.Application.History;
 

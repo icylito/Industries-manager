@@ -23,7 +23,10 @@ public sealed class DpapiKeyProtector : IKeyProtector
     public byte[] Protect(byte[] keys) => ProtectedData.Protect(keys, Entropy, DataProtectionScope.LocalMachine);
 
     public byte[] Unprotect(byte[] wrapped) => ProtectedData.Unprotect(wrapped, Entropy, DataProtectionScope.LocalMachine);
+}
 
+public static class KeyProtection
+{
     // Backups are sealed to a Windows computer, so on anything else the API refuses to start rather than run
     // without a key it can trust
     public static IKeyProtector ForThisComputer() => OperatingSystem.IsWindows()

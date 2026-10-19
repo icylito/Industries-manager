@@ -7,6 +7,7 @@ using api_v2.Application.Health;
 using api_v2.Domain.Rules;
 using api_v2.Application.Ports;
 using api_v2.Domain.Collector;
+using api_v2.Application.Rules;
 
 namespace api_v2.Infrastructure.Persistence;
 

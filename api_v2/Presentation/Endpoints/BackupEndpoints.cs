@@ -1,3 +1,4 @@
+using api_v2.Application.Backups;
 using api_v2.Application.Exceptions;
 using api_v2.Application.Auth;
 using api_v2.Presentation.Contracts;
@@ -8,6 +9,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Net.Http.Headers;
 
 using api_v2.Presentation.Authorization;
+using api_v2.Application.Settings;
 
 namespace api_v2.Presentation.Endpoints;
 
@@ -71,22 +73,10 @@ public static class BackupEndpoints
         }).RequireAdmin();
 
         // What a restore from this backup would do. Nothing is changed.
-        group.MapGet("/{id}/restore/preview", async (string id, IBackupService backups, IBackupRestore restore,
-            DatabaseStatus status, IIndustryStore industries, CancellationToken ct) =>
-        {
-            var entry = backups.Find(id);
-            if (entry is null) return Results.NotFound($"No backup called {id} exists. Nothing was changed");
-            return Results.Ok(new
-            {
-                entry.Id,
-                entry.CreatedAt,
-                entry.RulesVersion,
-                entry.RowCount,
-                SameLayout = restore.SameLayout(entry),
-                CurrentRows = await industries.CountAsync(ct),
-                HistoryReady = status.HistoryReady
-            });
-        });
+        group.MapGet("/{id}/restore/preview", async (string id, BackupPreview preview, CancellationToken ct) =>
+            await preview.RestoreAsync(id, ct) is { } plan
+                ? Results.Ok(plan)
+                : Results.NotFound($"No backup called {id} exists. Nothing was changed"));
 
         // Puts the table, its rules, settings, requests and every table from the Tables page back the way they were
         // in this backup. Accounts and sign ins stay as they are now. A full backup of right now is taken first
@@ -128,19 +118,18 @@ public static class BackupEndpoints
         group.MapGet("/{id}/download", (string id, IBackupService backups) =>
         {
             if (!backups.ValidId(id)) return Results.BadRequest("That isn't a backup");
-            var zip = backups.ZipOf(id);
-            if (zip is null) return Results.NotFound($"No backup called {id} exists. Nothing was changed");
             // Deleted as soon as it has been sent
-            var stream = new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.Delete, 81920, FileOptions.DeleteOnClose);
+            var stream = backups.OpenZip(id);
+            if (stream is null) return Results.NotFound($"No backup called {id} exists. Nothing was changed");
             return Results.File(stream, "application/zip", $"backup-{id}.zip");
         });
 
         // A backup zip dropped in from the page. It is checked and added to the list; restoring it is a separate step.
         // Read as it arrives, with the size cap counted on the way in, so a huge file never fills the disk.
-        group.MapPost("/upload", async (HttpRequest request, IBackupService backups, IBackupRestore restore, IConfiguration config,
+        group.MapPost("/upload", async (HttpRequest request, IBackupService backups, IBackupRestore restore, BackupUploadLimit limit,
             ICurrentUser user, ILogger<IBackupService> log, CancellationToken ct) =>
         {
-            var maxBytes = Math.Max(1, config.GetValue("Backup:MaxUploadMb", 2048)) * 1024L * 1024L;
+            var maxBytes = Math.Max(1, limit.MaxUploadMb) * 1024L * 1024L;
             if (!MediaTypeHeaderValue.TryParse(request.ContentType, out var media)
                 || !media.MediaType.Equals("multipart/form-data", StringComparison.OrdinalIgnoreCase)
                 || HeaderUtilities.RemoveQuotes(media.Boundary).Value is not { Length: > 0 } boundary)
@@ -151,7 +140,7 @@ public static class BackupEndpoints
             var bodyLimit = request.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>();
             if (bodyLimit is { IsReadOnly: false }) bodyLimit.MaxRequestBodySize = maxBytes + 1024 * 1024;
 
-            var temp = backups.NewUploadPath();
+            using var upload = backups.BeginUpload();
             try
             {
                 var reader = new MultipartReader(boundary, request.Body);
@@ -162,7 +151,7 @@ public static class BackupEndpoints
                     if (!ContentDispositionHeaderValue.TryParse(section.ContentDisposition, out var disposition)
                         || !disposition.IsFileDisposition()) continue;
 
-                    await using (var target = new FileStream(temp, FileMode.CreateNew, FileAccess.Write))
+                    await using (var target = upload.OpenWrite())
                     {
                         var buffer = new byte[81920];
                         long total = 0;
@@ -186,7 +175,7 @@ public static class BackupEndpoints
                     return Results.Problem("No file was sent", statusCode: StatusCodes.Status400BadRequest, title: "That request couldn't be read. Nothing was changed");
                 }
 
-                var entry = await backups.ImportAsync(temp, user.Name, maxBytes, ct);
+                var entry = await upload.ImportAsync(user.Name, maxBytes, ct);
                 return Results.Ok(Describe(entry, restore));
             }
             catch (BackupUploadException ex)
@@ -206,33 +195,19 @@ public static class BackupEndpoints
                 return Results.Problem("The upload was cut short. Nothing was added. Try again", statusCode: StatusCodes.Status400BadRequest,
                     title: "That request couldn't be read. Nothing was changed");
             }
-            finally
-            {
-                try { File.Delete(temp); } catch (IOException) { } catch (UnauthorizedAccessException) { }
-            }
         });
 
         group.MapGet("/{id}/{file}", async (string id, string file, IBackupService backups, CancellationToken ct) =>
         {
-            if (!backups.ValidId(id) || file is not ("main" or "collector" or "excel"))
+            // The file is sealed on disk, so it is opened there and sent in plain. excel is a CSV with a BOM, Excel opens it with a double click
+            return await backups.OpenFileAsync(id, file, ct) switch
             {
-                return Results.BadRequest("That isn't a backup file");
-            }
-
-            var path = backups.ResolveDump(id, file);
-            if (path is null)
-            {
-                return Results.BadRequest("That isn't a backup file");
-            }
-            if (!File.Exists(path))
-            {
-                return Results.NotFound($"No backup called {id} exists. Nothing was changed");
-            }
-            // The file is sealed on disk, so it is opened here and sent in plain. excel is a CSV with a BOM, Excel opens it with a double click
-            var stream = await backups.OpenFileAsync(path, ct);
-            return file == "excel"
-                ? Results.Stream(stream, "text/csv", $"industries-{id}.csv")
-                : Results.Stream(stream, "application/octet-stream", $"{id}-{file}.dump");
+                BackupFileOpen.Found found => file == "excel"
+                    ? Results.Stream(found.Stream, "text/csv", $"industries-{id}.csv")
+                    : Results.Stream(found.Stream, "application/octet-stream", $"{id}-{file}.dump"),
+                BackupFileOpen.Missing => Results.NotFound($"No backup called {id} exists. Nothing was changed"),
+                _ => Results.BadRequest("That isn't a backup file")
+            };
         });
     }
 

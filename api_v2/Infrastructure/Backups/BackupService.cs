@@ -12,6 +12,7 @@ using api_v2.Application.Ports;
 using api_v2.Domain.Rules;
 using Npgsql;
 using api_v2.Infrastructure.Security;
+using api_v2.Application.Rules;
 
 namespace api_v2.Infrastructure.Backups;
 
@@ -806,10 +807,34 @@ public sealed class BackupService(
     // ---- moving a backup as one file ----
 
     // Where an upload is written while it arrives: a dot file beside the backups, on the same disk
-    public string NewUploadPath()
+    private string NewUploadPath()
     {
         Directory.CreateDirectory(_folder);
         return Path.Combine(_folder, $".upload-{Guid.NewGuid():N}.zip");
+    }
+
+    public IBackupUpload BeginUpload() => new Upload(this, NewUploadPath());
+
+    // The temp file of one upload. Gone when the request is over, whether the backup was added or not.
+    private sealed class Upload(BackupService backups, string path) : IBackupUpload
+    {
+        public Stream OpenWrite() => new FileStream(path, FileMode.CreateNew, FileAccess.Write);
+
+        public Task<BackupEntry> ImportAsync(string by, long maxBytes, CancellationToken ct) => backups.ImportAsync(path, by, maxBytes, ct);
+
+        public void Dispose()
+        {
+            try { File.Delete(path); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    public async Task<BackupFileOpen> OpenFileAsync(string id, string file, CancellationToken ct)
+    {
+        if (!ValidId(id) || file is not ("main" or "collector" or "excel")) return new BackupFileOpen.Invalid();
+        var path = ResolveDump(id, file);
+        if (path is null) return new BackupFileOpen.Invalid();
+        if (!File.Exists(path)) return new BackupFileOpen.Missing();
+        return new BackupFileOpen.Found(await OpenFileAsync(path, ct));
     }
 
     // Downloads, uploads and checks that a crash left behind, a day after the fact
@@ -883,7 +908,13 @@ public sealed class BackupService(
 
     // The backup's files in one zip, written beside the backups (a dot file, so no listing picks it up). The caller
     // serves it and deletes it. uploaded.json stays out, so the zip carries exactly what was signed.
-    public string? ZipOf(string id)
+    public Stream? OpenZip(string id)
+    {
+        var zip = ZipOf(id);
+        return zip is null ? null : new FileStream(zip, FileMode.Open, FileAccess.Read, FileShare.Delete, 81920, FileOptions.DeleteOnClose);
+    }
+
+    private string? ZipOf(string id)
     {
         var dir = FolderOf(id);
         if (dir is null) return null;
@@ -903,7 +934,7 @@ public sealed class BackupService(
     // A zip someone dropped in. Unpacked into a dot folder, checked, and only then added to the list as an
     // uploaded backup. Restoring it is the same Restore button and checks as any other backup. Nothing in the
     // file reaches pg_restore unless this app's own signature on it is good.
-    public async Task<BackupEntry> ImportAsync(string zipPath, string by, long maxBytes, CancellationToken ct)
+    private async Task<BackupEntry> ImportAsync(string zipPath, string by, long maxBytes, CancellationToken ct)
     {
         Directory.CreateDirectory(_folder);
         var staging = Path.Combine(_folder, "." + Guid.NewGuid().ToString("N"));

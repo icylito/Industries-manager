@@ -8,6 +8,7 @@ using api_v2.Infrastructure.Persistence;
 using api_v2.Domain.Rules;
 using Npgsql;
 using NpgsqlTypes;
+using api_v2.Application.Rules;
 
 namespace api_v2.Infrastructure.Persistence;
 

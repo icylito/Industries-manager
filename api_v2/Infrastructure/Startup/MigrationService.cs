@@ -101,9 +101,9 @@ public class MigrationService(
                     }
                     var settingsStore = scope.ServiceProvider.GetRequiredService<ISettingsStore>();
                     await settings.LoadAsync(settingsStore, ct);
-                    // Someone must always be able to sign in, see UserService.EnsureAdminAsync
+                    // Someone must always be able to sign in, see AccountsAdminService.EnsureAdminAsync
                     var accountsAdmin = scope.ServiceProvider.GetRequiredService<AccountsAdminService>();
-                    await accountsAdmin.EnsureAdminAsync(config, ct);
+                    await accountsAdmin.EnsureAdminAsync(config["Auth:ResetPassword"], ct);
 
                     // The data chain's list is the layout backups and History versions are compared by
                     var applied = (await data.Database.GetAppliedMigrationsAsync(ct)).ToList();

@@ -1,4 +1,5 @@
 using api_v2.Application.Ports;
+using api_v2.Application.Settings;
 
 namespace api_v2.Presentation.Authorization;
 
@@ -65,8 +66,7 @@ public static class AdminExtensions
     {
         return builder.AddEndpointFilter(async (context, next) =>
         {
-            var config = context.HttpContext.RequestServices.GetRequiredService<IConfiguration>();
-            if (config.GetValue("Auth:GuestCanView", true)) return await next(context);
+            if (context.HttpContext.RequestServices.GetRequiredService<GuestAccess>().CanView) return await next(context);
 
             var user = context.HttpContext.RequestServices.GetRequiredService<ICurrentUser>();
             await user.LoadAsync(context.HttpContext.RequestAborted);

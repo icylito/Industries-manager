@@ -1,10 +1,12 @@
 using System.Text.Json;
 using api_v2.Domain.Entities;
+using api_v2.Domain.Rules;
 
-namespace api_v2.Domain.Rules;
+namespace api_v2.Application.Rules;
 
 // Keeps the rules in use in memory, so every request reads the same set. Loading, saving and deleting
-// versions is RulesAdminService; checking rows is FieldChecks and the JSON side is RuleJson.
+// versions is RulesAdminService; checking rows is FieldChecks and the JSON side is RuleJson, both pure and in the
+// domain. This one holds state shared by every request, which is why it sits here and not beside them.
 public class RulesService
 {
     public static readonly JsonSerializerOptions Json = RuleJson.Json;
@@ -49,15 +51,5 @@ public class RulesService
 
     public static object? ToStored(object? value) => RuleJson.ToStored(value);
 
-    internal static List<string> CheckLimits(string? label, string type, int? maxLength, decimal? min, decimal? max) =>
-        FieldChecks.CheckLimits(label, type, maxLength, min, max);
-
     public static string AddedNote(IReadOnlyList<string> labels) => FieldChecks.AddedNote(labels);
-
-    internal static string MakeKey(string label, HashSet<string> taken) => FieldChecks.MakeKey(label, taken);
-
-    internal static (string? Stored, string? Problem) CheckText(FieldRule rule, string? text, string? keep) =>
-        FieldChecks.CheckText(rule, text, keep);
-
-    internal static string? CheckNumber(FieldRule rule, decimal? number) => FieldChecks.CheckNumber(rule, number);
 }
