@@ -10,13 +10,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\api_v2\Backups\BackupSigner.cs" Link="BackupSigner.cs" />
-    <Compile Include="..\..\api_v2\Backups\BackupCipher.cs" Link="BackupCipher.cs" />
     <Compile Include="Program.cs" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.11" />
+    <ProjectReference Include="..\..\backend\Infrastructure\api_v2.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,3 +1,4 @@
+using api_v2.Application.Health;
 using Npgsql;
 
 namespace api_v2.Infrastructure.Configuration;
@@ -28,20 +29,16 @@ public record DatabaseConnections(string Main, string Collector, bool UsingDocke
     }
 
     // Host, port, and database name for /health. The password stays in the connection string.
-    public object PublicView() => new
-    {
-        live = Describe(Main),
-        history = Describe(Collector)
-    };
+    public DatabaseNames PublicView() => new(Describe(Main), Describe(Collector));
 
-    private static object Describe(string connectionString)
+    private static DatabaseName Describe(string connectionString)
     {
         var builder = new NpgsqlConnectionStringBuilder(connectionString);
-        return new
-        {
-            host = string.IsNullOrEmpty(builder.Host) ? "localhost" : builder.Host,
-            port = builder.Port,
-            database = builder.Database
-        };
+        return new DatabaseName(string.IsNullOrEmpty(builder.Host) ? "localhost" : builder.Host, builder.Port, builder.Database);
     }
+}
+
+public sealed class DatabaseNamesFromSettings(DatabaseConnections connections) : IDatabaseNames
+{
+    public DatabaseNames Describe() => connections.PublicView();
 }

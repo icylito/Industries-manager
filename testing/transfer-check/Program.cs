@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
-using api_v2.Backups;
+using api_v2.Infrastructure.Backups;
+using api_v2.Infrastructure.Security;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
@@ -43,7 +44,7 @@ if (stored.Length == 32)
 var config = new ConfigurationBuilder()
     .AddInMemoryCollection(new Dictionary<string, string?> { ["Backup:SigningKeyFile"] = keyFile })
     .Build();
-var signer = new BackupSigner(config, new Env(folder), NullLogger<BackupSigner>.Instance);
+var signer = new BackupSigner(config, new Env(folder), KeyProtection.ForThisComputer(), NullLogger<BackupSigner>.Instance);
 
 byte[] sealKey;
 try

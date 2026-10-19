@@ -20,7 +20,7 @@ public sealed class SmokeHost : WebApplicationFactory<Program>
     public const string MainDb = "smoke_main";
     public const string CollectorDb = "smoke_collector";
 
-    private static readonly string Server = Environment.GetEnvironmentVariable("SMOKE_PG")
+    private static readonly string PgServer = Environment.GetEnvironmentVariable("SMOKE_PG")
         ?? "Host=localhost;Port=5433;Username=postgres;Password=postgres";
 
     public string Folder { get; } = Path.Combine(Path.GetTempPath(), "api_v2-smoke-" + Guid.NewGuid().ToString("N")[..8]);
@@ -29,7 +29,7 @@ public sealed class SmokeHost : WebApplicationFactory<Program>
     public SmokeHost()
     {
         Directory.CreateDirectory(Folder);
-        using var connection = new NpgsqlConnection(new NpgsqlConnectionStringBuilder(Server) { Database = "postgres" }.ConnectionString);
+        using var connection = new NpgsqlConnection(new NpgsqlConnectionStringBuilder(PgServer) { Database = "postgres" }.ConnectionString);
         connection.Open();
         foreach (var db in new[] { MainDb, CollectorDb })
         {
@@ -40,7 +40,7 @@ public sealed class SmokeHost : WebApplicationFactory<Program>
         }
     }
 
-    private static string Db(string name) => new NpgsqlConnectionStringBuilder(Server) { Database = name }.ConnectionString;
+    private static string Db(string name) => new NpgsqlConnectionStringBuilder(PgServer) { Database = name }.ConnectionString;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
