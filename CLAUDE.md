@@ -169,7 +169,23 @@ to be confused with `presentation/components/scratchpad/rich-text.ts`, the Scrat
   tens of thousands of rows, see Phase 2 below. The Scratchpad uses `/industries/search`, `/top` and `/by-ids` instead.
 - A restore brings back rows and rules, not old columns. That is by design, old columns are a developer request.
 - The checks in `testing/` delete rows. `testing/t.py` refuses the API on 5005 or 7165 and any database called `main`,
-  `collector` or `api_v2`, so run them against a throwaway API on 5104 only. The `testing/` scripts were restored from history after the refactor and have not been run since; run them against a throwaway API on 5104.
+  `collector` or `api_v2`, so run them against a throwaway API on 5104 only. The last full run (2026-10-19, results in
+  `update.txt`) passed everything except `stress.py` (restores refused while a backup runs, see Current plan),
+  `check_dump.py` on an app backup (it can't read the sealed `SLBAK1` dumps) and the browser scripts (`check_page`,
+  `check_design`, `check_ui`, `grade_capture`), which look for the History page from before its 10-15 redesign.
+- `appsettings.Throwaway.example.json` only moves the backups folder. Start the throwaway API with
+  `Backup__SigningKeyFile`, `Scratchpad__Files` and `UserTables__Mirror` pointed under `testing/throwaway-backups`, or
+  its first start writes `backup-key/`, `scratchpad-files/` and `user-tables/` at the repo root, where the real ones go.
+- Postgres must be 17, as in `docker-compose.yml`. A backup restore reads `pg_collation.colllocale` (17 and later), so on
+  16 every restore fails, and `pg_dump`/`pg_restore` must be the server's major version.
+- `check_migration.py` on `OneNameRule` needs `EXPECT_CHANGED=Industries,UserTables KEPT=Industries,UserTables`: the
+  migration flags duplicate names and renames clashing tables on purpose, and without them two row checks fail.
+- An exception that crosses layers is defined once, in `backend/Application/Exceptions/`. A class of the same name in
+  Infrastructure still compiles, but the endpoint's `catch` never matches it: `BackupRefusedException` had two copies
+  and every refused restore answered 503 instead of 409 until 2026-10-19.
+- The page's initial bundle is 507 kB against the 500 kB budget in `angular.json`, so `ng build` warns. About 279 kB is
+  Angular itself, 89 kB the home page (`my-components.ts`, loaded eagerly as the `''` route) and 54 kB `@angular/forms`,
+  which only the home page uses. Nothing in it is dead data; lazy loading the home route or raising the budget is open.
 - The CSV escaping lives once, in `backend/Domain/Export/CsvText.cs`, used by the History download, the Tables export and the backup Excel file; new CSV output goes through it.
 - Comments in this repo are plain sentences about intent and the reason, not labels. Match that.
 - Migrations keep the namespaces `api_v2.Migrations` and `api_v2.Migrations.State` though they sit in
@@ -184,7 +200,7 @@ Full text: `docs/plans/2026-10-11-history-hardening.md`.
 | Phase | What | State |
 |---|---|---|
 | 1 | History hardening: restore note capped at 300 (page, API, storage), import must say skip or keep on duplicates, response compression and a 2 MB body cap, expected errors logged as one line | **Built**, commit `419491d`. Page tests and both builds pass, checked by hand against a copy of the data. |
-| 1b | Run `testing/check_history_limits.py` on a throwaway API | **Not run yet**, needs the setup in `testing/README.md` |
+| 1b | Run `testing/check_history_limits.py` on a throwaway API | **Passed** on 2026-10-19, 21 `ok` lines |
 | 2 | Server side paging: `GET /industries/page`, `/industries/summary`, `/industries/export`, then move Browse and Overview onto them and drop the full list call | **Design only, needs its own approval.** Start when the table nears about 100,000 rows or the compressed list passes about 5 MB. Order: summary, paged list, export. |
 
 Alongside it, `docs/plans/2026-10-15-history-requests-desktop.md` (History and Requests polish, desktop only, page code
@@ -194,3 +210,6 @@ only): all seven asks are built. In the Requests list the status only reads, it 
 The clean architecture pass is built on branch `clean-architecture`: `docs/plans/2026-10-18-clean-architecture.md` split
 the code into the four folders, and `docs/plans/2026-10-19-clean-architecture-projects.md` made each layer its own
 project, moved what still bent the rules, and added the layer tests, the page's layer check and the smoke run.
+Open decisions from its testing are in `update.txt`: whether a backup restore should wait for a running backup or be
+refused (`stress.py` expects it to wait, the code refuses), the bundle budget, and running the Windows checks
+(`start.bat`, `migrate.ps1`, DPAPI, the transfer test), which have only been read, never run.
