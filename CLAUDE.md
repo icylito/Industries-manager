@@ -64,8 +64,9 @@ endpoint plus a contract, and the page's call in the service for that area.
 
 **Three places data lives.** The main database (the live tables), the **collector** database (History: `versions`,
 `version_rows`, `row_changes`, read and written with plain SQL in `backend/Infrastructure/Persistence/CollectorStore.cs`, its
-schema is made by `EnsureSchemaAsync`, not by EF), and folders on disk (`backups/`, `scratchpad-files/`, `user-tables/`,
-`backup-key/`, all git ignored). `DatabaseStatus` (`Application/Health/DatabaseStatus.cs`) tracks whether each is
+schema is made by `EnsureSchemaAsync`, not by EF), and two folders on disk (`backups/` and `backup-key/`, both git
+ignored). Everything the app shows comes from the databases, never from a file the API wrote: Scratchpad uploads are
+rows in `ScratchFileContents`, and the old `user-tables/` JSON copies are gone. `DatabaseStatus` (`Application/Health/DatabaseStatus.cs`) tracks whether each is
 reachable and `/health` reports it.
 
 **Two migration chains, and which one a change belongs to matters.** `Infrastructure/Persistence/DataModel.cs` is what
@@ -112,9 +113,12 @@ and a plain sentence, expected ones (bad input, name taken, concurrent change, b
 log a stack. `RouteHandlerOptions.ThrowOnBadRequest` is on, so bad JSON reaches it as `BadHttpRequestException`.
 
 **The Scratchpad** keeps each board as one JSON document validated by `backend/Domain/Scratchpad/BoardRules.cs`. The client
-engine is `angular/src/app/board/` (pure `ops`, `geometry`, `tools`, plus the stores and the board engine). The carry tray from the Overview is server side (`/scratchpad/tray`), uploaded files live on disk
-under `scratchpad-files/` with a sweeper that removes unused ones (`Application/Jobs/ScratchFileSweep.cs`, run hourly by
-`Infrastructure/Hosted/ScratchFileSweeper.cs`). What a file may be is `Domain/Scratchpad/ScratchFileRules.cs`.
+engine is `angular/src/app/board/` (pure `ops`, `geometry`, `tools`, plus the stores and the board engine). The carry tray from the Overview is server side (`/scratchpad/tray`), uploaded files are a
+`ScratchFiles` row plus their bytes in `ScratchFileContents` (deleting the row deletes the bytes), with a sweeper that
+removes unused ones (`Application/Jobs/ScratchFileSweep.cs`, run hourly by `Infrastructure/Hosted/ScratchFileSweeper.cs`).
+What a file may be is `Domain/Scratchpad/ScratchFileRules.cs`. Files used to live on disk in `scratchpad-files/`;
+`Infrastructure/Files/ScratchFileImport.cs` copies any still there into the database when the API starts, only reading
+the folder, which can be deleted once its log line says every file is in.
 
 **Backups are sealed to this computer.** `backend/Infrastructure/Backups/`: the dumps and the CSV are encrypted
 (`BackupCipher`) and every backup carries a `signature.json` (`BackupSigner`, an HMAC over the files' hashes). Both

@@ -3,7 +3,7 @@ using api_v2.Application.Jobs;
 
 namespace api_v2.Infrastructure.Hosted;
 
-// Once the database is ready: writes the readable copies of every table, then every hour empties the bin.
+// Once the database is ready, every hour empties the bin.
 // The work itself is Application/Jobs/TableBinSweep, each run in its own scope.
 public sealed class TableBinSweeper(IServiceScopeFactory scopes, DatabaseStatus status, ILogger<TableBinSweeper> log) : BackgroundService
 {
@@ -12,16 +12,6 @@ public sealed class TableBinSweeper(IServiceScopeFactory scopes, DatabaseStatus 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         if (!await status.WaitUntilReadyAsync(ct)) return;
-
-        try
-        {
-            using var scope = scopes.CreateScope();
-            await scope.ServiceProvider.GetRequiredService<TableBinSweep>().RebuildCopiesAsync(ct);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            log.LogWarning(ex, "Couldn't write the readable copies of the tables, they are written as tables change");
-        }
 
         using var timer = new PeriodicTimer(Every);
         do

@@ -1,9 +1,11 @@
 using api_v2.Application.Health;
 using api_v2.Application.Jobs;
+using api_v2.Infrastructure.Files;
 
 namespace api_v2.Infrastructure.Hosted;
 
-// Runs Application/Jobs/ScratchFileSweep hourly once the database is ready, each run in its own scope.
+// Once the database is ready: copies in any Scratchpad file still in the old folder, then runs
+// Application/Jobs/ScratchFileSweep hourly, each run in its own scope.
 public sealed class ScratchFileSweeper(
     IServiceScopeFactory scopes,
     DatabaseStatus status,
@@ -13,6 +15,16 @@ public sealed class ScratchFileSweeper(
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         if (!await status.WaitUntilReadyAsync(ct)) return;
+
+        try
+        {
+            using var scope = scopes.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<ScratchFileImport>().RunAsync(ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            log.LogWarning(ex, "Copying the old Scratchpad files into the database failed, it's tried again when the API next starts");
+        }
 
         // Hourly. A throwaway API can set Scratchpad:SweepMinutes lower.
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(Math.Max(1, config.GetValue("Scratchpad:SweepMinutes", 60))));

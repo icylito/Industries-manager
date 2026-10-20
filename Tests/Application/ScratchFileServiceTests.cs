@@ -1,6 +1,7 @@
 using api_v2.Application.Ports;
 using api_v2.Application.Scratchpad;
 using api_v2.Domain.Entities;
+using api_v2.Domain.Scratchpad;
 using Xunit;
 
 namespace api_v2.Tests.Application;
@@ -9,8 +10,7 @@ namespace api_v2.Tests.Application;
 public sealed class ScratchFileServiceTests
 {
     private readonly MemoryRows rows = new();
-    private readonly MemoryFiles files = new();
-    private ScratchFileService Service => new(rows, files);
+    private ScratchFileService Service => new(rows);
 
     [Fact]
     public async Task A_saved_file_has_its_row_and_its_bytes()
@@ -20,27 +20,38 @@ public sealed class ScratchFileServiceTests
         var saved = Assert.IsType<SaveFileResult.Saved>(result).File;
         Assert.Equal("photo.png", saved.Name);
         Assert.Equal(3, saved.SizeBytes);
-        Assert.Single(rows.All);
-        Assert.True(files.Has(rows.All[0].StoredName));
+        Assert.Equal([1, 2, 3], Assert.Single(rows.All).Content!.Bytes);
+
+        var opened = await Service.OpenAsync(saved.Id, 7, default);
+        using var read = new MemoryStream();
+        await opened!.Stream.CopyToAsync(read);
+        Assert.Equal([1, 2, 3], read.ToArray());
+    }
+
+    [Fact]
+    public async Task A_file_of_exactly_the_cap_is_kept()
+    {
+        var result = await Service.SaveAsync(7, "full.png", "image/png", new MemoryStream(new byte[ScratchFileRules.MaxBytes]), default);
+
+        Assert.Equal(ScratchFileRules.MaxBytes, Assert.IsType<SaveFileResult.Saved>(result).File.SizeBytes);
     }
 
     [Fact]
     public async Task Too_big_leaves_no_row()
     {
-        files.TooBig = true;
-        var result = await Service.SaveAsync(7, "huge.png", "image/png", new MemoryStream([1]), default);
+        var result = await Service.SaveAsync(7, "huge.png", "image/png", new MemoryStream(new byte[ScratchFileRules.MaxBytes + 1]), default);
 
         Assert.Equal("huge.png is bigger than 25 MB.", Assert.IsType<SaveFileResult.TooBig>(result).Message);
         Assert.Empty(rows.All);
     }
 
     [Fact]
-    public async Task When_the_row_cannot_be_saved_the_bytes_go_too()
+    public async Task When_the_save_fails_nothing_is_kept()
     {
         rows.FailSave = true;
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             Service.SaveAsync(7, "photo.png", "image/png", new MemoryStream([1]), default));
-        Assert.Empty(files.Stored);
+        Assert.Empty(rows.All);
     }
 
     [Fact]
@@ -52,7 +63,7 @@ public sealed class ScratchFileServiceTests
         Assert.False(await Service.DeleteAsync(saved.File.Id, 8, default));
         Assert.NotNull(await Service.OpenAsync(saved.File.Id, 7, default));
         Assert.True(await Service.DeleteAsync(saved.File.Id, 7, default));
-        Assert.Empty(files.Stored);
+        Assert.Empty(rows.All);
     }
 
     private sealed class MemoryRows : IScratchFilesStore
@@ -76,6 +87,9 @@ public sealed class ScratchFileServiceTests
 
         public Task<ScratchFile?> FindAsync(int id, CancellationToken ct) => Task.FromResult(All.FirstOrDefault(f => f.Id == id));
 
+        public Task<byte[]?> ReadContentAsync(int fileId, CancellationToken ct) =>
+            Task.FromResult(All.FirstOrDefault(f => f.Id == fileId)?.Content?.Bytes);
+
         public void Add(ScratchFile file) => pending.Add(file);
 
         public void Remove(ScratchFile file) => removed.Add(file);
@@ -93,26 +107,5 @@ public sealed class ScratchFileServiceTests
             removed.Clear();
             return Task.CompletedTask;
         }
-    }
-
-    private sealed class MemoryFiles : IScratchFiles
-    {
-        public Dictionary<string, byte[]> Stored { get; } = [];
-        public bool TooBig { get; set; }
-
-        public bool Has(string storedName) => Stored.ContainsKey(storedName);
-
-        public async Task<long> WriteAsync(string storedName, Stream content, long limit, CancellationToken ct)
-        {
-            if (TooBig) return -1;
-            using var copy = new MemoryStream();
-            await content.CopyToAsync(copy, ct);
-            Stored[storedName] = copy.ToArray();
-            return copy.Length;
-        }
-
-        public Stream? OpenRead(string storedName) => Stored.TryGetValue(storedName, out var bytes) ? new MemoryStream(bytes) : null;
-
-        public void Delete(string storedName) => Stored.Remove(storedName);
     }
 }

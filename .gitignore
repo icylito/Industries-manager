@@ -16,8 +16,9 @@ scripts/seeding.control.toml
 
 # Copies of the database made by the nightly backup, only the root folder (api_v2/Backups is code)
 /backups/
+# Folders older versions of the API wrote. Scratchpad files are in the database now, and the API copies in what is
+# left here on start. The table copies are no longer written. Both can be deleted, and stay ignored until they are.
 /scratchpad-files/
-# The readable JSON copy of every table from the Tables page, the API writes it (UserTables:Mirror)
 /user-tables/
 # The key that signs backups. Whoever holds it can make a backup the app trusts, keep it out of the repo
 /backup-key/

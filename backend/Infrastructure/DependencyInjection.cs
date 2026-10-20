@@ -58,11 +58,8 @@ public static class DependencyInjection
         services.AddSingleton<ITableWriter>(s => s.GetRequiredService<TableWriter>());
         services.AddSingleton<ISectorConfig, SectorConfigFile>();
 
-        // Files on disk: uploaded Scratchpad files, and the readable JSON copy of every table from the Tables page
-        services.AddSingleton<ScratchFileStore>();
-        services.AddSingleton<IScratchFiles>(s => s.GetRequiredService<ScratchFileStore>());
-        services.AddSingleton<UserTableMirror>();
-        services.AddSingleton<IUserTableMirror>(s => s.GetRequiredService<UserTableMirror>());
+        // Copies Scratchpad files from the folder they used to live in into the database, once
+        services.AddScoped<ScratchFileImport>();
 
         // Backups, signed so only this app's own can be dropped back in, with the key wrapped for this computer
         services.AddSingleton(_ => KeyProtection.ForThisComputer());
@@ -85,12 +82,10 @@ public static class DependencyInjection
         return services;
     }
 
-    // The folders and the backup key are made at startup, so a bad path or a denied folder fails then instead of
-    // on the first upload, and the first backup doesn't wait on the key
+    // The backup key is made at startup, so a bad path or a denied folder fails then, and the first backup doesn't
+    // wait on the key
     public static void PrepareInfrastructure(this IServiceProvider services)
     {
-        services.GetRequiredService<ScratchFileStore>();
-        services.GetRequiredService<UserTableMirror>();
         services.GetRequiredService<BackupSigner>();
     }
 

@@ -51,16 +51,7 @@ public static class ScratchFileEndpoints
                     display = ScratchFileRules.DisplayName(fileName);
                     if (ScratchFileRules.Refusal(fileName) is { } refusal) return Refused(refusal);
 
-                    SaveFileResult saved;
-                    try
-                    {
-                        saved = await service.SaveAsync(user.Id!.Value, fileName, section.ContentType, section.Body, ct);
-                    }
-                    catch (Exception ex) when (ex is not BadHttpRequestException && ex is IOException or UnauthorizedAccessException)
-                    {
-                        return Results.Problem("The file couldn't be saved. Try again in a moment",
-                            statusCode: StatusCodes.Status503ServiceUnavailable, title: "Couldn't save it");
-                    }
+                    var saved = await service.SaveAsync(user.Id!.Value, fileName, section.ContentType, section.Body, ct);
                     if (saved is SaveFileResult.TooBig tooBig) return TooBig(tooBig.Message);
 
                     var row = ((SaveFileResult.Saved)saved).File;
@@ -99,7 +90,7 @@ public static class ScratchFileEndpoints
             return Results.File(file.Stream, file.ContentType);
         });
 
-        // Remove the row and the bytes on disk.
+        // Remove the file, row and bytes.
         group.MapDelete("/files/{id:int}", async (int id, ScratchFileService service, ICurrentUser user, CancellationToken ct) =>
             await service.DeleteAsync(id, user.Id, ct) ? Results.Ok(new { deleted = 1, id }) : FileNotFound());
     }

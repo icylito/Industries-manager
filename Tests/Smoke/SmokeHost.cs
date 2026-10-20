@@ -68,7 +68,6 @@ public sealed class SmokeHost : WebApplicationFactory<Program>
         builder.UseSetting("Backup:Folder", Path.Combine(Folder, "backups"));
         builder.UseSetting("Backup:SigningKeyFile", Path.Combine(Folder, "backup-key", "backup-signing.key"));
         builder.UseSetting("Scratchpad:Files", Path.Combine(Folder, "scratchpad-files"));
-        builder.UseSetting("UserTables:Mirror", Path.Combine(Folder, "user-tables"));
         builder.ConfigureLogging(logging => logging.AddProvider(Logs));
         builder.ConfigureTestServices(services =>
         {

@@ -141,9 +141,14 @@ public sealed class SmokeFlow(SmokeHost host, ITestOutputHelper output) : IClass
         await Expect(api, HttpMethod.Get, "/scratchpad/tray", null, HttpStatusCode.OK);
         await Expect(api, HttpMethod.Delete, $"/scratchpad/boards/{boardId}", null, HttpStatusCode.OK);
 
-        // Scratchpad files: a picture up, read back in place, a refused kind, then deleted
+        // Scratchpad files: a picture up, read back in place, a refused kind, then deleted. The bytes go to the
+        // database, so the folder files used to live in gains nothing.
+        var oldFolder = Path.Combine(host.Folder, "scratchpad-files");
+        int FilesOnDisk() => Directory.Exists(oldFolder) ? Directory.EnumerateFiles(oldFolder).Count() : 0;
+        var onDiskBefore = FilesOnDisk();
         var png = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3 };
         var uploaded = await Upload(api, "/scratchpad/files", "pixel.png", "image/png", png, HttpStatusCode.Created);
+        Assert.Equal(onDiskBefore, FilesOnDisk());
         var fileId = uploaded!["id"]!.GetValue<int>();
         Assert.Equal(png.Length, uploaded["sizeBytes"]!.GetValue<int>());
         var picture = await api.GetAsync($"/scratchpad/files/{fileId}");
