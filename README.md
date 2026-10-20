@@ -56,7 +56,7 @@ The old `/users` address opens Settings. Every page jumps back to the top after 
 
 ## If something looks wrong
 
-- Most likely the API is down offline which the state management will immediately show everywhere, or Database error: the table still loads, but saving waits or stops until the database responds. History offline clears by itself. Database error shows the reason in the table.
+- Most likely the API is down (offline) which the state management will immediately show everywhere, or Database error: the table still loads, but saving waits or stops until the database responds. History offline clears by itself. Database error shows the reason in the table.
 - The badge says API offline: the API window is closed or stopped. If frontend is running open a terminal cd into angular `cd angular` and then run `ng serve` if its your first run do `ng build` to build all the services and components if both terminals are off or down run `start.bat` again.
 - Saving stops with a message that someone else did the change: reload the page and verify if the other save went in if not add it manually.
 
@@ -65,3 +65,8 @@ The old `/users` address opens Settings. Every page jumps back to the top after 
 - Setup, database settings and the seed script which are all in `scripts/` in the scripts folder there is `seeding.control.example.toml` drop the admin username and password there and control the script in `seeding.toml` to setup a safe environment you'll find docker docs if you're interested `docker_setup.md`.
 - Changing the shape of a table needs a migration, in one of two chains. Only the data travels in time: the industries, their rules and the Tables page are the data chain (`.\migrate.ps1 -Context Data -Name YourChangeName` in `api_v2`). Accounts, notes, the Scratchpad, requests and settings are always current and have their own chain (`-Context State`), so going back on the data never touches them. Restart the API and it applies both.
 - The API runs on http://localhost:5005 with Swagger at http://localhost:5005/swagger/index.html.
+
+## Tests
+
+- `dotnet test api_v2.slnx` runs the API tests in `Tests/`: the layer rules, the unit tests and the smoke run. The smoke run needs Postgres on port 5433 (`docker compose up -d`). Add `--filter "Category!=Smoke"` to skip it.
+- `cd angular` then `npx ng test --watch=false` runs the page tests.

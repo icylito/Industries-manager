@@ -8,7 +8,7 @@ namespace api_v2.Application.Jobs;
 // so a picture taken off today is still there for an undo in a tab left open all week.
 // A file any of the person's boards still uses is never touched. Infrastructure/Hosted/ScratchFileSweeper runs it
 // every hour.
-public sealed class ScratchFileSweep(IScratchFilesStore store, IAppLocks locks, IScratchFiles files, ILogger<ScratchFileSweep> log)
+public sealed class ScratchFileSweep(IScratchFilesStore store, IAppLocks locks, ILogger<ScratchFileSweep> log)
 {
     public static readonly TimeSpan Grace = TimeSpan.FromDays(7);
 
@@ -24,12 +24,8 @@ public sealed class ScratchFileSweep(IScratchFilesStore store, IAppLocks locks, 
         await using var personLock = await locks.TakeAsync(AppLock.Scratchpad, person, ct);
 
         var expired = await store.MarkAndFindExpiredAsync(person, now, Grace, ct);
-        foreach (var file in expired)
-        {
-            await store.DeleteAsync(file.Id, ct);
-            // The row goes first: a file left on disk is litter, a row left without its file would be a broken card
-            files.Delete(file.StoredName);
-        }
+        // The bytes go with the row
+        foreach (var file in expired) await store.DeleteAsync(file.Id, ct);
         if (expired.Count > 0) log.LogInformation("Deleted {Count} Scratchpad file(s) no board had used for 7 days", expired.Count);
     }
 }

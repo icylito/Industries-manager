@@ -1,0 +1,53 @@
+@if (message()) {
+    <p class="bl-message" role="status">{{ message() }}</p>
+}
+
+@if (boards.loading() && boards.list().length === 0) {
+    <p class="bl-empty">Loading your boards...</p>
+} @else if (boards.failed() && boards.list().length === 0) {
+    <p class="bl-empty">Couldn't load your boards. <button type="button" class="bl-link" (click)="boards.load()">Try again</button></p>
+} @else {
+    <ul class="bl-list" #list aria-label="Your boards">
+        @for (board of boards.sorted(); track board.id) {
+            <li class="bl-row" [class.current]="board.id === current()" [class.asking]="confirming() === board.id">
+                @if (renaming() === board.id) {
+                    <input class="bl-rename" type="text" maxlength="60" [value]="board.name" aria-label="Board name"
+                        (keydown.enter)="finishRename(board, $any($event.target).value)"
+                        (keydown.escape)="renaming.set(null)"
+                        (blur)="finishRename(board, $any($event.target).value)">
+                } @else {
+                    <button type="button" class="bl-name" [attr.title]="about(board)" (click)="opened.emit(board.id)"
+                        [attr.aria-current]="board.id === current() ? 'true' : null">
+                        <svg class="bl-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h5M8 13h8"/></svg>
+                        <span class="bl-label">{{ board.name }}</span>
+                        @if (board.pinned) {
+                            <svg class="bl-pinned" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-label="Pinned" role="img"><path d="M15 3l6 6-3 1-4 4 1 5-2 2-4-4-5 5-1-1 5-5-4-4 2-2 5 1 4-4z"/></svg>
+                        }
+                    </button>
+                    <span class="bl-actions">
+                        <button type="button" class="bl-icon-btn" (click)="startRename(board)" [attr.aria-label]="'Rename ' + board.name" title="Rename">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1-4L16 5l3 3L8 19z"/></svg>
+                        </button>
+                        <button type="button" class="bl-icon-btn" [class.on]="board.pinned" [disabled]="busy() === board.id" [attr.aria-pressed]="board.pinned"
+                            (click)="togglePin(board)" [attr.aria-label]="(board.pinned ? 'Unpin ' : 'Pin ') + board.name" [attr.title]="board.pinned ? 'Unpin' : 'Pin to the top'">
+                            <svg width="13" height="13" viewBox="0 0 24 24" [attr.fill]="board.pinned ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M15 3l6 6-3 1-4 4 1 5-2 2-4-4-5 5-1-1 5-5-4-4 2-2 5 1 4-4z"/></svg>
+                        </button>
+                        <button type="button" class="bl-icon-btn danger" [disabled]="board.pinned || board.id === current()"
+                            [attr.aria-label]="'Delete ' + board.name"
+                            [attr.title]="board.pinned ? 'Unpin it first' : board.id === current() ? 'Open another board first' : 'Delete'"
+                            (click)="confirming.set(board.id); renaming.set(null)">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+                        </button>
+                    </span>
+                }
+            </li>
+        } @empty {
+            <li class="bl-empty">No boards yet. Press + to start one.</li>
+        }
+    </ul>
+}
+
+@if (confirmingBoard(); as board) {
+    <app-confirm-popup [name]="board.name" detail="will be deleted. Its files stay for 7 days." [busy]="busy() === board.id"
+        (no)="confirming.set(null)" (yes)="remove(board)" />
+}

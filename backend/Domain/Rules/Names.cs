@@ -36,7 +36,7 @@ public static class Names
     // the Unicode library Postgres, .NET and browsers all use: "Acme, Inc.", "ACME inc" and "acme-inc" are one name,
     // "ΟΔΟΣ" and "οδος" are one, but Hindi "काम" and "कम" stay two words. The database has the same rule as the
     // collation name_rule (Migrations/*_OneNameRule.cs, locale und-u-ka-shifted-ks-level1-kv-currency), which the
-    // unique indexes use; the page has it in services/name-key.ts. testing/check_names.py checks the three agree.
+    // unique indexes use; the page has it in services/name-key.ts. The shared examples in Tests/Domain/NamesTests.cs check the three agree.
     private static readonly CompareInfo Rule = CultureInfo.InvariantCulture.CompareInfo;
     private const CompareOptions RuleOptions = CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace
         | CompareOptions.IgnoreSymbols | CompareOptions.IgnoreKanaType | CompareOptions.IgnoreWidth;

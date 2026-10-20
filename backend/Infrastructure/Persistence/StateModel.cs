@@ -60,6 +60,10 @@ public static class StateModel
         model.Entity<ScratchFile>().HasIndex(f => f.UserId);
         model.Entity<ScratchFile>().HasIndex(f => f.StoredName).IsUnique();
         model.Entity<ScratchFile>().HasOne<User>().WithMany().HasForeignKey(f => f.UserId).OnDelete(DeleteBehavior.Cascade);
+        model.Entity<ScratchFileContent>().ToTable("ScratchFileContents");
+        model.Entity<ScratchFileContent>().HasKey(c => c.ScratchFileId);
+        model.Entity<ScratchFile>().HasOne(f => f.Content).WithOne().HasForeignKey<ScratchFileContent>(c => c.ScratchFileId)
+            .OnDelete(DeleteBehavior.Cascade);
         // The carry tray and a person's own settings: one row each, keyed by the person, gone with the account
         model.Entity<ScratchTray>().HasKey(t => t.UserId);
         model.Entity<ScratchTray>().Property(t => t.Items).HasColumnType("jsonb");

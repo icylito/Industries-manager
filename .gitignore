@@ -4,8 +4,8 @@ api_v2/obj/
 api_v2/artifacts/
 backend/*/bin/
 backend/*/obj/
-testing/transfer-check/bin/
-testing/transfer-check/obj/
+Tests/bin/
+Tests/obj/
 
 # Has the database password, copy appsettings.Development.example.json to make yours
 api_v2/appsettings.Development.json
@@ -16,8 +16,9 @@ scripts/seeding.control.toml
 
 # Copies of the database made by the nightly backup, only the root folder (api_v2/Backups is code)
 /backups/
+# Folders older versions of the API wrote. Scratchpad files are in the database now, and the API copies in what is
+# left here on start. The table copies are no longer written. Both can be deleted, and stay ignored until they are.
 /scratchpad-files/
-# The readable JSON copy of every table from the Tables page, the API writes it (UserTables:Mirror)
 /user-tables/
 # The key that signs backups. Whoever holds it can make a backup the app trusts, keep it out of the repo
 /backup-key/
@@ -28,11 +29,8 @@ scripts/seeding.control.toml
 .plain-*
 *.sealing
 
-# The checks in testing/: the throwaway API's settings, its backups and its Python cache
+# The throwaway API's settings, copied from the example
 api_v2/appsettings.Throwaway.json
-/testing/throwaway-backups/
-/testing/node_modules/
-/testing/__pycache__/
 
 # The page's copy of the https development certificate, start.bat https and share make it
 angular/.cert/

@@ -1,0 +1,818 @@
+/* History page, builds on my-components.css (cards, panels, tables, buttons) */
+
+.intro{
+    margin: -0.5rem 0 1.25rem;
+    color: var(--muted);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    max-width: 46rem;
+}
+
+.card .intro{
+    margin-top: -0.75rem;
+}
+
+/* Plain table headers, same look as the sortable ones on the main page */
+.th{
+    display: block;
+    padding: 0.85rem 1.1rem;
+    color: var(--p-muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.num-accent{
+    text-align: left;
+}
+
+th.num .th{
+    text-align: left;
+}
+
+/* The saved versions headers are black and bold, the text colour flips in dark mode so they stay readable */
+.versions th .th{
+    color: var(--text);
+    font-weight: 700;
+}
+
+td.what{
+    white-space: normal;
+}
+
+.reason{
+    display: block;
+    font-weight: 500;
+}
+
+.sub{
+    display: block;
+    margin-top: 0.2rem;
+    color: var(--p-muted);
+    font-size: 0.75rem;
+}
+
+td.actions{
+    white-space: nowrap;
+    align-items: center;
+}
+
+/* The buttons column is only as wide as its buttons, so the line before it sits halfway between Rows and the buttons.
+   Phones lay the row out differently, see the 640px block. */
+@media (min-width: 641px) {
+    .versions td.actions, .versions th.actions-col{
+        width: 1%;
+    }
+}
+
+td.notes{
+    min-width: 16rem;
+    color: var(--p-muted);
+    white-space: normal;
+    line-height: 1.45;
+}
+
+.icon-only{
+    width: 2rem;
+    padding: 0;
+}
+
+.edit-btn.on{
+    border-color: var(--p-text);
+    background: var(--p-text);
+    color: var(--p-bg);
+}
+
+.pin-mark{
+    margin-right: 0.35rem;
+    color: var(--p-text);
+    font-size: 0.7rem;
+}
+
+tr.skipped td{
+    color: var(--faint);
+    text-decoration: line-through;
+}
+
+tr.skipped td.notes{
+    text-decoration: none;
+}
+
+.preview{
+    max-height: 26rem;
+    overflow-y: auto;
+}
+
+.preview thead th{
+    position: sticky;
+    top: 0;
+    background: var(--p-bg);
+}
+
+/* Results and notes under a panel */
+.result{
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin: 0 0 0.75rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+    line-height: 1.5;
+}
+
+.result i{
+    margin-top: 0.2rem;
+}
+
+.result.small{
+    margin: 0.85rem 0 1.1rem;
+    font-size: 0.85rem;
+}
+
+.hint-line{
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin: 0 0 0.6rem;
+    color: var(--p-muted);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.hint-line i{
+    margin-top: 0.2rem;
+    color: var(--p-text);
+}
+
+.hint-line i.red, .result i.red{
+    color: var(--danger);
+}
+
+.hint-line a, .result a{
+    color: var(--p-text);
+    font-weight: 600;
+}
+
+.swatch{
+    flex: none;
+    width: 0.85rem;
+    height: 0.85rem;
+    margin-top: 0.2rem;
+    border-left: 3px solid var(--similar-edge);
+    border-radius: 3px;
+    background: var(--similar-bg);
+}
+
+/* The "Import anyway?" question */
+.ask{
+    margin-top: 1.25rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--p-text);
+    border-radius: 12px;
+}
+
+.ask p{
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0;
+    font-weight: 600;
+}
+
+.confirm-row{
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+    margin-top: 1.25rem;
+}
+
+.confirm-row .field{
+    flex: 0 1 18rem;
+}
+
+.confirm-row.end{
+    justify-content: flex-end;
+}
+
+.ask .confirm-row{
+    margin-top: 0.85rem;
+}
+
+/* The restore question lands with a flash of the signal colour, then settles. Inside @if (panel()), so it plays each time. */
+@keyframes restore-glow{
+    0%{
+        box-shadow: 0 0 0 0 transparent;
+    }
+    35%{
+        box-shadow: 0 0 0 4px var(--signal), 0 0 28px 4px var(--signal);
+    }
+    100%{
+        box-shadow: 0 0 0 0 transparent;
+    }
+}
+
+/* The restore question: same dimmed backdrop and frame as the other pop ups, scrolls inside when it is tall */
+.modal-backdrop{
+    position: fixed;
+    inset: 0;
+    /* Below the edit pop up's wrapper (61) and the restore frame (71), so the blur only ever touches the page behind them */
+    z-index: 60;
+    background: rgba(0, 0, 0, 0.16);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
+
+.panel.restore-modal{
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    z-index: 71;
+    width: min(36rem, calc(100vw - 2rem));
+    max-height: calc(100vh - 2rem);
+    margin: 0;
+    overflow-y: auto;
+    transform: translate(-50%, -50%);
+    box-shadow: var(--pop-shadow);
+}
+
+.add-btn{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    
+}
+
+/* Restore swaps out every row, so its button is the dark red Delete uses */
+.add-btn.danger:not(:disabled){
+    background: var(--danger-bg);
+    color: #ffffff;
+}
+
+/* The row count says "rows" where the card has no header to say it, on phones */
+.unit-word{
+    display: none;
+    font-weight: 500;
+}
+
+@media (max-width: 640px) {
+    .unit-word{
+        display: inline;
+    }
+}
+
+/* Retention */
+.settings-row{
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 0.75rem;
+    align-items: end;
+}
+
+.unit{
+    position: absolute;
+    right: 0.85rem;
+    color: var(--faint);
+    font-size: 0.8rem;
+    pointer-events: none;
+}
+
+.settings-row input{
+    padding-right: 5rem;
+}
+
+@media (max-width: 760px) {
+    .settings-row{
+        grid-template-columns: 1fr;
+    }
+
+    .confirm-row{
+        flex-wrap: wrap;
+    }
+
+    .confirm-row .field{
+        flex: 1 0 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .confirm-row button, .confirm-row a{
+        flex: 1;
+    }
+}
+
+/* Phones: each saved version becomes a small card with its buttons underneath */
+@media (max-width: 640px) {
+    .versions thead{
+        display: none;
+    }
+
+    .versions tbody tr{
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: start;
+        gap: 0.25rem 0.75rem;
+        padding: 0.9rem 1rem;
+        border-bottom: 1px solid var(--p-border);
+    }
+
+    .versions tbody tr:last-child{
+        border-bottom: none;
+    }
+
+    .versions td{
+        padding: 0;
+        border: none;
+    }
+
+    .versions td.actions{
+        position: static;
+        background: none;
+        box-shadow: none;
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        margin-top: 0.5rem;
+        white-space: normal;
+        text-align: left;
+    }
+
+    .versions .actions button + button{
+        margin-left: 0;
+    }
+}
+
+/* A saved version whose data couldn't be read */
+.tag.damaged{
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.5rem;
+    padding: 0.1rem 0.5rem;
+    border: 1px solid var(--p-text);
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+/* Export and Import settings sit side by side and wrap on a phone */
+.settings-row.buttons{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+/* The box a backup zip is dropped on. Dashed until something is dragged over it, then the signal colour. */
+.drop-zone{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    margin: 1rem 0;
+    padding: 1.4rem 1rem;
+    border: 2px dashed var(--border-strong);
+    border-radius: 12px;
+    flex-direction: column;
+    color: var(--muted);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.drop-zone.over{
+    border-color: var(--signal);
+    background: var(--hover);
+    color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce){
+    .drop-zone{
+        transition: none;
+    }
+}
+
+/* The backup that was just dropped in, so it can be found in a long list */
+table.versions tr.just-added td{
+    background: var(--hover);
+}
+
+table.versions tr.just-added td:first-child{
+    box-shadow: inset 3px 0 0 var(--signal);
+}
+
+/* One hamburger per row holds every action. The menu is drawn outside the tables so their scrolling box can't clip it. */
+.menu-btn{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+}
+
+.menu-btn:hover, .menu-btn[aria-expanded="true"]{
+    border-color: var(--text);
+}
+
+.menu{
+    position: fixed;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    min-width: 220px;
+    padding: 4px;
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: var(--pop-shadow);
+}
+
+.menu [role="menuitem"]{
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    gap: 0.6rem;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8125rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.menu [role="menuitem"] i{
+    width: 1rem;
+    text-align: center;
+}
+
+.menu [role="menuitem"]:hover:not([disabled]){
+    background: var(--hover);
+}
+
+.menu [role="menuitem"][disabled]{
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.menu [role="menuitem"].danger{
+    color: var(--danger);
+}
+
+/* Saved versions: a line between every column, and the same line in the header as in the rows, so the header and the
+   body read as one table. The Actions column draws its own line with the shadow it is pinned with. */
+.versions th + th, .versions td + td{
+    border-left: 1px solid var(--p-border);
+}
+
+.versions th.actions-col, .versions td.actions{
+    border-left: 0;
+    text-align: center;
+}
+
+.versions th.actions-col .th{
+    text-align: center;
+}
+
+/* The text on the left and its button pushed to the right, on one line. On a phone the button drops under the text. */
+.intro-row{
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.intro-row .intro{
+    margin: 0;
+}
+.intro-row .intro-block{
+    display: grid;
+    gap: 0.7rem;
+    min-width: 0;
+}
+
+.next-backup{
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 1rem;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.next-backup i{
+    color: var(--muted);
+}
+
+.intro-row .add-btn{
+    flex: none;
+}
+
+@media (max-width: 640px) {
+    .intro-row{
+        flex-direction: column;
+    }
+}
+
+/* The restore note's "how many more characters" line sits a little lower, clear of the buttons above it */
+.hint-line.note-hint{
+    margin-top: 20px;
+}
+
+.drop-zone:hover, .drop-zone:focus-visible{
+    border-color: var(--signal);
+    color: var(--text);
+    outline: none;
+}
+
+.drop-zone.busy{
+    cursor: progress;
+}
+
+.drop-zone i{
+    font-size: 1.4rem;
+}
+
+.drop-zone .formats{
+    font-size: 0.8rem;
+}
+
+.drop-zone code{
+    padding: 0.05rem 0.35rem;
+    border-radius: 6px;
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+/* A plain circle that turns while a file is being checked */
+.spin-ring{
+    width: 22px;
+    height: 22px;
+    border: 3px solid var(--border-strong);
+    border-top-color: var(--signal);
+    border-radius: 50%;
+    animation: spin-ring 0.8s linear infinite;
+}
+
+@keyframes spin-ring{
+    to{ transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce){
+    .spin-ring{
+        animation-duration: 2.4s;
+    }
+}
+
+/* Minimal tables: a gray header band so the headings stand out, and no lines between columns or rows */
+.versions thead th, .requests-table thead th, .preview thead th{
+    background: var(--surface-2);
+    border-bottom: 0;
+}
+
+.versions thead th:first-child, .requests-table thead th:first-child{
+    border-top-left-radius: 10px;
+    border-bottom-left-radius: 10px;
+}
+
+.versions thead th:last-child, .requests-table thead th:last-child{
+    border-top-right-radius: 10px;
+    border-bottom-right-radius: 10px;
+}
+
+.versions th + th, .versions td + td,
+.requests-table th + th, .requests-table td + td{
+    border-left: 0;
+}
+
+.versions td, .requests-table td{
+    border-bottom: 0;
+}
+
+.versions tbody tr:hover, .requests-table tbody tr:hover{
+    background: var(--hover);
+}
+
+/* The tabs along the top edge of the History panel: the open one is filled, the others are plain words.
+   A line under them closes the strip off, and the open tab's content follows in the same box. */
+.page-tabs{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    /* The line runs from edge to edge of the panel, the padding follows the panel's own */
+    --edge: 1.5rem;
+    margin: -0.5rem calc(var(--edge) * -1) 1.5rem;
+    padding: 0 var(--edge) 1rem;
+    border-bottom: 1px solid var(--p-border);
+}
+
+/* Something that belongs to the whole panel, like the Fields rules version, sits at the far end of the tab row */
+.page-tabs .tabs-end{
+    align-self: center;
+    margin-left: auto;
+}
+
+/* Panels get less padding on a small phone, the divider follows */
+@media (max-width: 480px) {
+    .page-tabs{
+        --edge: 1.25rem;
+    }
+}
+
+/* Settings holds two parts in the one panel, split by a line instead of being two cards */
+.shell-section + .shell-section{
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--p-border);
+}
+
+/* On a desktop the saved versions and backups scroll inside their own box, so the header row and the
+   bottom bar stay in view. A phone keeps the long list, its rows are cards there. */
+@media (min-width: 641px) {
+    .panel .table-wrap.scroll-wrap{
+        max-height: 60vh;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+
+    /* A thin line under the stuck header, so the rows read as passing beneath it */
+    .scroll-wrap thead th{
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        box-shadow: 0 1px 0 var(--p-border);
+    }
+}
+
+.page-tab{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    height: 2.4rem;
+    padding: 0 1rem;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--p-muted);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.page-tab:hover{
+    background: var(--hover);
+    color: var(--p-text);
+}
+
+.page-tab.on{
+    background: var(--accent);
+    color: var(--accent-text);
+}
+
+/* A primary button next to a line of text sits centred on it and takes no top margin of its own */
+.intro-row{
+    align-items: center;
+}
+
+.intro-row .add-btn, .intro-row .cancel-btn, .intro-row .tool-btn{
+    margin-top: 0;
+    flex: none;
+}
+
+.intro-row .intro{
+    margin: 0;
+}
+
+/* Every table in the app: the same gray band behind the whole header row and the same bold heading text.
+   Kept at the end of each page's style sheet so no page-specific rule left a column plain. */
+table thead th, table thead th.actions-col, table thead th.tick-col{
+    background-color: var(--surface-2);
+    border-bottom: 0;
+}
+
+table thead th .th, table thead th .sort-btn, table thead th .th-actions{
+    color: var(--text);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.fields-table .require-check, .fields-table .require-check input{
+    cursor: pointer;
+}
+
+.fields-table .require-check.locked, .fields-table .require-check.locked input{
+    cursor: not-allowed;
+}
+
+/* No lines between rows or columns in any table, a hover tint tells the rows apart */
+.fields-table td, .cols-table td, .versions td, .requests-table td, .industries td{
+    border-bottom: 0;
+}
+
+.fields-table tbody tr:hover, .cols-table tbody tr:hover{
+    background: var(--hover);
+}
+
+.versions td.actions, .versions th.actions-col{
+    padding-inline: 1rem;
+    text-align: center;
+}
+
+.versions td.actions .row-actions, .versions td.actions .menu-wrap{
+    justify-content: center;
+}
+
+/* One look for every row action everywhere: the same square ⋮ button and the same drop-down under it */
+.kebab, .menu-btn{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--text);
+    cursor: pointer;
+}
+
+.kebab:hover, .kebab[aria-expanded='true'], .menu-btn:hover, .menu-btn[aria-expanded='true']{
+    background: var(--border);
+    border: 0;
+}
+
+.menu, .row-menu{
+    min-width: 12rem;
+    padding: 0.3rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    text-align: left;
+}
+
+.menu [role='menuitem'], .row-menu [role='menuitem']{
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.5rem 0.7rem;
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-align: left;
+}
+
+.menu [role='menuitem']:hover:not([disabled]), .row-menu [role='menuitem']:hover:not([disabled]){
+    background: var(--hover);
+}
+
+.menu [role='menuitem'].danger, .row-menu [role='menuitem'].danger{
+    color: var(--danger);
+}
+
+.menu [role='menuitem'] i, .row-menu [role='menuitem'] i{
+    width: 1rem;
+    text-align: center;
+}
+
+/* The cell holding an open menu rises above the sticky Action cells of the rows under it, so none of the menu is covered */
+td.actions:has(.row-menu){
+    z-index: 30;
+}
+
+/* The pinned Action cell takes the same hover tint as the rest of its row, so the row reads as one band */
+tbody tr:hover td.actions{
+    background-image: linear-gradient(var(--hover), var(--hover));
+}
+
+/* Rows a page, sits in the bottom bar next to the arrows. Its own box, not the full width of a form field */
+.page-size{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--p-muted);
+    font-size: 0.85rem;
+}
+
+.page-size .control{
+    width: auto;
+    min-width: 4.5rem;
+}
+
+/* The same height as the page arrows beside it */
+.page-size select{
+    height: 2rem;
+    padding-right: 2rem;
+}
+

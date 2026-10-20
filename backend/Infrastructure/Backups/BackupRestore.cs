@@ -26,7 +26,6 @@ public sealed class BackupRestore(
     CollectorStore collector,
     RulesService rules,
     AppLocks locks,
-    api_v2.Infrastructure.Files.UserTableMirror mirror,
     IServiceScopeFactory scopes,
     ILogger<BackupRestore> log) : IBackupRestore
 {
@@ -139,14 +138,6 @@ public sealed class BackupRestore(
             }
 
             await ReloadAsync(ct);
-            try
-            {
-                await mirror.RebuildAsync(ct);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                log.LogWarning(ex, "The restore went through but the table copies in {Folder} weren't rewritten", mirror.Root);
-            }
             try
             {
                 await collector.LogChangeAsync(null, "restore-backup", new { Rows = rowsBefore },

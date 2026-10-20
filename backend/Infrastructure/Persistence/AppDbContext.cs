@@ -14,6 +14,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<UserNote> UserNotes => Set<UserNote>();
     public DbSet<ScratchBoard> ScratchBoards => Set<ScratchBoard>();
     public DbSet<ScratchFile> ScratchFiles => Set<ScratchFile>();
+    public DbSet<ScratchFileContent> ScratchFileContents => Set<ScratchFileContent>();
     public DbSet<ScratchTray> ScratchTrays => Set<ScratchTray>();
     public DbSet<UserSettings> UserSettings => Set<UserSettings>();
     public DbSet<UserAvatar> UserAvatars => Set<UserAvatar>();
