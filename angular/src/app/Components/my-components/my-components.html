@@ -294,7 +294,7 @@
     }
 
     @if (!auth.isSignedIn()) {
-        <p class="hint-line"><i class="fa-solid fa-lock" aria-hidden="true"></i>You are looking at the table as a guest. <a routerLink="/login" [queryParams]="{ back: '/' }">Sign in</a> to add, edit or delete rows.</p>
+        <p class="hint-line"><i class="fa-solid fa-lock" aria-hidden="true"></i>  You are looking at the table as a guest. <a routerLink="/login" [queryParams]="{ back: '/' }">Sign in</a> to add, edit or delete rows.</p>
     }
 
     @if (added()) {
