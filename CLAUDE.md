@@ -21,14 +21,13 @@ Run from the repo root unless a folder is named. `start.bat` starts the API and 
 | Database | `docker compose up -d` (Postgres 17 on **5433**). `appsettings.Development.json` points at it in this copy; change the two strings there to `5432` to use your own Postgres instead. |
 | Build | `dotnet build api_v2.slnx` and `cd angular && npx ng build` |
 | API tests | `dotnet test api_v2.slnx` (layer rules, unit tests and the smoke run). The smoke run needs Postgres on 5433, `SMOKE_PG` names another server; `--filter Category!=Smoke` skips it. It keeps its databases (`smoke_main`, `smoke_collector`) and folder (`api_v2-smoke` in the temp folder) between runs, so a small change is checked without setting up again; `SMOKE_FRESH=1` starts it over from an empty database |
-| Page layer check | `cd angular && npm run lint:layers` (dependency-cruiser, rules in `angular/.dependency-cruiser.cjs`) |
 | All page tests | `cd angular && npx ng test --watch=false` |
-| One page test file | `cd angular && npx ng test --watch=false --include src/app/presentation/components/history/history.spec.ts` |
+| One page test file | `cd angular && npx ng test --watch=false --include src/app/Components/history/history.spec.ts` |
 | New migration | `cd api_v2 && .\migrate.ps1 -Context Data -Name Something` (or `-Context State`). It runs the pinned `dotnet-ef` from `dotnet-tools.json` against `backend/Infrastructure` with `api_v2` as the startup project. The API applies it on its next start. |
 | Seed rows | `python scripts/seed_industries.py` (settings in `scripts/seeding.toml`, login in the git ignored `scripts/seeding.control.toml`) |
 | Throwaway API (port 5104) | in `api_v2`: `set ASPNETCORE_ENVIRONMENT=Throwaway` and `dotnet run -c Release --no-launch-profile --urls http://localhost:5104` |
 
-The only lint is the page's layer check above. The page has a Prettier config (`angular/.prettierrc`: width 100, single quotes, the
+There is no linter configured. The page has a Prettier config (`angular/.prettierrc`: width 100, single quotes, the
 Angular parser for HTML), run it on the files you touch with `cd angular && npx prettier --write <file>`. After `package.json` changes run `npm ci` in `angular/`, a stale `node_modules` fails the
 build with a missing font file.
 
@@ -57,14 +56,11 @@ entity or touches a file. Entities never cross the wire either way: a body is a 
 Infrastructure and is wired in `backend/Infrastructure/DependencyInjection.cs`. What the database refused (name taken,
 changed meanwhile, too long) is read by `IStorageErrors`, so the error handler knows HTTP and nothing about Postgres.
 
-The page has the same four folders under `angular/src/app/`. `application/ports/` holds the ports as abstract classes
-(`IndustryGateway`, `TablesGateway`, `ScratchGateway`, `AuthGateway`, `ProfileGateway`, `SettingsGateway`, `TokenStore`)
-and `ApiFailure`, the shape of a failed call; `infrastructure/` implements them and `infrastructure/providers.ts` wires
-them, used by `app.config.ts` and by every spec that builds a test module. Components and use cases inject ports, never
-`IndustryApi` and friends, and never import `@angular/common/http`. The domain imports nothing, not even Angular: the
-board tools work against `domain/board/editor.ts`, which the board engine implements. `npm run lint:layers` fails on
-any of it. When adding a feature, put the rule in the domain, the order of the steps in an application use case, the
-database or HTTP work behind a port, and the request shape in an endpoint plus a contract.
+The page does not use these layers. It is a plain Angular app under `angular/src/app/`: the screens in `Components/`,
+the API classes and shared services in `services/` (`industry-api.ts`, `tables-api.ts`, `auth.ts`, `settings-store.ts`...),
+the TS types in `models/`, the Scratchpad engine in `board/` and the route guards in `guards.ts`. Components inject the
+services directly. When adding a feature, put the rule in a domain class or use case of the API, the request shape in an
+endpoint plus a contract, and the page's call in the service for that area.
 
 **Three places data lives.** The main database (the live tables), the **collector** database (History: `versions`,
 `version_rows`, `row_changes`, read and written with plain SQL in `backend/Infrastructure/Persistence/CollectorStore.cs`, its
@@ -102,23 +98,21 @@ checks them again, so a page is never the only guard.
 
 **One name rule everywhere.** Two names are the same when they match ignoring case, accents, spaces, punctuation and
 symbols, by ICU. It exists three times, kept in step by hand: the Postgres collation `name_rule`,
-`backend/Domain/Rules/Names.cs`, and `angular/src/app/domain/name-key.ts`. `Tests/Domain/NamesTests.cs` holds C# to the same pairs.
+`backend/Domain/Rules/Names.cs`, and `angular/src/app/services/name-key.ts`. `Tests/Domain/NamesTests.cs` holds C# to the same pairs.
 
 **Auth** is a Bearer token kept in `localStorage` (`stock-listing-token`), attached by
-`angular/src/app/infrastructure/auth.interceptor.ts` and stored by `infrastructure/token-store.ts` (behind the
-`TokenStore` port). Anyone can browse.
+`angular/src/app/services/auth.interceptor.ts` and stored by `services/auth.ts`. Anyone can browse.
 Endpoint groups choose `RequireViewer`, `RequireManager` or `RequireAdmin` (`Presentation/Authorization/Policies.cs`)
 and `RequireDatabaseReady` (`Presentation/Endpoints/SchemaEndpoints.cs`). The signed-in user comes from
 `Application/Ports/ICurrentUser.cs`, loaded by `Infrastructure/Persistence/SessionUser.cs`. Route guards are in
-`angular/src/app/application/guards.ts` and must agree with the endpoint groups.
+`angular/src/app/guards.ts` and must agree with the endpoint groups.
 
 **Errors.** Every exception goes through `backend/Presentation/Errors/ApiExceptionHandler.cs`: `Describe` maps it to a status
 and a plain sentence, expected ones (bad input, name taken, concurrent change, busy) log one line, only the unexpected
 log a stack. `RouteHandlerOptions.ThrowOnBadRequest` is on, so bad JSON reaches it as `BadHttpRequestException`.
 
 **The Scratchpad** keeps each board as one JSON document validated by `backend/Domain/Scratchpad/BoardRules.cs`. The client
-engine is `angular/src/app/domain/board/` (pure `ops`, `geometry`, `tools`) with the stores and board engine in
-`application/board/`. The carry tray from the Overview is server side (`/scratchpad/tray`), uploaded files live on disk
+engine is `angular/src/app/board/` (pure `ops`, `geometry`, `tools`, plus the stores and the board engine). The carry tray from the Overview is server side (`/scratchpad/tray`), uploaded files live on disk
 under `scratchpad-files/` with a sweeper that removes unused ones (`Application/Jobs/ScratchFileSweep.cs`, run hourly by
 `Infrastructure/Hosted/ScratchFileSweeper.cs`). What a file may be is `Domain/Scratchpad/ScratchFileRules.cs`.
 
@@ -141,20 +135,19 @@ in nine files (`app.css` and most of the components), 760px in five (`app.css`, 
 `tables`), and 390, 460, 480, 560, 620, 860 and 960 once or twice each. Responsive rules stay where the component is.
 
 **Ticket text marks.** Requests text can carry `**bold**`, `_italic_` and backtick code. The stored text stays plain.
-`angular/src/app/presentation/components/requests/format.ts` parses and writes the marks, `format-field.*` is the
+`angular/src/app/Components/requests/format.ts` parses and writes the marks, `format-field.*` is the
 writing box that shows them while typing, and `rich-text.ts` (`app-rich-text`) shows saved text as text nodes. The API
 only checks the length (2000 characters, in `Application/Requests/RequestService.cs`) and does not know the marks. Not
-to be confused with `presentation/components/scratchpad/rich-text.ts`, the Scratchpad's note editor.
+to be confused with `Components/scratchpad/rich-text.ts`, the Scratchpad's note editor.
 
 ## Pairs of files that must change together
 
 | One side | The other side |
 |---|---|
-| `angular/src/app/domain/models/board.ts` | `backend/Domain/Scratchpad/BoardRules.cs` (the board shape) |
+| `angular/src/app/models/board.ts` | `backend/Domain/Scratchpad/BoardRules.cs` (the board shape) |
 | `HistoryPage.noteMax` in `history.ts` | `HistoryEndpoints.NoteMax`, which aliases `HistoryService.NoteMax` (the restore note limit, 300) |
-| `angular/src/app/domain/name-key.ts` | `backend/Domain/Rules/Names.cs` and the `name_rule` collation |
-| A model in `backend/Domain/Entities/` | an EF migration in the right chain, and the TS type in `domain/models/industry.ts` |
-| A method on an API class in `angular/src/app/infrastructure/` | the same method on its port in `application/ports/` |
+| `angular/src/app/services/name-key.ts` | `backend/Domain/Rules/Names.cs` and the `name_rule` collation |
+| A model in `backend/Domain/Entities/` | an EF migration in the right chain, and the TS type in `models/industry.ts` |
 | A route in `app.routes.ts` | its guard, and the `Require*` on the endpoint group |
 
 ## Things that bite
@@ -172,9 +165,11 @@ to be confused with `presentation/components/scratchpad/rich-text.ts`, the Scrat
 - An exception that crosses layers is defined once, in `backend/Application/Exceptions/`. A class of the same name in
   Infrastructure still compiles, but the endpoint's `catch` never matches it: `BackupRefusedException` had two copies
   and every refused restore answered 503 instead of 409 until 2026-10-19.
-- The page's initial bundle is 507 kB against the 500 kB budget in `angular.json`, so `ng build` warns. About 279 kB is
-  Angular itself, 89 kB the home page (`my-components.ts`, loaded eagerly as the `''` route) and 54 kB `@angular/forms`,
-  which only the home page uses. Nothing in it is dead data; lazy loading the home route or raising the budget is open.
+- The page's initial bundle is about 504 kB. The budget in `angular.json` was raised to 1 MB (warning and error) so
+  `ng build` stays quiet; most of it is Angular itself, the home page (`my-components.ts`, loaded eagerly as the `''`
+  route) and `@angular/forms`, which only the home page uses. Lazy loading the home route would bring it down.
+- The Angular CLI needs Node 22.22.3 or later (or 24.15+). On an older Node, `ng build` and `ng test` stop before they
+  start.
 - The CSV escaping lives once, in `backend/Domain/Export/CsvText.cs`, used by the History download, the Tables export and the backup Excel file; new CSV output goes through it.
 - Comments in this repo are plain sentences about intent and the reason, not labels. Match that.
 - Migrations keep the namespaces `api_v2.Migrations` and `api_v2.Migrations.State` though they sit in
@@ -198,6 +193,8 @@ only): all seven asks are built. In the Requests list the status only reads, it 
 
 The clean architecture pass is built on branch `clean-architecture`: `docs/plans/2026-10-18-clean-architecture.md` split
 the code into the four folders, and `docs/plans/2026-10-19-clean-architecture-projects.md` made each layer its own
-project, moved what still bent the rules, and added the layer tests, the page's layer check and the smoke run.
+project, moved what still bent the rules, and added the layer tests and the smoke run. Both plans also split the page
+into the same four folders with a layer check; that half was reverted on 2026-10-20 and the page is back to its
+`Components/`, `services/`, `models/` and `board/` layout from `2b929a6`, because the layers bought the page little.
 Still open: the Windows checks (`start.bat`, `migrate.ps1`, the DPAPI key, the transfer test between two PCs), which have
 only been read, never run.

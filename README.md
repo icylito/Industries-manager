@@ -69,4 +69,4 @@ The old `/users` address opens Settings. Every page jumps back to the top after 
 ## Tests
 
 - `dotnet test api_v2.slnx` runs the API tests in `Tests/`: the layer rules, the unit tests and the smoke run. The smoke run needs Postgres on port 5433 (`docker compose up -d`). Add `--filter "Category!=Smoke"` to skip it.
-- `cd angular` then `npx ng test --watch=false` runs the page tests, and `npm run lint:layers` checks the page's layers.
+- `cd angular` then `npx ng test --watch=false` runs the page tests.
