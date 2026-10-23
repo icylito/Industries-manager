@@ -1,4 +1,4 @@
-# Stock Listing
+# Industries Manager
 
 A full stack web app for managing a list of industries. The API is ASP.NET Core with Entity Framework Core and PostgreSQL, and the Angular front end adds sign in, three roles, history with restore, and backups. Built to learn the .NET and Angular stack, with about two weeks on the API and two more on the front end.
 
