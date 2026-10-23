@@ -1,7 +1,6 @@
 # Stock Listing
 
-A web page for the industries list. It shows the table, lets people change it from the frontend to help make the team interactive with the build however they like.
-
+A full stack web app for managing a list of industries. The API is ASP.NET Core with Entity Framework Core and PostgreSQL, and the Angular front end adds sign in, three roles, history with restore, and backups. Built to learn the .NET and Angular stack, with about two weeks on the API and two more on the front end.
 
 ## How to start it
 
