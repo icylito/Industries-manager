@@ -1,17 +1,17 @@
 # Stock Listing
 
-A web page for the industries list. It shows the table, lets people change it from the frontend to help make the team interactive with the build however they like.
-
+A page for the industries list. The team can look at the table and change it from the frontend, so the list stays something they can work on together.
 
 ## How to start it
 
 1. Double click `start.bat` in the project folder.
-2. Two windows open. Keep them open while you work.
-3. Open http://localhost:4200 or create a new port if its busy by simply pressing `y` in the angular terminal which may be written as `ng serve` in your terminal.
+2. Two windows open. Leave both of them open while you work.
+3. Open http://localhost:4200. If that port is busy, press `y` in the Angular window (`ng serve`) and it picks another one.
 
-Closing a window stops it from working if you just want the api without frontend you could use swagger by keeping the backend alive and doing `/swagger` if needed `/swagger/index`. If the page says it could not load the industries, the API window is closed make sure api is working the frotend is optional the api isn't.
+Closing a window stops that part. If you only want the API, leave the backend window open and use Swagger at `/swagger` (the full page is `/swagger/index`). When the page says it could not load the industries, the API window is closed or the API has stopped. The frontend can be down. The API cannot.
 
 Other ways to start:
+
 - `start.bat https` runs the page over https on this PC.
 - `start.bat share` opens the page to phones and other PCs on the same Wi-Fi. The first time, other devices show a certificate warning. Continue past it.
 
@@ -19,13 +19,13 @@ Other ways to start:
 
 The first start creates an admin account called `admin` with a random password. The password is printed once in the API window, so copy it then. Sign in and choose a new password.
 
-If the admin password is lost, or if you're brave enough do `dotnet --Auth:ResetPassword='user'` and you'll get a temp password copy it and take it to the login page password and then make a new password then you're all set.
+If that password is lost, run `dotnet --Auth:ResetPassword='user'`. You get a temporary password. Take it to the login page, then set a new one.
 
-The admin create the account in Settings, then hands it to the user the admin wants to have that account after that the user signs in with his made username and temp password, then creates a new password.
+An admin creates accounts in Settings and hands each person their username and temporary password. They sign in and set their own password.
 
-Guessing is rated limited per ip. One address gets 5 attempts a minute (`Auth:LoginTriesPerMinute`), and one username gets 10 wrong passwords in 15 minutes from anywhere (`Auth:FailedTriesPerName`, `Auth:FailedTriesWindowMinutes`). Past either, the page says how long to wait and keeps Sign in off until then. A right password clears the username's count.
+Sign in attempts are limited. One address gets 5 attempts a minute (`Auth:LoginTriesPerMinute`). One username gets 10 wrong passwords in 15 minutes from anywhere (`Auth:FailedTriesPerName`, `Auth:FailedTriesWindowMinutes`). Past either limit, the page says how long to wait and keeps Sign in off until then. A correct password clears that username's count.
 
-There are three roles. A **user** can add, edit and delete rows. A **manager** can also make, change and delete tables on the Tables page, and take, download, drop in and restore backups. An **admin** can do everything, including rules, History versions and Settings.
+There are three roles. A **user** can add, edit, and delete rows. A **manager** can also make, change, and delete tables on the Tables page, and take, download, drop in, and restore backups. An **admin** can do everything, including rules, History versions, and Settings.
 
 ## The pages
 
@@ -38,7 +38,7 @@ There are three roles. A **user** can add, edit and delete rows. A **manager** c
 | Scratchpad | `/scratchpad` | Admin | A board to think with your industries |
 | Settings | `/settings` | Admin | Accounts and who can sign in |
 | History | `/history` | Admin, and managers for the Backups part | Every saved copy of the table, and the backups |
-| Fields | `/fields` | Admin | Labels, limits and custom fields |
+| Fields | `/fields` | Admin | Labels, limits, and custom fields |
 | Tables | `/tables` | Signed in to look, manager or admin to change | Tables the team makes itself |
 | Requests | `/requests` | Signed in | Work that needs a developer |
 
@@ -46,22 +46,24 @@ The old `/users` address opens Settings. Every page jumps back to the top after 
 
 ## Saving and undoing changes
 
-- Adding, editing and deleting rows is saved right away. Each delete shows exactly what would be deleted in a pop up which requires you're approval.
+- Adding, editing, and deleting rows is saved right away. Each delete shows exactly what would be deleted and waits for you to approve it.
 - Every change to the fields saves a copy of the table first.
-- On History, Restore puts a saved version back. The table as it is now is saved first, so the restore can be undone from the same page. Restore asks for a short reason.
-- Backups are listed at the bottom of History. Restoring a backup asks you to type `RESTORE`. It brings back the industries, their rules, requests, settings and every table from the Tables page. A full backup of right now is taken first, so a restore can be undone by restoring that one.
-- Regarding the backups the only supported format is `.zip`, and drop that zip on the box on History to put it back in the list. Only a local zip file is accepted as of now to minimize migration issues from different devices hosting the API.
-- Backups belong to the computer that made them. Their files are encrypted with a key in `backup-key/`, and that key is wrapped by Windows for this computer. Copy the folder to another PC and its backups can't be opened, restored or downloaded there. The same goes for a backup zip. If this PC is reinstalled or Windows is reset, the key can't be unwrapped and those backups are lost, so keep the database itself backed up somewhere else too. Keep `backup-key/` out of any copy you make of the project.
-- Deleting a table on the Tables page puts it in the bin for 14 days. **Bring back** returns it with its rows immediately.
+- On History, Restore puts a saved version back. The table as it is now is saved first, so you can undo the restore from the same page. Restore asks for a short reason.
+- Backups are listed at the bottom of History. Restoring a backup asks you to type `RESTORE`. It brings back the industries, their rules, requests, settings, and every table from the Tables page. A full backup of right now is taken first, so you can undo by restoring that one.
+- The only backup file you can drop in is a `.zip`. Drop it on the box on History to put it back in the list. Only a zip from this computer is accepted, so a backup made on another machine does not get mixed in.
+- Backups belong to the computer that made them. Their files are encrypted with a key in `backup-key/`, and Windows wraps that key for this computer. Copy the folder to another PC and its backups cannot be opened, restored, or downloaded there. The same goes for a backup zip. If this PC is reinstalled or Windows is reset, the key cannot be unwrapped and those backups are lost, so keep the database itself backed up somewhere else too. Keep `backup-key/` out of any copy you make of the project.
+- Deleting a table on the Tables page puts it in the bin for 14 days. **Bring back** returns it with its rows.
 
 ## If something looks wrong
 
-- Most likely the API is down offline which the state management will immediately show everywhere, or Database error: the table still loads, but saving waits or stops until the database responds. History offline clears by itself. Database error shows the reason in the table.
-- The badge says API offline: the API window is closed or stopped. If frontend is running open a terminal cd into angular `cd angular` and then run `ng serve` if its your first run do `ng build` to build all the services and components if both terminals are off or down run `start.bat` again.
-- Saving stops with a message that someone else did the change: reload the page and verify if the other save went in if not add it manually.
+- API offline or a database error shows up across the page. When the database is the problem, the table still loads, but saving waits or stops until the database responds. History offline clears by itself. A database error shows the reason in the table.
+- When the badge says API offline, the API window is closed or stopped. If the frontend is still running, open a terminal, `cd angular`, and run `ng serve`. On a first run, `ng build` builds the services and components. If both windows are down, run `start.bat` again.
+- If saving stops because someone else changed the same thing, reload the page and check whether their save went in. If it did not, add it again.
 
 ## For anyone who wants to try it
 
-- Setup, database settings and the seed script which are all in `scripts/` in the scripts folder there is `seeding.control.example.toml` drop the admin username and password there and control the script in `seeding.toml` to setup a safe environment you'll find docker docs if you're interested `docker_setup.md`.
-- Changing the shape of a table needs a migration, in one of two chains. Only the data travels in time: the industries, their rules and the Tables page are the data chain (`.\migrate.ps1 -Context Data -Name YourChangeName` in `api_v2`). Accounts, notes, the Scratchpad, requests and settings are always current and have their own chain (`-Context State`), so going back on the data never touches them. Restart the API and it applies both.
-- The API runs on http://localhost:5005 with Swagger at http://localhost:5005/swagger/index.html.
+Setup, database settings, and the seed script are in `scripts/`. Copy `seeding.control.example.toml`, put the admin username and password in it, and control the script from `seeding.toml`. Docker notes are in `docker_setup.md`.
+
+Changing the shape of a table needs a migration, in one of two chains. The data chain is what a restore can roll back: the industries, their rules, and the Tables page. From `api_v2`, that is `.\migrate.ps1 -Context Data -Name YourChangeName`. Accounts, notes, the Scratchpad, requests, and settings stay current and have their own chain (`-Context State`), so rolling the data back leaves them alone. Restart the API and it applies both.
+
+The API runs on http://localhost:5005. Swagger is at http://localhost:5005/swagger/index.html.
