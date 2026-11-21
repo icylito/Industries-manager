@@ -27,6 +27,8 @@ scripts/seeding.control.toml
 *.zip
 .plain-*
 *.sealing
+AGENTS.md
+CLAUDE.md
 
 # The checks in testing/: the throwaway API's settings, its backups and its Python cache
 api_v2/appsettings.Throwaway.json

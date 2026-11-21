@@ -1,47 +1,43 @@
 # Docker setup
 
-This is not mandatory. If you already have Postgres installed and your `appsettings.Development.json` points at it, you can skip this whole file.
+You don't need this if you already have Postgres 17 installed and `api_v2/appsettings.Development.json` points at it.
 
-Docker is just an easy way to get a test database that starts empty, without touching your own Postgres. If you'd like to test with it, do the steps below.
+Docker gives you a database that starts empty and stays out of the way of your own Postgres. `start.bat` starts it for you, so most of the time you won't have to touch it. This page is for when you want to look inside it or start over.
 
-## Passwords
+## Which password goes where
 
-- Your own Postgres (port `5432`): use your own postgres password, the one you set when you installed it.
-- The Docker one (port `5433`): the password is `postgres`. That's fine here since it only runs on your PC for testing.
+- Your own Postgres, on port `5432`: the password you set when you installed it.
+- The Docker one, on port `5433`: `postgres`. That's fine here, because it only listens on your PC.
 
-## 1. Start the database
+## Start the database
 
-Install Docker Desktop, open it, then from the project folder run:
+Install Docker Desktop, open it, then from the project folder:
 
-```
+```bat
 docker compose up -d
-```
-
-Check it's running, you should see `stock-listing-db` with `5433->5432`:
-
-```
 docker ps
 ```
 
-To see all the running docker processes
+You should see `stock-listing-db` with `5433->5432` in the list.
 
-## 2. Run the API against it
+## Point the API at it
 
-From `api_v2`, in PowerShell:
+`appsettings.Development.example.json` already points at the Docker database. If you don't have `api_v2/appsettings.Development.json` at all, the API uses Docker by itself, so `dotnet run --launch-profile http` from `api_v2` is all you need.
 
-```
+If your settings file points at your own Postgres and you want to try Docker for one run, set the connection for that terminal only. In PowerShell, from `api_v2`:
+
+```powershell
 $env:ConnectionStrings__ApiV2="Host=localhost;Port=5433;Database=main;Username=postgres;Password=postgres"
 dotnet run --launch-profile http
 ```
 
-This only lasts for that terminal, so your own `appsettings.Development.json` stays the same. If you don't have that file at all, skip the first line, the API uses Docker by itself.
-`api_v2/appsettings.Development.json` in this copy points at the Docker database already (`Port=5433`, password `postgres`), so `dotnet run --launch-profile http` uses it with no environment line. If you want to go back to your own Postgres on `5432`, change both connection strings there back to `Port=5432` with your own password; that file is git ignored, so the change stays on your machine. `appsettings.Development.example.json` keeps the Docker values as the example.
+Your settings file stays as it was. To switch for good, change both connection strings in it to the port and password you want. Git ignores that file, so the change stays on your PC.
 
-On the first run the API creates 2 databases, `main` with the `Industries` table, and `collector`. Both start empty. To get fake rows in, run `python scripts/seed_industries.py` from the project folder (or `py`, check with `python --version`) while the API is running. The account is `username` and `password` in `scripts/seeding.control.toml` (copy `seeding.control.example.toml`). Row counts and names stay in `seeding.toml`.
+On its first run the API makes two databases, `main` with the industries and `collector` for History, and both start empty. To fill the table, copy `scripts/seeding.control.example.toml` to `scripts/seeding.control.toml`, put the admin login in it, and run `python scripts/seed_industries.py` while the API is running. How many rows and what they're called is set in `scripts/seeding.toml`.
 
-## 3. See it in pgAdmin (optional)
+## Look inside with pgAdmin
 
-Servers → Register → Server, then in the Connection tab:
+Servers, Register, Server, then in the Connection tab:
 
 | Field | Value |
 |---|---|
@@ -50,12 +46,12 @@ Servers → Register → Server, then in the Connection tab:
 | Username | `postgres` |
 | Password | `postgres` |
 
-Make sure the port is `5433`. If it says `5432` you're connecting to your own Postgres and the `postgres` password won't work there.
+Check the port. If it says `5432` you're connecting to your own Postgres, and the `postgres` password won't work there.
 
-## Stop or reset
+## Stop or start over
 
-```
-docker compose stop       # stops it, keeps the data
-docker compose start      # starts it again
-docker compose down -v    # deletes it and all its data, next start is empty
-```
+| Command | What it does |
+|---|---|
+| `docker compose stop` | Stops it and keeps the data |
+| `docker compose start` | Starts it again |
+| `docker compose down -v` | Deletes it and all its data, so the next start is empty |
