@@ -1,0 +1,84 @@
+:host {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+}
+
+.ex-head {
+  display: flex;
+  align-items: center;
+  min-height: 2.1rem;
+}
+
+.ex-head:hover {
+  background: var(--hover);
+}
+
+.ex-toggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.ex-toggle:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: -2px;
+}
+
+.ex-chev {
+  flex: 0 0 auto;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+:host(.open) .ex-chev {
+  transform: rotate(90deg);
+}
+
+.ex-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ex-actions {
+  display: flex;
+  gap: 0.15rem;
+  padding-right: 0.4rem;
+}
+
+.ex-actions:empty,
+.ex-actions[hidden] {
+  display: none;
+}
+
+.ex-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-bottom: 0.6rem;
+}
+
+.ex-body[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ex-chev {
+    transition: none;
+  }
+}

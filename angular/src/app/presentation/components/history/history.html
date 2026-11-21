@@ -1,0 +1,1211 @@
+<!-- Saved versions, retention and the settings file are for admins. A manager only gets the Backups card. -->
+<!-- One panel, three tabs, so nothing is an endless scroll. A manager only has Backups, so the tabs are for admins. -->
+@if (auth.isAdmin()) {
+  <!-- The tabs are the top edge of one panel and the open tab fills the rest, so the three parts read as one piece -->
+  <section class="panel history-shell">
+    <nav class="page-tabs" role="tablist" aria-label="History sections">
+      <button
+        type="button"
+        role="tab"
+        class="page-tab"
+        [class.on]="tab() === 'versions'"
+        [attr.aria-selected]="tab() === 'versions'"
+        (click)="setTab('versions')"
+      >
+        <i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>Saved versions
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="page-tab"
+        [class.on]="tab() === 'backups'"
+        [attr.aria-selected]="tab() === 'backups'"
+        (click)="setTab('backups')"
+      >
+        <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>Backups
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="page-tab"
+        [class.on]="tab() === 'settings'"
+        [attr.aria-selected]="tab() === 'settings'"
+        (click)="setTab('settings')"
+      >
+        <i class="fa-solid fa-gear" aria-hidden="true"></i>Settings
+      </button>
+    </nav>
+    <div class="shell-body" role="tabpanel">
+      @switch (tab()) {
+        @case ('versions') {
+          <!-- Saved versions from the collector database. Nothing here deletes data without asking. -->
+          @if (notice()) {
+            <p class="field-error">
+              <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ notice() }}
+            </p>
+          }
+
+          @if (loading()) {
+            <p class="state">
+              <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading saved versions
+            </p>
+          } @else if (error()) {
+            <p class="state state-error">
+              <i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"></i>{{ error() }}
+            </p>
+          } @else if (versions().length === 0) {
+            <p class="state">
+              <i class="fa-solid fa-box-open" aria-hidden="true"></i>Nothing saved yet. A copy gets
+              saved the first time the rules or the table change.
+            </p>
+          } @else {
+            <!-- The rows scroll inside this box and the header stays, so the footer is always in view -->
+            <div class="table-wrap scroll-wrap" (scroll)="menu.set(null)">
+              <table class="versions">
+                <thead>
+                  <tr>
+                    <th><span class="th"># </span></th>
+                    <th>
+                      <b><span class="th">What happened</span></b>
+                    </th>
+                    <th class="num">
+                      <b><span class="th">Record</span></b>
+                    </th>
+                    <th class="actions-col"><span class="th">Action</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (v of pagedVersions(); track v.id) {
+                    <tr
+                      [id]="'version-row-' + v.id"
+                      [class.editing]="panel()?.version?.id === v.id"
+                    >
+                      <td class="id">#{{ v.id }}</td>
+                      <td class="what">
+                        <span class="reason">
+                          @if (v.pinned) {
+                            <i
+                              class="fa-solid fa-thumbtack pin-mark"
+                              title="Pinned, never removed"
+                              aria-label="Pinned"
+                            ></i>
+                          }
+                          {{ describe(v.reason) }}
+                          @if (v.damaged) {
+                            <span
+                              class="tag damaged"
+                              title="A saved value in this version couldn't be read"
+                              >Damaged</span
+                            >
+                          }
+                        </span>
+                        <span class="sub"
+                          >{{ formatDate(v.createdAt) }} · {{ howOld(v.createdAt) }} ·
+                          {{
+                            v.damaged
+                              ? "Can't be restored or brought back"
+                              : v.sameLayout
+                                ? 'Same table layout'
+                                : 'Other table layout'
+                          }}</span
+                        >
+                      </td>
+                      <td class="num-accent">
+                        {{ count(v.rowCount)
+                        }}<span class="unit-word"> {{ v.rowCount === 1 ? 'row' : 'rows' }}</span>
+                      </td>
+                      <td class="actions">
+                        <button
+                          type="button"
+                          class="menu-btn"
+                          aria-haspopup="menu"
+                          [attr.aria-expanded]="menuVersion()?.id === v.id"
+                          [attr.aria-label]="'Actions for version ' + v.id"
+                          (click)="toggleMenu({ version: v }, $event)"
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.4"
+                            stroke-linecap="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M4 6h16M4 12h16M4 18h16" />
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <!-- The size is always there, the arrows only once there is more than one page -->
+            <footer class="panel-foot">
+              <span
+                >Showing {{ (shownPage() - 1) * versionSize() + 1 }} to
+                {{ (shownPage() - 1) * versionSize() + pagedVersions().length }} of
+                {{ count(versions().length) }}</span
+              >
+              <div class="foot-right">
+                <label class="page-size">
+                  <span class="sub">Show</span>
+                  <span class="control">
+                    <select
+                      aria-label="Saved versions per page"
+                      (change)="setVersionSize($any($event.target).value)"
+                    >
+                      @for (n of versionSizes; track n) {
+                        <option [value]="n" [selected]="n === versionSize()">{{ n }}</option>
+                      }
+                    </select>
+                    <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
+                  </span>
+                  <span class="sub">rows</span>
+                </label>
+                <div class="pager">
+                  @if (versionPages() > 1) {
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label="Previous page of saved versions"
+                      [disabled]="shownPage() === 1"
+                      (click)="goToVersionPage(shownPage() - 1)"
+                    >
+                      <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+                    </button>
+                    <span>Page {{ shownPage() }} of {{ versionPages() }}</span>
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      aria-label="Next page of saved versions"
+                      [disabled]="shownPage() === versionPages()"
+                      (click)="goToVersionPage(shownPage() + 1)"
+                    >
+                      <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+                    </button>
+                  }
+                </div>
+              </div>
+            </footer>
+          }
+        }
+        @case ('backups') {
+          <ng-container [ngTemplateOutlet]="backupsBody" />
+        }
+        @case ('settings') {
+          <!-- How long old versions stay -->
+          <div class="shell-section">
+            <header class="card-head">
+              <h2>
+                <span class="title-icon"
+                  ><i class="fa-solid fa-box-archive" aria-hidden="true"></i></span
+                >Keep old versions
+              </h2>
+            </header>
+            <div class="settings-row">
+              <label class="field">
+                <span class="field-label">Keep the last</span>
+                <span class="control">
+                  <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="All"
+                    [value]="keepVersionsText()"
+                    (input)="keepVersionsText.set($any($event.target).value)"
+                  />
+                  <span class="unit">versions</span>
+                </span>
+              </label>
+              <label class="field">
+                <span class="field-label">Remove versions older than</span>
+                <span class="control">
+                  <i class="fa-regular fa-calendar" aria-hidden="true"></i>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="No limit"
+                    [value]="keepDaysText()"
+                    (input)="keepDaysText.set($any($event.target).value)"
+                  />
+                  <span class="unit">days</span>
+                </span>
+              </label>
+              <button
+                type="button"
+                class="add-btn"
+                [disabled]="retentionBusy()"
+                (click)="saveRetention()"
+              >
+                @if (retentionBusy()) {
+                  <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Saving...
+                } @else {
+                  <i class="fa-solid fa-check" aria-hidden="true"></i>Save
+                }
+              </button>
+            </div>
+            @if (retentionAsk(); as count) {
+              <div class="ask">
+                <p>
+                  <i class="fa-solid fa-circle-question" aria-hidden="true"></i>This removes
+                  {{ count }} saved {{ count === 1 ? 'version' : 'versions' }} for good. Pinned
+                  versions stay.
+                </p>
+                <div class="confirm-row end">
+                  <button type="button" class="cancel-btn" (click)="retentionAsk.set(null)">
+                    Cancel
+                  </button>
+                  <button type="button" class="add-btn danger" (click)="confirmRetention()">
+                    Remove {{ count }}
+                  </button>
+                </div>
+              </div>
+            }
+            @if (retentionMsg()) {
+              <p class="result small">
+                <i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ retentionMsg() }}
+              </p>
+            }
+            @if (retentionError()) {
+              <p class="field-error">
+                <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i
+                >{{ retentionError() }}
+              </p>
+            }
+          </div>
+
+          <!-- Retention and the field rules as a file -->
+          <div class="shell-section">
+            <header class="card-head">
+              <h2>
+                <span class="title-icon"
+                  ><i class="fa-solid fa-file-code" aria-hidden="true"></i></span
+                >Settings file
+              </h2>
+            </header>
+            <div class="settings-row buttons">
+              <button type="button" class="cancel-btn" (click)="exportSettings()">
+                <i class="fa-solid fa-file-export" aria-hidden="true"></i>Export settings
+              </button>
+              <button
+                type="button"
+                class="cancel-btn"
+                [disabled]="settingsBusy()"
+                (click)="settingsFile.click()"
+              >
+                @if (settingsBusy() && !settingsAsk()) {
+                  <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Reading...
+                } @else {
+                  <i class="fa-solid fa-file-import" aria-hidden="true"></i>Import settings
+                }
+              </button>
+              <input
+                #settingsFile
+                type="file"
+                accept=".json,application/json"
+                hidden
+                (change)="chooseSettingsFile(settingsFile)"
+              />
+            </div>
+            @if (settingsAsk(); as ask) {
+              <div class="ask">
+                <p>
+                  <i class="fa-solid fa-circle-question" aria-hidden="true"></i
+                  >{{ settingsSummary(ask.preview) }}
+                  @if (ask.preview.willRemove) {
+                    {{ ask.preview.willRemove }} saved
+                    {{ ask.preview.willRemove === 1 ? 'version' : 'versions' }} would be removed for
+                    good.
+                  }
+                  @if (ask.preview.ignored.length) {
+                    {{ ask.preview.ignored.length }}
+                    {{
+                      ask.preview.ignored.length === 1
+                        ? "field in the file isn't"
+                        : "fields in the file aren't"
+                    }}
+                    in this table and will be left out.
+                  }
+                </p>
+                <div class="confirm-row end">
+                  <button
+                    type="button"
+                    class="cancel-btn"
+                    [disabled]="settingsBusy()"
+                    (click)="settingsAsk.set(null)"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    class="add-btn"
+                    [class.danger]="ask.preview.willRemove > 0"
+                    [disabled]="
+                      settingsBusy() || (!ask.preview.rulesChanged && !ask.preview.retentionChanged)
+                    "
+                    (click)="importSettings()"
+                  >
+                    @if (settingsBusy()) {
+                      <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Importing...
+                    } @else if (ask.preview.willRemove > 0) {
+                      <i class="fa-solid fa-file-import" aria-hidden="true"></i>Import and remove
+                      {{ ask.preview.willRemove }}
+                    } @else {
+                      <i class="fa-solid fa-file-import" aria-hidden="true"></i>Import
+                    }
+                  </button>
+                </div>
+              </div>
+            }
+            @if (settingsMsg()) {
+              <p class="result small">
+                <i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ settingsMsg() }}
+              </p>
+            }
+            @if (settingsError()) {
+              <p class="field-error">
+                <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i
+                >{{ settingsError() }}
+              </p>
+            }
+          </div>
+        }
+      }
+    </div>
+  </section>
+} @else {
+  <!-- A manager has no tabs, only this card -->
+  <section class="card">
+    <header class="card-head">
+      <h2>
+        <span class="title-icon"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i></span
+        >Backups
+      </h2>
+    </header>
+    <ng-container [ngTemplateOutlet]="backupsBody" />
+  </section>
+}
+
+<!-- Viewing, restoring or bringing back a version belongs to the Saved versions tab -->
+@if (auth.isAdmin() && tab() === 'versions') {
+  @if (panel(); as p) {
+    <!-- Restore is a question, so it opens as a pop up over the page instead of a panel at the bottom -->
+    @if (p.kind === 'restore') {
+      <div class="modal-backdrop" (click)="busy() ? null : close()" aria-hidden="true"></div>
+    }
+    <section
+      class="panel"
+      [class.restore-modal]="p.kind === 'restore'"
+      [attr.role]="p.kind === 'restore' ? 'dialog' : null"
+      [attr.aria-modal]="p.kind === 'restore' ? true : null"
+      id="version-panel"
+    >
+      <header class="panel-head">
+        <div class="panel-title">
+          <h2>
+            @switch (p.kind) {
+              @case ('view') {
+                <i class="fa-solid fa-eye" aria-hidden="true"></i>Version #{{ p.version.id }}
+              }
+              @case ('restore') {
+                <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore version #{{
+                  p.version.id
+                }}
+              }
+              @case ('import') {
+                <i class="fa-solid fa-file-import" aria-hidden="true"></i>Bring back rows from
+                version #{{ p.version.id }}
+              }
+            }
+          </h2>
+          <span class="db-status">{{ formatDate(p.version.createdAt) }}</span>
+        </div>
+        <div class="tools">
+          <button type="button" class="tool-btn" (click)="close()">
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>Close
+          </button>
+        </div>
+      </header>
+
+      @switch (p.kind) {
+        @case ('view') {
+          <p class="intro">
+            {{ describe(p.version.reason) }}. {{ p.version.rowCount }} rows, read only.
+          </p>
+          @if (p.version.rows.length === 0) {
+            <p class="state">
+              <i class="fa-solid fa-box-open" aria-hidden="true"></i>The table was empty in this
+              version.
+            </p>
+          } @else {
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    @for (c of viewColumns(); track c) {
+                      <th>
+                        <span class="th">{{ c === 'Extra' ? 'Other fields' : c }}</span>
+                      </th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of viewRows(); track $index) {
+                    <tr>
+                      @for (c of viewColumns(); track c) {
+                        <td [class.id]="c === 'Id'">
+                          {{ c === 'Id' ? '#' : '' }}{{ cellText(row[c]) }}
+                        </td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <footer class="panel-foot">
+              <span>{{ p.version.rows.length }} rows</span>
+              <div class="pager">
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Previous page"
+                  [disabled]="viewPage() === 1"
+                  (click)="viewPage.set(viewPage() - 1)"
+                >
+                  <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+                </button>
+                <span>Page {{ viewPage() }} of {{ viewPages() }}</span>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Next page"
+                  [disabled]="viewPage() === viewPages()"
+                  (click)="viewPage.set(viewPage() + 1)"
+                >
+                  <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+                </button>
+              </div>
+            </footer>
+          }
+        }
+
+        @case ('restore') {
+          @if (restoreDone(); as done) {
+            <p class="result">
+              <i class="fa-solid fa-circle-check" aria-hidden="true"></i> Restored. The table now
+              has the {{ done.restored }} rows from version #{{ p.version.id }}.
+              @if (done.rulesRestored) {
+                The rules from back then are back too.
+              }
+              The table as it was before is saved as a new version at the top.
+            </p>
+            @if (done.lostValues) {
+              <p class="hint-line">
+                <i class="fa-solid fa-triangle-exclamation red" aria-hidden="true"></i
+                >{{ done.lostValues }} rows had values that didn't fit and show as --. They have a
+                red triangle on the main page.
+              </p>
+            }
+            @for (s of done.skipped; track s) {
+              <p class="hint-line">
+                <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>{{ s }}
+              </p>
+            }
+            @if (done.requestId) {
+              <p class="hint-line">
+                <i class="fa-solid fa-bell" aria-hidden="true"></i>The table looked different back
+                then, so a developer was asked to bring that back.
+                <a routerLink="/requests">See the request</a>
+              </p>
+            }
+          } @else {
+            <p class="intro">
+              This puts the table back the way it was on {{ formatDate(p.version.createdAt) }}:
+              {{ p.version.rowCount }} rows, and the rules from back then. Every row in the table
+              now gets swapped out. The table as it is now gets saved first, so you can come back to
+              it from this page.
+            </p>
+            @if (!p.version.sameLayout) {
+              <p class="hint-line">
+                <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>The table had
+                different columns back then. The rows get fitted into today's table, and a developer
+                gets asked to bring the old columns back.
+              </p>
+            }
+            <div class="confirm-row">
+              <label class="field">
+                <span class="field-label"
+                  >Say why, in a few words
+                  <span class="optional"
+                    >at least 10 characters, {{ noteChars() }}/{{ noteMax }}</span
+                  ></span
+                >
+                <span class="control">
+                  <i class="fa-solid fa-keyboard" aria-hidden="true"></i>
+                  <input
+                    autocomplete="off"
+                    placeholder="Why go back to this copy?"
+                    [attr.maxlength]="noteMax"
+                    [value]="restoreNote()"
+                    (input)="restoreNote.set($any($event.target).value)"
+                    [attr.aria-describedby]="noteTooShort() ? 'restore-note-hint' : null"
+                  />
+                </span>
+              </label>
+              <button type="button" class="cancel-btn" (click)="close()">Cancel</button>
+              <button
+                type="button"
+                class="add-btn danger"
+                [disabled]="noteTooShort() || noteTooLong() || busy()"
+                (click)="restore()"
+              >
+                @if (busy()) {
+                  <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Restoring
+                } @else {
+                  <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore
+                }
+              </button>
+            </div>
+            <!-- The button stays grey until there is enough to read, so the page has to say why and how much is missing -->
+            @if (noteTooShort()) {
+              <p class="hint-line note-hint" id="restore-note-hint" role="status">
+                <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                @if (noteChars() === 0) {
+                  A few words, at least 10 characters, so the next person knows why.
+                } @else {
+                  {{ noteChars() }} of 10 characters. Add {{ 10 - noteChars() }} more.
+                }
+              </p>
+            }
+          }
+          @if (panelError()) {
+            <p class="field-error">
+              <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ panelError() }}
+            </p>
+          }
+        }
+
+        @case ('import') {
+          @if (importDone(); as done) {
+            <p class="result">
+              <i class="fa-solid fa-circle-check" aria-hidden="true"></i> Added
+              {{ done.imported }} rows to the table as new rows. Nothing was replaced.
+            </p>
+            @if (done.similar) {
+              <p class="hint-line">
+                <span class="swatch" aria-hidden="true"></span>{{ done.similar }} of them have a
+                similar row in the table, they show amber on the main page.
+              </p>
+            }
+            @if (done.lostValues) {
+              <p class="hint-line">
+                <i class="fa-solid fa-triangle-exclamation red" aria-hidden="true"></i
+                >{{ done.lostValues }} had values that didn't fit and show as --.
+              </p>
+            }
+            @if (done.breakingRules) {
+              <p class="hint-line">
+                <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i
+                >{{ done.breakingRules }} don't match today's rules. They're in, with a black
+                triangle until a fix happens.
+              </p>
+            }
+            @for (s of done.skipped; track s) {
+              <p class="hint-line">
+                <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>{{ s }}
+              </p>
+            }
+            @if (done.leftOutDuplicates) {
+              <p class="hint-line">
+                <i class="fa-solid fa-filter" aria-hidden="true"></i>Left out
+                {{ done.leftOutDuplicates }}
+                {{ done.leftOutDuplicates === 1 ? 'row that was' : 'rows that were' }} already in
+                the table.
+              </p>
+            }
+            @if (done.requestIds.length) {
+              <p class="hint-line">
+                <i class="fa-solid fa-bell" aria-hidden="true"></i>Some old columns have no place in
+                today's table, so a developer was asked about them.
+                <a routerLink="/requests">See the requests</a>
+              </p>
+            }
+            <div class="confirm-row end">
+              <a class="add-btn" href="/#browse" (click)="$event.preventDefault(); seeTheTable()"
+                ><i class="fa-solid fa-table-list" aria-hidden="true"></i>See the table</a
+              >
+            </div>
+          } @else {
+            <p class="intro">
+              {{ p.preview.willImport }} rows will be added as new rows, with new numbers. Nothing
+              in the table gets replaced.
+            </p>
+            @for (s of p.preview.skipped; track s) {
+              <p class="hint-line">
+                <i class="fa-solid fa-circle-minus" aria-hidden="true"></i>{{ s }}
+              </p>
+            }
+            <!-- Bringing a version back twice puts every row in twice, so say so before it happens -->
+            @if (p.preview.alreadyImportedFromThisVersion) {
+              <p class="hint-line">
+                <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                {{ p.preview.alreadyImportedFromThisVersion }}
+                {{
+                  p.preview.alreadyImportedFromThisVersion === 1 ? 'row was' : 'rows were'
+                }}
+                already brought back from this version. Adding it again makes copies of
+                {{ p.preview.alreadyImportedFromThisVersion === 1 ? 'it' : 'them' }}.
+              </p>
+            }
+            @if (p.preview.unmatchedColumns.length) {
+              <p class="hint-line">
+                <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                {{ p.preview.unmatchedColumns.join(', ') }}
+                {{ p.preview.unmatchedColumns.length === 1 ? 'has' : 'have' }} no place in today's
+                table and won't come over. A developer gets asked about
+                {{ p.preview.unmatchedColumns.length === 1 ? 'it' : 'them' }}.
+              </p>
+            }
+
+            <div class="table-wrap preview">
+              <table>
+                <thead>
+                  <tr>
+                    <th><span class="th">Old #</span></th>
+                    <th><span class="th">Name</span></th>
+                    <th><span class="th">Notes</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (r of p.preview.rows; track $index) {
+                    <tr [class.similar]="r.similarTo !== null" [class.skipped]="r.skip">
+                      <td class="id">#{{ r.oldId }}</td>
+                      <td class="accent">
+                        @if (r.level) {
+                          <span
+                            class="flag"
+                            [class.red]="r.level === 'red'"
+                            [attr.title]="r.problems.join('\n')"
+                            ><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i
+                          ></span>
+                        }
+                        {{ r.name || '--' }}
+                      </td>
+                      <td class="notes">
+                        {{ r.skip ?? (r.problems.length ? r.problems.join('. ') : 'Fine') }}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            @if (p.preview.rulesDiffer) {
+              <div class="ask">
+                <p>
+                  <i class="fa-solid fa-circle-question" aria-hidden="true"></i
+                  >{{ p.preview.message }}
+                </p>
+                <div class="confirm-row end">
+                  <button type="button" class="cancel-btn" (click)="close()">Cancel</button>
+                  @if (duplicateCount(p.preview.rows); as dups) {
+                    <button
+                      type="button"
+                      class="cancel-btn"
+                      [disabled]="busy() || p.preview.willImport === dups"
+                      [attr.title]="'Leaves out the ' + dups + ' rows already in the table'"
+                      (click)="runImport(true)"
+                    >
+                      @if (busy() && skippingDups()) {
+                        <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Adding
+                      } @else {
+                        <i class="fa-solid fa-filter" aria-hidden="true"></i>Import without dups
+                      }
+                    </button>
+                  }
+                  <button
+                    type="button"
+                    class="add-btn"
+                    [disabled]="busy() || !p.preview.willImport"
+                    (click)="runImport()"
+                  >
+                    @if (busy() && !skippingDups()) {
+                      <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Adding
+                    } @else {
+                      <i class="fa-solid fa-file-import" aria-hidden="true"></i>Import anyway
+                    }
+                  </button>
+                </div>
+              </div>
+            } @else {
+              <div class="confirm-row end">
+                <button type="button" class="cancel-btn" (click)="close()">Cancel</button>
+                @if (duplicateCount(p.preview.rows); as dups) {
+                  <button
+                    type="button"
+                    class="cancel-btn"
+                    [disabled]="busy() || p.preview.willImport === dups"
+                    [attr.title]="'Leaves out the ' + dups + ' rows already in the table'"
+                    (click)="runImport(true)"
+                  >
+                    @if (busy() && skippingDups()) {
+                      <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Adding
+                    } @else {
+                      <i class="fa-solid fa-filter" aria-hidden="true"></i>Import without dups
+                    }
+                  </button>
+                }
+                <button
+                  type="button"
+                  class="add-btn"
+                  [disabled]="busy() || !p.preview.willImport"
+                  (click)="runImport()"
+                >
+                  @if (busy() && !skippingDups()) {
+                    <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Adding
+                  } @else {
+                    <i class="fa-solid fa-file-import" aria-hidden="true"></i>Add
+                    {{ p.preview.willImport }} rows
+                  }
+                </button>
+              </div>
+            }
+          }
+          @if (panelError()) {
+            <p class="field-error">
+              <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ panelError() }}
+            </p>
+          }
+        }
+      }
+    </section>
+  }
+}
+
+<!-- Full copies of both databases, outside Postgres. Drawn in the admin's Backups tab and in the manager's card. -->
+<ng-template #backupsBody>
+  <div class="intro-row">
+    <div class="intro-block">
+      <p class="intro">{{ backupIntro() }}</p>
+    </div>
+    <button type="button" class="add-btn" [disabled]="backingUp()" (click)="backupNow()">
+      @if (backingUp()) {
+        <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Backing up...
+      } @else {
+        <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>Back up now
+      }
+    </button>
+  </div>
+  @if (backupMsg()) {
+    <p class="result small">
+      <i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ backupMsg() }}
+    </p>
+  }
+  @if (backupError()) {
+    <p class="field-error">
+      <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ backupError() }}
+    </p>
+  }
+
+  <!-- The whole box is the button: click or press Enter to choose a file, or drop one on it. The API only accepts a backup this app made. -->
+  <div
+    class="drop-zone"
+    role="button"
+    tabindex="0"
+    [class.over]="dropOver()"
+    [class.busy]="uploading()"
+    [attr.aria-disabled]="uploading()"
+    [attr.aria-label]="'Add a backup file. Supported: the .zip from this device, from its Download button'"
+    (click)="uploading() || backupFile.click()"
+    (keydown.enter)="uploading() || backupFile.click()"
+    (keydown.space)="$event.preventDefault(); uploading() || backupFile.click()"
+    (dragover)="onDragOver($event)"
+    (dragleave)="dropOver.set(false)"
+    (drop)="onDrop($event)"
+  >
+    @if (uploading()) {
+      <span class="spin-ring" aria-hidden="true"></span>
+      <strong>Checking the file</strong>
+    } @else {
+      <svg
+        class="drop-icon"
+        width="26"
+        height="26"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M12 16V4" />
+        <path d="m7 9 5-5 5 5" />
+        <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
+      </svg>
+      <strong>{{
+        dropOver() ? 'Let go to add it' : 'Drop a backup here or click to choose'
+      }}</strong>
+      <span class="formats"
+        >Only the <code>.zip</code> Currently only this device backups are accepted.</span
+      >
+    }
+  </div>
+  <input
+    #backupFile
+    type="file"
+    accept=".zip,application/zip"
+    hidden
+    (change)="chooseBackupFile(backupFile)"
+  />
+  @if (uploadMsg()) {
+    <p class="result small" role="status">
+      <i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ uploadMsg() }}
+    </p>
+  }
+  @if (uploadError()) {
+    <p class="field-error" role="alert">
+      <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ uploadError() }}
+    </p>
+  }
+
+  @if (backupStatus()) {
+    <p class="next-backup" role="status">
+      <i class="fa-solid fa-clock" aria-hidden="true"></i>{{ nextNightlyText() }}
+    </p>
+  }
+  @if (!backupsLoaded() && !backupError()) {
+    <p class="state">
+      <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Loading backups
+    </p>
+  } @else if (backupsLoaded() && backups().length === 0) {
+    <p class="state">
+      <i class="fa-solid fa-box-open" aria-hidden="true"></i>No backups yet. The first one runs a
+      few minutes after the API starts.
+    </p>
+  } @else if (backups().length > 0) {
+    <div class="table-wrap scroll-wrap" (scroll)="menu.set(null)">
+      <table class="versions">
+        <thead>
+          <tr>
+            <th><span class="th">When</span></th>
+            <th class="num"><span class="th">Size</span></th>
+            <th class="actions-col"><span class="th">Action</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (b of pagedBackups(); track b.id) {
+            <tr [id]="'backup-' + b.id" [class.just-added]="justAdded() === b.id">
+              <td class="what">
+                <span class="reason">{{ formatDate(b.createdAt) }}</span>
+                <span class="sub"
+                  >{{ kindLabel(b.kind)
+                  }}{{
+                    b.rowCount === null
+                      ? ''
+                      : ' · ' + b.rowCount + (b.rowCount === 1 ? ' row' : ' rows')
+                  }}{{ b.sameLayout === false ? ' · Other table layout' : '' }}</span
+                >
+              </td>
+              <td class="num-accent">{{ kb(b.mainSize + b.collectorSize) }}</td>
+              <td class="actions">
+                <button
+                  type="button"
+                  class="menu-btn"
+                  aria-haspopup="menu"
+                  [attr.aria-expanded]="menuBackup()?.id === b.id"
+                  [attr.aria-label]="'Actions for backup ' + b.id"
+                  (click)="toggleMenu({ backup: b }, $event)"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.4"
+                    stroke-linecap="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <footer class="panel-foot">
+      <span
+        >Showing {{ (shownBackupPage() - 1) * backupSize() + 1 }} to
+        {{ (shownBackupPage() - 1) * backupSize() + pagedBackups().length }} of
+        {{ backups().length }}</span
+      >
+      <div class="foot-right">
+        <label class="page-size">
+          <span class="sub">Show</span>
+          <span class="control">
+            <select
+              aria-label="Backups per page"
+              (change)="setBackupSize($any($event.target).value)"
+            >
+              @for (n of versionSizes; track n) {
+                <option [value]="n" [selected]="n === backupSize()">{{ n }}</option>
+              }
+            </select>
+            <i class="fa-solid fa-chevron-down caret" aria-hidden="true"></i>
+          </span>
+          <span class="sub">rows</span>
+        </label>
+        @if (backupPages() > 1) {
+          <div class="pager">
+            <button
+              type="button"
+              class="icon-btn"
+              aria-label="Previous page of backups"
+              [disabled]="shownBackupPage() === 1"
+              (click)="goToBackupPage(shownBackupPage() - 1)"
+            >
+              <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+            </button>
+            <span>Page {{ shownBackupPage() }} of {{ backupPages() }}</span>
+            <button
+              type="button"
+              class="icon-btn"
+              aria-label="Next page of backups"
+              [disabled]="shownBackupPage() === backupPages()"
+              (click)="goToBackupPage(shownBackupPage() + 1)"
+            >
+              <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+            </button>
+          </div>
+        }
+      </div>
+    </footer>
+  }
+
+  @if (restoreAsk(); as ask) {
+    <div class="ask" id="restore-backup">
+      <p>
+        <i class="fa-solid fa-circle-question" aria-hidden="true"></i>This puts everything back the
+        way it was on {{ formatDate(ask.entry.createdAt) }}: the industries ({{
+          ask.preview.rowCount === null
+            ? 'its rows'
+            : ask.preview.rowCount + (ask.preview.rowCount === 1 ? ' row' : ' rows')
+        }}
+        instead of the {{ ask.preview.currentRows }} now), their rules, and every table on the
+        Tables page with its columns and rows. Accounts, notes, the Scratchpad, requests and
+        settings stay as they are now. A full backup of right now is taken first, so you can undo
+        this by restoring that one.
+      </p>
+      @if (!ask.preview.historyReady) {
+        <p class="hint-line">
+          <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>History is offline, so
+          a copy can't be saved first. Wait until it's back.
+        </p>
+      }
+      <div class="confirm-row">
+        <label class="field">
+          <span class="field-label">Type RESTORE to confirm</span>
+          <span class="control">
+            <i class="fa-solid fa-keyboard" aria-hidden="true"></i>
+            <input
+              autocomplete="off"
+              placeholder="RESTORE"
+              [value]="restoreBackupText()"
+              (input)="restoreBackupText.set($any($event.target).value)"
+            />
+          </span>
+        </label>
+        <button
+          type="button"
+          class="cancel-btn"
+          [disabled]="restoreBackupBusy()"
+          (click)="closeRestoreBackup()"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="add-btn danger"
+          [disabled]="
+            restoreBackupText() !== 'RESTORE' || restoreBackupBusy() || !ask.preview.historyReady
+          "
+          (click)="restoreBackup()"
+        >
+          @if (restoreBackupBusy()) {
+            <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Restoring
+          } @else {
+            <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore
+          }
+        </button>
+      </div>
+    </div>
+  }
+  @if (restoreBackupDone(); as done) {
+    <p class="result small">
+      <i class="fa-solid fa-circle-check" aria-hidden="true"></i> Restored. The table has the
+      {{ done.rows }} rows from backup "{{ done.backup }}" now, rules version
+      {{ done.rulesVersion }}.
+      @if (done.undoBackup) {
+        To undo it, restore the backup marked "Taken just before a restore" at the top of the list.
+      }
+      @if (done.copyId && auth.isAdmin()) {
+        The table as it was before is also saved as version #{{ done.copyId }} in Saved versions.
+      }
+    </p>
+  }
+  @if (restoreBackupError()) {
+    <p class="field-error">
+      <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>{{ restoreBackupError() }}
+    </p>
+  }
+
+  @if (backupStatus()?.lastError) {
+    <p class="field-error">
+      <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i
+      >{{ backupStatus()!.lastErrorAt ? formatDate(backupStatus()!.lastErrorAt!) + '. ' : ''
+      }}{{ backupStatus()!.lastError }}
+    </p>
+  }
+</ng-template>
+
+@if (menuVersion(); as v) {
+  <!-- Drawn here, outside the tables: their scrolling box would clip it -->
+  <div
+    class="menu"
+    role="menu"
+    [attr.aria-label]="'Actions for version ' + v.id"
+    (keydown)="onMenuKey($event)"
+    (click)="menu.set(null)"
+    [style.top.px]="menuAt().top"
+    [style.right.px]="menuAt().right"
+  >
+    <button type="button" role="menuitem" [disabled]="busy()" (click)="view(v)">
+      <i class="fa-solid fa-eye" aria-hidden="true"></i>View the rows
+    </button>
+    <button type="button" role="menuitem" (click)="download(v)">
+      <i class="fa-solid fa-download" aria-hidden="true"></i>Download
+    </button>
+    <button type="button" role="menuitem" (click)="togglePin(v)">
+      <i class="fa-solid fa-thumbtack" aria-hidden="true"></i>{{ v.pinned ? 'Unpin' : 'Pin' }}
+    </button>
+    <button type="button" role="menuitem" [disabled]="busy() || v.damaged" (click)="askImport(v)">
+      <i class="fa-solid fa-file-import" aria-hidden="true"></i>Bring back
+    </button>
+    <button
+      type="button"
+      role="menuitem"
+      class="danger"
+      [disabled]="v.damaged"
+      (click)="askRestore(v)"
+    >
+      <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore
+    </button>
+    <button
+      type="button"
+      role="menuitem"
+      class="danger"
+      [disabled]="v.pinned || busy()"
+      (click)="confirmingVersion.set(v.id)"
+      [attr.title]="v.pinned ? 'Pinned, unpin it to delete' : null"
+    >
+      <i class="fa-solid fa-trash" aria-hidden="true"></i>Delete
+    </button>
+  </div>
+}
+
+@if (menuBackup(); as b) {
+  <div
+    class="menu"
+    role="menu"
+    [attr.aria-label]="'Actions for backup ' + b.id"
+    (keydown)="onMenuKey($event)"
+    (click)="menu.set(null)"
+    [style.top.px]="menuAt().top"
+    [style.right.px]="menuAt().right"
+  >
+    @if (b.hasExcel) {
+      <button
+        type="button"
+        role="menuitem"
+        title="The table at that time, opens in Excel"
+        (click)="downloadBackup(b, 'excel')"
+      >
+        <i class="fa-solid fa-file-excel" aria-hidden="true"></i>Excel
+      </button>
+    }
+    <button
+      type="button"
+      role="menuitem"
+      [disabled]="!b.signed"
+      (click)="downloadZip(b)"
+      [attr.title]="
+        b.signed
+          ? 'The whole backup as one file, to keep somewhere else and drop back in here later'
+          : 'Made before backups were signed, so it can only be restored from this list, not moved as a file'
+      "
+    >
+      <i class="fa-solid fa-file-zipper" aria-hidden="true"></i>Download
+    </button>
+    <button type="button" role="menuitem" (click)="downloadBackup(b, 'main')">
+      <i class="fa-solid fa-database" aria-hidden="true"></i>Main
+    </button>
+    <button type="button" role="menuitem" (click)="downloadBackup(b, 'collector')">
+      <i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>History
+    </button>
+    @if (auth.isAdmin()) {
+      <button
+        type="button"
+        role="menuitem"
+        class="danger"
+        [disabled]="restoreBackupBusy() || deletingBackup()"
+        (click)="confirmingBackup.set(b.id)"
+        [attr.title]="'Remove backup ' + b.id + ' for good'"
+      >
+        <i class="fa-solid fa-trash" aria-hidden="true"></i>Delete
+      </button>
+    }
+    <button
+      type="button"
+      role="menuitem"
+      class="danger"
+      [disabled]="restoreBackupBusy() || b.sameLayout === false"
+      (click)="askRestoreBackup(b)"
+      [attr.title]="
+        b.sameLayout === false
+          ? 'The table had other columns back then, a developer is needed for this one'
+          : 'Put the table back the way it was in backup ' + b.id
+      "
+    >
+      <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restore
+    </button>
+  </div>
+}
+
+<!-- Delete a version asks first: a deleted version can't come back -->
+@if (confirmingBackup() !== null) {
+  <app-confirm-popup
+    [name]="'Backup ' + confirmingBackup()"
+    detail="will be deleted are you sure?."
+    [busy]="deletingBackup()"
+    (no)="confirmingBackup.set(null)"
+    (yes)="deleteBackupById(confirmingBackup()!)"
+  />
+}
+
+@if (confirmingVersion() !== null) {
+  <app-confirm-popup
+    [name]="'Version #' + confirmingVersion()"
+    detail="will be deleted are you sure?."
+    [busy]="deletingVersion() !== null"
+    (no)="confirmingVersion.set(null)"
+    (yes)="deleteVersionById(confirmingVersion()!)"
+  />
+}

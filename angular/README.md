@@ -1,59 +1,48 @@
-# Angular
+# The page
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.2.0.
+This is the Angular 22 page of Industries Manager, the part everyone sees in the browser. It talks to the API on port 5005, so start that too, or use `start.bat` from the project folder to start both.
 
-## Development server
+## Running it
 
-To start a local development server, run:
+The first time, and whenever `package.json` changes:
 
-```bash
-ng serve
+```bat
+npm ci
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+Then:
 
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
+```bat
+npx ng serve
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+Open http://localhost:4200. The page reloads by itself whenever you save a file.
 
-```bash
-ng generate --help
+If `ng serve` or `ng build` stops on a missing file or font, your `node_modules` is out of date. Run `npm ci` again.
+
+## Commands you'll use
+
+```bat
+npx ng build
+npx ng test --watch=false
+npx ng test --watch=false --include src/app/presentation/components/history/history.spec.ts
+npm run lint:layers
+npx prettier --write <file>
 ```
 
-## Building
+`ng build` puts the finished page in `dist/`. It warns that the first bundle is a little over the 500 kB budget, which is known and safe to ignore for now. The `--include` line runs one test file instead of all of them. Run Prettier on the files you change.
 
-To build the project run:
+## How it's laid out
 
-```bash
-ng build
-```
+The page follows the same four layers as the API, under `src/app/`:
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+| Folder | What lives there |
+|---|---|
+| `domain/` | The rules and models, with no Angular in them at all. The name rule and the Scratchpad board engine are here |
+| `application/` | The steps of each feature, the route guards, and the ports in `application/ports/` that the rest of the page talks to |
+| `infrastructure/` | The HTTP calls and the token storage behind those ports, wired in `providers.ts` |
+| `presentation/` | The components, one folder per page |
 
-## Running unit tests
+Components and use cases ask for a port, never for the HTTP class behind it. `npm run lint:layers` fails if an import goes the wrong way, so run it before you push.
 
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+The colours and spacing are custom properties at the top of `src/styles.css`. Components use `var(--...)` instead of colours of their own, which is how dark mode and the admin pages get their palettes.

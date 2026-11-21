@@ -8,7 +8,7 @@ namespace api_v2.Application.Tables;
 // The Tables page: tables that managers and admins make, fill and delete. A change to a table takes AppLock.UserTables
 // first, so two people can't both make the 50th one or change the same columns at once; the row locking and the
 // transaction boundaries stay inside IUserTablesStore, which answers with what happened and the page reads it here.
-public class UserTableService(IUserTablesStore store, IAppLocks locks)
+public class UserTableService(IUserTablesStore store, IAppLocks locks, IUserTableMirror mirror)
 {
     private const int PageSizeDefault = 25;
     private const int PageSizeMax = 100;
@@ -39,6 +39,7 @@ public class UserTableService(IUserTablesStore store, IAppLocks locks)
         var outcome = await store.CreateAsync(name!, TableShape.Write(columns), createdBy, ct);
         if (outcome is UserTableCreateOutcome.Created created)
         {
+            mirror.Changed(created.Table.Id);
             return new CreateTableResult.Created(ToDto(created.Table));
         }
         return outcome is UserTableCreateOutcome.TooMany
@@ -56,6 +57,7 @@ public class UserTableService(IUserTablesStore store, IAppLocks locks)
         switch (outcome)
         {
             case UserTableUpdateOutcome.Saved saved:
+                mirror.Changed(saved.Table.Id);
                 return new UpdateTableResult.Updated(ToDto(saved.Table));
             case UserTableUpdateOutcome.NotFound:
                 return new UpdateTableResult.NotFound();
@@ -78,6 +80,7 @@ public class UserTableService(IUserTablesStore store, IAppLocks locks)
         await using var tablesLock = await locks.TakeAsync(AppLock.UserTables, ct);
         var deletedAt = await store.DeleteAsync(id, ct);
         if (deletedAt is null) return new DeleteTableResult.NotFound();
+        mirror.Changed(id);
         return new DeleteTableResult.Deleted(id, deletedAt.Value + TableLimits.BinKeeps);
     }
 
@@ -88,6 +91,7 @@ public class UserTableService(IUserTablesStore store, IAppLocks locks)
         switch (outcome)
         {
             case UserTableRestoreOutcome.Restored restored:
+                mirror.Changed(id);
                 return new RestoreTableResult.Restored(ToDto(restored.Table));
             case UserTableRestoreOutcome.NotFound:
                 return new RestoreTableResult.NotFound();
@@ -119,6 +123,7 @@ public class UserTableService(IUserTablesStore store, IAppLocks locks)
         switch (outcome)
         {
             case UserTableRowAddOutcome.Added added:
+                mirror.Changed(id);
                 return new AddRowResult.Created(RowDto(added.Row));
             case UserTableRowAddOutcome.Invalid invalid:
                 return new AddRowResult.Invalid(invalid.Errors);
@@ -138,6 +143,7 @@ public class UserTableService(IUserTablesStore store, IAppLocks locks)
         switch (outcome)
         {
             case UserTableRowUpdateOutcome.Updated updated:
+                mirror.Changed(id);
                 return new UpdateRowResult.Updated(RowDto(updated.Row));
             case UserTableRowUpdateOutcome.NotFoundTable:
                 return new UpdateRowResult.NotFoundTable();
@@ -156,6 +162,7 @@ public class UserTableService(IUserTablesStore store, IAppLocks locks)
     {
         var outcome = await store.DeleteRowAsync(id, rowId, ct);
         if (outcome is UserTableRowDeleteOutcome.NotFound) return new DeleteRowResult.NotFound();
+        mirror.Changed(id);
         return new DeleteRowResult.Deleted(rowId);
     }
 

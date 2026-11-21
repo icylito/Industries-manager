@@ -1,71 +1,136 @@
 # Industries Manager
 
-A full stack web app for managing a list of industries. The API is ASP.NET Core with Entity Framework Core and PostgreSQL, and the Angular front end adds sign in, three roles, history with restore, and backups. Built to learn the .NET and Angular stack, with about two weeks on the API and two more on the front end.
+Industries Manager is the table our team keeps of industries: names, sectors, prices and release dates. Everyone edits the same table from the browser, and every change is saved as a version, so if someone deletes the wrong rows on a Tuesday, you can put Monday's table back.
 
-## How to start it
+![The Overview page over 50,000 industries](images/06-overview.png)
 
-1. Double click `start.bat` in the project folder.
-2. Two windows open. Keep them open while you work.
-3. Open http://localhost:4200 or create a new port if its busy by simply pressing `y` in the angular terminal which may be written as `ng serve` in your terminal.
+It's an Angular 22, .NET 10 API, with PostgreSQL 17 underneath. The API only runs on Windows, because the backups are locked with a key that Windows keeps for your PC.
 
-Closing a window stops it from working if you just want the api without frontend you could use swagger by keeping the backend alive and doing `/swagger` if needed `/swagger/index`. If the page says it could not load the industries, the API window is closed make sure api is working the frotend is optional the api isn't.
+## Getting started (Windows)
 
-Other ways to start:
-- `start.bat https` runs the page over https on this PC.
-- `start.bat share` opens the page to phones and other PCs on the same Wi-Fi. The first time, other devices show a certificate warning. Continue past it.
+You'll need Windows hence the (Windows), the [.NET 10 SDK](https://dotnet.microsoft.com/download), [Node.js](https://nodejs.org) and [Docker Desktop](https://www.docker.com/products/docker-desktop/). Open Docker Desktop, then:
 
-## Signing in
+```bat
+git clone https://github.com/icylito/Minimal-API.git
+cd Minimal-API\angular
+npm ci
+cd ..
+start.bat
+```
 
-The first start creates an admin account called `admin` with a random password. The password is printed once in the API window, so copy it then. Sign in and choose a new password.
+`start.bat` brings the database up in Docker and opens two terminal windows, one for the API and one for the angular. Leave both of them open and go to http://localhost:4200.
 
-If the admin password is lost, or if you're brave enough do `dotnet --Auth:ResetPassword='user'` and you'll get a temp password copy it and take it to the login page password and then make a new password then you're all set.
+### Signing in the first time
 
-The admin create the account in Settings, then hands it to the user the admin wants to have that account after that the user signs in with his made username and temp password, then creates a new password.
+On its first start the API makes an account called `admin` and prints its password in the API window, once. Copy it, sign in, and you'll be asked to make your new password. One thing that catches people out: double clicking the password usually grabs the full stop after it as well, so check the last character before you paste.
 
-Guessing is rated limited per ip. One address gets 5 attempts a minute (`Auth:LoginTriesPerMinute`), and one username gets 10 wrong passwords in 15 minutes from anywhere (`Auth:FailedTriesPerName`, `Auth:FailedTriesWindowMinutes`). Past either, the page says how long to wait and keeps Sign in off until then. A right password clears the username's count.
+Once you're in, you add everyone else from Settings (if you're the admin) and give each of them a temporary password in which they'd create their own personal password.
 
-There are three roles. A **user** can add, edit and delete rows. A **manager** can also make, change and delete tables on the Tables page, and take, download, drop in and restore backups. An **admin** can do everything, including rules, History versions and Settings.
+### Other ways to start it
 
-## The pages
+| Command | What it's for |
+|---|---|
+| `start.bat https` | Your PC only, over https |
+| `start.bat share` | Lets phones and other PCs on your Wi-Fi open the page |
 
-| Page | Address | Who | What it is |
-|---|---|---|---|
-| Browse | `/` | Anyone | The table |
-| Sign in | `/login` | Anyone | Sign in |
-| Your account | `/account` | Signed in | Your password, and sign out |
-| Overview | `/overview` | Admin | The table at a glance |
-| Scratchpad | `/scratchpad` | Admin | A board to think with your industries |
-| Settings | `/settings` | Admin | Accounts and who can sign in |
-| History | `/history` | Admin, and managers for the Backups part | Every saved copy of the table, and the backups |
-| Fields | `/fields` | Admin | Labels, limits and custom fields |
-| Tables | `/tables` | Signed in to look, manager or admin to change | Tables the team makes itself |
-| Requests | `/requests` | Signed in | Work that needs a developer |
+For `https`, run `dotnet dev-certs https --trust` once beforehand. With `share`, the window prints the address to open on the other device, and the first visit shows a certificate warning that you can continue past.
 
-The old `/users` address opens Settings. Every page jumps back to the top after 5 minutes without activity.
+## Who can do what
 
-## Saving and undoing changes
+Anyone can browse the table without an account. After that it goes up in steps:
 
-- Adding, editing and deleting rows is saved right away. Each delete shows exactly what would be deleted in a pop up which requires you're approval.
-- Every change to the fields saves a copy of the table first.
-- On History, Restore puts a saved version back. The table as it is now is saved first, so the restore can be undone from the same page. Restore asks for a short reason.
-- Backups are listed at the bottom of History. Restoring a backup asks you to type `RESTORE`. It brings back the industries, their rules, requests, settings and every table from the Tables page. A full backup of right now is taken first, so a restore can be undone by restoring that one.
-- Regarding the backups the only supported format is `.zip`, and drop that zip on the box on History to put it back in the list. Only a local zip file is accepted as of now to minimize migration issues from different devices hosting the API.
-- Backups belong to the computer that made them. Their files are encrypted with a key in `backup-key/`, and that key is wrapped by Windows for this computer. Copy the folder to another PC and its backups can't be opened, restored or downloaded there. The same goes for a backup zip. If this PC is reinstalled or Windows is reset, the key can't be unwrapped and those backups are lost, so keep the database itself backed up somewhere else too. Keep `backup-key/` out of any copy you make of the project.
-- Deleting a table on the Tables page puts it in the bin for 14 days. **Bring back** returns it with its rows immediately.
+| Role | What they can do |
+|---|---|
+| User | Add, edit and delete rows |
+| Manager | All of that, plus the Tables page and backups |
+| Admin | Everything, including the fields, History and Settings |
 
-## If something looks wrong
+## Made a mistake?
 
-- Most likely the API is down (offline) which the state management will immediately show everywhere, or Database error: the table still loads, but saving waits or stops until the database responds. History offline clears by itself. Database error shows the reason in the table.
-- The badge says API offline: the API window is closed or stopped. If frontend is running open a terminal cd into angular `cd angular` and then run `ng serve` if its your first run do `ng build` to build all the services and components if both terminals are off or down run `start.bat` again.
-- Saving stops with a message that someone else did the change: reload the page and verify if the other save went in if not add it manually.
+Open **History**, find the version from before the mistake and press **Restore**. We save the table as it is right before restoring, so if you picked the wrong version you can go back from the same page.
 
-## For anyone who wants to try it
+![History lists every saved version of the table](images/09-history-versions.png)
 
-- Setup, database settings and the seed script which are all in `scripts/` in the scripts folder there is `seeding.control.example.toml` drop the admin username and password there and control the script in `seeding.toml` to setup a safe environment you'll find docker docs if you're interested `docker_setup.md`.
-- Changing the shape of a table needs a migration, in one of two chains. Only the data travels in time: the industries, their rules and the Tables page are the data chain (`.\migrate.ps1 -Context Data -Name YourChangeName` in `api_v2`). Accounts, notes, the Scratchpad, requests and settings are always current and have their own chain (`-Context State`), so going back on the data never touches them. Restart the API and it applies both.
-- The API runs on http://localhost:5005 with Swagger at http://localhost:5005/swagger/index.html.
+Backups are the bigger safety net. One runs every night at 02:00 (or on the next start, if your PC was off), and you can take one yourself from History at any time. Restoring a backup asks you to type `RESTORE`, so nobody does it by accident.
 
-## Tests
+## When something goes wrong
 
-- `dotnet test api_v2.slnx` runs the API tests in `Tests/`: the layer rules, the unit tests and the smoke run. The smoke run needs Postgres on port 5433 (`docker compose up -d`). Add `--filter "Category!=Smoke"` to skip it.
-- `cd angular` then `npx ng test --watch=false` runs the page tests.
+Look at the API window first. It prints what failed and why in a status line, and nearly every fix below starts there.
+
+| What you see | What to do |
+|---|---|
+| **API offline** or **Could not load the industries** | The API window closed or stopped on an error. Run `start.bat` again. If it complains the address is in use, an old copy is still running somewhere, so close it first a nice trick is to open task manager open details tab look for api_v2 and end the process. |
+| **The database isn't reachable, retrying** | Docker Desktop is closed or the database went down. Open Docker Desktop and run `docker compose up -d`. You don't need to restart the API, it reconnects by itself. |
+| The page window dies with a missing file or font | Your `node_modules` is missing or out of date. Run `npm ci` in `angular` and start again. |
+| **Migration failed** or **Couldn't save a copy before updating the database** | The API window has the full error. Nothing in your data was touched, so fix what it says and restart the API. |
+| You lost the admin password | Run `dotnet run --launch-profile http -- --Auth:ResetPassword=admin` in `api_v2`. It prints a new temporary password. Once you're back in, start it normally. |
+| **Too many tries. Try again in...** | The message says how long to wait. Each address gets 5 tries a minute, and each username 10 wrong passwords per 15 minutes. |
+| **Someone changed this row since you opened it** | A teammate saved the same row first. Reload, see if your change is already there, and make it again if not. |
+| **That name is already taken** | Names are compared without case, accents, spaces or symbols, so `Oil & Gas` and `oil gas` count as the same name. |
+| **Someone else is changing this right now** | A restore or an import is running. Wait a moment and try again. |
+| A backup won't restore | Backups only open on the PC that made them, and not after the table's columns have changed. Keep a copy of the database somewhere else too. |
+| Every backup or restore fails | Your Postgres isn't version 17. The one in `docker-compose.yml` is, so use that one. |
+
+## Commands you'll use
+
+**Running the pieces by hand.** If you'd rather not use `start.bat`, start each part yourself. The API comes up on port 5005 and the page on 4200.
+
+```bat
+docker compose up -d
+
+cd api_v2
+dotnet run --launch-profile http
+
+cd angular
+npx ng serve
+```
+
+`docker compose down` stops the database and keeps the data. The API reads its database settings from `api_v2/appsettings.Development.json`. To use your own Postgres 17 instead of Docker, copy `appsettings.Development.example.json` to that name and change the two connection strings.
+
+**Building and testing.**
+
+```bat
+dotnet build api_v2.slnx
+dotnet test api_v2.slnx
+dotnet test api_v2.slnx --filter Category!=Smoke
+
+cd angular
+npx ng build
+npx ng test --watch=false
+npm run lint:layers
+```
+
+The full `dotnet test` includes a smoke run that needs the Docker database. Add the `--filter` to skip it when the database is down. `lint:layers` checks that the page's folders only import in the allowed direction.
+
+**Changing the database.** Add a migration from `api_v2`. The API applies it on its next start.
+
+```bat
+.\migrate.ps1 -Context Data -Name AddSomething
+.\migrate.ps1 -Context State -Name AddSomething
+```
+
+Use `Data` for the industries, their fields and the Tables page, which a restore can roll back. Use `State` for accounts, settings, notes and the Scratchpad, which always stay as they are now.
+
+**Filling the table with sample rows.** Copy `scripts/seeding.control.example.toml` to `scripts/seeding.control.toml`, put the admin login in it, then:
+
+```bat
+python scripts/seed_industries.py
+```
+
+The scripts in `testing/` delete rows on purpose, so never point them at your actual API always point at the throwaway api for testing. `testing/README.md` explains how to start a throwaway one on port 5104.
+
+## How the API is built
+
+`api_v2` follows clean architecture. The code is split into four layers, each one its own project under `backend/`, and every reference points inward, toward the domain. A reference going the wrong way doesn't compile, and `backend/Tests/Architecture/LayerRules.cs` fails the tests if a layer pulls in a package it has no business with.
+
+| Project | What lives there | Can use |
+|---|---|---|
+| `backend/Domain` | The entities and the pure rules: names, fields, boards, file kinds | Nothing |
+| `backend/Application` | The use cases, and the ports (interfaces) they need | Domain |
+| `backend/Infrastructure` | Postgres, EF Core, files, backups, encryption, the background timers | Application |
+| `backend/Presentation` | The endpoints, request and response contracts, sign in, error answers | Application |
+| `api_v2` | `Program.cs`, which wires the layers together and starts the server | Presentation and Infrastructure |
+
+When a request comes in, the endpoint reads it, calls one use case and turns the answer into a response. The use case asks for what it needs through a port, and Infrastructure supplies the class behind it. Postgres, the disk and HTTP stay at the edges, which is why the rules in the middle can be tested on their own. The Angular page uses the same four folders under `angular/src/app/`.
+
+Each project lists its NuGet packages in its own `.csproj`. `api_v2/api_v2.csproj` is the host, and each layer has its own under `backend/`.

@@ -4,14 +4,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace api_v2.Infrastructure.Persistence;
 
-// The uploaded files, rows and bytes, through EF. Which files a board still uses is read from the board JSON in SQL.
+// The uploaded-file rows, through EF. Which files a board still uses is read from the board JSON in SQL.
 public class ScratchFilesStore(AppDbContext db) : IScratchFilesStore
 {
     public Task<ScratchFile?> FindAsync(int id, CancellationToken ct) =>
         db.ScratchFiles.FirstOrDefaultAsync(f => f.Id == id, ct);
-
-    public Task<byte[]?> ReadContentAsync(int fileId, CancellationToken ct) =>
-        db.ScratchFileContents.Where(c => c.ScratchFileId == fileId).Select(c => c.Bytes).FirstOrDefaultAsync(ct);
 
     public void Add(ScratchFile file) => db.ScratchFiles.Add(file);
 
@@ -42,7 +39,7 @@ public class ScratchFilesStore(AppDbContext db) : IScratchFilesStore
         var cutoff = now - grace;
         return await files
             .Where(f => f.OrphanedAt != null && f.OrphanedAt < cutoff && f.CreatedAt < cutoff && !used.Contains(f.Id))
-            .Select(f => new ScratchFileExpired(f.Id))
+            .Select(f => new ScratchFileExpired(f.Id, f.StoredName))
             .ToListAsync(ct);
     }
 

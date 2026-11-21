@@ -1,0 +1,443 @@
+/* Fields page, builds on my-components.css and history.css */
+
+/* One line per field, so a rule reads straight across: field, type, limits, then the two ticks. */
+.fields-table td {
+  padding: 0.95rem 1.25rem;
+  vertical-align: middle;
+}
+
+/* The table is 100%. Required and Actions are the less important two and share 30%, the other 70% is split
+   evenly between Field, Type and Limits so they sit balanced and close, but not on top of each other. */
+.fields-table {
+  table-layout: fixed;
+}
+
+.fields-table th:nth-child(1) {
+  width: 23.33%;
+}
+.fields-table th:nth-child(2) {
+  width: 23.33%;
+}
+.fields-table th:nth-child(3) {
+  width: 23.34%;
+}
+.fields-table th.tick-col {
+  width: 15%;
+}
+.fields-table th.actions-col {
+  width: 15%;
+}
+
+.fields-table th.tick-col .th,
+.fields-table th.actions-col .th {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.fields-table td.tick-col {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.fields-table td.actions {
+  padding: 0.95rem 0.5rem;
+}
+
+.fields-table tr.hidden-field {
+  opacity: 0.55;
+}
+
+.field-cell {
+  min-width: 12rem;
+}
+
+.fields-table td.accent {
+  font-weight: 600;
+  white-space: normal;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.tick-mark {
+  font-size: 0.85rem;
+}
+
+.hide-check {
+  height: auto;
+  gap: 0.35rem;
+  color: var(--p-muted);
+  font-size: 0.8rem;
+}
+
+/* One Actions column: Hide, Edit, Delete in three equal slots, so Edit is centered under the heading on every row */
+.row-actions {
+  display: inline-grid;
+  grid-template-columns: repeat(3, 2rem);
+  align-items: center;
+  justify-items: center;
+}
+
+.row-actions .slot {
+  display: flex;
+  justify-content: center;
+}
+
+.row-actions button + button {
+  margin-left: 0;
+}
+
+.fields-table th.actions-col,
+.fields-table td.actions {
+  text-align: center;
+}
+
+/* Edit and Delete are icons only, square, side by side */
+.icon-btn {
+  width: 2rem;
+  padding: 0;
+  justify-content: center;
+}
+
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.edit-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.edit-asks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.edit-asks .link-btn {
+  margin-left: 0;
+  padding-right: 0.75rem;
+}
+
+.edit-modal h2 {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+  overflow-wrap: anywhere;
+}
+
+.waiting {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--p-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.no-limits {
+  color: var(--faint);
+  font-size: 0.85rem;
+}
+
+.fields-table th.tick-col,
+.fields-table td.tick-col {
+  text-align: center;
+}
+
+.fields-table th .th {
+  display: block;
+  padding: 0.85rem 1.1rem;
+  color: var(--p-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--p-border);
+  border-radius: 999px;
+  color: var(--p-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.waiting-tag {
+  border-color: var(--p-text);
+  color: var(--p-text);
+}
+
+/* Checkboxes in the black and white style */
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 2.75rem;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.check input {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.check.locked {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.control.small select {
+  width: 9rem;
+  height: 2rem;
+  padding-left: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.save-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.save-bar .note {
+  flex: 1;
+}
+
+@media (max-width: 760px) {
+  .save-bar {
+    flex-wrap: wrap;
+  }
+
+  .save-bar .note {
+    flex: 1 0 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .save-bar button {
+    flex: 1;
+  }
+}
+
+/* The table page shows its search placeholders in capitals, here they're sentences and hints, so they stay as written */
+.panel input::placeholder {
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: inherit;
+}
+
+/* Type, origin and the sector choices as plain text lines, not bubbles */
+/* Phones: each field becomes a small card, with the column name in front of each value */
+@media (max-width: 760px) {
+  .fields-table thead {
+    display: none;
+  }
+
+  .fields-table,
+  .fields-table tbody,
+  .fields-table tr,
+  .fields-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .fields-table tr {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--p-border);
+  }
+
+  .fields-table tbody tr:last-child {
+    border-bottom: none;
+  }
+
+  .fields-table td,
+  .fields-table td.tick-col,
+  .fields-table td.actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    width: auto;
+    padding: 0.35rem 1.1rem;
+    border-bottom: none;
+    text-align: left;
+    position: static;
+    box-shadow: none;
+  }
+
+  .fields-table td::before {
+    content: attr(data-label);
+    color: var(--p-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .fields-table td.field-cell {
+    flex-wrap: wrap;
+  }
+
+  .fields-table td.actions:empty {
+    display: none;
+  }
+}
+
+.edit-form .field {
+  width: 100%;
+}
+
+.edit-form .form-actions {
+  align-self: stretch;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+/* Every table in the app: the same gray band behind the whole header row and the same bold heading text.
+   Kept at the end of each page's style sheet so no page-specific rule left a column plain. */
+table thead th,
+table thead th.actions-col,
+table thead th.tick-col {
+  background-color: var(--surface-2);
+  border-bottom: 0;
+}
+
+table thead th .th,
+table thead th .sort-btn,
+table thead th .th-actions {
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.fields-table .require-check,
+.fields-table .require-check input {
+  cursor: pointer;
+}
+
+.fields-table .require-check.locked,
+.fields-table .require-check.locked input {
+  cursor: not-allowed;
+}
+
+.fields-table .require-check {
+  height: auto;
+  justify-content: center;
+}
+
+/* No lines between rows or columns in any table, a hover tint tells the rows apart */
+.fields-table td,
+.cols-table td,
+.versions td,
+.requests-table td,
+.industries td {
+  border-bottom: 0;
+}
+
+.fields-table tbody tr:hover,
+.cols-table tbody tr:hover {
+  background: var(--hover);
+}
+
+/* One look for every row action everywhere: the same square ⋮ button and the same drop-down under it */
+.kebab,
+.menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.kebab:hover,
+.kebab[aria-expanded='true'],
+.menu-btn:hover,
+.menu-btn[aria-expanded='true'] {
+  background: var(--border);
+  border: 0;
+}
+
+.menu,
+.row-menu {
+  min-width: 12rem;
+  padding: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  text-align: left;
+}
+
+.menu [role='menuitem'],
+.row-menu [role='menuitem'] {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: left;
+}
+
+.menu [role='menuitem']:hover:not([disabled]),
+.row-menu [role='menuitem']:hover:not([disabled]) {
+  background: var(--hover);
+}
+
+.menu [role='menuitem'].danger,
+.row-menu [role='menuitem'].danger {
+  color: var(--danger);
+}
+
+.menu [role='menuitem'] i,
+.row-menu [role='menuitem'] i {
+  width: 1rem;
+  text-align: center;
+}
+
+/* The cell holding an open menu rises above the sticky Action cells of the rows under it, so none of the menu is covered */
+td.actions:has(.row-menu) {
+  z-index: 30;
+}
+
+/* The pinned Action cell takes the same hover tint as the rest of its row, so the row reads as one band */
+tbody tr:hover td.actions {
+  background-image: linear-gradient(var(--hover), var(--hover));
+}

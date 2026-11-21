@@ -1,0 +1,827 @@
+<!-- The icons are drawn here with currentColor, so every icon matches its text: black text black icon, orange orange, white white -->
+<main class="ov">
+  @if (loading()) {
+    <!-- Loading: grey blocks in the shape of the page, as tall as the real page so nothing jumps when the numbers arrive -->
+    <div class="skeleton" aria-busy="true">
+      <h1 class="sr-only">Overview</h1>
+      <div class="skel" style="height: 48px; width: 55%; margin-top: 12px"></div>
+      <div class="skel" style="height: 40px"></div>
+      <div class="skel" style="height: 56px"></div>
+      <div class="skel-cols">
+        <div class="skel-rail">
+          <div class="skel" style="height: 170px"></div>
+          <div class="skel" style="height: 190px"></div>
+          <div class="skel" style="height: 150px"></div>
+          <div class="skel" style="height: 170px"></div>
+        </div>
+        <div class="skel-main">
+          <div class="skel" style="height: 465px"></div>
+          <div class="skel" style="height: 330px"></div>
+        </div>
+      </div>
+      <span role="status" class="skel-note">{{
+        slow() ? 'Still loading. This is taking longer than usual.' : 'Loading industries...'
+      }}</span>
+    </div>
+  } @else if (failure() !== null) {
+    <!-- Couldn't load: plain words first, the technical line only behind a link -->
+    <div role="alert" class="notice-card" [attr.aria-busy]="retrying()">
+      <h1 class="sr-only">Overview</h1>
+      <div class="notice-top">
+        <span class="notice-icon">
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M12 8v5M12 16.5v.5" />
+            <path
+              d="M10.3 3.9L2.5 17.5A2 2 0 004.2 20.5h15.6a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"
+            />
+          </svg>
+        </span>
+        <div class="notice-text">
+          <h2>We couldn't load the table</h2>
+          <p>{{ failureText() }}</p>
+        </div>
+      </div>
+      <div class="notice-actions">
+        <button type="button" class="btn solid" [disabled]="retrying()" (click)="retry()">
+          @if (retrying()) {
+            <span class="spin" aria-hidden="true"></span>Trying again...
+          } @else {
+            Try again
+          }
+        </button>
+        <a class="btn line" routerLink="/" fragment="browse">Go to Browse</a>
+        <button
+          type="button"
+          class="link-btn"
+          (click)="showDetails.set(!showDetails())"
+          [attr.aria-expanded]="showDetails()"
+        >
+          {{ showDetails() ? 'Hide details' : 'Show details' }}
+        </button>
+      </div>
+      @if (showDetails()) {
+        <div class="details num fade-in">
+          GET /industries failed: {{ failure() }}<br />Last tried: {{ failedTime() }}<br />The sign
+          in and the other pages are not affected.
+        </div>
+      }
+    </div>
+  } @else if (empty()) {
+    <!-- Empty table: says why there is nothing to chart, with the two ways out -->
+    <div class="empty-wrap">
+      <h1 class="sr-only">Overview</h1>
+      <div class="empty-card">
+        <svg
+          width="56"
+          height="56"
+          viewBox="0 0 56 56"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="8" y="30" width="10" height="18" rx="2" />
+          <rect x="23" y="14" width="10" height="34" rx="2" stroke-dasharray="3 4" />
+          <rect x="38" y="22" width="10" height="26" rx="2" stroke-dasharray="3 4" />
+        </svg>
+        <h2>No industries yet</h2>
+        <p>
+          The table is empty, so there is nothing to chart. Add the first industry, or bring rows
+          back from an earlier copy in History.
+        </p>
+        <div class="empty-actions">
+          <a class="btn solid" routerLink="/" fragment="add">Add an industry</a>
+          <a class="btn line" routerLink="/history">Open History</a>
+        </div>
+      </div>
+      <div class="ghosts" aria-hidden="true">
+        <div class="card ghost-circle">
+          <span class="eyebrow">SHARE OF INDUSTRIES</span>
+          <div class="ghost-ring"></div>
+        </div>
+        <div class="card ghost-bars">
+          <span class="eyebrow">BY RELEASE PERIOD</span>
+          <div class="ghost-row">
+            <i style="height: 30%"></i><i style="height: 55%"></i><i style="height: 40%"></i
+            ><i style="height: 70%"></i><i style="height: 50%"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  } @else {
+    @let d = view();
+    <div class="ready">
+      @if (stale()) {
+        <div role="status" class="stale">
+          <span
+            ><b>Showing numbers from {{ staleText() }}.</b> The last refresh didn't work.</span
+          >
+          <button
+            type="button"
+            class="btn line small"
+            [disabled]="refreshing()"
+            (click)="refreshNow()"
+          >
+            @if (refreshing()) {
+              <span class="spin" aria-hidden="true"></span>Refreshing...
+            } @else {
+              Refresh now
+            }
+          </button>
+        </div>
+      }
+
+      <header class="head">
+        <h1 tabindex="-1">{{ d.headline }}</h1>
+        <div class="head-actions">
+          <!-- A frozen copy of what is on screen, to the tray on the Scratchpad -->
+          <button
+            type="button"
+            class="btn line small"
+            [disabled]="carrying()"
+            (click)="carry('circle')"
+            title="Put a frozen copy of the circle in the carry tray"
+          >
+            Carry the circle
+          </button>
+          <button
+            type="button"
+            class="btn line small"
+            [disabled]="carrying()"
+            (click)="carry('list')"
+            title="Put a frozen copy of the list in the carry tray"
+          >
+            Carry the list
+          </button>
+          <!-- No keyboard on a phone, so this button goes there -->
+          <button
+            type="button"
+            class="btn line small shortcuts-btn"
+            (click)="keys.togglePanel()"
+            [attr.aria-expanded]="keys.panelOpen()"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
+              <path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M7 14h10" /></svg
+            >Shortcuts
+          </button>
+        </div>
+      </header>
+
+      <!-- The filters that are on, as chips -->
+      <div class="chips" tabindex="-1">
+        @for (c of d.chips; track c.id) {
+          <span class="chip fade-in"
+            >{{ c.label }}
+            <button type="button" (click)="removeChip(c.kind, c.key)" [attr.aria-label]="c.aria">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="3"
+                stroke-linecap="round"
+                aria-hidden="true"
+              >
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
+          </span>
+        }
+        @if (d.chips.length) {
+          <button type="button" class="btn line small quiet" (click)="clearAll()">Clear all</button>
+        }
+        @if (browse(); as b) {
+          <!-- Opens Browse with exactly these rows. It is hidden when Browse can't show the same ones, a wrong number is worse than no link. -->
+          <a class="open-btn" routerLink="/" [queryParams]="b.params" fragment="browse"
+            ><span>Open {{ n(b.count) }} in Browse</span>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M5 12h14M13 6l6 6-6 6" /></svg
+          ></a>
+        } @else if (d.chips.length === 0) {
+          <span class="hint">{{ hint() }}</span>
+        }
+      </div>
+
+      @if (d.noMatch) {
+        <div role="status" class="nomatch fade-in">
+          <span
+            >No industries match these filters together. Take one off to see results again.</span
+          >
+          <button type="button" class="btn line small" (click)="clearAll()">Clear all</button>
+        </div>
+      }
+
+      <div class="attn card">
+        <span class="eyebrow">NEEDS ATTENTION</span>
+        <span class="attn-note">pick any, shows rows with at least one</span>
+        @for (a of d.attention; track a.key) {
+          <button
+            type="button"
+            class="pick"
+            [class.on]="a.on"
+            (click)="toggleAttention(a.key)"
+            [attr.aria-pressed]="a.on"
+          >
+            {{ a.label }}<span class="num">{{ n(a.count) }}</span>
+          </button>
+        }
+      </div>
+
+      <section class="cols">
+        <aside class="rail card">
+          <div class="group">
+            <span class="eyebrow">SLICE BY</span>
+            <div role="group" aria-label="Slice by" class="list" (keydown)="onSplitKey($event)">
+              @for (dim of dims(); track dim.id; let i = $index) {
+                <button
+                  type="button"
+                  class="rail-btn dim"
+                  data-opt="1"
+                  [class.on]="dim.id === d.dim.id"
+                  (click)="splitBy(dim.id)"
+                  [attr.aria-pressed]="dim.id === d.dim.id"
+                >
+                  <span class="dot"></span><span class="grow">{{ dim.label }}</span>
+                  @if (dim.custom) {
+                    <span class="custom-tag">CUSTOM</span>
+                  }
+                  @if (i < 5) {
+                    <span class="num keyhint">{{ keyHint(i + 1) }}</span>
+                  }
+                </button>
+              }
+            </div>
+            <span class="small-note"
+              >Fields you add on the Fields page show up here too, if they are a list of
+              choices.</span
+            >
+          </div>
+
+          <div class="group">
+            <div class="group-head">
+              <span class="eyebrow">BREAKDOWN</span>
+              <button
+                type="button"
+                class="toggle"
+                [class.on]="sel().cmp"
+                (click)="toggleCompare()"
+                [attr.aria-pressed]="sel().cmp"
+              >
+                Compare
+              </button>
+            </div>
+            <div class="list" (keydown)="onSliceKey($event)">
+              @for (s of d.slices; track s.key) {
+                <button
+                  type="button"
+                  class="rail-btn slice-row"
+                  data-opt="1"
+                  (click)="togglePick(s.key)"
+                  (mouseenter)="hov.set(s.key)"
+                  (mouseleave)="hov.set(null)"
+                  [attr.aria-pressed]="s.on"
+                >
+                  <span class="slice-top">
+                    <span
+                      class="swatch"
+                      [style.background]="sliceColour(s)"
+                      [style.opacity]="sliceOpacity(s)"
+                    ></span>
+                    <span class="slice-name">{{ s.key }}</span>
+                    <span class="tag" [style.color]="sliceColour(s)">{{ s.tag }}</span>
+                    <span class="num muted">{{ n(s.count) }}</span>
+                    <span class="num pct">{{ s.pct }}</span>
+                  </span>
+                  <span class="meter"
+                    ><span
+                      class="fill"
+                      [style.width.%]="s.width"
+                      [style.background]="sliceColour(s)"
+                      [style.opacity]="sliceOpacity(s)"
+                    ></span
+                  ></span>
+                </button>
+              }
+            </div>
+            @if (sel().cmp) {
+              <span class="small-note dark">{{ compareHint() }}</span>
+            }
+          </div>
+
+          <div class="group find-group">
+            <label for="find" class="eyebrow">FIND AN INDUSTRY</label>
+            <div class="field">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                aria-hidden="true"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <path d="M20 20l-4-4" />
+              </svg>
+              <input
+                id="find"
+                type="text"
+                [value]="q()"
+                (input)="q.set($any($event.target).value)"
+                (keydown.escape)="q.set('')"
+                placeholder="Nizwa, Solar, Falcon"
+                autocomplete="off"
+              />
+            </div>
+            @for (h of hits(); track h.id) {
+              <button type="button" class="rail-btn hit" (click)="pickHit(h.id)">
+                <span class="hit-name">{{ h.name }}</span>
+                <span class="hit-line">{{ h.line }}</span>
+              </button>
+            }
+            @if (found(); as f) {
+              <div class="found fade-in">
+                <div class="found-head">
+                  <span class="found-name">{{ f.name }}</span>
+                  <button
+                    type="button"
+                    class="x"
+                    (click)="focusId.set(null)"
+                    aria-label="Close this row"
+                  >
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                  </button>
+                </div>
+                <div class="facts">
+                  <span class="muted">Rank</span><span class="num strong">{{ f.rank }}</span>
+                  <span class="muted">Price</span><span class="num strong">{{ f.price }}</span>
+                  <span class="muted">Sector</span><span class="semi">{{ f.sector }}</span>
+                  <span class="muted">Released</span><span class="semi">{{ f.released }}</span>
+                </div>
+                <span class="found-note">{{ f.note }}</span>
+                @if (f.flags) {
+                  <span class="found-flags">{{ f.flags }}</span>
+                }
+                <!-- Opens this one row in Browse, ready to edit -->
+                <a class="btn solid small start" routerLink="/" [queryParams]="{ edit: f.id }"
+                  >Edit in Browse</a
+                >
+              </div>
+            }
+          </div>
+
+          <div class="group stats-group">
+            <span class="eyebrow">{{ railTitle() }}</span>
+            @if (!d.cmpActive) {
+              <div class="stats">
+                <div>
+                  <span class="num stat">{{ n(statCount()) }}</span
+                  ><span class="stat-label">Industries</span>
+                </div>
+                <div>
+                  <span class="num stat">{{ d.stats[0].sectors }}</span
+                  ><span class="stat-label">{{
+                    d.stats[0].sectors === 1 ? 'Sector' : 'Sectors'
+                  }}</span>
+                </div>
+                <div>
+                  <span class="num stat">{{
+                    d.stats[0].avg === null ? '—' : usd(statAvg() / 100, 2)
+                  }}</span
+                  ><span class="stat-label">Average price</span>
+                </div>
+                <div>
+                  <span class="num stat">{{ n(statNulls()) }}</span
+                  ><span class="stat-label">No price yet</span>
+                </div>
+              </div>
+            } @else {
+              <div class="versus">
+                <span></span>
+                <span class="ab a">A {{ sel().cmpKeys[0] }}</span>
+                <span class="ab b">B {{ sel().cmpKeys[1] }}</span>
+                @for (r of compareRows(); track r.label) {
+                  <span class="muted">{{ r.label }}</span
+                  ><span class="num val">{{ r.a }}</span
+                  ><span class="num val b">{{ r.b }}</span>
+                }
+              </div>
+            }
+          </div>
+        </aside>
+
+        <div class="main">
+          <!-- One connected card: the circle and the release period bars answer one question together -->
+          <div
+            class="card connected"
+            draggable="true"
+            (dragstart)="onCardDragStart($event, 'circle')"
+            title="Drag onto the carry tray to carry the circle"
+          >
+            <div class="circle-part">
+              <span class="eyebrow self-start">SHARE OF INDUSTRIES</span>
+              <div class="donut">
+                <svg viewBox="0 0 200 200" width="220" height="220" aria-hidden="true">
+                  <circle
+                    cx="100"
+                    cy="100"
+                    r="74"
+                    fill="none"
+                    class="donut-track"
+                    stroke-width="14"
+                  />
+                  <g transform="rotate(-90 100 100)">
+                    @for (s of d.slices; track s.key) {
+                      <circle
+                        class="slice"
+                        cx="100"
+                        cy="100"
+                        r="74"
+                        fill="none"
+                        stroke-width="14"
+                        [style.stroke]="sliceColour(s)"
+                        [style.stroke-opacity]="sliceOpacity(s)"
+                        [attr.stroke-dasharray]="s.dash"
+                        [attr.stroke-dashoffset]="s.offset"
+                        (click)="togglePick(s.key)"
+                        (mouseenter)="hov.set(s.key)"
+                        (mouseleave)="hov.set(null)"
+                      />
+                    }
+                  </g>
+                </svg>
+                <div class="centre">
+                  <span class="centre-label">{{ centre().label }}</span>
+                  <span
+                    class="num centre-num"
+                    [class.mid]="centre().size === 'mid'"
+                    [class.five]="centre().size === 'five'"
+                    >{{ centre().value === null ? centre().text : n(centreNumber()) }}</span
+                  >
+                  <span class="centre-sub">{{ centre().sub }}</span>
+                </div>
+              </div>
+              <div class="insights">
+                <span>{{ d.insight1 }}</span>
+                <span class="faint">{{ d.insight2 }}</span>
+              </div>
+            </div>
+
+            <div class="split"></div>
+
+            <div class="bars-part">
+              <div class="bars-head">
+                <span class="eyebrow">BY RELEASE PERIOD</span>
+                <div role="group" aria-label="Bars show" class="seg">
+                  <button
+                    type="button"
+                    [class.on]="sel().metric === 'count'"
+                    (click)="setMetric('count')"
+                    [attr.aria-pressed]="sel().metric === 'count'"
+                  >
+                    Count
+                  </button>
+                  <button
+                    type="button"
+                    [class.on]="sel().metric === 'avg'"
+                    (click)="setMetric('avg')"
+                    [attr.aria-pressed]="sel().metric === 'avg'"
+                  >
+                    Average price
+                  </button>
+                </div>
+              </div>
+
+              @if (!d.cmpActive) {
+                <div class="bars">
+                  @for (b of d.bars; track $index; let i = $index) {
+                    <!-- The column holds the drawing, the button sits over it with only a name. A bar's number is not drawn:
+                                     hovering it or tabbing to it brings up the tooltip with the exact figure. -->
+                    <div
+                      class="bar-col"
+                      (mouseenter)="hovBar.set(i)"
+                      (mouseleave)="hovBar.set(null)"
+                    >
+                      <div class="fills" [style.opacity]="barOpacity(i)">
+                        @if (!d.stacked) {
+                          <!-- The total as a faint ghost, the picked slice in front of it -->
+                          <div
+                            class="layer rise ghost"
+                            [class.ring]="sel().bar === i"
+                            [style.height.%]="b.allH"
+                            [style.animation-delay.s]="i * 0.05"
+                          ></div>
+                          <div
+                            class="layer rise"
+                            [style.height.%]="b.shownH"
+                            [style.background]="d.effPick ? 'var(--signal)' : 'var(--text)'"
+                            [style.animation-delay.s]="i * 0.05"
+                          ></div>
+                        } @else {
+                          @for (p of b.pieces; track $index; let j = $index) {
+                            <div
+                              class="layer rise piece"
+                              [style.bottom.%]="p.b"
+                              [style.height.%]="p.h"
+                              [style.animation-delay.s]="i * 0.05"
+                              [style.background]="pieceColour(d.dim.keys[j])"
+                              [style.opacity]="pieceOpacity(d.dim.keys[j], d.slices[j].tone)"
+                            ></div>
+                          }
+                          <!-- Industries with no value for this split, so the bar still adds up to the total -->
+                          <div
+                            class="layer rise piece miss"
+                            [style.bottom.%]="b.missB"
+                            [style.height.%]="b.missH"
+                            [style.opacity]="hov() ? 0.35 : 1"
+                            [style.animation-delay.s]="i * 0.05"
+                          ></div>
+                          <div
+                            class="layer ring-only"
+                            [class.ring]="sel().bar === i"
+                            [style.height.%]="b.allH"
+                          ></div>
+                        }
+                      </div>
+                      @if (hovBar() === i) {
+                        <div
+                          role="tooltip"
+                          class="tip fade-in"
+                          [style.bottom]="'calc(' + b.labelAt + '% + 26px)'"
+                          [class.tip-left]="tipLeft(i)"
+                          [class.tip-right]="tipRight(i)"
+                        >
+                          @for (line of barTip(b, i); track $index) {
+                            <div [class.first]="$index === 0">{{ line }}</div>
+                          }
+                        </div>
+                      }
+                      <button
+                        type="button"
+                        class="bar-hit"
+                        (click)="toggleBar(i)"
+                        (focus)="hovBar.set(i)"
+                        (blur)="hovBar.set(null)"
+                        [attr.aria-label]="barAria(b, i)"
+                        [attr.aria-pressed]="sel().bar === i"
+                      ></button>
+                    </div>
+                  }
+                </div>
+              } @else {
+                <!-- Compare: two bars per period, A in ink and B in orange -->
+                <div class="bars">
+                  @for (b of d.compareBars; track $index; let i = $index) {
+                    <div
+                      class="bar-col pair"
+                      (mouseenter)="hovBar.set(i)"
+                      (mouseleave)="hovBar.set(null)"
+                    >
+                      <div class="half">
+                        <div
+                          class="rise pair-bar a"
+                          [style.opacity]="barOpacity(i)"
+                          [style.height.%]="b.aH"
+                          [style.animation-delay.s]="i * 0.05"
+                        ></div>
+                      </div>
+                      <div class="half">
+                        <div
+                          class="rise pair-bar b"
+                          [style.opacity]="barOpacity(i)"
+                          [style.height.%]="b.bH"
+                          [style.animation-delay.s]="i * 0.05"
+                        ></div>
+                      </div>
+                      @if (hovBar() === i) {
+                        <div
+                          role="tooltip"
+                          class="tip fade-in"
+                          [style.bottom]="'calc(' + pairAt(b) + '% + 40px)'"
+                          [class.tip-left]="tipLeft(i)"
+                          [class.tip-right]="tipRight(i)"
+                        >
+                          @for (line of pairTip(b, i); track $index) {
+                            <div [class.first]="$index === 0">{{ line }}</div>
+                          }
+                        </div>
+                      }
+                      <button
+                        type="button"
+                        class="bar-hit"
+                        (click)="toggleBar(i)"
+                        (focus)="hovBar.set(i)"
+                        (blur)="hovBar.set(null)"
+                        [attr.aria-label]="
+                          d.periods[i].label +
+                          ', ' +
+                          sel().cmpKeys[0] +
+                          ' ' +
+                          fmt(b.a) +
+                          ', ' +
+                          sel().cmpKeys[1] +
+                          ' ' +
+                          fmt(b.b)
+                        "
+                        [attr.aria-pressed]="sel().bar === i"
+                      ></button>
+                    </div>
+                  }
+                </div>
+              }
+
+              <div class="axis">
+                @for (b of d.bars; track $index) {
+                  <span class="num">{{ b.label }}</span>
+                }
+              </div>
+
+              @if (d.stacked) {
+                <div role="group" aria-label="Slices, same as the circle" class="legend">
+                  @for (s of d.slices; track s.key) {
+                    <button
+                      type="button"
+                      (click)="togglePick(s.key)"
+                      (mouseenter)="hov.set(s.key)"
+                      (mouseleave)="hov.set(null)"
+                      [attr.aria-pressed]="s.on"
+                    >
+                      <span
+                        class="swatch"
+                        [style.background]="sliceColour(s)"
+                        [style.opacity]="hov() === s.key ? 1 : s.tone"
+                      ></span
+                      >{{ s.key }}<span class="num faint">{{ n(s.count) }}</span>
+                    </button>
+                  }
+                </div>
+              }
+              <div class="foot">
+                @if (d.cmpActive) {
+                  <span class="key-a"><span class="swatch ink"></span>{{ sel().cmpKeys[0] }}</span>
+                  <span class="key-b"
+                    ><span class="swatch signal"></span>{{ sel().cmpKeys[1] }}</span
+                  >
+                }
+                <span>{{ barFoot() }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div
+            class="card top"
+            draggable="true"
+            (dragstart)="onCardDragStart($event, 'list')"
+            title="Drag onto the carry tray to carry the list"
+          >
+            <div class="top-head">
+              <span class="eyebrow">{{
+                sel().topMode === 'top10'
+                  ? 'TOP 10 MOST EXPENSIVE'
+                  : sel().topMode === 'low3'
+                    ? '3 CHEAPEST'
+                    : 'TOP 3 MOST EXPENSIVE'
+              }}</span>
+              <div role="group" aria-label="List" class="seg">
+                <button
+                  type="button"
+                  [class.on]="sel().topMode === 'top3'"
+                  (click)="setTopMode('top3')"
+                  [attr.aria-pressed]="sel().topMode === 'top3'"
+                >
+                  Top 3
+                </button>
+                <button
+                  type="button"
+                  [class.on]="sel().topMode === 'top10'"
+                  (click)="setTopMode('top10')"
+                  [attr.aria-pressed]="sel().topMode === 'top10'"
+                >
+                  Top 10
+                </button>
+                <button
+                  type="button"
+                  [class.on]="sel().topMode === 'low3'"
+                  (click)="setTopMode('low3')"
+                  [attr.aria-pressed]="sel().topMode === 'low3'"
+                >
+                  Cheapest 3
+                </button>
+              </div>
+            </div>
+            <div class="top-cols" [class.compare]="d.cmpActive">
+              @for (c of d.cols; track c.title) {
+                <div class="top-col">
+                  <div class="top-col-head">
+                    <span class="top-title" [class.signal]="c.tone === 'signal'">{{
+                      c.title
+                    }}</span>
+                    <span class="muted">{{ c.note }}</span>
+                  </div>
+                  @for (t of c.rows; track t.id) {
+                    <div class="top-item">
+                      <button
+                        type="button"
+                        class="top-row"
+                        [class.compact]="sel().topMode === 'top10'"
+                        [class.lit]="openId() === t.id || hovTop() === t.id"
+                        (click)="openId.set(openId() === t.id ? null : t.id)"
+                        (mouseenter)="hovTop.set(t.id)"
+                        (mouseleave)="hovTop.set(null)"
+                        [attr.aria-expanded]="openId() === t.id"
+                      >
+                        <span
+                          class="num rank"
+                          [class.signal]="c.tone === 'signal'"
+                          [class.first]="t.rank === 1"
+                          >{{ t.rank }}</span
+                        >
+                        <span class="who-col">
+                          <span class="top-name" [attr.title]="t.name">{{ t.name }}</span>
+                          <span class="muted">{{ t.sector }}</span>
+                        </span>
+                        <span class="top-meter"
+                          ><span
+                            class="fill"
+                            [style.width.%]="t.fill"
+                            [class.signal]="c.tone === 'signal'"
+                            [class.first]="t.rank === 1"
+                          ></span
+                        ></span>
+                        <span class="num top-price">{{ t.price }}</span>
+                      </button>
+                      @if (openId() === t.id) {
+                        <div class="top-open fade-in">
+                          <span><b>Sector</b> {{ t.sector }}</span>
+                          <span><b>Price</b> {{ t.price }}</span>
+                          <span><b>Released</b> {{ t.release }}</span>
+                          @if (t.flags) {
+                            <span>{{ t.flags }}</span>
+                          }
+                          <span class="grow-end">
+                            <a class="btn solid small" routerLink="/" [queryParams]="{ edit: t.id }"
+                              >Edit in Browse</a
+                            >
+                          </span>
+                        </div>
+                      }
+                    </div>
+                  }
+                  @if (c.empty) {
+                    <div class="top-none">Nothing with a price matches these filters.</div>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  }
+</main>
